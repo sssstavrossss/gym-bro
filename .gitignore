@@ -1,0 +1,30 @@
+# Secrets and local config
+.env
+.env.*
+!.env.example
+
+# .NET
+bin/
+obj/
+TestResults/
+*.user
+*.suo
+.vs/
+artifacts/
+
+# Node
+node_modules/
+dist/
+*.tsbuildinfo
+npm-debug.log*
+
+# Editors and OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
+
+# Local databases
+*.db
+*.db-wal
+*.db-shm

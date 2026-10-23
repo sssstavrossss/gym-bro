@@ -1,0 +1,14 @@
+**/.git
+**/.vs
+**/.idea
+**/.vscode
+**/.env
+**/.env.*
+**/bin
+**/obj
+**/node_modules
+**/dist
+**/TestResults
+**/*.user
+**/*.md
+backend/GymBro.Api.Tests

@@ -1,0 +1,55 @@
+# Everything comes from the environment. Docker Compose reads .env in this
+# directory for ${...} substitution. The image itself has no tenant ids,
+# client ids, or passwords.
+
+name: gymbro
+
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-gymbro}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-gymbro}
+    # Published on loopback so `dotnet run` on the host can use the same
+    # database. The app container uses the Docker network hostname instead.
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - gymbro-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
+  app:
+    build: .
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      # Listen on every interface *inside* the container. The host publish
+      # below is what keeps it on 127.0.0.1 (or whatever BIND_ADDRESS is).
+      # Binding Kestrel to 127.0.0.1 inside the container would hide it from
+      # Docker's port mapping.
+      ASPNETCORE_URLS: http://0.0.0.0:${BIND_PORT:-8100}
+      Entra__TenantSubdomain: ${ENTRA_TENANT_SUBDOMAIN:-}
+      Entra__TenantId: ${ENTRA_TENANT_ID:-}
+      Entra__SpaClientId: ${ENTRA_SPA_CLIENT_ID:-}
+      Entra__ApiClientId: ${ENTRA_API_CLIENT_ID:-}
+      # Hostname on the compose network, not POSTGRES_HOST from .env
+      # (that one is "localhost" for `dotnet run` on the host).
+      Postgres__Host: postgres
+      Postgres__Port: "5432"
+      Postgres__Database: ${POSTGRES_DB:-gymbro}
+      Postgres__Username: ${POSTGRES_USER:-gymbro}
+      Postgres__Password: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    ports:
+      - "${BIND_ADDRESS:-127.0.0.1}:${BIND_PORT:-8100}:${BIND_PORT:-8100}"
+    restart: unless-stopped
+
+volumes:
+  gymbro-postgres:
