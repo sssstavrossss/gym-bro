@@ -1,0 +1,164 @@
+/* Inter (variable, latin subset) bundled so the prototype works offline and from a single file. */
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url("@fontsource-variable/inter/files/inter-latin-wght-normal.woff2") format("woff2-variations");
+}
+
+/* Tokens — same names as the Figma variables (collection "Gym Bro Tokens", mode Dark). */
+:root {
+  color-scheme: dark;
+  --color-bg: #0b0b0c;
+  --color-surface: #1a1a1c;
+  --color-surface-2: #26262a;
+  --color-border: #2e2e33;
+  --color-track: #2a2a2f;
+  --color-progress: #7c7c84;
+  --color-hit: #ffffff;
+  --color-action: #ffffff;
+  --color-on-action: #0b0b0c;
+  --text-primary: #ffffff;
+  /* S5 (WCAG AA): secondary and tertiary lifted so all text passes 4.5:1 on every surface, incl. #303036.
+     Was #9a9aa1 / #5e5e66 (tertiary failed: 2.0–3.1:1). See a11y/contrast.md. */
+  --text-secondary: #b3b3ba;
+  --text-tertiary: #9c9ca4;
+  /* outlines that identify controls (chips, inputs, "no target" cells): ≥3:1 on surfaces (WCAG 1.4.11) */
+  --color-border-strong: #737379;
+  --chart-line: #7db1ff;
+  --shade-on-target: #ededef;
+  --shade-close: #9c9ca3;
+  --shade-off: #55555c;
+  --shade-far: #333338;
+  --radius-card: 16px;
+  --radius-control: 12px;
+  --radius-sheet: 24px;
+  --space-screen: 16px;
+  --space-gap: 12px;
+
+  /* Safe areas (iPhone). In ?statusbar demo mode these are faked for screenshots. */
+  --sat: env(safe-area-inset-top, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+  --tabbar-h: calc(50px + max(var(--sab), 14px));
+
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-feature-settings: "cv11", "ss01" 0;
+  background: #000;
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+html.demo-statusbar { --sat: 54px; --sab: 34px; }
+
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overscroll-behavior: none; }
+/* ---- Dynamic Type (approved 24 Oct 2026) ----
+   All type is rem with 1rem = the platform's body size (17 px by default, Apple's "Body").
+   - iOS/iPadOS: -apple-system-body makes the root follow Settings → Display & Brightness → Text Size
+     (and Accessibility → Larger Text, up to AX5 ≈ 53 px). Takes effect when you return to the app.
+   - Elsewhere: 106.25 % = 17 px at the browser default and follows the browser's font-size setting.
+   Display numbers are capped with min() so they don't explode; body and labels scale fully. */
+html { font-size: 106.25%; }
+@supports (font: -apple-system-body) and (-webkit-touch-callout: none) {
+  html { font: -apple-system-body; font-family: "Inter", -apple-system, BlinkMacSystemFont, sans-serif; }
+}
+html.dt-sim { font-size: var(--dt-sim) !important; } /* ?dt=23 etc. — prototype-only simulation of a text size */
+body { background: #000; }
+button { font: inherit; color: inherit; background: none; border: 0; padding: 0; margin: 0; cursor: pointer; touch-action: manipulation; }
+/* S5: one visible keyboard focus ring everywhere (white, 2 px, offset) — scoped `outline: 0` rules can't hide it */
+:focus-visible { outline: 2px solid var(--color-action) !important; outline-offset: 2px; }
+/* text fields draw the ring on their container instead */
+.field input:focus-visible, .qf input:focus-visible, .inp input:focus-visible, .bare:focus-visible, .ginput:focus-visible, .qinput:focus-visible, .ninput:focus-visible { outline: none !important; }
+.field:has(input:focus-visible), .qf:has(input:focus-visible), .inp:has(input:focus-visible) { outline: 2px solid var(--color-action); outline-offset: 2px; }
+.ninput:focus-visible { box-shadow: 0 2px 0 0 var(--color-action); }
+.sr-only { position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+/* S5: respect reduced motion — no slides, springs, spinners or blinking carets */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
+}
+input { font: inherit; color: inherit; }
+svg { display: block; flex: none; }
+
+/* ---- Text styles (Figma) ---- */
+.t-dxl { font-size: min(4.2353rem, 88px); line-height: 1.06; font-weight: 700; letter-spacing: -0.04em; }
+.t-dl { font-size: min(2.8235rem, 60px); line-height: 1.08; font-weight: 700; letter-spacing: -0.03em; }
+.t-nm { font-size: min(1.6471rem, 40px); line-height: 1.15; font-weight: 700; letter-spacing: -0.02em; }
+.t-ns { font-size: 1rem; line-height: 1.2941rem; font-weight: 600; letter-spacing: -0.01em; }
+.t-title { font-size: min(1.6471rem, 52px); line-height: 1.2; font-weight: 700; letter-spacing: -0.02em; margin: 0; }
+.t-head { font-size: 1rem; line-height: 1.2941rem; font-weight: 600; letter-spacing: -0.01em; margin: 0; }
+.t-body { font-size: 0.8824rem; line-height: 1.1765rem; font-weight: 400; letter-spacing: -0.01em; }
+.t-bodys { font-size: 0.8824rem; line-height: 1.1765rem; font-weight: 600; letter-spacing: -0.01em; }
+.t-label { font-size: 0.7647rem; line-height: 0.9412rem; font-weight: 500; }
+.t-cap { font-size: 0.6471rem; line-height: 0.8235rem; font-weight: 500; letter-spacing: 0.04em; text-transform: uppercase; }
+.t-capm { font-size: 0.6471rem; line-height: 0.8235rem; font-weight: 500; letter-spacing: 0.04em; }
+.t-capn { font-size: 0.6471rem; line-height: 0.8235rem; font-weight: 500; }
+.c2 { color: var(--text-secondary); }
+.c3 { color: var(--text-tertiary); }
+.num { font-variant-numeric: tabular-nums; }
+
+/* ---- Layout primitives ---- */
+.row { display: flex; align-items: center; }
+.col { display: flex; flex-direction: column; }
+.grow { flex: 1 1 auto; min-width: 0; }
+.base { display: flex; align-items: baseline; gap: 0 4px; flex-wrap: wrap; }
+.card { background: var(--color-surface); border-radius: var(--radius-card); padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+.divider { height: 1px; background: var(--color-border); }
+
+.screen { padding: calc(var(--sat) + 4px) max(var(--space-screen), env(safe-area-inset-right, 0px)) calc(var(--tabbar-h) + 24px) max(var(--space-screen), env(safe-area-inset-left, 0px)); display: flex; flex-direction: column; gap: var(--space-gap); }
+.screen-head { display: flex; align-items: center; min-height: 34px; }
+
+/* circle buttons */
+.cbtn { position: relative; width: var(--s, 32px); height: var(--s, 32px); border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: var(--color-surface-2); color: #fff; flex: none; transition: transform .12s, opacity .12s; }
+/* S5: 44 pt hit area around smaller visuals */
+.cbtn::after { content: ""; position: absolute; inset: min(0px, calc((var(--s, 32px) - 44px) / 2)); border-radius: 50%; }
+.cbtn.filled { background: var(--color-action); color: var(--color-on-action); }
+.cbtn:active { transform: scale(.92); opacity: .85; }
+.cbtn:disabled { opacity: .35; cursor: default; }
+
+.primary-btn { min-height: 52px; height: auto; padding: 6px 16px; text-align: center; width: 100%; border-radius: 26px; background: var(--color-action); color: var(--color-on-action); display: flex; align-items: center; justify-content: center; flex: none; }
+.primary-btn:active { opacity: .85; }
+.primary-btn:disabled { opacity: .35; }
+
+.chip { position: relative; min-height: 30px; height: auto; padding: 0 10px; border-radius: 15px; display: inline-flex; align-items: center; justify-content: center; background: var(--color-surface-2); color: var(--text-secondary); }
+.chip.on { background: var(--color-action); color: var(--color-on-action); }
+.chip::after { content: ""; position: absolute; inset: min(0px, calc((100% - 44px) / 2)) -2px; }
+
+.pressable { transition: opacity .12s; }
+.pressable:active { opacity: .6; }
+
+/* ---------- Responsive (phone is the primary design; these only kick in on wider screens) ---------- */
+/* Tablet 600–1023: wider centred column, bottom tabs kept. */
+.is-tablet .screen { max-width: 760px; margin: 0 auto; padding-left: 24px; padding-right: 24px; padding-top: calc(var(--sat) + 24px); gap: 16px; }
+/* Desktop ≥1024: sidebar + roomy content, max ~1200 px. */
+.is-desktop { --sat: 0px; --sab: 0px; --tabbar-h: 0px; }
+.is-desktop .screen { max-width: 1200px; margin: 0 auto; padding: 32px 40px 48px; gap: 20px; }
+.is-desktop .t-title { font-size: 1.8824rem; line-height: 2.2353rem; }
+.can-hover .card.clickable { transition: background .15s; }
+.can-hover .card.clickable:hover { background: #202023; }
+.can-hover .cbtn:not(.filled):not(:disabled):hover { background: #303036; }
+.can-hover .cbtn.filled:hover { opacity: .88; }
+.can-hover .primary-btn:not(:disabled):hover { opacity: .9; }
+.can-hover .chip:not(.on):hover { background: #303036; color: var(--text-primary); }
+.can-hover .pressable:hover { opacity: .8; }
+kbd { font: 600 0.6471rem/1 "Inter", sans-serif; padding: 2px 5px; border-radius: 4px; border: 1px solid var(--color-border); color: var(--text-secondary); }
+/* Grid helpers */
+.dash { display: grid; gap: 16px; align-items: start; }
+.stack { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.sticky { position: sticky; top: 32px; }
+
+/* programmatic focus targets (headings moved to for screen readers) don't need a ring */
+[tabindex="-1"]:focus-visible { outline: none !important; }
+.ro-browse .screen { padding-top: calc(var(--sat) + 60px) !important; }
+
+/* ---- Dynamic Type: reflow at large sizes (classes set in main.ts from the root size) ---- */
+/* xxLarge+ (≥22 px): single-line truncation turns into wrapping so names and numbers are never cut. */
+.dt-l .ell, .dt-l .nowrap { white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; }
+/* AX sizes (≥28 px): rows wrap instead of overflowing; headers stack. */
+.dt-xl .row { flex-wrap: wrap; row-gap: 4px; }
+.dt-xl .screen-head { flex-wrap: wrap; row-gap: 6px; }
+.dt-xl .grow { min-width: 0; }
+/* Food detail / Quick Add sheets scroll as a whole at large sizes (keypad and Add button scroll into view) */
+.dt-l .sheet:has(.preview), .dt-l .sheet:has(.qgrid) { overflow-y: auto; }
+.dt-l .sheet:has(.preview) > *, .dt-l .sheet:has(.qgrid) > * { flex-shrink: 0; }

@@ -1,0 +1,20 @@
+// Unit checks for the targets maths (S7 acceptance tests). Usage: node scripts/unit.mjs
+import { build } from "esbuild";
+const out = await build({ entryPoints: [new URL("../src/lib/nutrition.ts", import.meta.url).pathname], bundle: true, format: "esm", write: false, platform: "node" });
+const m = await import("data:text/javascript;base64," + Buffer.from(out.outputFiles[0].text).toString("base64"));
+const P = { sex: "male", birthYear: 1990, heightCm: 180, activity: "moderate", goal: "lose", rate: 0.5, goalWeight: 80, startWeight: 85, proteinPerKg: 2.0, fatPct: 25 };
+let fail = 0; const ok = (c, msg) => { console.log(c ? "PASS" : "FAIL", msg); if (!c) fail++; };
+const r = (t) => [Math.round(t.kcal), Math.round(t.protein), Math.round(t.fat), Math.round(t.carbs)].join("/");
+ok(r(m.targets(P, 83.6, 2026)) === "2218/167/62/249", "rate mode worked example 2,218 / 167 / 62 / 249");
+ok(r(m.targets({ ...P, goalMode: "manual", manualKcal: 2000 }, 83.6, 2026)) === "2000/167/56/208", "manual 2,000 @ 83.6 kg, 2.0 g/kg, 25 % → P167 F56 C208");
+const cut = m.targets({ ...P, goalMode: "manual", manualKcal: 1200, proteinPerKg: 3.0 }, 83.6, 2026);
+ok(cut.fatCut && Math.round(cut.protein) === 251 && Math.round(cut.carbs) === 0 && Math.round(cut.protein * 4 + cut.fat * 9) === 1200, "protein + fat > kcal → protein kept, fat cut to fit, carbs 0, flagged");
+const low = m.targets({ ...P, goalMode: "manual", manualKcal: 1500 }, 83.6, 2026);
+ok(low.kcal === 1500 && low.belowBmr && !low.floored, "manual below BMR kept, flagged, not floored");
+ok(m.targets({ ...P, rate: 1.0, activity: "sedentary" }, 83.6, 2026).floored, "rate mode still applies the floor");
+const a = m.targets({ ...P, goalMode: "manual", manualKcal: 2000 }, 83.6, 2026), b = m.targets({ ...P, goalMode: "manual", manualKcal: 2000 }, 82.9, 2026);
+ok(a.kcal === b.kcal && Math.round(b.protein) === 166 && b.carbs > a.carbs, "two Mondays: kcal fixed, protein follows the trend, carbs absorb it");
+ok(m.parseManualKcal("2 000").v === 2000 && m.parseManualKcal("2,000").v === 2000 && m.parseManualKcal("2000").v === 2000, "2000 / 2 000 / 2,000 accepted");
+ok(m.parseManualKcal("2000.5").err && m.parseManualKcal("1195").err && m.parseManualKcal("2005").err && m.parseManualKcal("6000").err, "decimals, out of range and non-10 steps rejected");
+ok(m.impliedKgPerWeek(2768, 2000).toFixed(1) === "-0.7", "implied change: 2,000 vs burn 2,768 ≈ −0.7 kg/week");
+process.exitCode = fail ? 1 : 0;

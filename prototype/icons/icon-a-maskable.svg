@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- Option A · "GB" bold geometric monogram on near-black. Full-bleed (the OS applies the corner mask). -->
+  <rect width="1024" height="1024" fill="#0B0B0C"/>
+  <g transform="translate(512 512) scale(.78) translate(-512 -512)">
+  <g fill="none" stroke="#FFFFFF" stroke-width="104" stroke-linecap="butt" stroke-linejoin="miter">
+    <!-- G: 315° ring + crossbar -->
+    <path d="M437.4 389.4 A165 165 0 1 0 457.0 613.6 L457.0 512 L366 512"/>
+    <!-- B: stem + two bowls (lower bowl slightly wider, like a real B) -->
+    <path d="M650 295 V729"/>
+    <path d="M598 347 H762 A82.5 82.5 0 0 1 762 512 H650"/>
+    <path d="M650 512 H778 A86.5 86.5 0 0 1 778 677 H598"/>
+  </g>
+</g>
+</svg>
