@@ -108,7 +108,7 @@ async function save(force = false) {
   const trend = result.saved.trend;
   const note = trend.trendState === "fresh_start" && trend.freshStart
     ? `fresh start after ${gapLabel(trend.freshStart.daysSincePrevious)}`
-    : `trend now ${trend.trendKg != null ? trend.trendKg.toFixed(2) : "—"} kg${isLowAccuracy(trend) ? " · low accuracy" : ""}`;
+    : `trend now ${trend.trendKg != null ? kg(trend.trendKg) : "—"} kg${isLowAccuracy(trend) ? " · low accuracy" : ""}`;
   toast(replaced ? `Replaced the weigh-in with ${kg(result.saved.kg)} kg · ${note}` : `Saved ${kg(result.saved.kg)} kg · ${note}`);
   closeSheet();
 }
@@ -138,14 +138,32 @@ async function del() {
     return;
   }
   closeSheet();
-  toast(old != null ? `Deleted weigh-in ${kg(old)} kg · ${shortDate(date)}` : "Weigh-in deleted");
+  if (old == null) {
+    toast("Weigh-in deleted");
+    return;
+  }
+  const kilograms = old;
+  toast(`Deleted weigh-in ${kg(kilograms)} kg · ${shortDate(date)}`, {
+    label: "Undo",
+    run: () => { void restoreWeighIn(date, kilograms); },
+  });
+}
+
+async function restoreWeighIn(date: string, kilograms: number) {
+  const result = await saveWeighIn(date, kilograms);
+  if (result?.confirm) {
+    const forced = await saveWeighIn(date, kilograms, true);
+    if (!forced || forced.confirm) toast("Could not restore that weigh-in.");
+    return;
+  }
+  if (!result) toast("Could not restore that weigh-in.");
 }
 
 const diffText = computed(() => {
   if (!confirm.value) return "";
   const diff = confirm.value.kg - confirm.value.previousTrendKg;
   const way = diff < 0 ? "below" : "above";
-  return `That's ${kg(Math.abs(diff))} kg ${way} your trend (${confirm.value.previousTrendKg.toFixed(2)} kg). Nothing is saved until you choose.`;
+  return `That's ${kg(Math.abs(diff))} kg ${way} your trend (${kg(confirm.value.previousTrendKg)} kg). Nothing is saved until you choose.`;
 });
 </script>
 
@@ -203,7 +221,7 @@ const diffText = computed(() => {
     <div v-if="profile.weight?.trendKg != null" class="row stats">
       <div class="col grow">
         <span class="row lblrow"><span class="t-capm c2">Trend</span><AccuracyDot v-if="low" from="weight" /></span>
-        <span class="base"><span class="t-ns">{{ profile.weight.trendKg.toFixed(2) }}</span><span class="t-label c2">kg</span></span>
+        <span class="base"><span class="t-ns">{{ kg(profile.weight.trendKg) }}</span><span class="t-label c2">kg</span></span>
         <span v-if="low" class="t-capn c2">low accuracy</span>
       </div>
       <div class="col grow">

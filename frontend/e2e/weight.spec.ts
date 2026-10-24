@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
+import { expect, test, type APIRequestContext, type Locator, type Page } from "@playwright/test";
 
 const widths = [390, 820, 1440] as const;
 
@@ -117,7 +117,9 @@ test("low accuracy dot, sheet, and profile", async ({ page }) => {
     await expectClean(page);
     await page.getByRole("button", { name: "Got it" }).click();
     await page.getByRole("link", { name: "Profile" }).click();
-    await expect(page.getByRole("button", { name: /trend · low accuracy/i })).toContainText("83.60");
+    const trendButton = page.getByRole("button", { name: /trend · low accuracy/i });
+    await expect(trendButton).toContainText("83.6");
+    await expect(trendButton).not.toContainText("83.60");
     if (width === 1440) {
       await expect(page.locator("aside.side").getByRole("button", { name: /Low accuracy/ })).toBeVisible();
     }
@@ -184,7 +186,9 @@ test("typo guard asks inline and Fix it saves nothing", async ({ page }) => {
     await field.fill("38.6");
     await page.getByRole("button", { name: "Save weight" }).click();
     await expect(page.getByRole("heading", { name: "Is 38.6 kg right?" })).toBeVisible();
-    await expect(page.getByRole("alertdialog")).toContainText("83.60 kg");
+    const guard = page.getByRole("alertdialog");
+    await expect(guard).toContainText("83.6 kg");
+    await expect(guard).not.toContainText("83.60");
     await expectClean(page);
     await page.getByRole("button", { name: "Fix it" }).click();
     await expect(page.getByRole("heading", { name: "Is 38.6 kg right?" })).toHaveCount(0);
@@ -215,7 +219,9 @@ test("a back-dated weigh-in is checked against the day before it", async ({ page
   await page.getByRole("textbox", { name: "Weight in kilograms" }).fill("90");
   await page.getByRole("button", { name: "Save weight" }).click();
   await expect(page.getByRole("heading", { name: "Is 90.0 kg right?" })).toBeVisible();
-  await expect(page.getByRole("alertdialog")).toContainText("83.60 kg");
+  const guard = page.getByRole("alertdialog");
+  await expect(guard).toContainText("83.6 kg");
+  await expect(guard).not.toContainText("83.60");
   await page.getByRole("button", { name: "Fix it" }).click();
   const listed = await (await page.request.get("/api/weigh-ins", { headers: headers(oid) })).json();
   expect(listed.weighIns.some((row: { localDate: string }) => row.localDate === when.yesterday)).toBeFalsy();
@@ -267,7 +273,7 @@ test("35.2b editing the only weigh-in updates the trend", async ({ page }) => {
   await page.getByRole("textbox", { name: "Weight in kilograms" }).fill("84");
   await page.getByRole("button", { name: "Save weight" }).click();
   await expect(page.getByRole("heading", { name: "Log weight" })).toHaveCount(0);
-  await expect(page.locator(".t-nm")).toHaveText("84.00");
+  await expect(page.locator(".t-nm")).toHaveText("84.0");
   const trend = await (await page.request.get("/api/weight/trend", { headers: headers(oid) })).json();
   expect(trend.trendKg).toBe(84);
   expect(trend.latestKg).toBe(84);
@@ -316,4 +322,80 @@ test("35.11b the weight sheet earliest date is today minus 7", async ({ page }) 
   expect([...values].sort()[0]).toBe(when.minus7);
   expect(values).not.toContain(when.minus8);
   expect(values).toContain(when.today);
+});
+
+test("undo restores the deleted weigh-in", async ({ page }) => {
+  const oid = `e2e-undo-${Date.now()}`;
+  const when = await clock(page);
+  await putWeighIn(page.request, oid, when.yesterday, 83.6, when.zone);
+  await putWeighIn(page.request, oid, when.today, 84, when.zone);
+  await putProfile(page.request, oid, when.zone, 80);
+  await openApp(page, oid, 390);
+  await page.getByRole("button", { name: /Open weight|Log weight/ }).first().click();
+  await page.getByRole("button", { name: "Delete" }).click();
+  await expect(page.getByRole("button", { name: "Undo" })).toBeVisible();
+  const gone = await (await page.request.get("/api/weigh-ins", { headers: headers(oid) })).json();
+  expect(gone.weighIns).toEqual([{ localDate: when.yesterday, kg: 83.6, canDelete: false }]);
+  await page.getByRole("button", { name: "Undo" }).click();
+  await expect(page.getByText(/latest 84\.0/)).toBeVisible();
+  const restored = await (await page.request.get("/api/weigh-ins", { headers: headers(oid) })).json();
+  expect(restored.weighIns).toEqual([
+    { localDate: when.today, kg: 84, canDelete: true },
+    { localDate: when.yesterday, kg: 83.6, canDelete: true },
+  ]);
+});
+
+async function tapCenter(page: Page, locator: Locator) {
+  await locator.scrollIntoViewIfNeeded();
+  const box = await locator.boundingBox();
+  expect(box).toBeTruthy();
+  await page.mouse.click(box!.x + box!.width / 2, box!.y + box!.height / 2);
+}
+
+test("weight card opens from the number and the subtitle", async ({ page }) => {
+  const oid = `e2e-card-${Date.now()}`;
+  const when = await clock(page);
+  await putWeighIn(page.request, oid, when.today, 83.6, when.zone);
+  await putProfile(page.request, oid, when.zone, 80);
+  await openApp(page, oid, 390);
+  const card = page.locator(".wcard");
+  await expect(card.locator(".t-nm")).toHaveText("83.6");
+  await expect(card.locator(".wsub")).toContainText("latest 83.6");
+  await expect(card).not.toContainText("83.60");
+  for (const rootPx of [null, 53] as const) {
+    await page.evaluate((size) => {
+      document.documentElement.style.fontSize = size == null ? "" : `${size}px`;
+      window.dispatchEvent(new Event("resize"));
+    }, rootPx);
+    const layout = await card.evaluate((node) => {
+      const style = getComputedStyle(node);
+      const number = node.querySelector(".t-nm")?.getBoundingClientRect();
+      const spark = node.querySelector("svg.spark")?.getBoundingClientRect();
+      return {
+        direction: style.flexDirection,
+        wrap: style.flexWrap,
+        number,
+        spark,
+      };
+    });
+    expect(layout.direction).toBe("row");
+    expect(layout.wrap).toBe("nowrap");
+    expect(layout.number).toBeTruthy();
+    expect(layout.spark).toBeTruthy();
+    expect(layout.spark!.x).toBeGreaterThan(layout.number!.x + layout.number!.width / 2);
+    await tapCenter(page, card.locator(".t-nm"));
+    await expect(page.getByRole("dialog", { name: "Log weight" })).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("dialog", { name: "Log weight" })).toHaveCount(0);
+    await tapCenter(page, card.locator(".wsub"));
+    await expect(page.getByRole("dialog", { name: "Log weight" })).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("dialog", { name: "Log weight" })).toHaveCount(0);
+    await card.getByRole("button", { name: /Low accuracy/ }).click();
+    await expect(page.getByRole("dialog", { name: "Trend accuracy" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Low accuracy" })).toBeVisible();
+    await expect(page.getByRole("dialog", { name: "Log weight" })).toHaveCount(0);
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("dialog", { name: "Trend accuracy" })).toHaveCount(0);
+  }
 });

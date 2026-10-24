@@ -31,7 +31,7 @@ async function maintain() {
       <span class="ic" aria-hidden="true"><Icon name="check" :size="18" :sw="2.6" /></span>
       <div class="col grow">
         <h2 id="gr-h" class="t-bodys m0">You've reached your goal weight</h2>
-        <span class="t-label c2">Trend {{ trend != null ? kg(trend, 2) : "—" }} kg · goal {{ goal != null ? kg(goal) : "—" }} kg</span>
+        <span class="t-label c2">Trend {{ trend != null ? kg(trend) : "—" }} kg · goal {{ goal != null ? kg(goal) : "—" }} kg</span>
       </div>
     </div>
     <p class="t-body m0">Switch to Maintain, or keep your current goal?</p>

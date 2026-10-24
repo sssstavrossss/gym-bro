@@ -38,7 +38,7 @@ describe("weightCaption", () => {
       weighInsInWindow: 1,
     }))).toEqual({
       label: "trend · low accuracy",
-      value: "83.60 kg",
+      value: "83.6 kg",
       note: "low accuracy",
       low: true,
       fresh: false,
@@ -55,7 +55,7 @@ describe("weightCaption", () => {
       weighInsInWindow: 4,
     }))).toEqual({
       label: "trend",
-      value: "83.60 kg",
+      value: "83.6 kg",
       note: "",
       low: false,
       fresh: false,

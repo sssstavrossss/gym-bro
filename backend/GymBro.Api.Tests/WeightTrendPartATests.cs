@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text;
@@ -494,7 +495,14 @@ public sealed class WeightTrendPartATests(ApiFactory factory)
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal(WeighInEndpoints.ConfirmWeighIn, body.GetProperty("code").GetString());
-        Assert.Equal($"Is {kg.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture)} kg right?", body.GetProperty("error").GetString());
+        var culture = CultureInfo.InvariantCulture;
+        var difference = kg - previousTrend;
+        var direction = difference < 0 ? "below" : "above";
+        var shownDifference = decimal.Round(Math.Abs(difference), 1, MidpointRounding.AwayFromZero).ToString("0.0", culture);
+        var shownTrend = decimal.Round(previousTrend, 1, MidpointRounding.AwayFromZero).ToString("0.0", culture);
+        var error = body.GetProperty("error").GetString();
+        Assert.Equal($"Is {kg.ToString("0.0", culture)} kg right? That's {shownDifference} kg {direction} your trend ({shownTrend} kg). Nothing is saved until you choose.", error);
+        Assert.DoesNotContain(previousTrend.ToString("0.00", culture), error);
         Assert.Equal(kg, body.GetProperty("kg").GetDecimal());
         Assert.Equal(previousTrend, body.GetProperty("previousTrendKg").GetDecimal());
         Assert.Equal(limitKg, body.GetProperty("limitKg").GetDecimal());
