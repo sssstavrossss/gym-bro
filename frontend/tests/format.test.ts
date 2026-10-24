@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { kg, roundHalfAwayFromZero, signed, typoGuardSentence } from "../src/lib/format";
+import { formatGoalWeight, kg, roundHalfAwayFromZero, signed, typoGuardSentence } from "../src/lib/format";
 
 describe("one decimal half away from zero", () => {
   it("rounds the halfway trends the server shows", () => {
@@ -14,6 +14,12 @@ describe("one decimal half away from zero", () => {
     expect(signed(-0.05)).toBe("−0.1");
     expect(roundHalfAwayFromZero(-0.05)).toBeCloseTo(-0.1);
     expect(kg(80.04)).toBe("80.0");
+  });
+
+  it("shows a goal weight with half-away rounding and a bare whole number", () => {
+    expect(formatGoalWeight(80.05)).toBe("80.1");
+    expect(formatGoalWeight(80)).toBe("80");
+    expect(formatGoalWeight(80.04)).toBe("80");
   });
 
   it("matches the confirm sentence for a trend of 80.05", () => {

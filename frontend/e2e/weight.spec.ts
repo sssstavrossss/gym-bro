@@ -215,7 +215,8 @@ test("a back-dated weigh-in is checked against the day before it", async ({ page
   await putProfile(page.request, oid, when.zone, 80);
   await openApp(page, oid, 390);
   await page.getByRole("button", { name: /Open weight|Log weight/ }).first().click();
-  await page.getByLabel("Weigh-in day").selectOption({ index: 1 });
+  await page.getByRole("button", { name: "Weigh-in day" }).click();
+  await page.getByRole("option").nth(1).click();
   await page.getByRole("textbox", { name: "Weight in kilograms" }).fill("90");
   await page.getByRole("button", { name: "Save weight" }).click();
   await expect(page.getByRole("heading", { name: "Is 90.0 kg right?" })).toBeVisible();
@@ -252,8 +253,9 @@ test("35.2a the only weigh-in explains why delete is blocked and offers Edit", a
   await openApp(page, oid, 390);
   await page.getByRole("button", { name: /Open weight|Log weight/ }).first().click();
   await expect(page.getByRole("button", { name: "Delete" })).toHaveCount(0);
+  await expect(page.getByText("Today's weigh-in is 83.6 kg · saving replaces it")).toBeVisible();
   await expect(page.getByText("This is your only weigh-in, so it can't be deleted.")).toBeVisible();
-  await page.getByRole("button", { name: "Edit", exact: true }).click();
+  await page.getByRole("button", { name: "Edit your only weigh-in" }).click();
   await expect(page.getByRole("textbox", { name: "Weight in kilograms" })).toBeFocused();
   const listed = await (await page.request.get("/api/weigh-ins", { headers: headers(oid) })).json();
   expect(listed.weighIns).toHaveLength(1);
@@ -287,7 +289,7 @@ test("35.3a dot copy when the last weigh-in was 9 days ago", async ({ page }) =>
   await openApp(page, oid, 390);
   await page.getByRole("button", { name: /Low accuracy/ }).first().click();
   await expect(page.getByText(
-    "No weigh-ins in the last 7 days (last one 9 days ago), so the trend is held at that weigh-in.",
+    "No weigh-ins in the last 7 days (last one 9 days ago), so the trend is held where it was then.",
   )).toBeVisible();
 });
 
@@ -316,8 +318,9 @@ test("35.11b the weight sheet earliest date is today minus 7", async ({ page }) 
   await putProfile(page.request, oid, when.zone, 80);
   await openApp(page, oid, 390);
   await page.getByRole("button", { name: /Open weight|Log weight/ }).first().click();
-  const values = await page.getByLabel("Weigh-in day").locator("option").evaluateAll((options) =>
-    options.map((option) => (option as HTMLOptionElement).value));
+  await page.getByRole("button", { name: "Weigh-in day" }).click();
+  const values = await page.getByRole("listbox", { name: "Weigh-in day" }).getByRole("option").evaluateAll((options) =>
+    options.map((option) => (option as HTMLElement).dataset.date ?? ""));
   expect(values).toHaveLength(8);
   expect([...values].sort()[0]).toBe(when.minus7);
   expect(values).not.toContain(when.minus8);

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import type { ConfirmWeighInBody } from "../api";
 import BottomSheet from "./BottomSheet.vue";
 import AccuracyDot from "./AccuracyDot.vue";
@@ -18,6 +18,10 @@ const input = ref<HTMLInputElement | null>(null);
 const confirm = ref<ConfirmWeighInBody | null>(null);
 const confirmEl = ref<HTMLElement | null>(null);
 const localError = ref("");
+const dayOpen = ref(false);
+const dayTight = ref(false);
+const dayRoot = ref<HTMLElement | null>(null);
+let dayObserver: ResizeObserver | undefined;
 
 const today = computed(() => profile.weight?.asOf || todayIso());
 const selected = computed(() => profile.weighIns.find((row) => row.localDate === ui.weightDate) ?? null);
@@ -31,9 +35,66 @@ const dayOptions = computed(() => {
   return dates.map((date) => {
     const own = profile.weighIns.find((row) => row.localDate === date);
     const index = diffDays(today.value, date);
-    const label = index === 0 ? `Today, ${dayMonth(date)}` : index === 1 ? `Yesterday, ${dayMonth(date)}` : shortDate(date);
-    return { value: date, label: own ? `${label} · ${kg(own.kg)}` : label };
+    const title = index === 0 ? `Today, ${dayMonth(date)}` : index === 1 ? `Yesterday, ${dayMonth(date)}` : shortDate(date);
+    return { value: date, title, kgText: own ? kg(own.kg) : "" };
   });
+});
+const longDayLabel = computed(() => {
+  const match = dayOptions.value.find((option) => option.value === ui.weightDate);
+  return (match?.title ?? shortDate(ui.weightDate)).replace("Yesterday", "Yest.");
+});
+const closedDayLabel = computed(() => {
+  if (!dayTight.value) return longDayLabel.value;
+  return diffDays(today.value, ui.weightDate) === 0 ? "Today" : dayMonth(ui.weightDate);
+});
+
+function fitDayLabel() {
+  const root = dayRoot.value;
+  const header = root?.parentElement;
+  const probe = root?.querySelector(".daymeasure");
+  const title = header?.querySelector("h2");
+  const close = header?.querySelector(".cbtn");
+  if (!root || !header || !(probe instanceof HTMLElement) || !title || !close) return;
+  const style = getComputedStyle(header);
+  const gap = Number.parseFloat(style.columnGap || style.gap || "8") || 8;
+  const room = header.clientWidth - title.getBoundingClientRect().width - close.getBoundingClientRect().width - gap * 2;
+  const next = probe.scrollWidth + 36 > room + 1;
+  if (next !== dayTight.value) dayTight.value = next;
+}
+
+function watchDayFit() {
+  dayObserver?.disconnect();
+  const header = dayRoot.value?.parentElement;
+  if (!header) return;
+  dayObserver = new ResizeObserver(() => fitDayLabel());
+  dayObserver.observe(header);
+  fitDayLabel();
+}
+
+function chooseDay(date: string) {
+  ui.weightDate = date;
+  dayOpen.value = false;
+}
+
+function awayDay(event: Event) {
+  if (dayOpen.value && dayRoot.value && !dayRoot.value.contains(event.target as Node)) dayOpen.value = false;
+}
+
+function keyDay(event: KeyboardEvent) {
+  if (event.key === "Escape" && dayOpen.value) {
+    dayOpen.value = false;
+    event.stopPropagation();
+  }
+}
+
+onMounted(() => {
+  document.addEventListener("pointerdown", awayDay, true);
+  document.addEventListener("keydown", keyDay, true);
+});
+onBeforeUnmount(() => {
+  dayObserver?.disconnect();
+  document.removeEventListener("pointerdown", awayDay, true);
+  document.removeEventListener("keydown", keyDay, true);
 });
 const canDelete = computed(() => selected.value?.canDelete === true);
 const onlyWeighIn = computed(() => selected.value != null && selected.value.canDelete === false);
@@ -47,14 +108,22 @@ function prefill() {
 watch(open, async (isOpen) => {
   confirm.value = null;
   localError.value = "";
-  if (!isOpen) return;
+  dayOpen.value = false;
+  if (!isOpen) {
+    dayObserver?.disconnect();
+    return;
+  }
+  dayTight.value = false;
   if (ui.keepWeightDraft) {
     ui.keepWeightDraft = false;
+    await nextTick();
+    watchDayFit();
     return;
   }
   ui.weightDate = today.value;
   prefill();
   await nextTick();
+  watchDayFit();
   input.value?.focus({ preventScroll: true });
 });
 watch(() => ui.weightDate, () => {
@@ -169,13 +238,19 @@ const diffText = computed(() => (
     <template #header>
       <div class="row hdr">
         <h2 class="t-head">Log weight</h2>
-        <span class="grow" />
-        <label class="day">
-          <span class="sr-only">Weigh-in day</span>
-          <select v-model="ui.weightDate" aria-label="Weigh-in day">
-            <option v-for="option in dayOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
-          </select>
-        </label>
+        <div ref="dayRoot" class="daypick">
+          <span class="daymeasure t-label" aria-hidden="true">{{ longDayLabel }}</span>
+          <button type="button" class="daybtn" :aria-label="`Weigh-in day, ${closedDayLabel}`" :aria-expanded="dayOpen" aria-haspopup="listbox" @click.stop="dayOpen = !dayOpen">
+            <span class="dayface t-label" aria-hidden="true">{{ closedDayLabel }}</span>
+            <span class="daychev" aria-hidden="true" />
+          </button>
+          <div v-if="dayOpen" class="daymenu" role="listbox" aria-label="Weigh-in day">
+            <button v-for="option in dayOptions" :key="option.value" type="button" role="option" class="dayopt" :data-date="option.value" :aria-selected="option.value === ui.weightDate" @click="chooseDay(option.value)">
+              <span class="grow">{{ option.title }}</span>
+              <span v-if="option.kgText" class="t-label c3">{{ option.kgText }}</span>
+            </button>
+          </div>
+        </div>
         <button type="button" class="cbtn" aria-label="Close" @click="closeSheet">×</button>
       </div>
     </template>
@@ -199,7 +274,13 @@ const diffText = computed(() => (
       </div>
     </div>
     <p v-if="invalid || localError" class="t-label m0" role="alert">{{ localError || "Enter a weight between 30 and 300 kg, e.g. 83,4 or 83.4" }}</p>
-    <p v-else-if="onlyWeighIn" class="t-capn c2 m0">{{ hint }}. This is your only weigh-in, so it can't be deleted. <button type="button" class="dlink" @click="editOnly">Edit</button></p>
+    <template v-else-if="onlyWeighIn">
+      <p class="t-capn c3 m0">{{ hint }}</p>
+      <div class="row only">
+        <p class="t-capn c2 m0 grow">This is your only weigh-in, so it can't be deleted.</p>
+        <button type="button" class="chip t-label editb" aria-label="Edit your only weigh-in" @click="editOnly">Edit</button>
+      </div>
+    </template>
     <p v-else class="t-capn c2 m0">{{ hint }}<template v-if="canDelete"> · <button type="button" class="dlink" @click="del">Delete</button></template></p>
     <div v-if="!profile.weighIns.length" class="wempty col">
       <span class="t-label c2">Your chart starts with this weigh-in</span>
@@ -250,9 +331,16 @@ const diffText = computed(() => (
 </template>
 
 <style scoped>
-.hdr { gap: 8px; }
+.hdr { display: grid; grid-template-columns: max-content minmax(0, 1fr) 44px; gap: 8px; align-items: center; }
 .m0 { margin: 0; }
-.day select { min-height: 44px; max-width: 46vw; border-radius: 12px; border: 1px solid var(--color-border); background: var(--color-surface-2); padding: 0 8px; }
+.daypick { position: relative; justify-self: end; min-width: 0; max-width: 100%; }
+.daymeasure { position: absolute; visibility: hidden; white-space: nowrap; height: 0; overflow: hidden; pointer-events: none; }
+.daybtn { display: inline-flex; align-items: center; gap: 4px; min-height: 44px; max-width: 100%; padding: 0 10px 0 12px; border-radius: 16px; background: var(--color-surface-2); color: var(--text-primary); }
+.dayface { white-space: nowrap; overflow: hidden; min-width: 0; }
+.daychev { flex: none; width: 8px; height: 8px; margin-right: 2px; border-right: 1.5px solid var(--text-secondary); border-bottom: 1.5px solid var(--text-secondary); transform: translateY(-2px) rotate(45deg); }
+.daymenu { position: absolute; right: 0; top: calc(100% + 6px); z-index: 41; min-width: 220px; max-width: calc(100vw - 32px); max-height: min(70vh, 560px); overflow: auto; background: #2f2f34; border-radius: 14px; padding: 6px; box-shadow: 0 12px 32px rgba(0, 0, 0, .6); display: flex; flex-direction: column; }
+.dayopt { display: flex; align-items: center; gap: 10px; min-height: 44px; width: 100%; padding: 0 10px; border-radius: 10px; text-align: left; color: var(--text-primary); }
+.dayopt[aria-selected="true"] { background: #3a3a40; }
 .wfield { gap: 12px; align-items: center; }
 .wfield label { gap: 6px; min-width: 0; }
 .autosize { display: inline-grid; min-height: 44px; }
@@ -277,4 +365,8 @@ const diffText = computed(() => (
 .chip.big.on { color: var(--color-on-action); }
 .hrow { min-height: 44px; border-top: 1px solid var(--color-border); width: 100%; text-align: left; }
 .dlink { color: var(--text-secondary); text-decoration: underline; text-underline-offset: 2px; min-height: 44px; min-width: 44px; }
+.only { gap: 12px; align-items: center; margin-top: -6px; }
+.only p { min-width: 0; text-wrap: pretty; }
+.editb { height: 44px; min-height: 44px; min-width: 44px; padding: 0 18px; border-radius: 22px; color: var(--text-primary); flex: none; }
+.dt-xl .only { flex-wrap: wrap; }
 </style>

@@ -16,7 +16,7 @@ async function clock(page: Page) {
       date.setDate(date.getDate() + offset);
       return format.format(date);
     };
-    return { zone, today: day(0), yesterday: day(-1), ago: day(-29) };
+    return { zone, today: day(0), yesterday: day(-1), ago: day(-29), ago9: day(-9) };
   });
 }
 
@@ -204,9 +204,11 @@ test("day kilograms, autosized input, 1 kg axis, and the typo confirmation", asy
     await openToday(page, oid, width);
     await page.getByRole("button", { name: /Open weight|Log weight/ }).first().click();
     await expect(page.getByRole("heading", { name: "Log weight" })).toBeVisible();
-    const labels = await page.getByLabel("Weigh-in day").locator("option").allTextContents();
+    await page.getByRole("button", { name: "Weigh-in day" }).click();
+    const labels = await page.getByRole("listbox", { name: "Weigh-in day" }).getByRole("option").allTextContents();
     expect(labels.some((label) => label.includes("80.0"))).toBe(true);
     expect(labels.some((label) => label.includes("84.0"))).toBe(true);
+    await page.getByRole("button", { name: "Weigh-in day" }).click();
     const field = page.getByRole("textbox", { name: "Weight in kilograms" });
     const sized = await field.evaluate((input) => {
       const box = input.getBoundingClientRect();
@@ -279,6 +281,89 @@ test("sparkline, trend explanation, and fresh-start borders", async ({ page }) =
     const fresh = page.locator(".fresh");
     await expect(fresh).toBeVisible();
     await expect(fresh).toHaveCSS("border-top-style", "dashed");
+    await page.getByRole("button", { name: "Close", exact: true }).click();
+  }
+});
+
+test("only weigh-in offers Edit, and one reading labels its own kilogram", async ({ page }) => {
+  const oid = `e2e-polish-only-${Date.now()}`;
+  const when = await clock(page);
+  await putWeighIn(page.request, oid, when.today, 83.6, when.zone);
+  await putProfile(page.request, oid, when.zone);
+  for (const width of widths) {
+    await openToday(page, oid, width);
+    await page.getByRole("button", { name: /Open weight|Log weight/ }).first().click();
+    const sheet = page.getByRole("dialog", { name: "Log weight" });
+    await expect(sheet.getByText("Today's weigh-in is 83.6 kg · saving replaces it")).toBeVisible();
+    const line = sheet.getByText("This is your only weigh-in, so it can't be deleted.");
+    await expect(line).toBeVisible();
+    const edit = sheet.getByRole("button", { name: "Edit your only weigh-in" });
+    const editBox = await edit.boundingBox();
+    expect(editBox?.width).toBeGreaterThanOrEqual(44);
+    expect(editBox?.height).toBeGreaterThanOrEqual(44);
+    const lineBox = await line.boundingBox();
+    expect(lineBox?.height).toBeLessThan(44);
+    await expect(sheet.locator(".ymark", { hasText: "83.6" })).toBeVisible();
+    await edit.click();
+    const field = sheet.getByRole("textbox", { name: "Weight in kilograms" });
+    await expect(field).toBeFocused();
+    const selectedAll = await field.evaluate((input: HTMLInputElement) => (
+      input.value.length > 0 && input.selectionStart === 0 && input.selectionEnd === input.value.length
+    ));
+    expect(selectedAll).toBe(true);
+    await page.getByRole("button", { name: "Close", exact: true }).click();
+  }
+});
+
+test("closed weigh-in day shows the day, and kilograms only in the open list", async ({ page }) => {
+  const oid = `e2e-polish-day-${Date.now()}`;
+  const when = await clock(page);
+  await putWeighIn(page.request, oid, when.yesterday, 80, when.zone);
+  await putWeighIn(page.request, oid, when.today, 84, when.zone, true);
+  await putProfile(page.request, oid, when.zone);
+  for (const width of widths) {
+    await openToday(page, oid, width);
+    await page.getByRole("button", { name: /Open weight|Log weight/ }).first().click();
+    const sheet = page.getByRole("dialog", { name: "Log weight" });
+    const face = sheet.locator(".dayface");
+    await expect(face).toHaveText(/^Today,/);
+    expect(await face.innerText()).not.toMatch(/·|\d+\.\d/);
+    const fit = await face.evaluate((node) => {
+      const chevron = node.parentElement?.querySelector(".daychev");
+      const gap = chevron instanceof HTMLElement
+        ? chevron.offsetLeft - (node.offsetLeft + node.offsetWidth)
+        : -1;
+      return { scroll: node.scrollWidth, client: node.clientWidth, gap };
+    });
+    expect(fit.scroll).toBeLessThanOrEqual(fit.client + 1);
+    expect(fit.gap).toBeGreaterThanOrEqual(2);
+    await sheet.getByRole("button", { name: "Weigh-in day" }).click();
+    const options = sheet.getByRole("listbox", { name: "Weigh-in day" }).getByRole("option");
+    await expect(options).toHaveCount(8);
+    const texts = await options.allTextContents();
+    expect(texts.some((text) => text.includes("84.0"))).toBe(true);
+    expect(texts.some((text) => text.includes("80.0"))).toBe(true);
+    expect(texts.join("\n")).toContain("Yesterday");
+    await page.keyboard.press("Escape");
+    await expect(sheet.getByRole("heading", { name: "Log weight" })).toBeVisible();
+    await expect(sheet.getByRole("listbox")).toHaveCount(0);
+    await page.getByRole("button", { name: "Close", exact: true }).click();
+  }
+});
+
+test("no weigh-ins in the last 7 days holds the trend where it was", async ({ page }) => {
+  const oid = `e2e-polish-zero7-${Date.now()}`;
+  const when = await clock(page);
+  await seedPastWeighIn(page.request, oid, when.ago9, 83.6);
+  await putProfile(page.request, oid, when.zone);
+  for (const width of widths) {
+    await openToday(page, oid, width);
+    await page.getByRole("button", { name: /Low accuracy/ }).first().click();
+    const sheet = page.getByRole("dialog", { name: "Trend accuracy" });
+    await expect(sheet.getByText(
+      "No weigh-ins in the last 7 days (last one 9 days ago), so the trend is held where it was then.",
+    )).toBeVisible();
+    await expect(sheet.getByText("Trend 83.6 kg")).toBeVisible();
     await page.getByRole("button", { name: "Close", exact: true }).click();
   }
 });

@@ -27,13 +27,13 @@ const data = computed(() => {
   const pts = props.series;
   const n = Math.max(pts.length, 2);
   const vals = pts.flatMap((point) => [point.weighInKg, point.trendKg]).filter((value): value is number => value != null);
-  const { lo, hi } = axisBounds(vals);
+  const { lo, hi, flat } = axisBounds(vals);
   const span = hi - lo || 1;
   const plotW = width.value;
   const plotH = props.height;
   const px = (index: number) => 6 + (index * (plotW - 12)) / (n - 1);
   const py = (value: number) => ((hi - value) / span) * (plotH - 12) + 6;
-  const grid = axisMarks(lo, hi);
+  const grid = axisMarks(lo, hi, flat);
   let pen = false;
   const line = pts.map((point, index) => {
     if (point.trendKg == null) {

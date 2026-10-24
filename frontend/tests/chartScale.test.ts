@@ -10,6 +10,17 @@ describe("chart axis", () => {
     expect(axisMarks(tight.lo, tight.hi).map((mark, index, marks) => index === 0 ? null : marks[index - 1] - mark).filter((step) => step != null)).toEqual([0.5, 0.5]);
   });
 
+  it("centres a flat reading on the value itself", () => {
+    const flat = axisBounds([83.6]);
+    expect(flat.flat).toBe(true);
+    expect((flat.lo + flat.hi) / 2).toBeCloseTo(83.6, 5);
+    expect(axisMarks(flat.lo, flat.hi, flat.flat)).toEqual([84.1, 83.6, 83.1]);
+    expect(axisBounds([83, 84]).flat).toBe(false);
+    expect(axisBounds([83, 83.1]).flat).toBe(false);
+    expect(axisBounds([83.6, 83.64]).flat).toBe(true);
+    expect(axisBounds([]).flat).toBe(false);
+  });
+
   it("uses 1 kg steps when the visible range is more than 3 kg", () => {
     const wide = axisBounds([80, 90]);
     expect(wide.hi - wide.lo).toBeGreaterThan(3);
