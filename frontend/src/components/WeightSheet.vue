@@ -4,11 +4,10 @@ import type { ConfirmWeighInBody } from "../api";
 import BottomSheet from "./BottomSheet.vue";
 import AccuracyDot from "./AccuracyDot.vue";
 import WeightChart from "./WeightChart.vue";
-import { addDays, dayMonth, diffDays, shortDate, todayIso } from "../lib/dates";
-import { kg, signed } from "../lib/format";
+import { dayMonth, diffDays, shortDate, todayIso } from "../lib/dates";
+import { kg, signed, typoGuardDetail } from "../lib/format";
 import { parseDecimal } from "../lib/numbers";
-import { allowDeletingTheOnlyWeighIn } from "../lib/partADecisions";
-import { gapLabel, isFreshStart, isLowAccuracy, trendChange } from "../lib/weightDisplay";
+import { earliestNewWeighInDate, gapLabel, isFreshStart, isLowAccuracy, newWeighInDates, trendChange } from "../lib/weightDisplay";
 import { profile, removeWeighIn, saveWeighIn } from "../state/profile";
 import { closeSheet, toast, ui } from "../ui";
 import { vp } from "../lib/viewport";
@@ -21,14 +20,23 @@ const confirmEl = ref<HTMLElement | null>(null);
 const localError = ref("");
 
 const today = computed(() => profile.weight?.asOf || todayIso());
-const dayOptions = computed(() => Array.from({ length: 7 }, (_, index) => {
-  const date = addDays(today.value, -index);
-  const own = profile.weighIns.find((row) => row.localDate === date);
-  const label = index === 0 ? `Today, ${dayMonth(date)}` : index === 1 ? `Yesterday, ${dayMonth(date)}` : shortDate(date);
-  return { value: date, label: own ? `${label} · ${kg(own.kg)}` : label };
-}));
-const ownKg = computed(() => profile.weighIns.find((row) => row.localDate === ui.weightDate)?.kg);
-const canDelete = computed(() => ownKg.value != null && (profile.weighIns.length > 1 || allowDeletingTheOnlyWeighIn()));
+const selected = computed(() => profile.weighIns.find((row) => row.localDate === ui.weightDate) ?? null);
+const ownKg = computed(() => selected.value?.kg);
+const dayOptions = computed(() => {
+  const dates = newWeighInDates(today.value);
+  const oldest = earliestNewWeighInDate(today.value);
+  if (selected.value && ui.weightDate < oldest && !dates.includes(ui.weightDate)) {
+    dates.push(ui.weightDate);
+  }
+  return dates.map((date) => {
+    const own = profile.weighIns.find((row) => row.localDate === date);
+    const index = diffDays(today.value, date);
+    const label = index === 0 ? `Today, ${dayMonth(date)}` : index === 1 ? `Yesterday, ${dayMonth(date)}` : shortDate(date);
+    return { value: date, label: own ? `${label} · ${kg(own.kg)}` : label };
+  });
+});
+const canDelete = computed(() => selected.value?.canDelete === true);
+const onlyWeighIn = computed(() => selected.value != null && selected.value.canDelete === false);
 
 function prefill() {
   const own = ownKg.value;
@@ -113,6 +121,13 @@ function fix() {
   });
 }
 
+function editOnly() {
+  void nextTick(() => {
+    input.value?.focus();
+    input.value?.select();
+  });
+}
+
 async function del() {
   if (!canDelete.value) return;
   const date = ui.weightDate;
@@ -144,12 +159,9 @@ async function restoreWeighIn(date: string, kilograms: number) {
   if (!result) toast("Could not restore that weigh-in.");
 }
 
-const diffText = computed(() => {
-  if (!confirm.value) return "";
-  const diff = confirm.value.kg - confirm.value.previousTrendKg;
-  const way = diff < 0 ? "below" : "above";
-  return `That's ${kg(Math.abs(diff))} kg ${way} your trend (${kg(confirm.value.previousTrendKg)} kg). Nothing is saved until you choose.`;
-});
+const diffText = computed(() => (
+  confirm.value ? typoGuardDetail(confirm.value.kg, confirm.value.previousTrendKg) : ""
+));
 </script>
 
 <template>
@@ -184,6 +196,7 @@ const diffText = computed(() => {
       </div>
     </div>
     <p v-if="invalid || localError" class="t-label m0" role="alert">{{ localError || "Enter a weight between 30 and 300 kg, e.g. 83,4 or 83.4" }}</p>
+    <p v-else-if="onlyWeighIn" class="t-capn c2 m0">{{ hint }}. This is your only weigh-in, so it can't be deleted. <button type="button" class="dlink" @click="editOnly">Edit</button></p>
     <p v-else class="t-capn c2 m0">{{ hint }}<template v-if="canDelete"> · <button type="button" class="dlink" @click="del">Delete</button></template></p>
     <div v-if="!profile.weighIns.length" class="wempty col">
       <span class="t-label c2">Your chart starts with this weigh-in</span>

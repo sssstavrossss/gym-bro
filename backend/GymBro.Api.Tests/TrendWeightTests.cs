@@ -18,6 +18,15 @@ public sealed class TrendWeightTests
     }
 
     [Fact]
+    public void One_decimal_display_rounds_half_away_from_zero()
+    {
+        Assert.Equal("80.1", TrendWeight.FormatOneDecimal(80.05m));
+        Assert.Equal("80.4", TrendWeight.FormatOneDecimal(80.35m));
+        Assert.Equal("80.6", TrendWeight.FormatOneDecimal(80.55m));
+        Assert.Equal("80.9", TrendWeight.FormatOneDecimal(80.85m));
+    }
+
+    [Fact]
     public void Prototype_36_day_dataset_still_gives_trend_83_60_and_2218_kcal()
     {
         var start = new DateOnly(2026, 9, 19);
@@ -217,8 +226,8 @@ public sealed class TrendWeightTests
     [Fact]
     public void Goal_reached_uses_lose_and_gain_for_rate_mode_and_manual_mode()
     {
-        // Judged on the latest real weigh-in, including a later day that only carries
-        // that trend. An estimate between weigh-ins is not compared on its own.
+        // Judged on the latest real weigh-in, and only on that weigh-in's own day
+        // (decision 35.10). A later day that only carries the trend does not ask.
         // Manual mode is not a saved field yet; it uses the same lose or gain direction.
         var day = TrendWeight.Compute([(AsOf, 83.6m)], AsOf);
         Assert.True(TrendWeight.GoalReached(Goals.Lose, 84m, day));
@@ -232,8 +241,8 @@ public sealed class TrendWeightTests
 
         var carried = TrendWeight.Compute([(AsOf.AddDays(-1), 83.6m)], AsOf);
         Assert.False(carried.On(AsOf)!.Real);
-        Assert.True(TrendWeight.GoalReached(Goals.Lose, 84m, carried));
-        Assert.True(TrendWeight.GoalReached(Goals.Gain, 80m, carried));
+        Assert.False(TrendWeight.GoalReached(Goals.Lose, 84m, carried));
+        Assert.False(TrendWeight.GoalReached(Goals.Gain, 80m, carried));
 
         var beforeAny = TrendWeight.Compute([(AsOf, 83.6m)], AsOf.AddDays(-1));
         Assert.False(TrendWeight.GoalReached(Goals.Lose, 84m, beforeAny));

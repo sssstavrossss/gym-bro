@@ -1,4 +1,5 @@
 import { accessToken } from "./auth/session";
+import { kg as formatKg } from "./lib/format";
 import { e2eSession } from "./auth/e2e";
 import { loadPublicConfig, type PublicConfig } from "./auth/publicConfig";
 
@@ -171,6 +172,8 @@ export interface WeightChartResponse {
 export interface WeighInRow {
   localDate: string;
   kg: number;
+  /** False only when this is the account's last weigh-in. The server decides. */
+  canDelete: boolean;
 }
 
 export interface FreshStartDecisionResponse {
@@ -262,7 +265,7 @@ export async function putWeighIn(date: string, kg: number, timeZone: string, con
     if (body.code === "confirm_weigh_in" && body.kg != null && body.localDate && body.previousTrendKg != null) {
       return {
         confirm: {
-          error: body.error ?? `Is ${body.kg.toFixed(1)} kg right?`,
+          error: body.error ?? `Is ${formatKg(body.kg)} kg right?`,
           code: "confirm_weigh_in",
           kg: body.kg,
           localDate: body.localDate,

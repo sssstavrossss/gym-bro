@@ -1,7 +1,17 @@
 import type { WeightChartPoint, WeightResponse } from "../api";
-import { diffDays } from "./dates";
+import { addDays, diffDays } from "./dates";
 import { kg, signed } from "./format";
-import { zeroWeighInsDotCopy } from "./partADecisions";
+
+/** New entries and date moves: today back through today − 7, inclusive. */
+export const weighInWindowDays = 7;
+
+export function newWeighInDates(today: string): string[] {
+  return Array.from({ length: weighInWindowDays + 1 }, (_, index) => addDays(today, -index));
+}
+
+export function earliestNewWeighInDate(today: string): string {
+  return addDays(today, -weighInWindowDays);
+}
 
 /** "6 weeks", or "over 4 weeks" for a 29–34 day gap. Matches the prototype. */
 export function gapLabel(days: number): string {
@@ -68,9 +78,11 @@ export function accuracyCopy(weight: WeightResponse | null): { short: string; li
       short ||= "only 1 weigh-in this week";
     } else {
       const ago = weight.latestDate ? diffDays(weight.asOf, weight.latestDate) : null;
-      const zero = zeroWeighInsDotCopy(ago);
-      lines.push(zero.line);
-      short ||= zero.short;
+      const line = ago == null
+        ? "No weigh-ins in the last 7 days, so the trend is held at the last weigh-in."
+        : `No weigh-ins in the last 7 days (last one ${ago} days ago), so the trend is held at that weigh-in.`;
+      lines.push(line);
+      short ||= "no weigh-ins in the last 7 days";
     }
   }
   return { short, lines };

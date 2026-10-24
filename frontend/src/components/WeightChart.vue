@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import type { WeightChartPoint } from "../api";
 import { dayMonth } from "../lib/dates";
+import { kg } from "../lib/format";
 
 const props = withDefaults(defineProps<{ series: WeightChartPoint[]; height?: number; fluid?: boolean }>(), {
   height: 168,
@@ -55,7 +56,7 @@ const data = computed(() => {
 const summary = computed(() => {
   const weighed = props.series.filter((point) => point.realWeighIn && point.weighInKg != null);
   const trends = props.series.filter((point) => point.trendKg != null);
-  const one = (value: number) => value.toFixed(1);
+  const one = (value: number) => kg(value);
   let text = `Weight, last ${props.series.length} days: ${weighed.length} weigh-in${weighed.length === 1 ? "" : "s"}`;
   if (weighed.length) {
     const values = weighed.map((point) => point.weighInKg!);
@@ -85,7 +86,7 @@ const summary = computed(() => {
         <circle v-if="data.lastIdx >= 0" :cx="data.px(data.lastIdx)" :cy="data.py(data.pts[data.lastIdx].trendKg!)" r="4.5" fill="#7DB1FF" stroke="#26262A" stroke-width="2" />
       </svg>
       <div class="ylabels" :style="{ height: height + 'px' }">
-        <span v-for="mark in data.grid" :key="mark" class="t-capn c2" :style="{ top: data.py(mark) - 7 + 'px' }">{{ mark.toFixed(1) }}</span>
+        <span v-for="mark in data.grid" :key="mark" class="t-capn c2" :style="{ top: data.py(mark) - 7 + 'px' }">{{ kg(mark) }}</span>
       </div>
     </div>
     <div class="row xlabels"><span v-for="tick in data.ticks" :key="tick" class="t-capn c2">{{ tick }}</span></div>
