@@ -22,14 +22,26 @@ public sealed class FoundationsHardeningTests(ApiFactory factory)
             var response = await client.GetAsync(path);
             Assert.Equal(SecurityHeaders.ContentSecurityPolicy, response.Headers.GetValues("Content-Security-Policy").Single());
             Assert.Equal("nosniff", response.Headers.GetValues("X-Content-Type-Options").Single());
-            Assert.Equal("DENY", response.Headers.GetValues("X-Frame-Options").Single());
+            Assert.Equal("SAMEORIGIN", response.Headers.GetValues("X-Frame-Options").Single());
             Assert.Equal("strict-origin-when-cross-origin", response.Headers.GetValues("Referrer-Policy").Single());
             var policy = response.Headers.GetValues("Content-Security-Policy").Single();
-            Assert.Contains("frame-ancestors 'none'", policy, StringComparison.Ordinal);
+            Assert.Contains("frame-src 'self' https://*.ciamlogin.com", policy, StringComparison.Ordinal);
+            Assert.Contains("frame-ancestors 'self'", policy, StringComparison.Ordinal);
             Assert.Contains("https://*.ciamlogin.com", policy, StringComparison.Ordinal);
             Assert.DoesNotContain("unsafe-eval", policy, StringComparison.Ordinal);
             Assert.DoesNotContain("script-src 'self' 'unsafe-inline'", policy, StringComparison.Ordinal);
         }
+    }
+
+    [Fact]
+    public async Task Silent_renewal_frame_policy_allows_the_redirect_page_and_ciam()
+    {
+        using var client = factory.CreateClient();
+        var response = await client.GetAsync("/api/health");
+        var policy = response.Headers.GetValues("Content-Security-Policy").Single();
+        Assert.Contains("frame-src 'self' https://*.ciamlogin.com", policy, StringComparison.Ordinal);
+        Assert.Contains("frame-ancestors 'self'", policy, StringComparison.Ordinal);
+        Assert.Equal("SAMEORIGIN", response.Headers.GetValues("X-Frame-Options").Single());
     }
 
     [Fact]

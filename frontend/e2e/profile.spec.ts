@@ -45,10 +45,11 @@ for (const layout of widths) {
     expect(health.ok()).toBeTruthy();
     const headers = health.headers();
     expect(headers["x-content-type-options"]).toBe("nosniff");
-    expect(headers["x-frame-options"]).toBe("DENY");
+    expect(headers["x-frame-options"]).toBe("SAMEORIGIN");
     expect(headers["referrer-policy"]).toBe("strict-origin-when-cross-origin");
     const csp = headers["content-security-policy"] ?? "";
-    expect(csp).toContain("frame-ancestors 'none'");
+    expect(csp).toContain("frame-src 'self' https://*.ciamlogin.com");
+    expect(csp).toContain("frame-ancestors 'self'");
     expect(csp).toContain("https://*.ciamlogin.com");
     expect(csp).not.toContain("unsafe-eval");
     await expect(page.getByText("Matvaretabellen 2026. Mattilsynet. www.matvaretabellen.no")).toBeVisible();
