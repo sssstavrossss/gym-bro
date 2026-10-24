@@ -1,4 +1,5 @@
 import { execFileSync } from "node:child_process";
+import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 
 const widths = [390, 820, 1440] as const;
@@ -74,6 +75,13 @@ async function openToday(page: Page, oid: string, width: number) {
   await sign(page, oid);
   await page.goto("/today");
   await expect(page.getByRole("heading", { name: "Today", exact: true })).toBeVisible();
+}
+
+async function ax5(page: Page) {
+  await page.evaluate(() => {
+    document.documentElement.style.fontSize = "53px";
+    window.dispatchEvent(new Event("resize"));
+  });
 }
 
 function intersects(a: { x: number; y: number; width: number; height: number }, b: { x: number; y: number; width: number; height: number }) {
@@ -366,4 +374,91 @@ test("no weigh-ins in the last 7 days holds the trend where it was", async ({ pa
     await expect(sheet.getByText("Trend 83.6 kg")).toBeVisible();
     await page.getByRole("button", { name: "Close", exact: true }).click();
   }
+});
+
+test("profile values and sex labels stay whole at AX5", async ({ page }) => {
+  const oid = `e2e-polish-ax5-profile-${Date.now()}`;
+  const when = await clock(page);
+  await putWeighIn(page.request, oid, when.today, 83.6, when.zone);
+  await putProfile(page.request, oid, when.zone);
+  await openToday(page, oid, 390);
+  await page.getByRole("link", { name: "Profile" }).click();
+  await expect(page.getByRole("heading", { name: "Profile", exact: true })).toBeVisible();
+  await ax5(page);
+  const female = page.getByRole("radio", { name: "Female", exact: true });
+  await expect(female).toHaveText("Female");
+  const femaleFit = await female.evaluate((node) => ({ scroll: node.scrollWidth, client: node.clientWidth }));
+  expect(femaleFit.scroll).toBeLessThanOrEqual(femaleFit.client + 1);
+  for (const name of ["Female", "Male"]) {
+    const box = await page.getByRole("radio", { name, exact: true }).boundingBox();
+    expect(box?.width).toBeGreaterThanOrEqual(44);
+    expect(box?.height).toBeGreaterThanOrEqual(44);
+  }
+  const clipped = await page.locator("main.screen").evaluate((root) => {
+    const bad: string[] = [];
+    for (const node of root.querySelectorAll("input, button, span, p, h1, h2, label")) {
+      if (!(node instanceof HTMLElement)) continue;
+      if (node.closest(".sr-only") || node.classList.contains("sr-only")) continue;
+      const style = getComputedStyle(node);
+      if (style.display === "none" || style.visibility === "hidden") continue;
+      if (node.clientWidth < 2) continue;
+      const overflow = node.scrollWidth > node.clientWidth + 1;
+      const ellipsis = style.textOverflow === "ellipsis" && overflow;
+      if (overflow || ellipsis) {
+        const value = node instanceof HTMLInputElement ? node.value : node.innerText;
+        bad.push(`${node.tagName} ${(value || node.getAttribute("aria-label") || "").replace(/\s+/g, " ").slice(0, 60)}`);
+      }
+    }
+    return bad;
+  });
+  expect(clipped).toEqual([]);
+});
+
+test("closed day label stays visible at AX5, and the open list meets contrast", async ({ page }) => {
+  const oid = `e2e-polish-ax5-day-${Date.now()}`;
+  const when = await clock(page);
+  await putWeighIn(page.request, oid, when.yesterday, 80, when.zone);
+  await putWeighIn(page.request, oid, when.today, 84, when.zone, true);
+  await putProfile(page.request, oid, when.zone);
+  for (const width of widths) {
+    await openToday(page, oid, width);
+    await ax5(page);
+    await page.getByRole("button", { name: /Open weight|Log weight/ }).first().click();
+    const sheet = page.getByRole("dialog", { name: "Log weight" });
+    const face = sheet.locator(".dayface");
+    await expect.poll(async () => face.evaluate((node) => {
+      const text = (node.textContent || "").trim();
+      const box = node.getBoundingClientRect();
+      return text.length > 0 && box.width > 12 && node.scrollWidth <= node.clientWidth + 1;
+    })).toBe(true);
+    await sheet.getByRole("button", { name: "Weigh-in day" }).click();
+    const selected = sheet.locator(".dayopt[aria-selected='true']");
+    await expect(selected.locator("svg")).toBeVisible();
+    await expect(selected).not.toHaveCSS("background-color", "rgb(58, 58, 64)");
+    const violations = await new AxeBuilder({ page })
+      .include(".daymenu")
+      .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
+      .analyze();
+    expect(violations.violations.filter((item) => item.id === "color-contrast")).toEqual([]);
+    await page.keyboard.press("Escape");
+    await page.getByRole("button", { name: "Close", exact: true }).click();
+  }
+});
+
+test("trend info stays clear of the weight label at AX5", async ({ page }) => {
+  const oid = `e2e-polish-ax5-today-${Date.now()}`;
+  const when = await clock(page);
+  await putWeighIn(page.request, oid, when.today, 83.6, when.zone);
+  await putProfile(page.request, oid, when.zone);
+  await openToday(page, oid, 390);
+  await ax5(page);
+  const label = page.locator(".wcard .trendline .t-cap");
+  const info = page.getByRole("button", { name: "What is the trend?" });
+  await expect(label).toBeVisible();
+  await expect(info).toBeVisible();
+  const labelBox = await label.boundingBox();
+  const infoBox = await info.boundingBox();
+  expect(labelBox && infoBox && intersects(labelBox, infoBox)).toBe(false);
+  expect(infoBox?.width).toBeGreaterThanOrEqual(44);
+  expect(infoBox?.height).toBeGreaterThanOrEqual(44);
 });

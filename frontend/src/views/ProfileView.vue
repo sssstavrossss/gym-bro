@@ -243,4 +243,20 @@ async function onSignOut() {
 .desk.pgrid { grid-template-columns: minmax(0, 1.15fr) minmax(320px, 1fr); gap: 24px; }
 .signout { align-self: flex-start; min-height: 44px; }
 h2 { margin: 0; }
+/* Large text: the label takes the row, and the value wraps underneath instead of clipping. */
+.dt-xl .screen-head { align-items: flex-start; }
+.dt-xl .screen-head .grow { display: none; }
+.dt-xl .screen-head .t-label { flex: 1 1 100%; max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
+.dt-xl .frow { flex-wrap: wrap; align-items: flex-start; row-gap: 2px; height: auto; }
+.dt-xl .frow > :first-child { flex: 1 0 100%; max-width: 100%; min-width: 0; white-space: normal; overflow-wrap: anywhere; }
+.dt-xl .frow > .grow { display: none; }
+.dt-xl .frow > span:not(.grow),
+.dt-xl .lowrow { max-width: 100%; min-width: 0; white-space: normal; overflow-wrap: anywhere; }
+.dt-xl .lowrow { flex: 1 1 100%; }
+.dt-xl .ninput,
+.dt-xl .tz { width: 100%; max-width: 100%; margin-left: 0; text-align: left; min-width: 0; }
+.dt-xl .sexrow :deep(.seg) { flex: 1 1 100%; width: 100%; max-width: 100%; min-width: 0; }
+.dt-xl .stats { flex-direction: column; align-items: stretch; }
+.dt-xl .stats > div { width: 100%; max-width: 100%; }
+.dt-xl .pcol > p { max-width: 100%; overflow-wrap: anywhere; }
 </style>

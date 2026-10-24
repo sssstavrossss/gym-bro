@@ -45,6 +45,7 @@ onBeforeUnmount(() => {
   color: var(--text-secondary); border-radius: 22px;
 }
 .ibtn:hover, .ibtn[aria-expanded="true"] { color: var(--text-primary); }
+.dt-xl .ibtn { margin: 0; flex: none; }
 .pop {
   position: absolute; top: calc(100% + 4px); left: -8px; width: min(264px, 80vw);
   padding: 10px 12px; border-radius: 12px; background: var(--color-surface-2);

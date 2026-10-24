@@ -3,6 +3,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue"
 import type { ConfirmWeighInBody } from "../api";
 import BottomSheet from "./BottomSheet.vue";
 import AccuracyDot from "./AccuracyDot.vue";
+import Icon from "./Icon.vue";
 import WeightChart from "./WeightChart.vue";
 import { dayMonth, diffDays, shortDate, todayIso } from "../lib/dates";
 import { kg, signed, typoGuardDetail } from "../lib/format";
@@ -57,7 +58,10 @@ function fitDayLabel() {
   if (!root || !header || !(probe instanceof HTMLElement) || !title || !close) return;
   const style = getComputedStyle(header);
   const gap = Number.parseFloat(style.columnGap || style.gap || "8") || 8;
-  const room = header.clientWidth - title.getBoundingClientRect().width - close.getBoundingClientRect().width - gap * 2;
+  const wrapped = root.offsetTop > title.offsetTop + 4;
+  const room = wrapped
+    ? header.clientWidth
+    : header.clientWidth - title.getBoundingClientRect().width - close.getBoundingClientRect().width - gap * 2;
   const next = probe.scrollWidth + 36 > room + 1;
   if (next !== dayTight.value) dayTight.value = next;
 }
@@ -248,6 +252,7 @@ const diffText = computed(() => (
             <button v-for="option in dayOptions" :key="option.value" type="button" role="option" class="dayopt" :data-date="option.value" :aria-selected="option.value === ui.weightDate" @click="chooseDay(option.value)">
               <span class="grow">{{ option.title }}</span>
               <span v-if="option.kgText" class="t-label c3">{{ option.kgText }}</span>
+              <Icon v-if="option.value === ui.weightDate" name="check" :size="16" :sw="2.6" />
             </button>
           </div>
         </div>
@@ -340,7 +345,11 @@ const diffText = computed(() => (
 .daychev { flex: none; width: 8px; height: 8px; margin-right: 2px; border-right: 1.5px solid var(--text-secondary); border-bottom: 1.5px solid var(--text-secondary); transform: translateY(-2px) rotate(45deg); }
 .daymenu { position: absolute; right: 0; top: calc(100% + 6px); z-index: 41; min-width: 220px; max-width: calc(100vw - 32px); max-height: min(70vh, 560px); overflow: auto; background: #2f2f34; border-radius: 14px; padding: 6px; box-shadow: 0 12px 32px rgba(0, 0, 0, .6); display: flex; flex-direction: column; }
 .dayopt { display: flex; align-items: center; gap: 10px; min-height: 44px; width: 100%; padding: 0 10px; border-radius: 10px; text-align: left; color: var(--text-primary); }
-.dayopt[aria-selected="true"] { background: #3a3a40; }
+.dayopt[aria-selected="true"] { background: transparent; }
+.dayopt:active { background: #3a3a40; }
+.dt-xl .hdr { display: flex; flex-wrap: wrap; align-items: center; row-gap: 8px; }
+.dt-xl .hdr h2 { flex: 1 1 auto; min-width: 0; }
+.dt-xl .daypick { flex: 1 1 100%; max-width: 100%; justify-self: stretch; }
 .wfield { gap: 12px; align-items: center; }
 .wfield label { gap: 6px; min-width: 0; }
 .autosize { display: inline-grid; min-height: 44px; }

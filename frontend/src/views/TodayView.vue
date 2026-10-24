@@ -60,7 +60,7 @@ const tip = "The trend smooths out day-to-day swings from water, salt and food. 
     <div v-if="!vp.tablet" class="card wcard row">
       <button type="button" class="stretch" :aria-label="aria" @click="openWeight()" />
       <div v-if="shown && weight" class="col gap2">
-        <span class="row gap6"><span class="t-cap c2">Weight · trend</span><InfoTip label="What is the trend?">{{ tip }}</InfoTip></span>
+        <span class="row gap6 trendline"><span class="t-cap c2">Weight · trend</span><InfoTip label="What is the trend?">{{ tip }}</InfoTip></span>
         <span class="row gap8 numrow">
           <span class="base"><span class="t-nm">{{ kg(weight.trendKg!) }}</span><span class="t-label c2">kg</span></span>
           <AccuracyDot v-if="low" />
@@ -82,7 +82,7 @@ const tip = "The trend smooths out day-to-day swings from water, salt and food. 
       <button type="button" class="stretch" :aria-label="aria" @click="openWeight()" />
       <div class="row top">
         <div v-if="shown && weight" class="col gap2">
-          <span class="row gap6"><span class="t-cap c2">Weight · trend</span><InfoTip label="What is the trend?">{{ tip }}</InfoTip></span>
+          <span class="row gap6 trendline"><span class="t-cap c2">Weight · trend</span><InfoTip label="What is the trend?">{{ tip }}</InfoTip></span>
           <span class="row gap8 numrow">
             <span class="base"><span class="t-nm">{{ kg(weight.trendKg!) }}</span><span class="t-label c2">kg</span></span>
             <AccuracyDot v-if="low" label />
@@ -132,4 +132,11 @@ const tip = "The trend smooths out day-to-day swings from water, salt and food. 
 .nowrap { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 .wbig { gap: 12px; }
 .top { align-items: flex-start; gap: 12px; }
+.trendline { align-items: flex-start; min-width: 0; max-width: 100%; }
+.trendline .t-cap { min-width: 0; }
+.dt-xl .wcard > .grow { display: none; }
+.dt-xl .wcard > .col { flex: 1 1 auto; min-width: 0; }
+.dt-xl .trendline { flex-wrap: wrap; }
+.dt-xl .trendline .t-cap { flex: 1 1 100%; white-space: normal; }
+.dt-xl .trendline :deep(.itip) { flex: none; align-self: flex-start; }
 </style>

@@ -42,6 +42,6 @@ async function onKey(event: KeyboardEvent, index: number) {
   border-radius: 9px; padding: 4px 12px; color: var(--text-secondary);
 }
 .seg-btn.on { background: var(--color-action); color: var(--color-on-action); }
-:global(html.dt-xl) .seg { flex-direction: column; align-items: stretch; }
-:global(html.dt-xl) .seg-btn { flex: none; }
+.dt-xl .seg { flex-direction: column; align-items: stretch; }
+.dt-xl .seg-btn { flex: none; width: 100%; white-space: nowrap; min-width: max(44px, max-content); min-height: 44px; }
 </style>
