@@ -71,8 +71,25 @@ public sealed class PostgresOptions
     }
 }
 
+public sealed class FoodOptions
+{
+    public const string SectionName = "Foods";
+
+    public const string DefaultSearchUrl = "https://world.openfoodfacts.org/cgi/search.pl";
+
+    public const string DefaultMatvaretabellenUrl = "https://www.matvaretabellen.no/api/nb/foods.json";
+
+    public const string DefaultUserAgent = "GymBro/1.0 (self-hosted nutrition tracker)";
+
+    public string OpenFoodFactsUserAgent { get; set; } = DefaultUserAgent;
+
+    public string OpenFoodFactsSearchUrl { get; set; } = DefaultSearchUrl;
+
+    public string MatvaretabellenUrl { get; set; } = DefaultMatvaretabellenUrl;
+}
+
 /// <summary>
-/// <see cref="Provider"/> is <c>postgres</c> in the app and <c>sqlite</c> in tests.
+/// <see cref="Provider"/> is <c>postgres</c> for the app and the test host.
 /// </summary>
 public sealed class DatabaseOptions
 {

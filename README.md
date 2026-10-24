@@ -1,8 +1,8 @@
 # Gym Bro
 
-Gym Bro is a personal nutrition tracker. The gym log comes later. This repository is the Phase 0 skeleton: a signed-in hello world that proves the whole stack.
+Gym Bro is a personal nutrition tracker. Phase 1 starts with profile, targets, and the food-data groundwork. The food log, Today, and Progress screens come in later pull requests.
 
-You open the web app, sign in with Microsoft Entra External ID, and the page shows your name plus the row a protected API just wrote to Postgres.
+You open the web app, sign in with Microsoft Entra External ID, and the first visit asks for a profile and a weigh-in before it shows any targets.
 
 ## Architecture
 
@@ -56,9 +56,10 @@ Sign-in settings are not baked into the JavaScript bundle. The API reads them fr
 | `backend/GymBro.Api/Program.cs` | Composition root: configuration, forwarded headers, auth, static files, startup migrations. |
 | `backend/GymBro.Api/Auth` | Entra External ID token validation, the `access_as_user` scope check, and claim reading. |
 | `backend/GymBro.Api/Users/UserDirectory.cs` | Upsert of the signed-in user, keyed by the token `oid`. |
-| `backend/GymBro.Api/Data` | EF Core model and the Postgres migration. |
-| `backend/GymBro.Api.Tests` | xUnit tests. The host uses SQLite and a test authentication handler. |
-| `frontend` | Vue 3 + Vite + TypeScript. MSAL lives in `src/auth`. |
+| `backend/GymBro.Api/Data` | EF Core model and Postgres migrations. Phase 1 adds profiles, weigh-ins, target history, foods, log entries, entry groups, and day status. |
+| `backend/GymBro.Api/Nutrition` | Mifflin-St Jeor, macro balance, the calorie floor, and trend weight. |
+| `backend/GymBro.Api.Tests` | xUnit tests against Postgres (Testcontainers) and a test authentication handler. |
+| `frontend` | Vue 3 + Vite + TypeScript. MSAL lives in `src/auth`. Playwright smoke tests live in `e2e`. |
 | `Dockerfile` | Multi-stage build. One runtime image, Node and the SDK are not in it. |
 | `docker-compose.yml` | `app` and `postgres`. Every secret and id comes from the environment. |
 | `.env.example` | The values you copy into `.env`. `.env` is gitignored. |
@@ -70,6 +71,18 @@ Sign-in settings are not baked into the JavaScript bundle. The API reads them fr
 | --- | --- | --- | --- |
 | `GET` | `/api/health` | anonymous | `{ "status": "ok", "databaseReachable": true }` while the process is up. The flag is false when Postgres cannot be reached. |
 | `GET` | `/api/me` | bearer token with scope `access_as_user` | Upserts `users` by `oid` and returns the row, including `firstSeenAt` and `lastSeenAt`. |
+| `GET` | `/api/profile` | bearer | Profile, weight, the targets in effect today, and the Matvaretabellen citation. `profile` is null on first run. |
+| `PUT` | `/api/profile` | bearer | Saves the profile. Requires a weigh-in on or before today. Writes `target_history` when something changed. |
+| `POST` | `/api/targets/preview` | bearer | Same maths, nothing stored. |
+| `GET` | `/api/targets?date=` | bearer | The target row in effect on that date. |
+| `PUT` | `/api/weigh-ins/{date}` | bearer | Create or replace that day's weigh-in. One decimal, 30–300 kg. A comma or a point is accepted. |
+| `GET` | `/api/weigh-ins` | bearer | The caller's weigh-ins. |
+| `DELETE` | `/api/weigh-ins/{date}` | bearer | Deletes that day's weigh-in. |
+| `GET` | `/api/weight/trend?date=` | bearer | Trend weight, or null until there are 3 weigh-ins in the last 7 days. |
+| `GET` | `/api/foods/search?q=` | bearer | Local foods only. This never calls Open Food Facts. |
+| `POST` | `/api/foods/search/open-food-facts` | bearer | On-demand Open Food Facts search, throttled to 10 a minute. Local matches are always returned. |
+| `POST` `/GET` `/PUT` `/DELETE` | `/api/foods` | bearer | Custom foods. Private to the owner. |
+| `GET` | `/api/about` | bearer | Food-data credits, including the Matvaretabellen citation. |
 | `GET` | `/config.json` | anonymous | Runtime Entra settings for the SPA. `Cache-Control: no-store`. |
 | other `/api/*` | | same as `/api/me` | Unknown routes are not anonymous. |
 
@@ -116,7 +129,7 @@ The SPA uses `window.location.origin` as the redirect URI. Register whatever ori
 
 The directory (tenant) id is `ENTRA_TENANT_ID`. The tenant subdomain is the label in `https://<subdomain>.ciamlogin.com`. If that host is `https://contoso.ciamlogin.com/<tenant-id>`, `ENTRA_TENANT_SUBDOMAIN` is `contoso`.
 
-After sign-in the page shows whatever the API stored. `oid` is always there. Name and email show "Not in the token" until the user flow returns them (`name`, `email`, or an email-shaped `preferred_username`). Add those attributes to the user flow and sign in again. The row is updated in place. The first-seen time does not move.
+After sign-in the app loads `/api/profile`. With no profile it stays on setup until a profile and a first weigh-in are saved. `oid` is the user key on every row. Name and email are stored when the token contains them (`name`, `email`, or an email-shaped `preferred_username`).
 
 ## Configure
 
@@ -135,6 +148,8 @@ Fill in:
 | `POSTGRES_PASSWORD` | Database password. Also used by the API. |
 | `BIND_ADDRESS` | Host address the app is published on. Default `127.0.0.1`. |
 | `BIND_PORT` | Host port. Default `8100`. |
+| `OPENFOODFACTS_USER_AGENT` | Product string sent to Open Food Facts. Keep it generic. |
+| `MATVARETABELLEN_URL` | Official foods.json used by the import. |
 
 `POSTGRES_HOST=localhost` is for `dotnet run` on the host. Compose overrides the app container's host to `postgres` so the container does not try to talk to itself.
 
@@ -175,16 +190,40 @@ There is no TLS inside the app. Do not turn on `UseHttpsRedirection`. The proxy 
 
 Point the proxy at `http://127.0.0.1:8100`. Register the HTTPS origin it presents (no path, no trailing slash) as a SPA redirect URI, then open that HTTPS URL and sign in.
 
+## Food data
+
+Open Food Facts is not searched as you type. `GET /api/foods/search` reads the local table. `POST /api/foods/search/open-food-facts` calls Open Food Facts, at most 10 searches a minute from this server, and returns the local rows plus `ok`, `rate_limited`, or `unavailable`. The User-Agent is `OPENFOODFACTS_USER_AGENT`.
+
+Matvaretabellen is imported from the official foods.json, not committed as a dump. On the host:
+
+```bash
+dotnet run --project backend/GymBro.Api -- --import-matvaretabellen
+```
+
+With the Compose app image, against the Compose database:
+
+```bash
+docker compose run --rm app --import-matvaretabellen
+```
+
+That one-off container applies migrations, imports, prints the citation, and exits. Run it again for the yearly refresh. The command prints `Matvaretabellen 2026. Mattilsynet. www.matvaretabellen.no`, and the app shows the same line from `/api/about` and the profile payload. Label kilocalories are stored as published. USDA is not used.
+
+## Targets and trend weight
+
+BMR is Mifflin-St Jeor. Daily burn is BMR times the activity factor. The calorie target moves off that burn by the weekly rate times 7,700 divided by 7, and is never below BMR. Protein is grams per kilogram, fat is a percent of the target, and carbs fill the rest (never below 0). A profile or macro change writes `target_history`. A hosted job writes one weekly row per local week. On Monday that row is dated Monday. If the process was off on Monday, the first later run dates the row the day it actually runs and does not backdate it.
+
+Trend weight starts at the first weigh-in. Each later weigh-in moves it 10 percent of the way toward that weigh-in (`TrendWeight.SmoothingShare`). A day with no weigh-in does not add a step. Targets use that smoothed weight from the second weigh-in onward, including the weekly recalculation. The trend number is hidden in the API and the UI until there are at least 3 weigh-ins in the last 7 days. Exactly one weigh-in uses that raw weight. It is published to two decimal places. The weight stored on a target row is `numeric(5,2)`.
+
 ## Tests
 
 ```bash
 dotnet test
-cd frontend && npm run typecheck && npm test && npm run build
+cd frontend && npm run typecheck && npm test && npm run build && npm run e2e
 ```
 
-Backend tests cover `/api/health`, `/api/me` without a token (401), a token without `access_as_user` (403), the user upsert (first seen stays, last seen and the name move), unknown `/api` routes, `/config.json`, and the claim reader. They do not call Entra or Postgres. The test host sets `ASPNETCORE_ENVIRONMENT=Testing`, uses SQLite, and authenticates with `TestAuthHandler` instead of `Microsoft.Identity.Web`.
+Backend tests use Testcontainers Postgres 17 and `TestAuthHandler`. They do not call Entra. The end-to-end smoke test starts the API with `ASPNETCORE_ENVIRONMENT=E2e` and `E2E_AUTH=true` (both are required; that handler is not registered otherwise) and a browser session flag. It needs Postgres on `127.0.0.1:5432` with user, password, and database `gymbro`.
 
-CI is `.github/workflows/tests.yml`. The job name is `tests`. It runs on pull requests and on pushes to `main`, and it also builds the Docker image.
+CI is `.github/workflows/tests.yml`. The job name is `tests`. It runs backend tests, the frontend checks, the Playwright smoke test, and the Docker image build.
 
 New migrations, when you need one:
 
@@ -193,6 +232,6 @@ dotnet tool restore
 dotnet tool run dotnet-ef -- migrations add <Name> --project backend/GymBro.Api --output-dir Data/Migrations
 ```
 
-## Not in this phase
+## Later pull requests
 
-No foods, meals, or workouts. No accounts other than the Entra user. The `users` table is the only table.
+The weight chart, food logging screens, Today, Log, and Progress are not in this pull request. Logging on a past day will require picking a time, the food sheet will stay open after Add on a phone, and Copy will default to Today. Workouts are out of scope. There is no meal field on a log entry.
