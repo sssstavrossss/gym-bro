@@ -1,6 +1,7 @@
 import { fileURLToPath, URL } from "node:url";
 import vue from "@vitejs/plugin-vue";
-import { defineConfig, loadEnv } from "vite";
+import { loadEnv } from "vite";
+import { defineConfig } from "vitest/config";
 
 // The dev server is the browser origin (http://localhost:5173). /api and
 // /config.json are proxied to the API so the SPA and the API share an origin
@@ -11,7 +12,12 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [vue()],
+    test: {
+      include: ["tests/**/*.ts"],
+      environment: "node",
+    },
     server: {
+      host: "127.0.0.1",
       port: 5173,
       strictPort: true,
       proxy: {

@@ -18,7 +18,7 @@ describe("msalSettings", () => {
     expect(settings.auth.knownAuthorities).toEqual(["contoso.ciamlogin.com"]);
     expect(settings.auth.redirectUri).toBe("https://gym.example");
     expect(settings.auth.postLogoutRedirectUri).toBe("https://gym.example");
-    expect(settings.cache.cacheLocation).toBe("sessionStorage");
+    expect(settings.cache.cacheLocation).toBe("localStorage");
     expect(settings.scopes).toEqual(["api://api-id/access_as_user"]);
   });
 });

@@ -1,0 +1,137 @@
+/* Inter (variable, latin subset) bundled so the prototype works offline and from a single file. */
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url("@fontsource-variable/inter/files/inter-latin-wght-normal.woff2") format("woff2-variations");
+}
+
+/* Tokens — same names as the Figma variables (collection "Gym Bro Tokens", mode Dark). */
+:root {
+  color-scheme: dark;
+  --color-bg: #0b0b0c;
+  --color-surface: #1a1a1c;
+  --color-surface-2: #26262a;
+  --color-border: #2e2e33;
+  --color-track: #2a2a2f;
+  --color-progress: #7c7c84;
+  --color-hit: #ffffff;
+  --color-action: #ffffff;
+  --color-on-action: #0b0b0c;
+  --text-primary: #ffffff;
+  --text-secondary: #9a9aa1;
+  --text-tertiary: #5e5e66;
+  --chart-line: #7db1ff;
+  --shade-on-target: #ededef;
+  --shade-close: #9c9ca3;
+  --shade-off: #55555c;
+  --shade-far: #333338;
+  --radius-card: 16px;
+  --radius-control: 12px;
+  --radius-sheet: 24px;
+  --space-screen: 16px;
+  --space-gap: 12px;
+
+  /* Safe areas (iPhone). In ?statusbar demo mode these are faked for screenshots. */
+  --sat: env(safe-area-inset-top, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+  --tabbar-h: calc(50px + max(var(--sab), 14px));
+
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-feature-settings: "cv11", "ss01" 0;
+  background: #000;
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+html.demo-statusbar { --sat: 54px; --sab: 34px; }
+
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overscroll-behavior: none; }
+body { background: #000; }
+button { font: inherit; color: inherit; background: none; border: 0; padding: 0; margin: 0; cursor: pointer; touch-action: manipulation; }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--color-action); outline-offset: 2px; }
+input { font: inherit; color: inherit; }
+svg { display: block; flex: none; }
+
+/* ---- Text styles (Figma) ---- */
+.t-dxl { font-size: 72px; line-height: 76px; font-weight: 700; letter-spacing: -0.04em; }
+.t-dl { font-size: 48px; line-height: 52px; font-weight: 700; letter-spacing: -0.03em; }
+.t-nm { font-size: 28px; line-height: 32px; font-weight: 700; letter-spacing: -0.02em; }
+.t-ns { font-size: 17px; line-height: 22px; font-weight: 600; letter-spacing: -0.01em; }
+.t-title { font-size: 28px; line-height: 34px; font-weight: 700; letter-spacing: -0.02em; margin: 0; }
+.t-head { font-size: 17px; line-height: 22px; font-weight: 600; letter-spacing: -0.01em; margin: 0; }
+.t-body { font-size: 15px; line-height: 20px; font-weight: 400; letter-spacing: -0.01em; }
+.t-bodys { font-size: 15px; line-height: 20px; font-weight: 600; letter-spacing: -0.01em; }
+.t-label { font-size: 13px; line-height: 16px; font-weight: 500; }
+.t-cap { font-size: 11px; line-height: 14px; font-weight: 500; letter-spacing: 0.04em; text-transform: uppercase; }
+.t-capm { font-size: 11px; line-height: 14px; font-weight: 500; letter-spacing: 0.04em; }
+.t-capn { font-size: 11px; line-height: 14px; font-weight: 500; }
+.c2 { color: var(--text-secondary); }
+.c3 { color: var(--text-tertiary); }
+.num { font-variant-numeric: tabular-nums; }
+
+/* ---- Layout primitives ---- */
+.row { display: flex; align-items: center; }
+.col { display: flex; flex-direction: column; }
+.grow { flex: 1 1 auto; min-width: 0; }
+.base { display: flex; align-items: baseline; gap: 4px; }
+.card { background: var(--color-surface); border-radius: var(--radius-card); padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+.divider { height: 1px; background: var(--color-border); }
+
+.screen { padding: calc(var(--sat) + 4px) var(--space-screen) calc(var(--tabbar-h) + 24px); display: flex; flex-direction: column; gap: var(--space-gap); }
+.screen-head { display: flex; align-items: center; min-height: 34px; }
+
+/* circle buttons */
+.cbtn { width: var(--s, 32px); height: var(--s, 32px); border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: var(--color-surface-2); color: #fff; flex: none; transition: transform .12s, opacity .12s; }
+.cbtn.filled { background: var(--color-action); color: var(--color-on-action); }
+.cbtn:active { transform: scale(.92); opacity: .85; }
+.cbtn:disabled { opacity: .35; cursor: default; }
+
+.primary-btn { height: 52px; width: 100%; border-radius: 26px; background: var(--color-action); color: var(--color-on-action); display: flex; align-items: center; justify-content: center; flex: none; }
+.primary-btn:active { opacity: .85; }
+.primary-btn:disabled { opacity: .35; }
+
+.chip { height: 30px; padding: 0 10px; border-radius: 15px; display: inline-flex; align-items: center; justify-content: center; background: var(--color-surface-2); color: var(--text-secondary); }
+.chip.on { background: var(--color-action); color: var(--color-on-action); }
+
+.pressable { transition: opacity .12s; }
+.pressable:active { opacity: .6; }
+
+/* ---------- Responsive (phone is the primary design; these only kick in on wider screens) ---------- */
+/* Tablet 600–1023: wider centred column, bottom tabs kept. */
+.is-tablet .screen { max-width: 760px; margin: 0 auto; padding-left: 24px; padding-right: 24px; padding-top: calc(var(--sat) + 24px); gap: 16px; }
+/* Desktop ≥1024: sidebar + roomy content, max ~1200 px. */
+.is-desktop { --sat: 0px; --sab: 0px; --tabbar-h: 0px; }
+.is-desktop .screen { max-width: 1200px; margin: 0 auto; padding: 32px 40px 48px; gap: 20px; }
+.is-desktop .t-title { font-size: 32px; line-height: 38px; }
+.can-hover .card.clickable { transition: background .15s; }
+.can-hover .card.clickable:hover { background: #202023; }
+.can-hover .cbtn:not(.filled):not(:disabled):hover { background: #303036; }
+.can-hover .cbtn.filled:hover { opacity: .88; }
+.can-hover .primary-btn:not(:disabled):hover { opacity: .9; }
+.can-hover .chip:not(.on):hover { background: #303036; color: var(--text-primary); }
+.can-hover .pressable:hover { opacity: .8; }
+kbd { font: 600 11px/1 "Inter", sans-serif; padding: 2px 5px; border-radius: 4px; border: 1px solid var(--color-border); color: var(--text-secondary); }
+/* Grid helpers */
+.dash { display: grid; gap: 16px; align-items: start; }
+.stack { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.sticky { position: sticky; top: 32px; }
+
+/* Hit targets are at least 44px. Essential text stays on secondary or primary;
+   tertiary grey is too faint for anything the person has to read to use the app. */
+.chip { min-height: 44px; height: 44px; padding: 0 14px; border-radius: 22px; }
+.primary-btn { min-height: 52px; }
+.seg { min-height: 44px; }
+input, select { font-size: 16px; }
+.offline {
+  position: absolute; z-index: 80; left: 16px; right: 16px; top: calc(var(--sat) + 8px);
+  display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: 12px;
+  background: var(--color-surface-2); color: var(--text-primary); border: 1px solid var(--color-border);
+}
+.is-desktop.has-nav .offline { left: 256px; right: 24px; }
+.boot { min-height: 100dvh; display: flex; align-items: center; justify-content: center; background: var(--color-bg); }
+.alert { color: var(--text-primary); background: var(--color-surface-2); border-radius: 12px; padding: 12px 14px; }
+.offline button { min-height: 44px; min-width: 44px; color: var(--text-primary); }

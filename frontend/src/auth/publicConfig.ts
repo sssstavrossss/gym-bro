@@ -25,7 +25,7 @@ export interface MsalSettings {
     postLogoutRedirectUri: string;
   };
   cache: {
-    cacheLocation: "sessionStorage";
+    cacheLocation: "localStorage";
   };
   scopes: string[];
 }
@@ -46,7 +46,9 @@ export function msalSettings(config: PublicConfig, redirectUri: string): MsalSet
       redirectUri,
       postLogoutRedirectUri: redirectUri,
     },
-    cache: { cacheLocation: "sessionStorage" },
+    // localStorage so a home-screen reopen can stay signed in. iOS may still
+    // require an interactive sign-in after about 24 hours; see the PR notes.
+    cache: { cacheLocation: "localStorage" },
     scopes: [config.apiScope],
   };
 }
