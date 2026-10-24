@@ -12,3 +12,5 @@
 **/*.user
 **/*.md
 backend/GymBro.Api.Tests
+# Design prototype. The image builds frontend/ only.
+prototype

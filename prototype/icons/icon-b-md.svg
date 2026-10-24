@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- Option B · medium sizes (44–100 px, e.g. 87, 60). Same drawing as icon-b.svg with:
+       faint inner plate ring removed; bar 52→72 thick and #3A3A40→#4C4C54; collars 44→60 wide, 144→176 tall, #55555C→#74747C. -->
+  <rect width="1024" height="1024" fill="#0B0B0C"/>
+  <rect x="64" y="476" width="896" height="72" rx="36" fill="#4C4C54"/>
+  <rect x="134" y="424" width="60" height="176" rx="18" fill="#74747C"/>
+  <rect x="830" y="424" width="60" height="176" rx="18" fill="#74747C"/>
+  <circle cx="512" cy="512" r="290" fill="#FFFFFF"/>
+  <path d="M596.3 418.4 A126 126 0 1 0 611.3 589.6 L611.3 512 L536 512" fill="none" stroke="#0B0B0C" stroke-width="84" stroke-linejoin="miter"/>
+</svg>

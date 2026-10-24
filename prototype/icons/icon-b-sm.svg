@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- Option B · small sizes (24–43 px, e.g. 40, 32, 29). Barbell and inner ring dropped; the plate + G cut-out
+       (same G path) is scaled 1.4× so the plate fills more of the tile; G stroke 78→88 before scaling. -->
+  <rect width="1024" height="1024" fill="#0B0B0C"/>
+  <g transform="translate(512 512) scale(1.4) translate(-512 -512)">
+    <circle cx="512" cy="512" r="290" fill="#FFFFFF"/>
+    <path d="M596.3 418.4 A126 126 0 1 0 611.3 589.6 L611.3 512 L536 512" fill="none" stroke="#0B0B0C" stroke-width="88" stroke-linejoin="miter"/>
+  </g>
+</svg>
