@@ -24,6 +24,11 @@ npm-debug.log*
 *.swp
 .DS_Store
 
+# Playwright
+playwright-report/
+test-results/
+blob-report/
+
 # Local databases
 *.db
 *.db-wal

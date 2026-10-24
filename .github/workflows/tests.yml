@@ -13,6 +13,20 @@ jobs:
     name: tests
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: gymbro
+          POSTGRES_PASSWORD: gymbro
+          POSTGRES_DB: gymbro
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U gymbro -d gymbro"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -39,6 +53,14 @@ jobs:
           npm run typecheck
           npm test
           npm run build
+
+      - name: Install Playwright
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+
+      - name: End-to-end smoke
+        working-directory: frontend
+        run: npm run e2e
 
       - name: Docker image
         run: docker build -t gymbro:ci .
