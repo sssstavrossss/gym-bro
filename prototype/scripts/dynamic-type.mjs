@@ -32,6 +32,9 @@ const SCREENS = [
   ["s8-accuracy-sheet", "/today", async () => { await page.locator(".wcard .accdot").click(); await settle(); }, "lowacc"],
   ["s8-fresh-today", "/today", null, "fresh"],
   ["s8-typo-guard", "/today", null, "typo"],
+  ["d35-only-weigh-in", "/today", null, "only"],
+  ["d35-zero-in-7", "/today", null, "zero7"],
+  ["d35-day-list", "/today", null, "datewin"],
   ["onboarding-1", "/today", null, "onboarding"],
   ["onboarding-2", "/today", async () => { await page.locator("form .primary-btn").last().click(); await settle(); }, "onboarding"],
 ];
@@ -40,7 +43,7 @@ const audit = () => page.evaluate(() => {
   const vw = innerWidth, out = { clipped: [], ellipsis: [], overlap: [], small: [], nameEll: [] };
   const chrome = ".demo-pill, .home-ind, .status-bg, .toast";
   // only audit the top layer: an open sheet / dialog / full-screen state hides the screen underneath
-  const layers = [...document.querySelectorAll(".ob, .sheet-root, .chooser-root, .down")]; const layer = layers[layers.length - 1] || document.body;
+  const layers = [...document.querySelectorAll(".ob, .sheet-root, .chooser-root, .down, .menu")]; const layer = layers[layers.length - 1] || document.body;
   const visible = (e) => { const cs = getComputedStyle(e); if (cs.visibility === "hidden" || cs.display === "none" || +cs.opacity === 0) return false; if (e.closest(".sr-only, [aria-hidden='true'] .sr-only")) return false; const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
   const hidden = (e) => { for (let a = e; a; a = a.parentElement) { const cs = getComputedStyle(a); if (cs.display === "none" || cs.visibility === "hidden" || +cs.opacity === 0) return true; } return false; };
   const desc = (e) => `${e.tagName.toLowerCase()}.${String(e.className?.baseVal ?? e.className).trim().replace(/\s+/g, ".")} "${(e.innerText || e.getAttribute("aria-label") || "").trim().replace(/\s+/g, " ").slice(0, 40)}"`;
@@ -99,7 +102,7 @@ for (const [name, hash, act, demo] of SCREENS) {
     if (engine === "chromium") await page.screenshot({ path: path.join(outDir, `${tag}.png`) });
     else await page.screenshot({ path: path.join(outDir, `webkit-${tag}.png`) });
     // second shot scrolled to the bottom of the scrolling area (shows the last rows clear of the tab bar)
-    const scrolled = await page.evaluate(() => { const layers = [...document.querySelectorAll(".ob, .sheet-root, .chooser-root, .down")]; const L = layers[layers.length - 1] || document.body;
+    const scrolled = await page.evaluate(() => { const layers = [...document.querySelectorAll(".ob, .sheet-root, .chooser-root, .down, .menu")]; const L = layers[layers.length - 1] || document.body;
       const sc = [...L.querySelectorAll("*")].filter((e) => { const o = getComputedStyle(e).overflowY; return (o === "auto" || o === "scroll") && e.scrollHeight > e.clientHeight + 40; }).sort((x, y) => (y.scrollHeight - y.clientHeight) - (x.scrollHeight - x.clientHeight))[0];
       if (!sc) return false; sc.scrollTop = sc.scrollHeight; return true; });
     if (scrolled && dt >= 23) { await settle(250); await page.screenshot({ path: path.join(outDir, `${engine === "webkit" ? "webkit-" : ""}${tag}-end.png`) }); }

@@ -51,7 +51,7 @@ describe("weight display", () => {
     expect(profileTrendLabel(weight({ trendState: "normal", reasons: [], weighInsInWindow: 2 }))).toBe("trend");
   });
 
-  it("35.3a last weigh-in 9 days ago says the trend is held at that weigh-in", () => {
+  it("35.3a last weigh-in 9 days ago says the trend is held where it was then", () => {
     const spoken = accuracyCopy(weight({
       asOf: "2026-10-24",
       weighInsInWindow: 0,
@@ -59,7 +59,7 @@ describe("weight display", () => {
       trendState: "low_accuracy",
     }));
     expect(spoken.lines[0]).toBe(
-      "No weigh-ins in the last 7 days (last one 9 days ago), so the trend is held at that weigh-in.",
+      "No weigh-ins in the last 7 days (last one 9 days ago), so the trend is held where it was then.",
     );
     expect(spoken.short).toBe("no weigh-ins in the last 7 days");
   });

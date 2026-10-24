@@ -41,9 +41,10 @@ async function onContinue() {
 
     <section class="card">
       <span class="t-label c2">About you</span>
-      <div class="frow">
+      <div class="frow sexrow">
         <span class="t-body c2">Sex</span>
-        <Segmented :model-value="profile.form.sex" :options="[{ value: 'male', label: 'Male' }, { value: 'female', label: 'Female' }]" @update:model-value="setSex" />
+        <span class="grow" />
+        <Segmented label="Sex" :model-value="profile.form.sex" :options="[{ value: 'male', label: 'Male' }, { value: 'female', label: 'Female' }]" @update:model-value="setSex" />
       </div>
       <label class="frow">
         <span class="t-body c2">Birth year</span>
@@ -75,7 +76,7 @@ async function onContinue() {
 
     <section class="card">
       <span class="t-label c2">Goal</span>
-      <Segmented :model-value="profile.form.goal" :options="[{ value: 'lose', label: 'Lose' }, { value: 'maintain', label: 'Maintain' }, { value: 'gain', label: 'Gain' }]" @update:model-value="setGoal" />
+      <Segmented label="Goal" :model-value="profile.form.goal" :options="[{ value: 'lose', label: 'Lose' }, { value: 'maintain', label: 'Maintain' }, { value: 'gain', label: 'Gain' }]" @update:model-value="setGoal" />
       <div v-if="profile.form.goal && profile.form.goal !== 'maintain'" class="rate" role="group" aria-label="Rate">
         <span class="t-body c2">Rate</span>
         <button v-for="rate in RATES" :key="rate" type="button" class="chip t-label" :class="{ on: Number(profile.form.rate) === rate }" @click="setRate(rate)">{{ rate === 1 ? "1.0" : rate }}</button>
@@ -96,6 +97,7 @@ async function onContinue() {
         <span class="t-label c2">kg</span>
       </label>
       <p class="t-label c2">Saved as your first weigh-in, in {{ profile.form.timeZone }}. The trend that day is this weight. A comma or a point both work.</p>
+      <p class="t-capn c2 hint"><i class="odot" aria-hidden="true" />Until you have 2 weigh-ins within 7 days, the trend shows a small grey dot: it's less accurate. Weigh in 2+ times a week, ideally each morning.</p>
     </section>
 
     <p v-if="profile.error" class="alert" role="alert">{{ profile.error }}</p>
@@ -107,6 +109,10 @@ async function onContinue() {
 
 <style scoped>
 .frow { min-height: 44px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--color-border); width: 100%; text-align: left; }
+.sexrow { flex-wrap: wrap; }
+.sexrow :deep(.seg) { width: auto; flex: 1 1 160px; min-width: 160px; }
+.hint { display: flex; gap: 8px; align-items: flex-start; margin: 4px 0 0; }
+.odot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-secondary); flex: none; margin-top: 4px; }
 .frow.last { border-bottom: 0; }
 .ninput { width: 88px; margin-left: auto; text-align: right; background: transparent; border: 0; min-height: 44px; }
 .tz { margin-left: auto; width: 180px; text-align: right; background: transparent; border: 0; min-height: 44px; }

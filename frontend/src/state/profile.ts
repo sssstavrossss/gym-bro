@@ -35,6 +35,7 @@ import {
   type MacroSetting,
   type Sex,
 } from "../lib/nutrition";
+import { formatGoalWeight } from "../lib/format";
 import { atMostOneDecimal, formatMeasure, parseDecimal, sameNumber } from "../lib/numbers";
 import { isFreshStart, isLowAccuracy, profileTrendLabel } from "../lib/weightDisplay";
 import { boot } from "./boot";
@@ -95,7 +96,7 @@ export function formFromProfile(profile: ProfileResponse): ProfileForm {
     activity: profile.activity as ActivityKey,
     goal: profile.goal,
     rate: formatRate(profile.rateKgPerWeek),
-    goalWeightKg: formatMeasure(profile.goalWeightKg),
+    goalWeightKg: formatGoalWeight(profile.goalWeightKg),
     weighInKg: "",
     proteinSetting: profile.proteinSetting as MacroSetting,
     proteinGramsPerKg: profile.proteinGramsPerKg.toFixed(1),

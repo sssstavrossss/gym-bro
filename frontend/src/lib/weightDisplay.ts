@@ -5,6 +5,9 @@ import { kg, signed } from "./format";
 /** New entries and date moves: today back through today − 7, inclusive. */
 export const weighInWindowDays = 7;
 
+/** Ending of the zero-weigh-in accuracy line. Swap this string alone if the wording changes. */
+export const heldTrendEnding = "so the trend is held where it was then.";
+
 export function newWeighInDates(today: string): string[] {
   return Array.from({ length: weighInWindowDays + 1 }, (_, index) => addDays(today, -index));
 }
@@ -79,8 +82,8 @@ export function accuracyCopy(weight: WeightResponse | null): { short: string; li
     } else {
       const ago = weight.latestDate ? diffDays(weight.asOf, weight.latestDate) : null;
       const line = ago == null
-        ? "No weigh-ins in the last 7 days, so the trend is held at the last weigh-in."
-        : `No weigh-ins in the last 7 days (last one ${ago} days ago), so the trend is held at that weigh-in.`;
+        ? `No weigh-ins in the last 7 days, ${heldTrendEnding}`
+        : `No weigh-ins in the last 7 days (last one ${ago} days ago), ${heldTrendEnding}`;
       lines.push(line);
       short ||= "no weigh-ins in the last 7 days";
     }

@@ -1,37 +1,22 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import type { WeightChartPoint } from "../api";
+import { SPARK_HEIGHT, SPARK_WIDTH, sparklineLayout } from "../lib/sparkline";
 
 const props = defineProps<{ series: WeightChartPoint[] }>();
-const path = computed(() => {
-  const pts = props.series.filter((point) => point.trendKg != null);
-  if (pts.length < 2) return "";
-  const values = pts.map((point) => point.trendKg!);
-  const lo = Math.min(...values);
-  const hi = Math.max(...values);
-  const span = hi - lo || 1;
-  const full = props.series;
-  let pen = false;
-  return full.map((point, index) => {
-    if (point.trendKg == null) {
-      pen = false;
-      return "";
-    }
-    const x = (index * 72) / Math.max(full.length - 1, 1);
-    const y = 4 + ((hi - point.trendKg) / span) * 28;
-    const command = `${pen ? "L" : "M"}${x.toFixed(1)},${y.toFixed(1)}`;
-    pen = true;
-    return command;
-  }).join(" ");
-});
+const layout = computed(() => sparklineLayout(props.series.map((point) => ({
+  weighInKg: point.weighInKg,
+  trendKg: point.trendKg,
+}))));
 </script>
 
 <template>
-  <svg class="spark" width="72" height="36" viewBox="0 0 72 36" aria-hidden="true">
-    <path :d="path" fill="none" stroke="#7DB1FF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+  <svg class="spark" :width="SPARK_WIDTH" :height="SPARK_HEIGHT" :viewBox="`0 0 ${SPARK_WIDTH} ${SPARK_HEIGHT}`" aria-hidden="true">
+    <circle v-for="(dot, index) in layout.dots" :key="index" :cx="dot.cx" :cy="dot.cy" r="3" fill="#7DB1FF" fill-opacity="0.35" />
+    <polyline :points="layout.line" fill="none" stroke="#7DB1FF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
   </svg>
 </template>
 
 <style scoped>
-.spark { flex: none; }
+.spark { flex: none; width: 132px; height: 52px; }
 </style>

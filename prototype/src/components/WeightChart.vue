@@ -25,14 +25,19 @@ const data = computed(() => {
   const pts = dates.map((d) => ({ d, w: state.weights[d], t: trendPlot(d) }));
   const vals = pts.flatMap((p) => [p.w, p.t]).filter((v): v is number => v != null);
   if (!vals.length) vals.push(state.profile.startWeight);
-  const lo = Math.floor((Math.min(...vals) - 0.15) * 2) / 2;
-  const hi = Math.ceil((Math.max(...vals) + 0.15) * 2) / 2;
+  const vmin = Math.min(...vals), vmax = Math.max(...vals);
+  // one reading (or a flat line): centre the scale on it, so the middle tick is the value itself (83.6, not 83.5)
+  const flat = vmax - vmin < 0.05;
+  const mid = Math.round(((vmin + vmax) / 2) * 10) / 10;
+  const lo = flat ? mid - 1 : Math.floor((vmin - 0.15) * 2) / 2;
+  const hi = flat ? mid + 1 : Math.ceil((vmax + 0.15) * 2) / 2;
   const Wd = W.value, H = props.height;
   const px = (i: number) => 6 + (i * (Wd - 12)) / (n - 1);
   const py = (w: number) => ((hi - w) / (hi - lo)) * (H - 12) + 6;
   const grid: number[] = [];
   const step = hi - lo > 3 ? 1 : 0.5;
-  for (let g = hi - step; g > lo + 1e-9; g -= step) grid.push(Math.round(g * 10) / 10);
+  if (flat) grid.push(mid + 0.5, mid, mid - 0.5);
+  else for (let g = hi - step; g > lo + 1e-9; g -= step) grid.push(Math.round(g * 10) / 10);
   let pen = false;
   const line = pts.map((p, i) => { if (p.t == null) { pen = false; return ""; } const s = `${pen ? "L" : "M"}${px(i).toFixed(1)},${py(p.t).toFixed(1)}`; pen = true; return s; }).join(" ");
   const lastIdx = pts.map((p) => p.t != null).lastIndexOf(true);

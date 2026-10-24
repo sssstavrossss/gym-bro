@@ -2,9 +2,9 @@
 // Chip with a small drop-down list (meal picker, day picker …).
 import { ref } from "vue";
 import Icon from "./Icon.vue";
-const props = defineProps<{ label: string; options: { value: string; label: string; hint?: string }[]; modelValue: string; align?: "left" | "right" }>();
+const props = defineProps<{ label: string; options: { value: string; label: string; hint?: string }[]; modelValue: string; align?: "left" | "right"; initialOpen?: boolean; listLabel?: string }>();
 const emit = defineEmits<{ "update:modelValue": [string] }>();
-const open = ref(false);
+const open = ref(!!props.initialOpen);
 function pick(v: string) { emit("update:modelValue", v); open.value = false; }
 void props;
 </script>
@@ -17,7 +17,7 @@ void props;
     </button>
     <template v-if="open">
       <div class="catch" @click="open = false" />
-      <div class="menu" :class="align === 'left' ? 'left' : 'right'" role="listbox">
+      <div class="menu" :class="align === 'left' ? 'left' : 'right'" role="listbox" :aria-label="listLabel ?? label">
         <button v-for="o in options" :key="o.value" type="button" class="opt" role="option"
           :aria-selected="o.value === modelValue" @click="pick(o.value)">
           <span class="t-body grow">{{ o.label }}</span>
@@ -30,15 +30,19 @@ void props;
 </template>
 
 <style scoped>
-.picker { position: relative; }
+.picker { position: relative; flex: none; } /* the closed label never shrinks or truncates */
 .mchip { position: relative; min-height: 32px; height: auto; padding: 0 8px 0 12px; border-radius: 16px; background: var(--color-surface-2); display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
 .catch { position: fixed; inset: 0; z-index: 40; }
 .menu { position: absolute; top: 38px; z-index: 41; min-width: 200px; background: #2f2f34; border-radius: 14px; padding: 6px; box-shadow: 0 12px 32px rgba(0,0,0,.6); display: flex; flex-direction: column; }
 .menu.right { right: 0; }
 .menu.left { left: 0; }
-.opt { display: flex; align-items: center; gap: 10px; height: 40px; padding: 0 10px; border-radius: 10px; text-align: left; }
+.opt { flex: none; display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 10px; border-radius: 10px; text-align: left; }
 .opt:active { background: #3a3a40; }
 .opt svg { width: 16px; }
 .mchip::after { content: ""; position: absolute; inset: -6px 0; } /* 44 pt hit area */
 .dt-xl .mchip { white-space: normal; }
+/* large text: the list stays on screen (right-aligned to the chip, never wider than the space to its left) and rows wrap */
+.menu { max-width: calc(100vw - 100px); max-height: min(70vh, 560px); overflow-y: auto; }
+.dt-l .opt { padding: 6px 10px; }
+.dt-l .opt .grow { min-width: 0; overflow-wrap: anywhere; }
 </style>

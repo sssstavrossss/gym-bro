@@ -8,8 +8,8 @@ import WeightChart from "./WeightChart.vue";
 import AccuracyDot from "./AccuracyDot.vue";
 import { addDays, dayMonth, diffDays, shortDate } from "../lib/dates";
 import { kg, signed } from "../lib/format";
-import { checkTypo, deleteWeight, freshPrompt, hasWeights, latestWeighIn, lowAccuracy, saveWeight, state, today, trend, trendInfo, trendWeight } from "../store";
-import { gapLabel } from "../lib/trend";
+import { checkTypo, deleteWeight, freshPrompt, hasWeights, latestWeighIn, lowAccuracy, onlyWeighIn, saveWeight, state, today, trend, trendInfo, trendWeight } from "../store";
+import { entryDates, gapLabel } from "../lib/trend";
 import { closeSheet, toast, ui } from "../ui";
 import { vp } from "../lib/viewport";
 
@@ -21,12 +21,12 @@ const confirmEl = ref<HTMLElement | null>(null);
 const value = ref("");
 const input = ref<HTMLInputElement | null>(null);
 
-const dayOptions = computed(() =>
-  Array.from({ length: 7 }, (_, i) => {
-    const d = addDays(today, -i);
-    return { value: d, label: i === 0 ? `Today, ${dayMonth(d)}` : i === 1 ? `Yesterday, ${dayMonth(d)}` : shortDate(d), hint: state.weights[d] ? kg(state.weights[d]) : "" };
-  }),
-);
+// decision 35.11: today … today − 7 (8 days). An older weigh-in opened from the history list is added so its value can be edited.
+const dayOptions = computed(() => {
+  const ds = entryDates(today);
+  if (!ds.includes(ui.weightDate)) ds.push(ui.weightDate);
+  return ds.map((d, i) => ({ value: d, label: i === 0 ? `Today, ${dayMonth(d)}` : i === 1 ? `Yesterday, ${dayMonth(d)}` : shortDate(d), hint: state.weights[d] ? kg(state.weights[d]) : "" }));
+});
 const dayLabel = computed(() => dayOptions.value.find((o) => o.value === ui.weightDate)?.label.replace("Yesterday", "Yest.") ?? shortDate(ui.weightDate));
 const date = computed({ get: () => ui.weightDate, set: (v: string) => (ui.weightDate = v) });
 
@@ -37,7 +37,7 @@ function prefill() {
 }
 watch(open, async (o) => {
   confirm.value = null;
-  if (!o) return;
+  if (!o) { ui.weightPicker = false; return; }
   if (returning) { returning = false; return; } // back from the accuracy sheet: keep what was typed
   prefill();
   if (ui.weightDraft) { value.value = ui.weightDraft; ui.weightDraft = null; await nextTick(); save(); return; }
@@ -81,11 +81,13 @@ function commit(v: number) {
   toast(replaced !== undefined ? `Replaced ${kg(replaced)} with ${kg(v)} kg · ${t}` : `Saved ${kg(v)} kg · ${t}`);
 }
 /** Cancel saves nothing: back to the number, selected, to fix it. */
+/** Decision 35.2: Edit = straight back to the number, selected. */
+function editOnly() { nextTick(() => { input.value?.focus(); input.value?.select(); }); }
 function fix() { confirm.value = null; nextTick(() => { input.value?.focus(); input.value?.select(); }); }
 function del() {
   const d = ui.weightDate, old = state.weights[d];
   if (old === undefined) return;
-  deleteWeight(d);
+  if (!deleteWeight(d)) return; // decision 35.2: the only weigh-in stays
   closeSheet();
   toast(`Deleted weigh-in ${kg(old)} kg · ${shortDate(d)}`, { label: "Undo", run: () => saveWeight(d, old) });
 }
@@ -109,7 +111,7 @@ const history = computed(() =>
       <div class="row hdr">
         <h2 class="t-head">Log weight</h2>
         <span class="grow" />
-        <MealPicker v-model="date" :label="dayLabel" :options="dayOptions" />
+        <MealPicker list-label="Weigh-in day" :initial-open="ui.weightPicker" v-model="date" :label="dayLabel" :options="dayOptions" />
         <CircleBtn icon="x" label="Close" @click="closeSheet" />
       </div>
     </template>
@@ -134,6 +136,13 @@ const history = computed(() =>
         </div>
       </div>
       <p v-if="invalid" class="t-label m0 verr" role="alert">Enter a weight between 30 and 300 kg, e.g. 83,4 or 83.4</p>
+      <template v-else-if="onlyWeighIn && state.weights[ui.weightDate] !== undefined">
+        <p class="t-capn c3 m0">{{ hint }}</p>
+        <div class="row only">
+          <p class="t-capn c2 m0 grow">This is your only weigh-in, so it can't be deleted.</p>
+          <button type="button" class="chip t-label editb" aria-label="Edit your only weigh-in" @click="editOnly">Edit</button>
+        </div>
+      </template>
       <p v-else class="t-capn c3 m0">{{ hint }}<template v-if="state.weights[ui.weightDate] !== undefined"> · <button type="button" class="t-capn dlink" @click="del">Delete</button></template></p>
       <div v-if="!hasWeights" class="wempty col"><span class="t-label c2">Your chart starts with this weigh-in</span><span class="t-capn c3">Your trend starts with it, and gets more accurate with 2+ weigh-ins a week.</span></div>
       <div v-else class="card chart-card">
@@ -192,6 +201,10 @@ const history = computed(() =>
 .chip.big { min-height: 44px; padding: 0 16px; border-radius: 22px; color: var(--text-primary); }
 .chip.big.on { color: var(--color-on-action); }
 .lblrow { gap: 8px; align-items: center; }
+.only { gap: 12px; align-items: center; margin-top: -6px; }
+.only p { min-width: 0; text-wrap: pretty; }
+.editb { min-height: 44px; padding: 0 18px; border-radius: 22px; color: var(--text-primary); flex: none; }
+.dt-xl .only { flex-wrap: wrap; }
 .hrow { min-height: 44px; border-top: 1px solid var(--color-border); width: 100%; text-align: left; }
 .thint { gap: 6px; align-items: flex-start; }
 .thint svg { margin-top: 1px; }

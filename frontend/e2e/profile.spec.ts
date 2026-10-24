@@ -20,12 +20,12 @@ for (const layout of widths) {
     await expect(page.getByRole("heading", { name: "Your targets" })).toHaveCount(0);
 
     const birthYear = String(new Date().getFullYear() - 36);
-    await page.getByRole("tab", { name: "Male", exact: true }).click();
+    await page.getByRole("radio", { name: "Male", exact: true }).click();
     await page.getByRole("textbox", { name: "Birth year" }).fill(birthYear);
     await page.getByRole("textbox", { name: "Height in centimetres" }).fill("180");
     await page.getByRole("button", { name: "Activity" }).click();
     await page.getByRole("button", { name: "Moderate" }).click();
-    await page.getByRole("tab", { name: "Lose" }).click();
+    await page.getByRole("radio", { name: "Lose" }).click();
     await page.getByRole("button", { name: "0.5" }).click();
     await page.getByRole("textbox", { name: "Goal weight in kilograms" }).fill("80");
     await expect(page.getByRole("heading", { name: "Your starting weight" })).toBeVisible();
@@ -91,7 +91,7 @@ for (const layout of widths) {
     await height.blur();
     await expect(page.getByText("Server unreachable, try again.")).toBeVisible();
     await expect(height).toHaveValue("181,5");
-    await page.getByRole("tab", { name: "Gain", exact: true }).click();
-    await expect(page.getByRole("tab", { name: "Gain", exact: true })).toHaveAttribute("aria-selected", "true");
+    await page.getByRole("radio", { name: "Gain", exact: true }).click();
+    await expect(page.getByRole("radio", { name: "Gain", exact: true })).toHaveAttribute("aria-checked", "true");
   });
 }

@@ -18,8 +18,9 @@ export const accuracyReason = computed(() => {
     const ago = last ? diffDays(today, last.date) : 0;
     lines.push(i.n7 === 1
       ? "Only 1 weigh-in this week, so the trend is less accurate. Weighing in 2+ times a week helps."
-      : `No weigh-ins in the last 7 days (last one ${ago} days ago), so the trend is less accurate. Weighing in 2+ times a week helps.`);
-    short ||= i.n7 === 1 ? "only 1 weigh-in this week" : "no weigh-ins this week";
+      // decision 35.3, Part A wording (Part B: "…so the trend is estimated from your food log.")
+      : `No weigh-ins in the last 7 days (last one ${ago} days ago), so the trend is held where it was then.`);
+    short ||= i.n7 === 1 ? "only 1 weigh-in this week" : "no weigh-ins in the last 7 days";
   }
   return { lines, short };
 });
