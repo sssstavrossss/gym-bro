@@ -50,13 +50,14 @@ public sealed class TrendWeightTests
         };
         var hidden = WeightReader.Choose(two, AsOf, setupKg: 70m);
         Assert.False(hidden.TrendVisible);
-        Assert.Null(hidden.TrendKg);
+        Assert.Equal(81.00m, hidden.TrendKg);
         Assert.Equal(81.00m, hidden.UsedKg);
         Assert.Equal(WeightReader.Trend, hidden.Source);
 
         var one = new List<(DateOnly, decimal)> { (AsOf, 83.6m) };
         var raw = WeightReader.Choose(one, AsOf, setupKg: 70m);
         Assert.False(raw.TrendVisible);
+        Assert.Null(raw.TrendKg);
         Assert.Equal(83.6m, raw.UsedKg);
         Assert.Equal(WeightReader.WeighIn, raw.Source);
 

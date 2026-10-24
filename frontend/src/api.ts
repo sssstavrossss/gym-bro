@@ -73,6 +73,7 @@ export interface TargetsResponse {
   carbs: number;
   floorApplied: boolean;
   reason: string;
+  reasons: string[];
   weightKg: number;
 }
 

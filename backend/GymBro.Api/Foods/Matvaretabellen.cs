@@ -234,6 +234,7 @@ public sealed class MatvaretabellenImporter(
         row.Barcode = parsed.Barcode;
         row.Name = parsed.Name;
         row.Basis = parsed.Basis;
+        row.NutrientBasis = NutrientBases.Per100;
         row.KcalPer100 = parsed.KcalPer100;
         row.ProteinPer100 = parsed.ProteinPer100;
         row.FatPer100 = parsed.FatPer100;

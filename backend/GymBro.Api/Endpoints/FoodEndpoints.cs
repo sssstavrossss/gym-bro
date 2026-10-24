@@ -20,6 +20,9 @@ public sealed class CustomFoodRequest
 
     public string? Basis { get; set; }
 
+    /// <summary><c>per_100</c> (default) or <c>per_serving</c>. Per serving, the nutrient fields are for one serving.</summary>
+    public string? NutrientBasis { get; set; }
+
     public string? Barcode { get; set; }
 
     public decimal? ServingQuantity { get; set; }
@@ -133,7 +136,7 @@ public static class FoodEndpoints
             return denied;
         }
 
-        var error = ValidateCustom(request, out var normalized);
+        var error = ValidateCustom(request, upgradingPerServing: false, out var normalized);
         if (error is not null)
         {
             return ApiResults.Error(error);
@@ -186,13 +189,33 @@ public static class FoodEndpoints
             return denied;
         }
 
-        var error = ValidateCustom(request, out var normalized);
+        var userId = Caller.Id(principal);
+        var existing = await db.Foods.AsNoTracking().FirstOrDefaultAsync(
+            row => row.Id == id && row.UserId == userId && row.Source == "custom" && row.RetiredAt == null,
+            cancellationToken);
+        if (existing is null)
+        {
+            return ApiResults.Error("No food with that id.", StatusCodes.Status404NotFound);
+        }
+
+        var upgrading = existing.NutrientBasis == NutrientBases.PerServing && request.ServingQuantity is > 0;
+        if (upgrading)
+        {
+            var scaled = ScalePerServingToPer100(request);
+            if (scaled.Error is not null)
+            {
+                return ApiResults.Error(scaled.Error);
+            }
+
+            request = scaled.Request;
+        }
+
+        var error = ValidateCustom(request, upgrading, out var normalized);
         if (error is not null)
         {
             return ApiResults.Error(error);
         }
 
-        var userId = Caller.Id(principal);
         var food = await db.Foods.FirstOrDefaultAsync(
             row => row.Id == id && row.UserId == userId && row.Source == "custom" && row.RetiredAt == null,
             cancellationToken);
@@ -255,7 +278,13 @@ public static class FoodEndpoints
         await FoodCatalog.Visible(db.Foods.AsNoTracking(), userId)
             .FirstOrDefaultAsync(food => food.Id == id, cancellationToken);
 
-    private static string? ValidateCustom(CustomFoodRequest request, out CustomFoodRequest normalized)
+    private const int LabelMaxLength = 80;
+
+    private const decimal PerServingKcalMax = 10_000m;
+
+    private const decimal PerServingMacroMax = 1_000m;
+
+    private static string? ValidateCustom(CustomFoodRequest request, bool upgradingPerServing, out CustomFoodRequest normalized)
     {
         normalized = request;
         var name = (request.Name ?? "").Trim();
@@ -264,21 +293,70 @@ public static class FoodEndpoints
             return "Give the food a name.";
         }
 
-        if (request.KcalPer100 < 0 || request.KcalPer100 > 1200)
+        var nutrientBasis = (request.NutrientBasis ?? "").Trim().ToLowerInvariant();
+        if (nutrientBasis.Length == 0)
         {
-            return "Calories per 100 should be between 0 and 1,200.";
+            nutrientBasis = NutrientBases.Per100;
         }
 
-        if (request.ProteinPer100 < 0 || request.FatPer100 < 0 || request.CarbsPer100 < 0
-            || request.ProteinPer100 > 100 || request.FatPer100 > 100 || request.CarbsPer100 > 100)
+        if (nutrientBasis is not (NutrientBases.Per100 or NutrientBases.PerServing))
         {
-            return "Protein, fat, and carbs per 100 should be between 0 and 100 g.";
+            return "Choose nutrients per 100 g or per serving.";
         }
 
-        var basis = (request.Basis ?? "g").Trim().ToLowerInvariant();
-        if (basis is not ("g" or "ml"))
+        var perServing = nutrientBasis == NutrientBases.PerServing;
+        if (perServing)
         {
-            return "Choose grams or millilitres.";
+            if (request.KcalPer100 < 0 || request.KcalPer100 > PerServingKcalMax)
+            {
+                return "Calories per serving should be between 0 and 10,000.";
+            }
+
+            if (request.ProteinPer100 < 0 || request.FatPer100 < 0 || request.CarbsPer100 < 0
+                || request.ProteinPer100 > PerServingMacroMax
+                || request.FatPer100 > PerServingMacroMax
+                || request.CarbsPer100 > PerServingMacroMax)
+            {
+                return "Protein, fat, and carbs per serving should be between 0 and 1,000 g.";
+            }
+        }
+        else
+        {
+            if (request.KcalPer100 < 0 || request.KcalPer100 > 1200)
+            {
+                return "Calories per 100 should be between 0 and 1,200.";
+            }
+
+            if (request.ProteinPer100 < 0 || request.FatPer100 < 0 || request.CarbsPer100 < 0
+                || request.ProteinPer100 > 100 || request.FatPer100 > 100 || request.CarbsPer100 > 100)
+            {
+                return "Protein, fat, and carbs per 100 should be between 0 and 100 g.";
+            }
+        }
+
+        var basisInput = (request.Basis ?? "").Trim().ToLowerInvariant();
+        string basis;
+        if (perServing)
+        {
+            if (basisInput is "g" or "ml")
+            {
+                return "A per-serving food has no gram or millilitre weight.";
+            }
+
+            if (!upgradingPerServing && (request.ServingQuantity is > 0 || request.PieceQuantity is > 0))
+            {
+                return "A per-serving food has no gram weight. You can add a weight later.";
+            }
+
+            basis = "serving";
+        }
+        else
+        {
+            basis = basisInput.Length == 0 ? "g" : basisInput;
+            if (basis is not ("g" or "ml"))
+            {
+                return "Choose grams or millilitres.";
+            }
         }
 
         var barcode = (request.Barcode ?? "").Trim();
@@ -292,6 +370,13 @@ public static class FoodEndpoints
             return "Serving and piece sizes should be between 0 and 5,000.";
         }
 
+        var servingLabel = string.IsNullOrWhiteSpace(request.ServingLabel) ? null : request.ServingLabel.Trim();
+        var pieceLabel = string.IsNullOrWhiteSpace(request.PieceLabel) ? null : request.PieceLabel.Trim();
+        if (servingLabel is { Length: > LabelMaxLength } || pieceLabel is { Length: > LabelMaxLength })
+        {
+            return "Serving and piece labels should be 80 characters or fewer.";
+        }
+
         normalized = new CustomFoodRequest
         {
             Name = name,
@@ -300,14 +385,47 @@ public static class FoodEndpoints
             FatPer100 = request.FatPer100,
             CarbsPer100 = request.CarbsPer100,
             Basis = basis,
+            NutrientBasis = nutrientBasis,
             Barcode = barcode.Length == 0 ? null : barcode,
-            ServingQuantity = request.ServingQuantity is > 0 ? request.ServingQuantity : null,
-            ServingLabel = string.IsNullOrWhiteSpace(request.ServingLabel) ? null : request.ServingLabel.Trim(),
-            PieceQuantity = request.PieceQuantity is > 0 ? request.PieceQuantity : null,
-            PieceLabel = string.IsNullOrWhiteSpace(request.PieceLabel) ? null : request.PieceLabel.Trim(),
+            ServingQuantity = perServing ? null : request.ServingQuantity is > 0 ? request.ServingQuantity : null,
+            ServingLabel = servingLabel,
+            PieceQuantity = perServing ? null : request.PieceQuantity is > 0 ? request.PieceQuantity : null,
+            PieceLabel = pieceLabel,
         };
         return null;
     }
+
+    /// <summary>
+    /// A per-serving food gained a gram weight. The numbers in the request are still
+    /// per serving; future logs use per 100 g. Past log rows keep their own snapshot.
+    /// </summary>
+    private static (string? Error, CustomFoodRequest Request) ScalePerServingToPer100(CustomFoodRequest request)
+    {
+        var grams = request.ServingQuantity ?? 0;
+        if (grams <= 0)
+        {
+            return ("Enter the serving weight in grams.", request);
+        }
+
+        return (null, new CustomFoodRequest
+        {
+            Name = request.Name,
+            KcalPer100 = Scale(request.KcalPer100, grams),
+            ProteinPer100 = Scale(request.ProteinPer100, grams),
+            FatPer100 = Scale(request.FatPer100, grams),
+            CarbsPer100 = Scale(request.CarbsPer100, grams),
+            Basis = "g",
+            NutrientBasis = NutrientBases.Per100,
+            Barcode = request.Barcode,
+            ServingQuantity = grams,
+            ServingLabel = request.ServingLabel,
+            PieceQuantity = request.PieceQuantity,
+            PieceLabel = request.PieceLabel,
+        });
+    }
+
+    private static decimal Scale(decimal perServing, decimal grams) =>
+        decimal.Round(perServing * 100m / grams, 2, MidpointRounding.AwayFromZero);
 
     private static void Apply(Food food, CustomFoodRequest request)
     {
@@ -317,6 +435,9 @@ public static class FoodEndpoints
         food.FatPer100 = request.FatPer100;
         food.CarbsPer100 = request.CarbsPer100;
         food.Basis = request.Basis ?? "g";
+        food.NutrientBasis = string.IsNullOrWhiteSpace(request.NutrientBasis)
+            ? NutrientBases.Per100
+            : request.NutrientBasis;
         food.Barcode = request.Barcode;
         food.ServingQuantity = request.ServingQuantity;
         food.ServingLabel = request.ServingLabel;
@@ -332,6 +453,7 @@ public static class FoodEndpoints
         barcode = food.Barcode,
         name = food.Name,
         basis = food.Basis,
+        nutrientBasis = food.NutrientBasis,
         kcalPer100 = food.KcalPer100,
         proteinPer100 = food.ProteinPer100,
         fatPer100 = food.FatPer100,
@@ -351,6 +473,7 @@ public static class FoodEndpoints
         barcode = food.Barcode,
         name = food.Name,
         basis = food.Basis,
+        nutrientBasis = NutrientBases.Per100,
         kcalPer100 = food.KcalPer100,
         proteinPer100 = food.ProteinPer100,
         fatPer100 = food.FatPer100,

@@ -38,7 +38,20 @@ for (const layout of widths) {
     await expect(page.locator("[data-field=protein]")).toHaveText("167");
     await expect(page.locator("[data-field=fat]")).toHaveText("62");
     await expect(page.locator("[data-field=carbs]")).toHaveText("249");
-    await expect(page.getByRole("button", { name: /Latest weigh-in/ })).toContainText("83.6");
+    const weightButton = page.getByRole("button", { name: /Trend not ready/ });
+    await expect(weightButton).toBeVisible();
+    await expect(weightButton).not.toContainText("83.6");
+    const health = await page.request.get("http://127.0.0.1:8100/api/health");
+    expect(health.ok()).toBeTruthy();
+    const headers = health.headers();
+    expect(headers["x-content-type-options"]).toBe("nosniff");
+    expect(headers["x-frame-options"]).toBe("SAMEORIGIN");
+    expect(headers["referrer-policy"]).toBe("strict-origin-when-cross-origin");
+    const csp = headers["content-security-policy"] ?? "";
+    expect(csp).toContain("frame-src 'self' https://*.ciamlogin.com");
+    expect(csp).toContain("frame-ancestors 'self'");
+    expect(csp).toContain("https://*.ciamlogin.com");
+    expect(csp).not.toContain("unsafe-eval");
     await expect(page.getByText("Matvaretabellen 2026. Mattilsynet. www.matvaretabellen.no")).toBeVisible();
     await expect(page.getByText("More carbs means less protein or fat.")).toHaveCount(0);
 

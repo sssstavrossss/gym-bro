@@ -6,6 +6,7 @@ using GymBro.Api.Endpoints;
 using GymBro.Api.Foods;
 using GymBro.Api.Hosting;
 using GymBro.Api.Users;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 
@@ -32,7 +33,7 @@ builder.Services.AddHttpClient<IOpenFoodFactsClient, OpenFoodFactsClient>((servi
     client.Timeout = TimeSpan.FromSeconds(8);
     client.DefaultRequestHeaders.UserAgent.ParseAdd(agent);
     client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-});
+}).ConfigurePrimaryHttpMessageHandler(OpenFoodFactsClient.CreateHandler);
 builder.Services.AddHttpClient("matvaretabellen", client =>
 {
     client.Timeout = TimeSpan.FromMinutes(2);
@@ -115,6 +116,22 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
     options.KnownProxies.Clear();
 });
 
+// Production keeps keys on the Compose volume. Every other environment
+// (Development, Testing, E2e) uses a directory under the content root.
+var keysPath = builder.Configuration["DataProtection:KeysPath"];
+if (string.IsNullOrWhiteSpace(keysPath))
+{
+    keysPath = builder.Environment.IsProduction()
+        ? "/var/lib/gymbro/keys"
+        : Path.Combine(builder.Environment.ContentRootPath, ".data", "keys");
+}
+
+var keysDirectory = new DirectoryInfo(keysPath);
+keysDirectory.Create();
+builder.Services.AddDataProtection()
+    .SetApplicationName("GymBro")
+    .PersistKeysToFileSystem(keysDirectory);
+
 if (!testing && string.IsNullOrEmpty(Environment.GetEnvironmentVariable("ASPNETCORE_URLS")))
 {
     var address = builder.Configuration["BIND_ADDRESS"];
@@ -135,6 +152,7 @@ if (!testing && string.IsNullOrEmpty(Environment.GetEnvironmentVariable("ASPNETC
 var app = builder.Build();
 
 app.UseForwardedHeaders();
+app.UseSecurityHeaders();
 
 if (app.Environment.IsDevelopment())
 {

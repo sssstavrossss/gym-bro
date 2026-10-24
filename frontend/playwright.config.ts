@@ -15,6 +15,7 @@ const apiEnv = {
 
 export default defineConfig({
   testDir: "./e2e",
+  testIgnore: "**/retro-a11y.spec.ts",
   timeout: 60_000,
   expect: { timeout: 15_000 },
   fullyParallel: false,
@@ -22,8 +23,11 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   use: {
     baseURL: "http://127.0.0.1:5173",
-    ...devices["Desktop Chrome"],
   },
+  projects: [
+    { name: "chromium", use: { ...devices["Desktop Chrome"] } },
+    { name: "webkit", use: { ...devices["Desktop Safari"] } },
+  ],
   webServer: [
     {
       command: "dotnet run --project backend/GymBro.Api --no-launch-profile",

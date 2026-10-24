@@ -37,9 +37,12 @@ public static class WeightReader
     }
 
     /// <summary>
-    /// Two or more weigh-ins use the smoothed trend for targets even when it
-    /// is hidden. Exactly one weigh-in uses that raw weight. None uses
-    /// <paramref name="setupKg"/> when the caller has one; this app does not
+    /// Two or more weigh-ins use the smoothed trend for targets even when
+    /// <see cref="WeightSnapshot.TrendVisible"/> is false. <see cref="WeightSnapshot.TrendKg"/>
+    /// is that smoothed figure once there are two weigh-ins, including the provisional
+    /// case of fewer than three in the last seven days. Exactly one weigh-in uses
+    /// that raw weight for targets and does not publish it as <see cref="WeightSnapshot.TrendKg"/>.
+    /// None uses <paramref name="setupKg"/> when the caller has one; this app does not
     /// store a setup weight apart from the first weigh-in, so that is null.
     /// </summary>
     public static WeightSnapshot Choose(
@@ -51,6 +54,7 @@ public static class WeightReader
         var smoothed = TrendWeight.Compute(series, asOf);
         var inWindow = TrendWeight.CountInWindow(series, asOf);
         var visible = series.Count >= 2 && TrendWeight.IsShown(inWindow);
+        var publishedTrend = series.Count >= 2 ? smoothed : null;
         var latest = series.Count == 0 ? ((DateOnly Date, decimal Kg)?)null : series[^1];
 
         decimal? used;
@@ -72,7 +76,7 @@ public static class WeightReader
         }
 
         return new WeightSnapshot(
-            visible ? smoothed : null,
+            publishedTrend,
             visible,
             latest?.Kg,
             latest?.Date,
