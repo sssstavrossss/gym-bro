@@ -36,7 +36,7 @@ ok(m.typoLimit(W, T) === 3 && !m.typoCheck(W, T, 86.5).ask && m.typoCheck(W, T, 
   const c = m.typoCheck(e, at(-14), 75.1); ok(c.limit === 5 && c.ask && !m.typoCheck(e, at(-14), 74.9).ask, "35.6b editing an older entry uses the gap before its date (14 days → 5 kg)"); }
 ok(m.entryDates(T).length === 8 && m.entryDates(T).at(-1) === "2026-10-17" && m.inEntryWindow(T, "2026-10-17") && !m.inEntryWindow(T, "2026-10-16") && !m.inEntryWindow(T, "2026-10-25"), "35.11 day list today … today − 7 (8 days); today − 8 and tomorrow outside");
 ok(m.weighInsIn7({ [at(-6)]: 80, [T]: 80 }, T) === 2 && m.weighInsIn7({ [at(-7)]: 80, [T]: 80 }, T) === 1, "low accuracy counts today − 6 … today (same as the server's WindowDays = 7)");
-{ const z = { [at(-9)]: 82 }; const st = m.trendStatus(z, T); ok(st.n7 === 0 && st.reasons.includes("few_weigh_ins") && m.trendAsOf(z, T) === 82, "35.3 last weigh-in 9 days ago: 0 in 7 days, trend held at that weigh-in"); }
+{ const z = { [at(-9)]: 82 }; const st = m.trendStatus(z, T); ok(st.n7 === 0 && st.reasons.includes("few_weigh_ins") && m.trendAsOf(z, T) === 82, "35.3 last weigh-in 9 days ago: 0 in 7 days, trend held where it was then"); }
 const f = await build({ entryPoints: [new URL("../src/lib/format.ts", import.meta.url).pathname], bundle: true, format: "esm", write: false, platform: "node" });
 const fm = await import("data:text/javascript;base64," + Buffer.from(f.outputFiles[0].text).toString("base64"));
 ok(fm.kg(83.25) === "83.3" && fm.kg(83.15) === "83.2" && fm.kg(83.6) === "83.6" && fm.kg(83.45) === "83.5", "kg rounds half away from zero (83.25 → 83.3, 83.15 → 83.2)");

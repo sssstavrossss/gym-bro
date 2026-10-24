@@ -212,7 +212,7 @@ export function freshStartDemo() {
   s.complete = {};
   replaceWith(s);
 }
-/** Demo (decision 35.3): last weigh-in 9 days ago → 0 in the last 7 days, trend held at that weigh-in. */
+/** Demo (decision 35.3): last weigh-in 9 days ago → 0 in the last 7 days, trend held where it was then. */
 export function zeroIn7Demo() {
   const s = seed();
   for (let i = 0; i < 9; i++) delete s.weights[addDays(DEMO_TODAY, -i)];

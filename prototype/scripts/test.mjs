@@ -184,7 +184,7 @@ await fresh("demo=only", "/today");
 await fresh("demo=only", "/today");
 ok((await p.locator(".sheet-root .ylabels").innerText()).split(/\s+/).includes("85.0"), "single weigh-in chart: a tick at the value itself (85.0)");
 await fresh("demo=zero7", "/today");
-ok((await p.locator(".sheet-root[aria-label='Trend accuracy']").innerText()).includes("No weigh-ins in the last 7 days (last one 9 days ago), so the trend is held at that weigh-in."), "35.3a dot sheet wording, N = 9");
+ok((await p.locator(".sheet-root[aria-label='Trend accuracy']").innerText()).includes("No weigh-ins in the last 7 days (last one 9 days ago), so the trend is held where it was then."), "35.3a dot sheet wording, N = 9");
 await p.click(".sheet-root[aria-label='Trend accuracy'] .ghost"); await p.waitForTimeout(300);
 ok((await p.locator(".wcard .accdot").getAttribute("aria-label")).includes("no weigh-ins in the last 7 days"), "35.3 dot's spoken name");
 await fresh("demo=datewin", "/today");

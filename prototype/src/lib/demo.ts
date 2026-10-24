@@ -9,7 +9,7 @@ export const DEMO_STATES: { key: DemoState; label: string; hint: string }[] = [
   { key: "lowacc", label: "Low accuracy", hint: "1 weigh-in in the last 7 days → trend with the grey dot" },
   { key: "fresh", label: "Fresh start", hint: "6 weeks without a weigh-in, then 82.4 kg today → recalculate?" },
   { key: "only", label: "Only weigh-in", hint: "one weigh-in → weight sheet: can't be deleted, Edit; chart centred on 85.0" },
-  { key: "zero7", label: "No weigh-ins in 7 days", hint: "last weigh-in 9 days ago → dot sheet, trend held at that weigh-in" },
+  { key: "zero7", label: "No weigh-ins in 7 days", hint: "last weigh-in 9 days ago → dot sheet, trend held where it was then" },
   { key: "datewin", label: "Weigh-in day list", hint: "weight sheet with the day list open: today … today − 7 (8 days)" },
   { key: "typo", label: "Typo guard", hint: "weight sheet with 38.6 kg typed → “Is 38.6 kg right?”" },
   { key: "manual", label: "Own calorie number", hint: "goal mode “My own number”, 2,000 kcal since Thu 22 Oct" },
