@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace GymBro.Api.Nutrition;
 
 /// <summary>
@@ -172,6 +174,10 @@ public static class TrendWeight
 
     public static decimal Publish(decimal trend) =>
         decimal.Round(trend, 2, MidpointRounding.AwayFromZero);
+
+    /// <summary>One decimal, half away from zero. The weigh-in confirm sentence and the app use this.</summary>
+    public static string FormatOneDecimal(decimal value) =>
+        decimal.Round(value, 1, MidpointRounding.AwayFromZero).ToString("0.0", CultureInfo.InvariantCulture);
 
     private static decimal? Reading(
         DateOnly date,

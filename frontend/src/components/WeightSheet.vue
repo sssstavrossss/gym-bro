@@ -5,7 +5,7 @@ import BottomSheet from "./BottomSheet.vue";
 import AccuracyDot from "./AccuracyDot.vue";
 import WeightChart from "./WeightChart.vue";
 import { dayMonth, diffDays, shortDate, todayIso } from "../lib/dates";
-import { kg, signed } from "../lib/format";
+import { kg, signed, typoGuardDetail } from "../lib/format";
 import { parseDecimal } from "../lib/numbers";
 import { earliestNewWeighInDate, gapLabel, isFreshStart, isLowAccuracy, newWeighInDates, trendChange } from "../lib/weightDisplay";
 import { profile, removeWeighIn, saveWeighIn } from "../state/profile";
@@ -159,12 +159,9 @@ async function restoreWeighIn(date: string, kilograms: number) {
   if (!result) toast("Could not restore that weigh-in.");
 }
 
-const diffText = computed(() => {
-  if (!confirm.value) return "";
-  const diff = confirm.value.kg - confirm.value.previousTrendKg;
-  const way = diff < 0 ? "below" : "above";
-  return `That's ${kg(Math.abs(diff))} kg ${way} your trend (${kg(confirm.value.previousTrendKg)} kg). Nothing is saved until you choose.`;
-});
+const diffText = computed(() => (
+  confirm.value ? typoGuardDetail(confirm.value.kg, confirm.value.previousTrendKg) : ""
+));
 </script>
 
 <template>

@@ -18,6 +18,15 @@ public sealed class TrendWeightTests
     }
 
     [Fact]
+    public void One_decimal_display_rounds_half_away_from_zero()
+    {
+        Assert.Equal("80.1", TrendWeight.FormatOneDecimal(80.05m));
+        Assert.Equal("80.4", TrendWeight.FormatOneDecimal(80.35m));
+        Assert.Equal("80.6", TrendWeight.FormatOneDecimal(80.55m));
+        Assert.Equal("80.9", TrendWeight.FormatOneDecimal(80.85m));
+    }
+
+    [Fact]
     public void Prototype_36_day_dataset_still_gives_trend_83_60_and_2218_kcal()
     {
         var start = new DateOnly(2026, 9, 19);

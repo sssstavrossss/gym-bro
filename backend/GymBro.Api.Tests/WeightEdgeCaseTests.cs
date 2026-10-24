@@ -440,6 +440,28 @@ public sealed class WeightEdgeCaseTests(ApiFactory factory)
         Assert.Equal(0, await Count(client));
     }
 
+    [Fact]
+    public async Task Confirm_sentence_for_trend_80_05_rounds_half_away_from_zero()
+    {
+        var today = new DateOnly(2026, 10, 24);
+        var user = TestData.NewUser("round-80-05");
+        using var client = factory.AsUser(user);
+        await PutOn(client, today.AddDays(-2), 80.0m);
+        await PutOn(client, today.AddDays(-1), 80.5m);
+        On(today);
+
+        var held = await TrendOn(client, today.AddDays(-1));
+        Assert.Equal(80.05m, held.GetProperty("trendKg").GetDecimal());
+
+        var asked = await client.PutAsync($"/api/weigh-ins/{Iso(today)}", Json(WeighIn(90.0m)));
+        Assert.Equal(HttpStatusCode.Conflict, asked.StatusCode);
+        var body = await asked.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(80.05m, body.GetProperty("previousTrendKg").GetDecimal());
+        Assert.Equal(
+            "Is 90.0 kg right? That's 10.0 kg above your trend (80.1 kg). Nothing is saved until you choose.",
+            body.GetProperty("error").GetString());
+    }
+
     private void On(DateOnly date)
     {
         factory.Clock.UtcNow = new DateTimeOffset(date.ToDateTime(new TimeOnly(8, 0)), TimeSpan.Zero);
