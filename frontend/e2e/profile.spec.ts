@@ -38,7 +38,10 @@ for (const layout of widths) {
     await expect(page.locator("[data-field=protein]")).toHaveText("167");
     await expect(page.locator("[data-field=fat]")).toHaveText("62");
     await expect(page.locator("[data-field=carbs]")).toHaveText("249");
-    await expect(page.getByRole("button", { name: /Latest weigh-in/ })).toContainText("83.6");
+    await expect(page.getByRole("button", { name: /Trend/ })).toContainText("83.60");
+    await expect(page.getByText("Low accuracy").first()).toBeVisible();
+    await expect(page.getByText("not ready")).toHaveCount(0);
+    await expect(page.getByText("provisional")).toHaveCount(0);
     await expect(page.getByText("Matvaretabellen 2026. Mattilsynet. www.matvaretabellen.no")).toBeVisible();
     await expect(page.getByText("More carbs means less protein or fat.")).toHaveCount(0);
 

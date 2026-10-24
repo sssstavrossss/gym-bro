@@ -76,10 +76,12 @@ Sign-in settings are not baked into the JavaScript bundle. The API reads them fr
 | `PUT` | `/api/profile` | bearer | Saves the profile. Requires a weigh-in on or before today. Writes `target_history` when something changed. |
 | `POST` | `/api/targets/preview` | bearer | Same maths, nothing stored. |
 | `GET` | `/api/targets?date=` | bearer | The target row in effect on that date. |
-| `PUT` | `/api/weigh-ins/{date}` | bearer | Create or replace that day's weigh-in. One decimal, 30–300 kg. A comma or a point is accepted. |
+| `PUT` | `/api/weigh-ins/{date}` | bearer | Create or replace that day's weigh-in. One decimal, 30–300 kg. A comma or a point is accepted. `confirm: true` saves a value more than 3.0 kg from the previous day's trend. |
 | `GET` | `/api/weigh-ins` | bearer | The caller's weigh-ins. |
-| `DELETE` | `/api/weigh-ins/{date}` | bearer | Deletes that day's weigh-in. |
-| `GET` | `/api/weight/trend?date=` | bearer | Trend weight, or null until there are 3 weigh-ins in the last 7 days. |
+| `DELETE` | `/api/weigh-ins/{date}` | bearer | Deletes that day's weigh-in. The trend is computed again; `target_history` is left as it was. |
+| `GET` | `/api/weight/trend?date=` | bearer | Trend for that local day (today when `date` is omitted), plus `trendState`, `reasons`, `goalReached`, and `freshStart`. |
+| `GET` | `/api/weight/chart?date=&days=` | bearer | Daily series ending on that day. `days` defaults to 30 (1–366). Real weigh-ins are flagged; other days in the series are estimated. |
+| `POST` | `/api/weight/fresh-start` | bearer | `{ "accept": true }` upserts today's `target_history` row with reason `fresh_start`. `{ "accept": false }` writes nothing. |
 | `GET` | `/api/foods/search?q=` | bearer | Local foods only. This never calls Open Food Facts. |
 | `POST` | `/api/foods/search/open-food-facts` | bearer | On-demand Open Food Facts search, throttled to 10 a minute. Local matches are always returned. |
 | `POST` `/GET` `/PUT` `/DELETE` | `/api/foods` | bearer | Custom foods. Private to the owner. |
@@ -213,7 +215,11 @@ That one-off container applies migrations, imports, prints the citation, and exi
 
 BMR is Mifflin-St Jeor. Daily burn is BMR times the activity factor. The calorie target moves off that burn by the weekly rate times 7,700 divided by 7, and is never below BMR. Protein is grams per kilogram, fat is a percent of the target, and carbs fill the rest (never below 0). A profile or macro change writes `target_history`. A hosted job writes one weekly row per local week. On Monday that row is dated Monday. If the process was off on Monday, the first later run dates the row the day it actually runs and does not backdate it.
 
-Trend weight starts at the first weigh-in. Each later weigh-in moves it 10 percent of the way toward that weigh-in (`TrendWeight.SmoothingShare`). A day with no weigh-in does not add a step. Targets use that smoothed weight from the second weigh-in onward, including the weekly recalculation. The trend number is hidden in the API and the UI until there are at least 3 weigh-ins in the last 7 days. Exactly one weigh-in uses that raw weight. It is published to two decimal places. The weight stored on a target row is `numeric(5,2)`.
+Trend weight is one server series (`TrendWeight.Compute`), from the first real weigh-in through the user's local today. The setup weight is that first weigh-in, and the trend that day is the weigh-in itself. Each later day keeps the previous trend (Part A has no intake step) unless the day has a real weigh-in or a gap reading, in which case the trend moves 10 percent of the way toward that reading (`TrendWeight.SmoothingShare`). A gap of 2 to 28 days is a straight line between the two real weigh-ins. A gap longer than 28 days is a fresh start: that day's trend equals the new weigh-in. Profile, targets, BMR, the Monday job, and the weight API all use this published figure, rounded to two decimal places, half away from zero. The weight stored on a target row is `numeric(5,2)`. Past `target_history` rows are not rewritten when a weigh-in changes.
+
+`trendState` is `normal`, `low_accuracy` (fewer than 2 real weigh-ins in the last 7 days; `reasons` includes `fewer_than_2_weighins_7d`), or `fresh_start` (the latest weigh-in followed a gap longer than 28 days, until the next weigh-in). `freshStart.weeksSincePrevious` is the whole weeks in that gap. `goalReached` is true only on a day that has a real weigh-in when the trend is at or past the goal for lose or gain. Nothing switches the goal on its own.
+
+A new or edited weigh-in more than 3.0 kg from the previous day's trend returns `409` with `code: "confirm_weigh_in"` and `error: "Is 38.6 kg right?"`. The first weigh-in is not checked. Sending `confirm: true` saves it. `POST /api/weight/fresh-start` with `accept: true` writes today's target row with reason `fresh_start`, updating the latest row already stored for today when there is one. `accept: false` writes nothing. The Monday job is otherwise unchanged and still uses the trend. `day_status.fasting` defaults to false and is unused until learned burn.
 
 ## Tests
 

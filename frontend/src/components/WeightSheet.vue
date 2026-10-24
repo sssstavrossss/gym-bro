@@ -39,7 +39,7 @@ async function save() {
   <BottomSheet :open="open" label="Log weight" @close="closeSheet">
     <template #header>
       <h2 class="t-head">Log weight</h2>
-      <p class="t-body c2">{{ caption.label }} {{ caption.value }}</p>
+      <p class="t-body c2">{{ caption.label }} {{ caption.value }}<template v-if="caption.note"> · {{ caption.note }}</template></p>
     </template>
     <label class="field">
       <span class="t-label c2">Date</span>

@@ -44,4 +44,43 @@ public static class TargetBook
             CreatedAt = createdAt,
         };
     }
+
+    /// <summary>
+    /// Writes today's targets with reason <see cref="TargetReasons.FreshStart"/>.
+    /// If a row already exists for today, that latest row is updated in place
+    /// (decision 31). Earlier days are left as they were.
+    /// </summary>
+    public static async Task<TargetHistory> UpsertTodayAsync(
+        AppDbContext db,
+        string userId,
+        DateOnly today,
+        NutritionResult result,
+        decimal weightKg,
+        string reason,
+        DateTimeOffset createdAt,
+        CancellationToken cancellationToken)
+    {
+        var latest = await db.TargetHistories
+            .Where(row => row.UserId == userId && row.EffectiveDate == today)
+            .OrderByDescending(row => row.CreatedAt)
+            .ThenByDescending(row => row.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (latest is null)
+        {
+            latest = NewRow(userId, today, result, weightKg, reason, createdAt);
+            db.TargetHistories.Add(latest);
+            return latest;
+        }
+
+        latest.Bmr = result.Bmr;
+        latest.Tdee = result.Tdee;
+        latest.Kcal = result.Kcal;
+        latest.ProteinGrams = result.Protein;
+        latest.FatGrams = result.Fat;
+        latest.CarbGrams = result.Carbs;
+        latest.FloorApplied = result.FloorApplied;
+        latest.Reason = reason;
+        latest.WeightKg = decimal.Round(weightKg, 2, MidpointRounding.AwayFromZero);
+        return latest;
+    }
 }

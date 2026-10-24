@@ -11,4 +11,10 @@ public sealed class DayStatus
     public DateOnly LocalDate { get; set; }
 
     public bool Complete { get; set; }
+
+    /// <summary>
+    /// A fasting day counts as a complete day with 0 kcal intake. Unused until
+    /// learned burn (Part B). Existing rows default to false.
+    /// </summary>
+    public bool Fasting { get; set; }
 }

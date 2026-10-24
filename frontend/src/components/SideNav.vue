@@ -40,6 +40,7 @@ const weight = computed(() => weightCaption(profile.weight));
     <div class="glance col">
       <span class="t-label c2">{{ weight.label }}</span>
       <span class="t-head">{{ weight.value }}</span>
+      <span v-if="weight.note" class="t-label c2">{{ weight.note }}</span>
       <span class="t-label c2">Food logging comes later.</span>
     </div>
     <p class="keys t-label c2"><kbd>N</kbd> or <kbd>/</kbd> add food · <kbd>Q</kbd> quick add · <kbd>W</kbd> weight · <kbd>Esc</kbd> close</p>

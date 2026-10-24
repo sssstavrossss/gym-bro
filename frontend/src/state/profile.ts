@@ -420,14 +420,21 @@ export async function retryLoad(): Promise<void> {
   if (profile.hasSaved && isDirty()) await refreshPreview();
 }
 
-export function weightCaption(weight: WeightResponse | null): { label: string; value: string } {
-  if (weight?.trendVisible && weight.trendKg != null) {
-    return { label: "Trend", value: `${weight.trendKg.toFixed(2)} kg` };
+export function weightCaption(weight: WeightResponse | null): { label: string; value: string; note: string } {
+  if (weight?.trendKg != null) {
+    return {
+      label: "Trend",
+      value: `${weight.trendKg.toFixed(2)} kg`,
+      note: trendNote(weight),
+    };
   }
-  if (weight?.latestKg != null) {
-    return { label: "Latest weigh-in", value: `${weight.latestKg.toFixed(1)} kg` };
-  }
-  return { label: "Weight", value: "—" };
+  return { label: "Weight", value: "—", note: "" };
+}
+
+function trendNote(weight: WeightResponse): string {
+  if (weight.trendState === "fresh_start") return "Fresh start";
+  if (weight.trendState === "low_accuracy" || weight.reasons?.includes("fewer_than_2_weighins_7d")) return "Low accuracy";
+  return "";
 }
 
 export interface ShownTargets {

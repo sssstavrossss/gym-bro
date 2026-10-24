@@ -67,6 +67,12 @@ namespace GymBro.Api.Data.Migrations
                         .HasColumnType("boolean")
                         .HasColumnName("complete");
 
+                    b.Property<bool>("Fasting")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("fasting");
+
                     b.HasKey("UserId", "LocalDate");
 
                     b.ToTable("day_status", (string)null);

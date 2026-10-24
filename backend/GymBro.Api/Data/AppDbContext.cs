@@ -159,6 +159,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         day.Property(d => d.UserId).HasColumnName("user_id").HasMaxLength(64);
         day.Property(d => d.LocalDate).HasColumnName("local_date");
         day.Property(d => d.Complete).HasColumnName("complete");
+        day.Property(d => d.Fasting).HasColumnName("fasting").HasDefaultValue(false);
         day.HasOne<AppUser>().WithMany().HasForeignKey(d => d.UserId).OnDelete(DeleteBehavior.Cascade);
 
         var credit = modelBuilder.Entity<FoodSourceCredit>();

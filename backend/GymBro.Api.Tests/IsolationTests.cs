@@ -18,6 +18,8 @@ public sealed class IsolationTests(ApiFactory factory)
     [InlineData("DELETE", "/api/weigh-ins/2026-10-24")]
     [InlineData("GET", "/api/weigh-ins")]
     [InlineData("GET", "/api/weight/trend")]
+    [InlineData("GET", "/api/weight/chart")]
+    [InlineData("POST", "/api/weight/fresh-start")]
     [InlineData("GET", "/api/foods/search?q=oat")]
     [InlineData("POST", "/api/foods/search/open-food-facts")]
     [InlineData("POST", "/api/foods")]

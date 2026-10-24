@@ -51,16 +51,30 @@ export interface ProfileResponse {
   timeZone: string;
 }
 
+export type TrendState = "normal" | "low_accuracy" | "fresh_start";
+
+export interface FreshStartResponse {
+  date: string;
+  previousDate: string;
+  daysSincePrevious: number;
+  weeksSincePrevious: number;
+  recalculatePending: boolean;
+}
+
 export interface WeightResponse {
+  asOf: string;
   trendKg: number | null;
-  trendVisible: boolean;
+  trendState: TrendState | null;
+  reasons: string[];
   latestKg: number | null;
   latestDate: string | null;
   weighInsInWindow: number;
-  trendMinimum: number;
   windowDays: number;
+  smoothingShare: number;
   usedKg: number | null;
-  source: "trend" | "weigh_in" | "setup" | "none";
+  source: "trend" | "setup" | "none";
+  goalReached: boolean;
+  freshStart: FreshStartResponse | null;
 }
 
 export interface TargetsResponse {
