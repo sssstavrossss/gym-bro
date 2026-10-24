@@ -31,7 +31,9 @@ public sealed class WeighInEndpointTests(ApiFactory factory)
         var rows = list.GetProperty("weighIns");
         Assert.Equal(1, rows.GetArrayLength());
         Assert.Equal(83.5m, rows[0].GetProperty("kg").GetDecimal());
+        Assert.False(rows[0].GetProperty("canDelete").GetBoolean());
 
+        await TestData.PutWeighIn(client, "2026-10-23", """{"kg":83.0,"timeZone":"UTC"}""");
         var removed = await client.DeleteAsync("/api/weigh-ins/2026-10-24");
         Assert.Equal(HttpStatusCode.NoContent, removed.StatusCode);
         var missing = await client.DeleteAsync("/api/weigh-ins/2026-10-24");

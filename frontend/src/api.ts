@@ -171,6 +171,8 @@ export interface WeightChartResponse {
 export interface WeighInRow {
   localDate: string;
   kg: number;
+  /** False only when this is the account's last weigh-in. The server decides. */
+  canDelete: boolean;
 }
 
 export interface FreshStartDecisionResponse {

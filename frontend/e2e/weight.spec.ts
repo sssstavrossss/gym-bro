@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 
@@ -16,7 +17,7 @@ async function clock(page: Page) {
       date.setDate(date.getDate() + offset);
       return format.format(date);
     };
-    return { zone, today: day(0), yesterday: day(-1), earlier: day(-2), ago: day(-29) };
+    return { zone, today: day(0), yesterday: day(-1), earlier: day(-2), ago: day(-29), ago9: day(-9), minus7: day(-7), minus8: day(-8) };
   });
 }
 
@@ -50,6 +51,22 @@ async function putWeighIn(request: APIRequestContext, oid: string, date: string,
     data: { kg, timeZone: zone, confirm },
   });
   expect(response.ok(), await response.text()).toBeTruthy();
+}
+
+async function seedPastWeighIn(request: APIRequestContext, oid: string, date: string, kg: number) {
+  if (!/^[\w.-]+$/.test(oid) || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    throw new Error("Refusing to seed an unexpected id or date.");
+  }
+  const created = await request.get("/api/me", { headers: headers(oid) });
+  expect(created.ok(), await created.text()).toBeTruthy();
+  execFileSync("psql", [
+    "-h", "127.0.0.1",
+    "-U", "gymbro",
+    "-d", "gymbro",
+    "-v", "ON_ERROR_STOP=1",
+    "-c",
+    `insert into weigh_ins (id, user_id, local_date, kg, updated_at) values (gen_random_uuid(), '${oid}', '${date}', ${kg.toFixed(1)}, now());`,
+  ], { env: { ...process.env, PGPASSWORD: "gymbro" } });
 }
 
 async function putProfile(request: APIRequestContext, oid: string, zone: string, goalWeightKg: number) {
@@ -110,7 +127,7 @@ test("low accuracy dot, sheet, and profile", async ({ page }) => {
 test("fresh start asks, and Not now writes nothing", async ({ page }) => {
   const oid = `e2e-fresh-no-${Date.now()}`;
   const when = await clock(page);
-  await putWeighIn(page.request, oid, when.ago, 80, when.zone);
+  await seedPastWeighIn(page.request, oid, when.ago, 80);
   await putProfile(page.request, oid, when.zone, 70);
   await putWeighIn(page.request, oid, when.today, 90, when.zone, true);
   const before = await (await page.request.get("/api/profile", { headers: headers(oid) })).json();
@@ -138,7 +155,7 @@ test("fresh start asks, and Not now writes nothing", async ({ page }) => {
 test("fresh start Recalculate writes today's fresh_start target", async ({ page }) => {
   const oid = `e2e-fresh-yes-${Date.now()}`;
   const when = await clock(page);
-  await putWeighIn(page.request, oid, when.ago, 80, when.zone);
+  await seedPastWeighIn(page.request, oid, when.ago, 80);
   await putProfile(page.request, oid, when.zone, 70);
   await putWeighIn(page.request, oid, when.today, 90, when.zone, true);
   await openApp(page, oid, 390);
@@ -221,16 +238,82 @@ test("goal reached asks on the latest weigh-in and changes nothing until chosen"
   expect(after.weight.goalReached).toBe(true);
 });
 
-test("deleting the only weigh-in clears the trend", async ({ page }) => {
-  const oid = `e2e-del-${Date.now()}`;
+test("35.2a the only weigh-in explains why delete is blocked and offers Edit", async ({ page }) => {
+  const oid = `e2e-35-2a-${Date.now()}`;
   const when = await clock(page);
   await putWeighIn(page.request, oid, when.today, 83.6, when.zone);
   await putProfile(page.request, oid, when.zone, 80);
   await openApp(page, oid, 390);
   await page.getByRole("button", { name: /Open weight|Log weight/ }).first().click();
-  await page.getByRole("button", { name: "Delete" }).click();
-  await expect(page.getByText("No weigh-ins yet")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Delete" })).toHaveCount(0);
+  await expect(page.getByText("This is your only weigh-in, so it can't be deleted.")).toBeVisible();
+  await page.getByRole("button", { name: "Edit", exact: true }).click();
+  await expect(page.getByRole("textbox", { name: "Weight in kilograms" })).toBeFocused();
+  const listed = await (await page.request.get("/api/weigh-ins", { headers: headers(oid) })).json();
+  expect(listed.weighIns).toHaveLength(1);
+  expect(listed.weighIns[0].canDelete).toBe(false);
+  const blocked = await page.request.delete(`/api/weigh-ins/${when.today}`, { headers: headers(oid) });
+  expect(blocked.status()).toBe(409);
+  expect(await blocked.json()).toMatchObject({ code: "only_weigh_in" });
+});
+
+test("35.2b editing the only weigh-in updates the trend", async ({ page }) => {
+  const oid = `e2e-35-2b-${Date.now()}`;
+  const when = await clock(page);
+  await putWeighIn(page.request, oid, when.today, 80, when.zone);
+  await putProfile(page.request, oid, when.zone, 70);
+  await openApp(page, oid, 390);
+  await page.getByRole("button", { name: /Open weight|Log weight/ }).first().click();
+  await page.getByRole("textbox", { name: "Weight in kilograms" }).fill("84");
+  await page.getByRole("button", { name: "Save weight" }).click();
+  await expect(page.getByRole("heading", { name: "Log weight" })).toHaveCount(0);
+  await expect(page.locator(".t-nm")).toHaveText("84.00");
   const trend = await (await page.request.get("/api/weight/trend", { headers: headers(oid) })).json();
-  expect(trend.trendKg).toBeNull();
-  expect(trend.source).toBe("none");
+  expect(trend.trendKg).toBe(84);
+  expect(trend.latestKg).toBe(84);
+});
+
+test("35.3a dot copy when the last weigh-in was 9 days ago", async ({ page }) => {
+  const oid = `e2e-35-3a-${Date.now()}`;
+  const when = await clock(page);
+  await seedPastWeighIn(page.request, oid, when.ago9, 83.6);
+  await putProfile(page.request, oid, when.zone, 80);
+  await openApp(page, oid, 390);
+  await page.getByRole("button", { name: /Low accuracy/ }).first().click();
+  await expect(page.getByText(
+    "No weigh-ins in the last 7 days (last one 9 days ago), so the trend is held at that weigh-in.",
+  )).toBeVisible();
+});
+
+test("35.7b weights outside 30 to 300 kg are rejected in the sheet", async ({ page }) => {
+  const oid = `e2e-35-7b-${Date.now()}`;
+  const when = await clock(page);
+  await putWeighIn(page.request, oid, when.yesterday, 83.6, when.zone);
+  await putProfile(page.request, oid, when.zone, 80);
+  await openApp(page, oid, 390);
+  await page.getByRole("button", { name: /Open weight|Log weight/ }).first().click();
+  const field = page.getByRole("textbox", { name: "Weight in kilograms" });
+  await field.fill("29.9");
+  await expect(page.getByRole("alert")).toContainText("between 30 and 300");
+  await expect(page.getByRole("button", { name: "Save weight" })).toBeDisabled();
+  await field.fill("300.1");
+  await expect(page.getByRole("alert")).toContainText("between 30 and 300");
+  await field.fill("300");
+  await page.getByRole("button", { name: "Save weight" }).click();
+  await expect(page.getByRole("heading", { name: "Is 300.0 kg right?" })).toBeVisible();
+});
+
+test("35.11b the weight sheet earliest date is today minus 7", async ({ page }) => {
+  const oid = `e2e-35-11b-${Date.now()}`;
+  const when = await clock(page);
+  await putWeighIn(page.request, oid, when.today, 83.6, when.zone);
+  await putProfile(page.request, oid, when.zone, 80);
+  await openApp(page, oid, 390);
+  await page.getByRole("button", { name: /Open weight|Log weight/ }).first().click();
+  const values = await page.getByLabel("Weigh-in day").locator("option").evaluateAll((options) =>
+    options.map((option) => (option as HTMLOptionElement).value));
+  expect(values).toHaveLength(8);
+  expect([...values].sort()[0]).toBe(when.minus7);
+  expect(values).not.toContain(when.minus8);
+  expect(values).toContain(when.today);
 });

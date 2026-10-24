@@ -29,7 +29,11 @@ public sealed class WeightTrendPartATests(ApiFactory factory)
         var start = new DateOnly(2026, 9, 19);
         for (var i = 0; i < PrototypeWeights.Length; i++)
         {
-            await TestData.PutWeighIn(client, start.AddDays(i).ToString("yyyy-MM-dd"), WeighIn(PrototypeWeights[i]));
+            var date = start.AddDays(i);
+            // Decision 35.11: a new weigh-in has to be recorded inside the last 7 days,
+            // so the dataset is entered on each of its own days.
+            factory.Clock.UtcNow = new DateTimeOffset(date.ToDateTime(new TimeOnly(8, 0)), TimeSpan.Zero);
+            await TestData.PutWeighIn(client, date.ToString("yyyy-MM-dd"), WeighIn(PrototypeWeights[i]));
         }
 
         var trend = await client.GetFromJsonAsync<JsonElement>("/api/weight/trend?date=2026-10-24");
@@ -131,10 +135,11 @@ public sealed class WeightTrendPartATests(ApiFactory factory)
     [Fact]
     public async Task Twenty_eight_day_gap_is_interpolated_and_twenty_nine_day_gap_fresh_start_accepts_or_declines()
     {
-        factory.Clock.UtcNow = new DateTimeOffset(2026, 9, 29, 8, 0, 0, TimeSpan.Zero);
         var interpolatedUser = TestData.NewUser("gap-28");
         using var interpolated = factory.AsUser(interpolatedUser);
+        factory.Clock.UtcNow = new DateTimeOffset(2026, 9, 1, 8, 0, 0, TimeSpan.Zero);
         await TestData.PutWeighIn(interpolated, "2026-09-01", WeighIn(80m));
+        factory.Clock.UtcNow = new DateTimeOffset(2026, 9, 29, 8, 0, 0, TimeSpan.Zero);
         await TestData.PutWeighIn(interpolated, "2026-09-29", WeighIn(83m));
         var held = await interpolated.GetFromJsonAsync<JsonElement>("/api/weight/trend?date=2026-09-29");
         Assert.NotEqual(TrendWeight.FreshStartState, held.GetProperty("trendState").GetString());
@@ -243,8 +248,7 @@ public sealed class WeightTrendPartATests(ApiFactory factory)
         using var client = factory.AsUser(user);
         var first = await client.PutAsync("/api/weigh-ins/2026-10-24", Json(WeighIn(38.6m)));
         Assert.Equal(HttpStatusCode.Created, first.StatusCode);
-        await client.DeleteAsync("/api/weigh-ins/2026-10-24");
-
+        // The only weigh-in can be edited (35.2) but not deleted, so replace it in place.
         await TestData.PutWeighIn(client, "2026-10-24", WeighIn(83.6m));
         var tooLow = await client.PutAsync("/api/weigh-ins/2026-10-25", Json(WeighIn(38.6m)));
         await AssertConfirm(tooLow, 38.6m, 83.60m);
@@ -272,10 +276,11 @@ public sealed class WeightTrendPartATests(ApiFactory factory)
     [Fact]
     public async Task Back_dated_weigh_in_in_a_gap_changes_todays_trend_and_leaves_target_history()
     {
-        factory.Clock.UtcNow = new DateTimeOffset(2026, 10, 11, 8, 0, 0, TimeSpan.Zero);
         var user = TestData.NewUser("backdate");
         using var client = factory.AsUser(user);
+        factory.Clock.UtcNow = new DateTimeOffset(2026, 10, 1, 8, 0, 0, TimeSpan.Zero);
         await TestData.PutWeighIn(client, "2026-10-01", WeighIn(80m));
+        factory.Clock.UtcNow = new DateTimeOffset(2026, 10, 11, 8, 0, 0, TimeSpan.Zero);
         await TestData.PutWeighIn(client, "2026-10-11", WeighIn(86m, confirm: true));
         await TestData.PutProfile(client, TestData.Profile());
         var historyBefore = await History(user);
@@ -342,7 +347,8 @@ public sealed class WeightTrendPartATests(ApiFactory factory)
         Assert.True(onWeighIn.GetProperty("goalReached").GetBoolean());
         var carried = await client.GetFromJsonAsync<JsonElement>("/api/weight/trend?date=2026-10-25");
         Assert.Equal(83.60m, carried.GetProperty("trendKg").GetDecimal());
-        Assert.True(carried.GetProperty("goalReached").GetBoolean());
+        // Decision 35.10: the card is only on the weigh-in's own day.
+        Assert.False(carried.GetProperty("goalReached").GetBoolean());
 
         var profile = await client.GetFromJsonAsync<JsonElement>("/api/profile");
         Assert.Equal("lose", profile.GetProperty("profile").GetProperty("goal").GetString());
@@ -402,35 +408,36 @@ public sealed class WeightTrendPartATests(ApiFactory factory)
     [Fact]
     public async Task Long_gap_still_asks_the_typo_guard_before_the_fresh_start_saves()
     {
-        Assert.True(PartADecisions.TypoGuardAfterLongGap);
-        factory.Clock.UtcNow = new DateTimeOffset(2026, 9, 30, 8, 0, 0, TimeSpan.Zero);
         var user = TestData.NewUser("typo-gap");
         using var client = factory.AsUser(user);
+        factory.Clock.UtcNow = new DateTimeOffset(2026, 9, 1, 8, 0, 0, TimeSpan.Zero);
         await TestData.PutWeighIn(client, "2026-09-01", WeighIn(80m));
+        factory.Clock.UtcNow = new DateTimeOffset(2026, 9, 30, 8, 0, 0, TimeSpan.Zero);
         var asked = await client.PutAsync("/api/weigh-ins/2026-09-30", Json(WeighIn(90m)));
-        await AssertConfirm(asked, 90.0m, 80.00m);
+        // 29 days is 4 full weeks: the threshold is 7 kg, and 90 is still past it.
+        await AssertConfirm(asked, 90.0m, 80.00m, 7.0m);
         Assert.Equal(1, (await client.GetFromJsonAsync<JsonElement>("/api/weigh-ins")).GetProperty("weighIns").GetArrayLength());
     }
 
     [Fact]
-    public async Task Deleting_the_only_weigh_in_is_allowed_and_clears_the_trend()
+    public async Task Deleting_the_only_weigh_in_is_blocked_and_the_trend_stays()
     {
-        Assert.True(PartADecisions.AllowDeletingTheOnlyWeighIn);
         factory.Clock.UtcNow = new DateTimeOffset(2026, 10, 24, 8, 0, 0, TimeSpan.Zero);
         var user = TestData.NewUser("delete-only");
         using var client = factory.AsUser(user);
         await TestData.PutWeighIn(client, "2026-10-24", WeighIn(83.6m));
         var removed = await client.DeleteAsync("/api/weigh-ins/2026-10-24");
-        Assert.Equal(HttpStatusCode.NoContent, removed.StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, removed.StatusCode);
+        var body = await removed.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(WeighInEndpoints.OnlyWeighIn, body.GetProperty("code").GetString());
+        Assert.NotEqual(WeighInEndpoints.ConfirmWeighIn, body.GetProperty("code").GetString());
         var trend = await client.GetFromJsonAsync<JsonElement>("/api/weight/trend");
-        Assert.Equal(JsonValueKind.Null, trend.GetProperty("trendKg").ValueKind);
-        Assert.Equal("none", trend.GetProperty("source").GetString());
+        Assert.Equal(83.60m, trend.GetProperty("trendKg").GetDecimal());
     }
 
     [Fact]
     public async Task Back_dated_weigh_in_that_closes_a_fresh_start_leaves_the_target_row()
     {
-        Assert.False(PartADecisions.RewriteFreshStartRowWhenGapCloses);
         factory.Clock.UtcNow = new DateTimeOffset(2026, 9, 1, 8, 0, 0, TimeSpan.Zero);
         var user = TestData.NewUser("close-gap");
         using var client = factory.AsUser(user);
@@ -444,7 +451,8 @@ public sealed class WeightTrendPartATests(ApiFactory factory)
         var freshRow = written[^1];
         Assert.Equal(TargetReasons.FreshStart, freshRow.Reasons);
 
-        await TestData.PutWeighIn(client, "2026-09-20", WeighIn(85m, confirm: true));
+        // 35.11: today − 10 is rejected, so the closing weigh-in is today − 7 (22-day and 7-day gaps).
+        await TestData.PutWeighIn(client, "2026-09-23", WeighIn(85m, confirm: true));
         var closed = await client.GetFromJsonAsync<JsonElement>("/api/weight/trend");
         Assert.NotEqual(TrendWeight.FreshStartState, closed.GetProperty("trendState").GetString());
         var after = await History(user);
@@ -481,7 +489,7 @@ public sealed class WeightTrendPartATests(ApiFactory factory)
         }
     }
 
-    private static async Task AssertConfirm(HttpResponseMessage response, decimal kg, decimal previousTrend)
+    private static async Task AssertConfirm(HttpResponseMessage response, decimal kg, decimal previousTrend, decimal limitKg = 3.0m)
     {
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
@@ -489,7 +497,7 @@ public sealed class WeightTrendPartATests(ApiFactory factory)
         Assert.Equal($"Is {kg.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture)} kg right?", body.GetProperty("error").GetString());
         Assert.Equal(kg, body.GetProperty("kg").GetDecimal());
         Assert.Equal(previousTrend, body.GetProperty("previousTrendKg").GetDecimal());
-        Assert.Equal(3.0m, body.GetProperty("limitKg").GetDecimal());
+        Assert.Equal(limitKg, body.GetProperty("limitKg").GetDecimal());
     }
 
     private static List<string> Reasons(JsonElement trend)

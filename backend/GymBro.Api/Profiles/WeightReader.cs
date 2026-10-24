@@ -44,16 +44,25 @@ public static class WeightReader
             .Select(row => new { row.Goal, row.GoalWeightKg })
             .FirstOrDefaultAsync(cancellationToken);
         var computed = TrendWeight.Compute(series, asOf);
-        var accepted = false;
+        var promptSettled = false;
         if (computed.FreshStart is not null)
         {
             var freshDate = computed.FreshStart.Date;
-            accepted = await db.TargetHistories.AsNoTracking().AnyAsync(
+            var accepted = await db.TargetHistories.AsNoTracking().AnyAsync(
                 row => row.UserId == userId
                     && row.Reasons.Contains(TargetReasons.FreshStart)
                     && row.EffectiveDate >= freshDate
                     && row.EffectiveDate <= asOf,
                 cancellationToken);
+            // An unanswered prompt ends when the Monday job has written a weekly row
+            // after the fresh-start day. A job that already ran earlier that week does not count.
+            var clearedByMonday = await db.TargetHistories.AsNoTracking().AnyAsync(
+                row => row.UserId == userId
+                    && row.Reasons.Contains(TargetReasons.WeeklyRecalculation)
+                    && row.EffectiveDate > freshDate
+                    && row.EffectiveDate <= asOf,
+                cancellationToken);
+            promptSettled = accepted || clearedByMonday;
         }
 
         return FromSeries(
@@ -61,7 +70,7 @@ public static class WeightReader
             setupKg: null,
             profile?.Goal,
             profile?.GoalWeightKg ?? 0,
-            freshStartAccepted: accepted);
+            freshStartAccepted: promptSettled);
     }
 
     /// <summary>

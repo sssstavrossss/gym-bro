@@ -20,7 +20,15 @@ public static class TrendWeight
 
     public const int MaxInterpolatedGapDays = 28;
 
+    /// <summary>No-gap typo guard. A gap adds <see cref="TypoKgPerFullWeek"/> per full week, capped at <see cref="TypoCapKg"/>.</summary>
     public const decimal TypoLimitKg = 3.0m;
+
+    public const decimal TypoKgPerFullWeek = 1.0m;
+
+    public const decimal TypoCapKg = 10.0m;
+
+    /// <summary>New weigh-ins and date moves: today inclusive, back this many days.</summary>
+    public const int WeighInWindowDays = 7;
 
     public const string Normal = "normal";
 
@@ -122,9 +130,21 @@ public static class TrendWeight
     }
 
     /// <summary>
-    /// Judged on the latest real weigh-in on or before <paramref name="series"/>'s day,
-    /// never on an estimate-only day's trend. Lose means that weigh-in's trend is at or
-    /// under the goal; gain means at or over. Maintain does not ask. This never changes the profile.
+    /// 3 kg, plus 1 kg for each full week since the previous real weigh-in, never above 10 kg.
+    /// A same-week gap stays at 3 kg. 15 days is 2 full weeks (5 kg). 70 days is capped at 10 kg.
+    /// </summary>
+    public static decimal TypoThresholdKg(int daysSincePreviousRealWeighIn)
+    {
+        var days = Math.Max(0, daysSincePreviousRealWeighIn);
+        var threshold = TypoLimitKg + TypoKgPerFullWeek * (days / 7);
+        return threshold > TypoCapKg ? TypoCapKg : threshold;
+    }
+
+    /// <summary>
+    /// Only the latest real weigh-in can reach the goal, and only on that weigh-in's own day.
+    /// A later day that merely carries the trend does not ask, and neither does an earlier
+    /// weigh-in once a newer one exists. Lose means that day's trend is at or under the goal;
+    /// gain means at or over. Maintain does not ask. Nothing is stored.
     /// </summary>
     public static bool GoalReached(string? direction, decimal goalWeightKg, TrendSeries series)
     {
@@ -137,7 +157,7 @@ public static class TrendWeight
             }
         }
 
-        if (judged is null)
+        if (judged is null || judged.Date != series.AsOf)
         {
             return false;
         }

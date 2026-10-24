@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { WeightChartPoint, WeightResponse } from "../src/api";
-import { allowDeletingTheOnlyWeighIn, zeroWeighInsDotCopy } from "../src/lib/partADecisions";
-import { accuracyCopy, gapLabel, isLowAccuracy, profileTrendLabel, trendChange, weightSubtitle } from "../src/lib/weightDisplay";
+import { accuracyCopy, earliestNewWeighInDate, gapLabel, isLowAccuracy, newWeighInDates, profileTrendLabel, trendChange, weightSubtitle } from "../src/lib/weightDisplay";
 
 function point(date: string, trendKg: number | null, gap = false): WeightChartPoint {
   return { date, trendKg, weighInKg: null, readingKg: null, realWeighIn: false, estimated: trendKg == null, gap };
@@ -52,19 +51,31 @@ describe("weight display", () => {
     expect(profileTrendLabel(weight({ trendState: "normal", reasons: [], weighInsInWindow: 2 }))).toBe("trend");
   });
 
-  it("uses the zero-weigh-in wording from the open decision", () => {
-    expect(allowDeletingTheOnlyWeighIn()).toBe(true);
-    const copy = zeroWeighInsDotCopy(12);
-    expect(copy.short).toBe("no weigh-ins this week");
-    expect(copy.line).toContain("No weigh-ins in the last 7 days");
-    expect(copy.line).toContain("12 days ago");
+  it("35.3a last weigh-in 9 days ago says the trend is held at that weigh-in", () => {
     const spoken = accuracyCopy(weight({
+      asOf: "2026-10-24",
       weighInsInWindow: 0,
-      latestDate: "2026-10-10",
+      latestDate: "2026-10-15",
       trendState: "low_accuracy",
     }));
-    expect(spoken.short).toBe("no weigh-ins this week");
-    expect(spoken.lines[0]).toContain("14 days ago");
+    expect(spoken.lines[0]).toBe(
+      "No weigh-ins in the last 7 days (last one 9 days ago), so the trend is held at that weigh-in.",
+    );
+    expect(spoken.short).toBe("no weigh-ins in the last 7 days");
+  });
+
+  it("35.11b the earliest new weigh-in date is today minus 7", () => {
+    expect(earliestNewWeighInDate("2026-10-24")).toBe("2026-10-17");
+    expect(newWeighInDates("2026-10-24")).toEqual([
+      "2026-10-24",
+      "2026-10-23",
+      "2026-10-22",
+      "2026-10-21",
+      "2026-10-20",
+      "2026-10-19",
+      "2026-10-18",
+      "2026-10-17",
+    ]);
   });
 
   it("describes one weigh-in and a fresh start together", () => {

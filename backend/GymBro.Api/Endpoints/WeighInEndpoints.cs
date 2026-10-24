@@ -27,6 +27,12 @@ public static class WeighInEndpoints
 {
     public const string ConfirmWeighIn = "confirm_weigh_in";
 
+    public const string OnlyWeighIn = "only_weigh_in";
+
+    public const string DateWindowMessage = "A new weigh-in has to be from 7 days ago through today.";
+
+    public const string OnlyWeighInMessage = "This is your only weigh-in, so it can't be deleted. Edit it instead.";
+
     public static RouteGroupBuilder MapWeighIns(this RouteGroupBuilder api)
     {
         api.MapPut("/weigh-ins/{date}", Put);
@@ -69,39 +75,26 @@ public static class WeighInEndpoints
             return ApiResults.Error("That date is in the future.");
         }
 
-        if (localDate < new DateOnly(2000, 1, 1))
-        {
-            return ApiResults.Error("That date is too far in the past.");
-        }
-
         await users.UpsertAsync(principal, cancellationToken);
         var userId = Caller.Id(principal);
-        var kg = decimal.Round(body.Kg, 1, MidpointRounding.AwayFromZero);
-        if (!body.Confirm)
-        {
-            var previous = await WeightReader.ReadAsync(db, userId, localDate.AddDays(-1), cancellationToken);
-            int? daysSincePrevious = previous.LatestDate is DateOnly last
-                ? localDate.DayNumber - last.DayNumber
-                : null;
-            if (previous.TrendKg is decimal previousTrend
-                && Math.Abs(kg - previousTrend) > TrendWeight.TypoLimitKg
-                && PartADecisions.TypoGuardApplies(daysSincePrevious))
-            {
-                return Results.Json(new
-                {
-                    error = $"Is {kg.ToString("0.0", CultureInfo.InvariantCulture)} kg right?",
-                    code = ConfirmWeighIn,
-                    kg,
-                    localDate,
-                    previousTrendKg = previousTrend,
-                    limitKg = TrendWeight.TypoLimitKg,
-                }, statusCode: StatusCodes.Status409Conflict);
-            }
-        }
-
         var existing = await db.WeighIns.FirstOrDefaultAsync(
             row => row.UserId == userId && row.LocalDate == localDate,
             cancellationToken);
+        if (existing is null && localDate < latestAllowed.AddDays(-TrendWeight.WeighInWindowDays))
+        {
+            return ApiResults.Error(DateWindowMessage);
+        }
+
+        var kg = decimal.Round(body.Kg, 1, MidpointRounding.AwayFromZero);
+        if (!body.Confirm)
+        {
+            var guard = await TypoGuardAsync(db, userId, localDate, kg, existing is null, cancellationToken);
+            if (guard is not null)
+            {
+                return guard;
+            }
+        }
+
         var replaced = existing is not null;
         var now = clock.GetUtcNow();
         if (existing is null)
@@ -117,12 +110,6 @@ public static class WeighInEndpoints
 
         existing.Kg = kg;
         existing.UpdatedAt = now;
-        if (PartADecisions.ShouldRewriteFreshStartRow())
-        {
-            throw new InvalidOperationException(
-                "Rewriting a fresh_start target row when a later weigh-in closes the gap is not the current spec.");
-        }
-
         await db.SaveChangesAsync(cancellationToken);
 
         var today = await TodayAsync(principal, db, clock, cancellationToken);
@@ -154,18 +141,22 @@ public static class WeighInEndpoints
         }
 
         var userId = Caller.Id(principal);
-        var count = await db.WeighIns.CountAsync(row => row.UserId == userId, cancellationToken);
-        if (!PartADecisions.MayDeleteWeighIn(count))
-        {
-            return ApiResults.Error("Keep your first weigh-in.", StatusCodes.Status409Conflict);
-        }
-
         var existing = await db.WeighIns.FirstOrDefaultAsync(
             row => row.UserId == userId && row.LocalDate == localDate,
             cancellationToken);
         if (existing is null)
         {
             return ApiResults.Error("No weigh-in on that day.", StatusCodes.Status404NotFound);
+        }
+
+        var count = await db.WeighIns.CountAsync(row => row.UserId == userId, cancellationToken);
+        if (count <= 1)
+        {
+            return Results.Json(new
+            {
+                error = OnlyWeighInMessage,
+                code = OnlyWeighIn,
+            }, statusCode: StatusCodes.Status409Conflict);
         }
 
         db.WeighIns.Remove(existing);
@@ -202,7 +193,11 @@ public static class WeighInEndpoints
             .Take(400)
             .Select(row => new { localDate = row.LocalDate, kg = row.Kg })
             .ToListAsync(cancellationToken);
-        return Results.Ok(new { weighIns = rows });
+        var canDelete = await db.WeighIns.CountAsync(row => row.UserId == userId, cancellationToken) > 1;
+        return Results.Ok(new
+        {
+            weighIns = rows.Select(row => new { row.localDate, row.kg, canDelete }),
+        });
     }
 
     private static async Task<IResult> Trend(
@@ -326,6 +321,62 @@ public static class WeighInEndpoints
             cancellationToken);
         await db.SaveChangesAsync(cancellationToken);
         return Results.Ok(new FreshStartDecisionResponse(true, true, ProfileEndpoints.ToTargets(row)));
+    }
+
+    /// <summary>
+    /// Compares with the trend on the day before <paramref name="localDate"/>.
+    /// The threshold grows by 1 kg per full week since the previous real weigh-in.
+    /// A date before the setup weigh-in has no earlier trend, so it is compared with that weigh-in.
+    /// </summary>
+    private static async Task<IResult?> TypoGuardAsync(
+        AppDbContext db,
+        string userId,
+        DateOnly localDate,
+        decimal kg,
+        bool isNewDate,
+        CancellationToken cancellationToken)
+    {
+        var previous = await WeightReader.ReadAsync(db, userId, localDate.AddDays(-1), cancellationToken);
+        decimal? reference = previous.TrendKg;
+        var daysSince = 0;
+        if (reference is not null && previous.LatestDate is DateOnly last)
+        {
+            daysSince = localDate.DayNumber - last.DayNumber;
+        }
+        else if (isNewDate)
+        {
+            var setup = await db.WeighIns.AsNoTracking()
+                .Where(row => row.UserId == userId)
+                .OrderBy(row => row.LocalDate)
+                .Select(row => new { row.LocalDate, row.Kg })
+                .FirstOrDefaultAsync(cancellationToken);
+            if (setup is not null && setup.LocalDate > localDate)
+            {
+                reference = TrendWeight.Publish(setup.Kg);
+                daysSince = setup.LocalDate.DayNumber - localDate.DayNumber;
+            }
+        }
+
+        if (reference is not decimal trend)
+        {
+            return null;
+        }
+
+        var limit = TrendWeight.TypoThresholdKg(daysSince);
+        if (Math.Abs(kg - trend) <= limit)
+        {
+            return null;
+        }
+
+        return Results.Json(new
+        {
+            error = $"Is {kg.ToString("0.0", CultureInfo.InvariantCulture)} kg right?",
+            code = ConfirmWeighIn,
+            kg,
+            localDate,
+            previousTrendKg = trend,
+            limitKg = limit,
+        }, statusCode: StatusCodes.Status409Conflict);
     }
 
     private static bool TryDate(string date, out DateOnly localDate) =>
