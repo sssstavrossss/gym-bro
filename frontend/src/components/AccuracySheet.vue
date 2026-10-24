@@ -8,7 +8,7 @@ import { closeAccuracy, openWeight, ui } from "../ui";
 
 const open = computed(() => ui.sheet === "accuracy");
 const copy = computed(() => accuracyCopy(profile.weight));
-const trend = computed(() => (profile.weight?.trendKg != null ? kg(profile.weight.trendKg, 2) : "—"));
+const trend = computed(() => (profile.weight?.trendKg != null ? kg(profile.weight.trendKg) : "—"));
 
 function weigh() {
   ui.accReturn = null;

@@ -24,7 +24,7 @@ const subtitle = computed(() => weightSubtitle(weight.value?.latestKg ?? null, f
 const aria = computed(() => {
   if (!shown.value || weight.value?.trendKg == null) return "Log weight";
   const spoken = subtitle.value.replace("kg/wk", "kg this week");
-  return `Weight trend ${kg(weight.value.trendKg, 2)} kg${low.value ? ", low accuracy" : ""}. ${spoken}. Open weight`;
+  return `Weight trend ${kg(weight.value.trendKg)} kg${low.value ? ", low accuracy" : ""}. ${spoken}. Open weight`;
 });
 const showFresh = computed(() => {
   promptState.fresh;
@@ -61,7 +61,7 @@ const tip = "The trend smooths out day-to-day swings from water, salt and food. 
       <div v-if="shown && weight" class="col gap2">
         <span class="row gap6"><span class="t-cap c2">Weight · trend</span></span>
         <span class="row gap8 numrow">
-          <span class="base"><span class="t-nm">{{ kg(weight.trendKg!, 2) }}</span><span class="t-label c2">kg</span></span>
+          <span class="base"><span class="t-nm">{{ kg(weight.trendKg!) }}</span><span class="t-label c2">kg</span></span>
           <AccuracyDot v-if="low" />
         </span>
         <span class="t-capn c2 nowrap wsub">{{ subtitle }}</span>
@@ -83,7 +83,7 @@ const tip = "The trend smooths out day-to-day swings from water, salt and food. 
         <div v-if="shown && weight" class="col gap2">
           <span class="t-cap c2">Weight · trend</span>
           <span class="row gap8 numrow">
-            <span class="base"><span class="t-nm">{{ kg(weight.trendKg!, 2) }}</span><span class="t-label c2">kg</span></span>
+            <span class="base"><span class="t-nm">{{ kg(weight.trendKg!) }}</span><span class="t-label c2">kg</span></span>
             <AccuracyDot v-if="low" label />
           </span>
           <span class="t-capn c2 wsub">{{ subtitle }}</span>
@@ -111,8 +111,21 @@ const tip = "The trend smooths out day-to-day swings from water, salt and food. 
 .soon { gap: 6px; }
 .wcard, .wbig { position: relative; }
 .stretch { position: absolute; inset: 0; z-index: 1; }
-.numrow, .top { position: relative; z-index: 2; }
-.wsub { position: relative; z-index: 2; }
+.wcard > :not(.stretch),
+.wbig > :not(.stretch) { pointer-events: none; }
+.wcard > :not(.stretch) :deep(.accdot),
+.wbig :deep(.accdot),
+.wcard > :not(.stretch) :deep(button),
+.wbig :deep(button),
+.wcard > :not(.stretch) :deep(a),
+.wbig :deep(a),
+.wcard > :not(.stretch) :deep(input),
+.wbig :deep(input),
+.wcard > :not(.stretch) :deep(select),
+.wbig :deep(select) { pointer-events: auto; z-index: 2; }
+.wcard { flex-direction: row; align-items: center; gap: 12px; text-align: left; width: 100%; }
+.wcard :deep(svg:not(.c3)) { flex: 0 1 132px; min-width: 0; max-width: 132px; }
+.wcard > .col { min-width: 0; }
 .nowrap { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 .wbig { gap: 12px; }
 .top { align-items: flex-start; gap: 12px; }

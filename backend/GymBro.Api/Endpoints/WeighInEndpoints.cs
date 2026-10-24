@@ -27,6 +27,9 @@ public static class WeighInEndpoints
 {
     public const string ConfirmWeighIn = "confirm_weigh_in";
 
+    private static string OneDecimal(decimal value) =>
+        decimal.Round(value, 1, MidpointRounding.AwayFromZero).ToString("0.0", CultureInfo.InvariantCulture);
+
     public static RouteGroupBuilder MapWeighIns(this RouteGroupBuilder api)
     {
         api.MapPut("/weigh-ins/{date}", Put);
@@ -87,9 +90,13 @@ public static class WeighInEndpoints
                 && Math.Abs(kg - previousTrend) > TrendWeight.TypoLimitKg
                 && PartADecisions.TypoGuardApplies(daysSincePrevious))
             {
+                var difference = kg - previousTrend;
+                var direction = difference < 0 ? "below" : "above";
+                var shownDifference = OneDecimal(Math.Abs(difference));
+                var shownTrend = OneDecimal(previousTrend);
                 return Results.Json(new
                 {
-                    error = $"Is {kg.ToString("0.0", CultureInfo.InvariantCulture)} kg right?",
+                    error = $"Is {kg.ToString("0.0", CultureInfo.InvariantCulture)} kg right? That's {shownDifference} kg {direction} your trend ({shownTrend} kg). Nothing is saved until you choose.",
                     code = ConfirmWeighIn,
                     kg,
                     localDate,

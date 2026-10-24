@@ -39,7 +39,9 @@ for (const layout of widths) {
     await expect(page.locator("[data-field=protein]")).toHaveText("167");
     await expect(page.locator("[data-field=fat]")).toHaveText("62");
     await expect(page.locator("[data-field=carbs]")).toHaveText("249");
-    await expect(page.getByRole("button", { name: /trend/i })).toContainText("83.60");
+    const trendButton = page.getByRole("button", { name: /trend/i });
+    await expect(trendButton).toContainText("83.6");
+    await expect(trendButton).not.toContainText("83.60");
     await expect(page.getByText(/low accuracy/i).first()).toBeVisible();
     await expect(page.getByText("not ready")).toHaveCount(0);
     await expect(page.getByText("provisional")).toHaveCount(0);

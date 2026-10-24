@@ -22,6 +22,7 @@ import {
   type WeighInWriteResult,
 } from "../api";
 import { todayIso } from "../lib/dates";
+import { kg } from "../lib/format";
 import {
   ACTIVITY,
   DEFAULT_FAT,
@@ -490,7 +491,7 @@ export function weightCaption(weight: WeightResponse | null): { label: string; v
   if (weight?.trendKg != null) {
     return {
       label: profileTrendLabel(weight),
-      value: `${weight.trendKg.toFixed(2)} kg`,
+      value: `${kg(weight.trendKg)} kg`,
       note: low ? "low accuracy" : fresh ? "fresh start" : "",
       low,
       fresh,
