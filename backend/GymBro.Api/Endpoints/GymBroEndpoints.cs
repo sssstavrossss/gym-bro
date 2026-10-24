@@ -28,6 +28,9 @@ public static class GymBroEndpoints
         var api = app.MapGroup("/api").RequireAuthorization(ApiAccess.PolicyName);
         api.MapGet("/health", Health).AllowAnonymous();
         api.MapGet("/me", Me);
+        api.MapProfile();
+        api.MapWeighIns();
+        api.MapFoods();
         api.MapFallback(() => Results.Json(new { error = "Not found" }, statusCode: StatusCodes.Status404NotFound));
 
         app.MapFallbackToFile("index.html");

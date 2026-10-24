@@ -9,10 +9,9 @@ public static class EnvFile
 {
     public static void Load()
     {
-        if (string.Equals(
-                Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT"),
-                "Testing",
-                StringComparison.OrdinalIgnoreCase))
+        var environment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
+        if (string.Equals(environment, "Testing", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(environment, "E2e", StringComparison.OrdinalIgnoreCase))
         {
             return;
         }
@@ -95,6 +94,8 @@ public static class EnvFile
         Copy("POSTGRES_DB", "Postgres__Database");
         Copy("POSTGRES_USER", "Postgres__Username");
         Copy("POSTGRES_PASSWORD", "Postgres__Password");
+        Copy("OPENFOODFACTS_USER_AGENT", "Foods__OpenFoodFactsUserAgent");
+        Copy("MATVARETABELLEN_URL", "Foods__MatvaretabellenUrl");
     }
 
     private static void Copy(string from, string to)
@@ -123,7 +124,8 @@ public static class EnvFile
             }
 
             // Stop at the repo root so a home-directory .env is not picked up.
-            if (File.Exists(Path.Combine(dir.FullName, "GymBro.sln")))
+            if (File.Exists(Path.Combine(dir.FullName, "GymBro.sln")) ||
+                File.Exists(Path.Combine(dir.FullName, "GymBro.slnx")))
             {
                 return null;
             }

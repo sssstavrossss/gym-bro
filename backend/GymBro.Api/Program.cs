@@ -1,7 +1,9 @@
+using System.Net.Http.Headers;
 using GymBro.Api.Auth;
 using GymBro.Api.Configuration;
 using GymBro.Api.Data;
 using GymBro.Api.Endpoints;
+using GymBro.Api.Foods;
 using GymBro.Api.Hosting;
 using GymBro.Api.Users;
 using Microsoft.AspNetCore.HttpOverrides;
@@ -11,11 +13,36 @@ EnvFile.Load();
 
 var builder = WebApplication.CreateBuilder(args);
 var testing = builder.Environment.IsEnvironment("Testing");
+var e2e = builder.Environment.IsEnvironment("E2e");
 
 builder.Services.Configure<EntraOptions>(builder.Configuration.GetSection(EntraOptions.SectionName));
 builder.Services.Configure<PostgresOptions>(builder.Configuration.GetSection(PostgresOptions.SectionName));
+builder.Services.Configure<FoodOptions>(builder.Configuration.GetSection(FoodOptions.SectionName));
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<UserDirectory>();
+builder.Services.AddScoped<MatvaretabellenImporter>();
+builder.Services.AddScoped<WeeklyTargetRecalculator>();
+builder.Services.AddSingleton<OpenFoodFactsGate>();
+builder.Services.AddHttpClient<IOpenFoodFactsClient, OpenFoodFactsClient>((serviceProvider, client) =>
+{
+    var foods = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<FoodOptions>>().Value;
+    var agent = string.IsNullOrWhiteSpace(foods.OpenFoodFactsUserAgent)
+        ? FoodOptions.DefaultUserAgent
+        : foods.OpenFoodFactsUserAgent;
+    client.Timeout = TimeSpan.FromSeconds(8);
+    client.DefaultRequestHeaders.UserAgent.ParseAdd(agent);
+    client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+});
+builder.Services.AddHttpClient("matvaretabellen", client =>
+{
+    client.Timeout = TimeSpan.FromMinutes(2);
+    client.DefaultRequestHeaders.UserAgent.ParseAdd("GymBro/1.0 (self-hosted; Matvaretabellen import)");
+    client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+});
+if (!testing && !e2e)
+{
+    builder.Services.AddHostedService<WeeklyTargetHostedService>();
+}
 
 var database = builder.Configuration.GetSection(DatabaseOptions.SectionName).Get<DatabaseOptions>() ?? new DatabaseOptions();
 var postgres = builder.Configuration.GetSection(PostgresOptions.SectionName).Get<PostgresOptions>() ?? new PostgresOptions();
@@ -32,7 +59,27 @@ builder.Services.AddDbContext<AppDbContext>(options =>
     }
 });
 
-if (!testing)
+if (e2e)
+{
+    var enabled = builder.Configuration["E2E_AUTH"];
+    if (!string.Equals(enabled, "true", StringComparison.OrdinalIgnoreCase))
+    {
+        throw new InvalidOperationException(
+            "The E2e environment refuses to start unless E2E_AUTH=true. Do not use E2e for a real deployment.");
+    }
+
+    if (string.IsNullOrEmpty(postgres.Password))
+    {
+        throw new InvalidOperationException(
+            "Set POSTGRES_PASSWORD in .env (or Postgres__Password) before starting the API.");
+    }
+
+    builder.Services.AddAuthentication(E2eAuthHandler.SchemeName)
+        .AddScheme<Microsoft.AspNetCore.Authentication.AuthenticationSchemeOptions, E2eAuthHandler>(
+            E2eAuthHandler.SchemeName,
+            _ => { });
+}
+else if (!testing)
 {
     var entra = builder.Configuration.GetSection(EntraOptions.SectionName).Get<EntraOptions>() ?? new EntraOptions();
     entra.EnsureConfigured();
@@ -113,6 +160,11 @@ app.UseStaticFiles(new StaticFileOptions
 
 app.MapGymBro();
 
+if (e2e)
+{
+    app.Logger.LogWarning("E2E authentication is enabled. Do not expose this environment.");
+}
+
 if (!app.Environment.IsEnvironment("Testing"))
 {
     // Migrations run before Kestrel opens the socket, so this is the line that
@@ -129,6 +181,30 @@ if (!app.Environment.IsEnvironment("Testing"))
 }
 
 await app.ApplyMigrationsAsync();
+
+if (args.Contains("--import-matvaretabellen"))
+{
+    await using var scope = app.Services.CreateAsyncScope();
+    var importer = scope.ServiceProvider.GetRequiredService<MatvaretabellenImporter>();
+    try
+    {
+        var result = await importer.ImportOfficialAsync(CancellationToken.None);
+        Console.WriteLine(
+            $"Matvaretabellen: {result.Upserted} foods upserted, {result.Retired} retired, {result.Skipped} skipped.");
+        Console.WriteLine(Matvaretabellen.Citation);
+        if (result.Upserted == 0)
+        {
+            Environment.ExitCode = 1;
+        }
+    }
+    catch (Exception ex) when (ex is not OperationCanceledException)
+    {
+        Console.Error.WriteLine("Matvaretabellen import failed: " + ex.Message);
+        Environment.ExitCode = 1;
+    }
+
+    return;
+}
 
 app.Run();
 

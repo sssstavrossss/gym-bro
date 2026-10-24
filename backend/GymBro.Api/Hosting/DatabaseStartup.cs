@@ -7,14 +7,6 @@ public static class DatabaseStartup
 {
     public static async Task ApplyMigrationsAsync(this WebApplication app)
     {
-        if (app.Environment.IsEnvironment("Testing"))
-        {
-            await using var scope = app.Services.CreateAsyncScope();
-            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-            await db.Database.EnsureCreatedAsync();
-            return;
-        }
-
         const int attempts = 10;
         for (var attempt = 1; attempt <= attempts; attempt++)
         {

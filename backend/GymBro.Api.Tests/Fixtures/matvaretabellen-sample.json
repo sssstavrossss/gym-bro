@@ -1,0 +1,38 @@
+{
+  "foods": [
+    {
+      "foodId": "test.oat",
+      "foodName": "Fictional oat brick",
+      "calories": { "quantity": 100, "unit": "kcal" },
+      "constituents": [
+        { "nutrientId": "Protein", "quantity": 10, "unit": "g" },
+        { "nutrientId": "Fett", "quantity": 10, "unit": "g" },
+        { "nutrientId": "Karbo", "quantity": 10, "unit": "g" }
+      ],
+      "portions": [
+        { "id": "porsjon", "portionName": "porsjon", "portionUnit": "stk", "quantity": 40, "unit": "g" },
+        { "id": "stk", "portionName": "stk", "portionUnit": "stk", "quantity": 12, "unit": "g" },
+        { "id": "dl", "portionName": "desiliter", "portionUnit": "dl", "quantity": 35, "unit": "g" }
+      ]
+    },
+    {
+      "foodId": "test.broth",
+      "foodName": "Fictional broth cube",
+      "calories": { "quantity": 12, "unit": "kcal" },
+      "constituents": [
+        { "nutrientId": "Protein", "quantity": 1, "unit": "g" },
+        { "nutrientId": "Fett", "quantity": 0.2, "unit": "g" },
+        { "nutrientId": "Karbo", "quantity": 1, "unit": "g" }
+      ],
+      "portions": []
+    },
+    {
+      "foodId": "test.nokcal",
+      "foodName": "Fictional missing kcal",
+      "constituents": [
+        { "nutrientId": "Protein", "quantity": 1, "unit": "g" }
+      ],
+      "portions": []
+    }
+  ]
+}
