@@ -35,8 +35,11 @@ Text 4.5:1, non-text UI 3:1. Disabled controls (opacity .35) are exempt under WC
 | ui | `color-border-strong` #737379 | `color-surface` #1a1a1c | outlined chips, unit chips, "no target" cell | **3.69:1** | 3:1 | pass |
 | ui | `color-border-strong` #737379 | `color-surface-2` #26262a | inputs inside sheets | **3.20:1** | 3:1 | pass |
 | ui | `text-tertiary` #9c9ca4 | `color-surface` #1a1a1c | dashed outlines (over tag, hints, no-log cell) | **6.38:1** | 3:1 | pass |
+| ui | `text-secondary` #b3b3ba | `color-surface` #1a1a1c | S8 low-accuracy dot on a card | **8.34:1** | 3:1 | pass |
+| ui | `text-secondary` #b3b3ba | `color-bg` #0b0b0c | S8 low-accuracy dot in the sidebar | **9.44:1** | 3:1 | pass |
+| ui | `text-secondary` #b3b3ba | `color-surface-2` #26262a | S8 low-accuracy dot in the weight sheet stats | **7.23:1** | 3:1 | pass |
 | ui | `color-action` #ffffff | `color-bg` #0b0b0c | focus ring on background | **19.67:1** | 3:1 | pass |
 | ui | `color-action` #ffffff | `color-surface` #1a1a1c | focus ring on cards | **17.38:1** | 3:1 | pass |
 | ui | `color-action` #ffffff | `color-surface-2` #26262a | focus ring on sheets/fields | **15.07:1** | 3:1 | pass |
 
-**33 of 33 pass.**
+**36 of 36 pass.**

@@ -76,10 +76,12 @@ Sign-in settings are not baked into the JavaScript bundle. The API reads them fr
 | `PUT` | `/api/profile` | bearer | Saves the profile. Requires a weigh-in on or before today. Upserts today's `target_history` row when something changed. |
 | `POST` | `/api/targets/preview` | bearer | Same maths, nothing stored. |
 | `GET` | `/api/targets?date=` | bearer | The target row in effect on that date. |
-| `PUT` | `/api/weigh-ins/{date}` | bearer | Create or replace that day's weigh-in. One decimal, 30–300 kg. A comma or a point is accepted. |
+| `PUT` | `/api/weigh-ins/{date}` | bearer | Create or replace that day's weigh-in. One decimal, 30–300 kg. A comma or a point is accepted. `confirm: true` saves a value more than 3.0 kg from the previous day's trend. |
 | `GET` | `/api/weigh-ins` | bearer | The caller's weigh-ins. |
-| `DELETE` | `/api/weigh-ins/{date}` | bearer | Deletes that day's weigh-in. |
-| `GET` | `/api/weight/trend?date=` | bearer | Smoothed trend from the second weigh-in. Hidden until 3 weigh-ins in the last 7 days. One weigh-in leaves `trendKg` null. |
+| `DELETE` | `/api/weigh-ins/{date}` | bearer | Deletes that day's weigh-in. The trend is computed again; `target_history` is left as it was. |
+| `GET` | `/api/weight/trend?date=` | bearer | Trend for that local day (today when `date` is omitted), plus `trendState`, `reasons`, `goalReached`, and `freshStart`. |
+| `GET` | `/api/weight/chart?date=&days=` | bearer | Daily series ending on that day. `days` defaults to 30 (1–366). Real weigh-ins are flagged; other days are estimated. `gap: true` and `trendKg: null` mark a fresh-start break (no line across a gap over 28 days). |
+| `POST` | `/api/weight/fresh-start` | bearer | `{ "accept": true }` upserts today's `target_history` row and appends `fresh_start` to its `reasons`. `{ "accept": false }` writes nothing. |
 | `GET` | `/api/foods/search?q=` | bearer | Local foods only. This never calls Open Food Facts. |
 | `POST` | `/api/foods/search/open-food-facts` | bearer | On-demand Open Food Facts search, throttled to 10 a minute. Local matches are always returned. |
 | `POST` `/GET` `/PUT` `/DELETE` | `/api/foods` | bearer | Custom foods. Private to the owner. Nutrients are per 100 g/ml, or per serving with no gram weight. Labels over 80 characters are 400. |
@@ -213,11 +215,15 @@ That one-off container applies migrations, imports, prints the citation, and exi
 
 BMR is Mifflin-St Jeor. Daily burn is BMR times the activity factor. The calorie target moves off that burn by the weekly rate times 7,700 divided by 7, and is never below BMR. Protein is grams per kilogram, fat is a percent of the target, and carbs fill the rest (never below 0).
 
-`target_history` has one row per user per effective date. A later change the same day updates that row: the numbers are the latest calculation, and `reasons` (`text[]`) keeps every reason in the order it first applied (`profile_change`, `macro_balance_change`, `weekly_recalculation`). The JSON field `reason` is the last of those, so older clients still see one string. `PUT /api/profile` and the weekly job both upsert today's row.
+`target_history` has one row per user per effective date. A later change the same day updates that row: the numbers are the latest calculation, and `reasons` (`text[]`) keeps every reason in the order it first applied (`profile_change`, `macro_balance_change`, `weekly_recalculation`, `fresh_start`). The JSON field `reason` is the last of those. `PUT /api/profile`, the weekly job, and a fresh-start accept all use that upsert. Accept appends `fresh_start` and does not drop the reasons already on today's row.
 
 The hosted job adds `weekly_recalculation` to today's row. On Monday that row is dated Monday. If the process was off on Monday, the catch-up merges into the day the job actually runs and does not backdate a Monday row. A second run that week does nothing. A profile created today on a day other than Monday does not also get a weekly reason that same day.
 
-Trend weight starts at the first weigh-in. Each later weigh-in moves it 10 percent of the way toward that weigh-in (`TrendWeight.SmoothingShare`). A day with no weigh-in does not add a step. Targets use that smoothed weight from the second weigh-in onward, including the weekly recalculation. The API publishes `trendKg` from the second weigh-in, including when it is still provisional. Exactly one weigh-in uses that raw weight for targets and leaves `trendKg` null. The profile screen shows nothing with no weigh-ins, "Trend not ready" for one, and "N of 3 weigh-ins · provisional" with the smoothed kilograms until three weigh-ins fall in the last 7 days. It never shows the latest raw kilograms as the trend. The weight stored on a target row is `numeric(5,2)`.
+Trend weight is one server series (`TrendWeight.Compute`), from the first real weigh-in through the user's local today. The setup weight is that first weigh-in, and the trend that day is the weigh-in itself. Each later day keeps the previous trend (Part A has no intake step) unless the day has a real weigh-in or a gap reading, in which case the trend moves 10 percent of the way toward that reading (`TrendWeight.SmoothingShare`). A gap of 2 to 28 days is a straight line between the two real weigh-ins. A gap longer than 28 days is a fresh start: that day's trend equals the new weigh-in. Profile, targets, BMR, the weekly job, and the weight API all use this published figure, rounded to two decimal places, half away from zero. The weight stored on a target row is `numeric(5,2)`. Past `target_history` rows are not rewritten when a weigh-in changes.
+
+`trendState` is `normal`, `low_accuracy` (fewer than 2 real weigh-ins in the last 7 days; the weight `reasons` includes `fewer_than_2_weighins_7d`), or `fresh_start` (the latest weigh-in followed a gap longer than 28 days, until the next weigh-in). `freshStart.weeksSincePrevious` is the whole weeks in that gap. `goalReached` is judged on the latest real weigh-in on or before that day (lose: trend at or under the goal, gain: at or over), including later days that only carry the trend. An estimate-only day is not compared on its own. Nothing switches the goal on its own. The profile shows the published kilograms from the first weigh-in, with “trend · low accuracy” when the window has fewer than two weigh-ins.
+
+A new or edited weigh-in more than 3.0 kg from the previous day's trend returns `409` with `code: "confirm_weigh_in"` and `error: "Is 38.6 kg right?"`. The first weigh-in is not checked. Sending `confirm: true` saves it. `POST /api/weight/fresh-start` with `accept: true` upserts today's target row and appends `fresh_start` to `reasons`. `accept: false` writes nothing. The weekly job still uses the same trend and the same upsert. `day_status.fasting` defaults to false and is unused until learned burn.
 
 ## Custom foods and log references
 
@@ -246,7 +252,7 @@ cd frontend && npm run typecheck && npm test && npm run build && npm run e2e
 
 Backend tests use Testcontainers Postgres 17 and `TestAuthHandler`. They do not call Entra. The end-to-end smoke test starts the API with `ASPNETCORE_ENVIRONMENT=E2e` and `E2E_AUTH=true` (both are required; that handler is not registered otherwise) and a browser session flag. It needs Postgres on `127.0.0.1:5432` with user, password, and database `gymbro`.
 
-CI is `.github/workflows/tests.yml`. The required job name is `tests`. It runs backend tests, the frontend checks, the Playwright smoke test on Chromium and WebKit (each at 390, 820, and 1440), then the axe spec (`npx playwright test --config e2e/retro.config.ts`) on Chromium and WebKit. The smoke step and the axe step both bind ports 8100 and 5173, so CI runs them one after the other. The Docker image build is last. A separate `prototype` job runs `npm ci && npm run build` in `prototype/` and is not part of the `tests` check.
+CI is `.github/workflows/tests.yml`. The required job name is `tests`. It runs backend tests, the frontend checks, the Playwright smoke test on Chromium and WebKit (each at 390, 820, and 1440), then the axe spec (`npx playwright test --config e2e/retro.config.ts`) on Chromium and WebKit. The smoke step and the axe step both bind ports 8100 and 5173, so CI runs them one after the other. The Docker image build is last. A separate `prototype` job runs `npm ci && npm run build && node scripts/unit-trend.mjs` in `prototype/` and is not part of the `tests` check.
 
 New migrations, when you need one:
 
@@ -257,4 +263,4 @@ dotnet tool run dotnet-ef -- migrations add <Name> --project backend/GymBro.Api 
 
 ## Later pull requests
 
-The weight chart, food logging screens, Today, Log, and Progress are not in this pull request. Logging on a past day will require picking a time, the food sheet will stay open after Add on a phone, and Copy will default to Today. Workouts are out of scope. There is no meal field on a log entry.
+Food logging screens are still placeholders. Logging on a past day will require picking a time, the food sheet will stay open after Add on a phone, and Copy will default to Today. Workouts are out of scope. There is no meal field on a log entry.

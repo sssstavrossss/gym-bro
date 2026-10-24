@@ -60,6 +60,38 @@ Text size simulated with `?dt=N` (root font-size). Clipped = text cut off by an 
 - **AX5 (53 px, root 53px)**: no clipping, ellipsis or overlap
   - all touch targets ≥ 44 pt
 
+## s8-lowacc-today
+- **default (17 px, root 17px)**: no clipping, ellipsis or overlap
+- **xxxL (23 px, root 23px)**: no clipping, ellipsis or overlap
+- **2x (34 px, root 34px)**: no clipping, ellipsis or overlap
+  - all touch targets ≥ 44 pt
+- **AX5 (53 px, root 53px)**: no clipping, ellipsis or overlap
+  - all touch targets ≥ 44 pt
+
+## s8-accuracy-sheet
+- **default (17 px, root 17px)**: no clipping, ellipsis or overlap
+- **xxxL (23 px, root 23px)**: no clipping, ellipsis or overlap
+- **2x (34 px, root 34px)**: no clipping, ellipsis or overlap
+  - all touch targets ≥ 44 pt
+- **AX5 (53 px, root 53px)**: no clipping, ellipsis or overlap
+  - all touch targets ≥ 44 pt
+
+## s8-fresh-today
+- **default (17 px, root 17px)**: no clipping, ellipsis or overlap
+- **xxxL (23 px, root 23px)**: no clipping, ellipsis or overlap
+- **2x (34 px, root 34px)**: no clipping, ellipsis or overlap
+  - all touch targets ≥ 44 pt
+- **AX5 (53 px, root 53px)**: no clipping, ellipsis or overlap
+  - all touch targets ≥ 44 pt
+
+## s8-typo-guard
+- **default (17 px, root 17px)**: no clipping, ellipsis or overlap
+- **xxxL (23 px, root 23px)**: no clipping, ellipsis or overlap
+- **2x (34 px, root 34px)**: no clipping, ellipsis or overlap
+  - all touch targets ≥ 44 pt
+- **AX5 (53 px, root 53px)**: no clipping, ellipsis or overlap
+  - all touch targets ≥ 44 pt
+
 ## onboarding-1
 - **default (17 px, root 17px)**: no clipping, ellipsis or overlap
 - **xxxL (23 px, root 23px)**: no clipping, ellipsis or overlap

@@ -192,15 +192,28 @@ public static class ProfileEndpoints
             profile.TimeZone);
 
     public static WeightResponse ToWeight(WeightSnapshot weight) => new(
+        weight.AsOf,
         weight.TrendKg,
-        weight.TrendVisible,
+        weight.TrendState,
+        weight.Reasons,
         weight.LatestKg,
         weight.LatestDate,
         weight.WeighInsInWindow,
-        TrendWeight.MinimumWeighIns,
         TrendWeight.WindowDays,
+        TrendWeight.SmoothingShare,
         weight.UsedKg,
-        weight.Source);
+        weight.Source,
+        weight.GoalReached,
+        ToFreshStart(weight));
+
+    public static FreshStartResponse? ToFreshStart(WeightSnapshot weight) => weight.FreshStart is { } fresh
+        ? new FreshStartResponse(
+            fresh.Date,
+            fresh.PreviousDate,
+            fresh.DaysSincePrevious,
+            fresh.WeeksSincePrevious,
+            weight.RecalculatePending)
+        : null;
 
     public static TargetsResponse? ToTargets(TargetHistory? row) => row is null
         ? null
@@ -233,15 +246,57 @@ public sealed record ProfileResponse(
     string TimeZone);
 
 public sealed record WeightResponse(
+    DateOnly AsOf,
     decimal? TrendKg,
-    bool TrendVisible,
+    string? TrendState,
+    IReadOnlyList<string> Reasons,
     decimal? LatestKg,
     DateOnly? LatestDate,
     int WeighInsInWindow,
-    int TrendMinimum,
     int WindowDays,
+    decimal SmoothingShare,
     decimal? UsedKg,
-    string Source);
+    string Source,
+    bool GoalReached,
+    FreshStartResponse? FreshStart);
+
+public sealed record FreshStartResponse(
+    DateOnly Date,
+    DateOnly PreviousDate,
+    int DaysSincePrevious,
+    int WeeksSincePrevious,
+    bool RecalculatePending);
+
+public sealed record WeightChartResponse(
+    DateOnly AsOf,
+    int Days,
+    decimal? TrendKg,
+    string? TrendState,
+    IReadOnlyList<string> Reasons,
+    bool GoalReached,
+    FreshStartResponse? FreshStart,
+    IReadOnlyList<WeightChartPoint> Series);
+
+public sealed record WeightChartPoint(
+    DateOnly Date,
+    decimal? TrendKg,
+    decimal? WeighInKg,
+    decimal? ReadingKg,
+    bool RealWeighIn,
+    bool Estimated,
+    bool Gap);
+
+public sealed record WeighInWriteResponse(
+    DateOnly LocalDate,
+    decimal Kg,
+    bool Replaced,
+    string? Notice,
+    WeightResponse Trend);
+
+public sealed record FreshStartDecisionResponse(
+    bool Accepted,
+    bool Wrote,
+    TargetsResponse? Targets);
 
 public sealed record TargetsResponse(
     DateOnly EffectiveDate,

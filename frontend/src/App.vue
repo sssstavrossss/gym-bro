@@ -4,6 +4,7 @@ import { useRoute, useRouter } from "vue-router";
 import SideNav from "./components/SideNav.vue";
 import TabBar from "./components/TabBar.vue";
 import Toast from "./components/Toast.vue";
+import AccuracySheet from "./components/AccuracySheet.vue";
 import WeightSheet from "./components/WeightSheet.vue";
 import { e2eSession } from "./auth/e2e";
 import { isConfigured, loadPublicConfig } from "./auth/publicConfig";
@@ -97,6 +98,7 @@ function onKey(event: KeyboardEvent) {
     </div>
     <TabBar v-if="showNav && !vp.desktop" />
     <WeightSheet />
+    <AccuracySheet />
     <Toast />
     <div v-if="profile.offline" class="offline" role="status">
       <span class="t-body grow">Server unreachable, try again.</span>

@@ -31,9 +31,9 @@ public sealed class ProfileEndpointTests(ApiFactory factory)
         Assert.False(targets.GetProperty("floorApplied").GetBoolean());
         Assert.Equal(TargetReasons.ProfileChange, targets.GetProperty("reason").GetString());
         Assert.Equal("Matvaretabellen 2026. Mattilsynet. www.matvaretabellen.no", saved.GetProperty("citation").GetString());
-        Assert.Equal("weigh_in", saved.GetProperty("weight").GetProperty("source").GetString());
-        Assert.False(saved.GetProperty("weight").GetProperty("trendVisible").GetBoolean());
-        Assert.Null(saved.GetProperty("weight").GetProperty("trendKg").GetString());
+        Assert.Equal("trend", saved.GetProperty("weight").GetProperty("source").GetString());
+        Assert.Equal(TrendWeight.LowAccuracy, saved.GetProperty("weight").GetProperty("trendState").GetString());
+        Assert.Equal(83.60m, saved.GetProperty("weight").GetProperty("trendKg").GetDecimal());
         Assert.Equal(83.60m, targets.GetProperty("weightKg").GetDecimal());
 
         await TestData.PutProfile(client, TestData.Profile());
@@ -188,15 +188,16 @@ public sealed class ProfileEndpointTests(ApiFactory factory)
     }
 
     [Fact]
-    public async Task Two_weigh_ins_still_feed_the_weekly_target_while_the_trend_stays_hidden()
+    public async Task Weekly_recalculation_uses_the_published_trend_from_two_consecutive_weigh_ins()
     {
         factory.Clock.UtcNow = new DateTimeOffset(2026, 10, 26, 8, 0, 0, TimeSpan.Zero);
         var user = TestData.NewUser("sparse");
         using var client = factory.AsUser(user);
         await TestData.PutWeighIn(client, "2026-10-25", """{"kg":80,"timeZone":"UTC"}""");
-        await TestData.PutWeighIn(client, "2026-10-26", """{"kg":90,"timeZone":"UTC"}""");
+        await TestData.PutWeighIn(client, "2026-10-26", """{"kg":90,"timeZone":"UTC","confirm":true}""");
         var saved = await TestData.PutProfile(client, TestData.Profile());
-        Assert.False(saved.GetProperty("weight").GetProperty("trendVisible").GetBoolean());
+        Assert.Equal(TrendWeight.Normal, saved.GetProperty("weight").GetProperty("trendState").GetString());
+        Assert.Equal(81.00m, saved.GetProperty("weight").GetProperty("trendKg").GetDecimal());
         Assert.Equal("trend", saved.GetProperty("weight").GetProperty("source").GetString());
         Assert.Equal(81.00m, saved.GetProperty("targets").GetProperty("weightKg").GetDecimal());
 

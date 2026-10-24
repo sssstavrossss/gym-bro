@@ -45,6 +45,8 @@ public sealed class WeeklyTargetRecalculator(AppDbContext db, TimeProvider clock
                 continue;
             }
 
+            // Same trend series the API publishes. A missed Monday is still dated
+            // the day this run actually happens.
             var weight = await WeightReader.ReadAsync(db, profile.UserId, today, cancellationToken);
             if (weight.UsedKg is not decimal weightKg)
             {

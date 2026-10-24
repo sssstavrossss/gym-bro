@@ -31,7 +31,7 @@ public sealed class TargetHistory
 
     /// <summary>
     /// Every reason that wrote this date, in the order they first applied.
-    /// Known values: <c>profile_change</c>, <c>macro_balance_change</c>, <c>weekly_recalculation</c>.
+    /// Known values: <c>profile_change</c>, <c>macro_balance_change</c>, <c>weekly_recalculation</c>, <c>fresh_start</c>.
     /// </summary>
     public string[] Reasons { get; set; } = [];
 

@@ -1,12 +1,14 @@
 // Hidden reviewer switch: Profile → Demo states, or ?demo=<state> in the URL.
-import { emptyAccount, manualDemo, resetDemo, sparseWeighIns, startOnboarding } from "../store";
+import { emptyAccount, freshStartDemo, lowAccuracyDemo, manualDemo, resetDemo, startOnboarding, today } from "../store";
 import { endSelect, ui, type DemoState } from "../ui";
 
 export const DEMO_STATES: { key: DemoState; label: string; hint: string }[] = [
   { key: "normal", label: "Normal", hint: "example data (fictional)" },
   { key: "onboarding", label: "First run", hint: "no profile yet → setup" },
-  { key: "empty", label: "Empty account", hint: "profile set, nothing logged, no weigh-ins" },
-  { key: "sparse", label: "Trend not ready", hint: "only 2 weigh-ins in the last 7 days" },
+  { key: "empty", label: "Empty account", hint: "profile set, nothing logged, only the setup weigh-in" },
+  { key: "lowacc", label: "Low accuracy", hint: "1 weigh-in in the last 7 days → trend with the grey dot" },
+  { key: "fresh", label: "Fresh start", hint: "6 weeks without a weigh-in, then 82.4 kg today → recalculate?" },
+  { key: "typo", label: "Typo guard", hint: "weight sheet with 38.6 kg typed → “Is 38.6 kg right?”" },
   { key: "manual", label: "Own calorie number", hint: "goal mode “My own number”, 2,000 kcal since Thu 22 Oct" },
   { key: "goalreached", label: "Goal reached", hint: "own number, trend has reached the goal weight → question" },
   { key: "loading", label: "Loading", hint: "skeletons for day data and search" },
@@ -18,9 +20,12 @@ export const DEMO_STATES: { key: DemoState; label: string; hint: string }[] = [
 export function applyDemo(s: DemoState) {
   endSelect();
   ui.sheet = null;
+  ui.weightDraft = null;
   if (s === "onboarding") startOnboarding();
   else if (s === "empty") emptyAccount();
-  else if (s === "sparse") sparseWeighIns();
+  else if (s === "lowacc") lowAccuracyDemo();
+  else if (s === "fresh") freshStartDemo();
+  else if (s === "typo") { resetDemo(); ui.weightDraft = "38.6"; ui.weightDate = today; ui.sheet = "weight"; }
   else if (s === "manual") manualDemo();
   else if (s === "goalreached") manualDemo(true);
   else resetDemo();

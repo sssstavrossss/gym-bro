@@ -3,7 +3,8 @@
 import { useRoute } from "vue-router";
 import Icon from "./Icon.vue";
 import { int, kg } from "../lib/format";
-import { dayTotals, shown, today, trendVisible, trendWeight } from "../store";
+import { dayTotals, hasWeights, lowAccuracy, shown, today, trendWeight } from "../store";
+import AccuracyDot from "./AccuracyDot.vue";
 import { openFood, openWeight } from "../ui";
 
 const route = useRoute();
@@ -41,7 +42,7 @@ const active = (to: string) => route.path === to || route.path.startsWith(to + "
     <div class="glance col">
       <span class="t-cap c3">Today</span>
       <div class="row between"><span class="t-label c2">Eaten</span><span class="t-label">{{ int(dayTotals(today).kcal) }} / {{ int(shown.kcal) }}</span></div>
-      <div class="row between"><span class="t-label c2">Trend</span><span class="t-label" :class="{ c3: !trendVisible }">{{ trendVisible ? `${kg(trendWeight)} kg` : "not ready" }}</span></div>
+      <div class="row between"><span class="t-label c2">Trend</span><span class="row t-label trendv"><AccuracyDot v-if="hasWeights && lowAccuracy" />{{ hasWeights ? `${kg(trendWeight)} kg` : "no weigh-ins" }}</span></div>
     </div>
     <span class="t-capn c3 fake">Demo data · fictional</span>
     <p class="keys t-capn c3"><kbd>N</kbd> or <kbd>/</kbd> add food · <kbd>Q</kbd> quick add · <kbd>W</kbd> weight · <kbd>Esc</kbd> close</p>
@@ -67,4 +68,5 @@ kbd { font: 600 0.6471rem/1 "Inter", sans-serif; padding: 3px 6px; border-radius
 .fake { padding: 0 4px; }
 .keys { margin: 4px 4px 0; line-height: 20px; }
 .keys kbd { font-size: 0.5882rem; padding: 2px 4px; }
+.trendv { gap: 8px; align-items: center; }
 </style>

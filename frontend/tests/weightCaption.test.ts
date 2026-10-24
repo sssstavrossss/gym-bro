@@ -4,54 +4,61 @@ import { weightCaption } from "../src/state/profile";
 
 function weight(partial: Partial<WeightResponse>): WeightResponse {
   return {
+    asOf: "2026-10-24",
     trendKg: null,
-    trendVisible: false,
+    trendState: null,
+    reasons: [],
     latestKg: null,
     latestDate: null,
     weighInsInWindow: 0,
-    trendMinimum: 3,
     windowDays: 7,
+    smoothingShare: 0.1,
     usedKg: null,
     source: "none",
+    goalReached: false,
+    freshStart: null,
     ...partial,
   };
 }
 
 describe("weightCaption", () => {
-  it("shows nothing when there is no weigh-in", () => {
-    expect(weightCaption(null)).toEqual({ label: "", value: "" });
-    expect(weightCaption(weight({ source: "none" }))).toEqual({ label: "", value: "" });
+  it("shows a placeholder when there is no trend", () => {
+    expect(weightCaption(null)).toEqual({ label: "Weight", value: "—", note: "", low: false, fresh: false });
+    expect(weightCaption(weight({ source: "none" })).label).toBe("Weight");
   });
 
-  it("does not publish the only weigh-in as the trend", () => {
+  it("publishes the first weigh-in as a low-accuracy trend", () => {
     expect(weightCaption(weight({
+      trendKg: 83.6,
+      trendState: "low_accuracy",
+      reasons: ["fewer_than_2_weighins_7d"],
       latestKg: 83.6,
       usedKg: 83.6,
-      source: "weigh_in",
+      source: "trend",
       weighInsInWindow: 1,
-    }))).toEqual({ label: "Trend not ready", value: "" });
+    }))).toEqual({
+      label: "trend · low accuracy",
+      value: "83.60 kg",
+      note: "low accuracy",
+      low: true,
+      fresh: false,
+    });
   });
 
-  it("shows the smoothed trend as provisional before three weigh-ins in the window", () => {
+  it("labels a normal trend with the published kilograms", () => {
     expect(weightCaption(weight({
-      latestKg: 90,
-      trendKg: 71,
-      trendVisible: false,
-      usedKg: 71,
+      trendKg: 83.6,
+      trendState: "normal",
+      latestKg: 83.3,
+      usedKg: 83.6,
       source: "trend",
-      weighInsInWindow: 2,
-    }))).toEqual({ label: "2 of 3 weigh-ins · provisional", value: "71.00 kg" });
-  });
-
-  it("labels a visible trend without the latest raw weight", () => {
-    const caption = weightCaption(weight({
-      latestKg: 90,
-      trendKg: 72.9,
-      trendVisible: true,
-      usedKg: 72.9,
-      source: "trend",
-      weighInsInWindow: 3,
-    }));
-    expect(caption).toEqual({ label: "Trend", value: "72.90 kg" });
+      weighInsInWindow: 4,
+    }))).toEqual({
+      label: "trend",
+      value: "83.60 kg",
+      note: "",
+      low: false,
+      fresh: false,
+    });
   });
 });

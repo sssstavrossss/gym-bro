@@ -2,7 +2,11 @@ import { reactive, watch } from "vue";
 import {
   ApiError,
   AuthRedirect,
+  decideFreshStart,
+  deleteWeighIn,
   getProfile,
+  getWeightChart,
+  listWeighIns,
   previewTargets,
   putProfile,
   putWeighIn,
@@ -12,8 +16,10 @@ import {
   type ProfileResponse,
   type ProfileStateResponse,
   type TargetsResponse,
+  type WeightChartResponse,
   type WeightResponse,
-  type WeighInResult,
+  type WeighInRow,
+  type WeighInWriteResult,
 } from "../api";
 import { todayIso } from "../lib/dates";
 import {
@@ -29,6 +35,7 @@ import {
   type Sex,
 } from "../lib/nutrition";
 import { atMostOneDecimal, formatMeasure, parseDecimal, sameNumber } from "../lib/numbers";
+import { isFreshStart, isLowAccuracy, profileTrendLabel } from "../lib/weightDisplay";
 import { boot } from "./boot";
 
 export interface ProfileForm {
@@ -116,6 +123,9 @@ export const profile = reactive({
   weight: null as WeightResponse | null,
   targets: null as TargetsResponse | null,
   preview: null as PreviewResponse | null,
+  proposal: null as PreviewResponse | null,
+  chart: null as WeightChartResponse | null,
+  weighIns: [] as WeighInRow[],
   citation: "",
   form: emptyForm(),
   saveGen: 0,
@@ -262,6 +272,21 @@ function applyState(state: ProfileStateResponse): void {
   if (!isDirty()) profile.preview = null;
 }
 
+async function loadChart(): Promise<void> {
+  try {
+    profile.chart = await getWeightChart(30);
+    profile.weighIns = (await listWeighIns()).weighIns;
+    profile.proposal = null;
+    const weight = profile.weight;
+    if (weight?.freshStart?.recalculatePending && profile.saved) {
+      const built = buildBody(formFromProfile(profile.saved));
+      if (!("error" in built)) profile.proposal = await previewTargets(built.body);
+    }
+  } catch (error) {
+    if (error instanceof ServerUnreachable) profile.offline = true;
+  }
+}
+
 function fail(error: unknown): void {
   if (error instanceof ServerUnreachable) {
     profile.offline = true;
@@ -296,6 +321,7 @@ export async function loadProfile(): Promise<void> {
       profile.hasSaved = false;
     }
     profile.error = "";
+    if (state.profile) await loadChart();
   } catch (error) {
     const draft = readDraft();
     if (draft) profile.form = { ...emptyForm(), ...draft.form };
@@ -351,9 +377,14 @@ export async function saveSetup(): Promise<boolean> {
   }
   profile.saving = true;
   try {
-    await putWeighIn(todayIso(), kg, profile.form.timeZone);
+    const written = await putWeighIn(todayIso(), kg, profile.form.timeZone);
+    if (written.confirm) {
+      profile.error = "Enter your starting weight. A later weigh-in can be confirmed in the weight sheet.";
+      return false;
+    }
     const state = await putProfile(built.body);
     applyState(state);
+    await loadChart();
     profile.form.weighInKg = "";
     profile.error = "";
     profile.offline = false;
@@ -367,18 +398,20 @@ export async function saveSetup(): Promise<boolean> {
   }
 }
 
-export async function saveWeighIn(date: string, kg: number): Promise<WeighInResult | null> {
+export async function saveWeighIn(date: string, kg: number, confirm = false): Promise<WeighInWriteResult | null> {
   if (!atMostOneDecimal(kg) || kg < 30 || kg > 300) {
     profile.error = "Weight should be between 30 and 300 kg, with one decimal.";
     return null;
   }
   try {
-    const result = await putWeighIn(date, kg, profile.form.timeZone || deviceTimeZone());
+    const result = await putWeighIn(date, kg, profile.form.timeZone || deviceTimeZone(), confirm);
+    if (result.confirm) {
+      profile.error = "";
+      return result;
+    }
     const state = await getProfile();
-    profile.weight = state.weight;
-    profile.targets = state.targets;
-    profile.saved = state.profile;
-    profile.citation = state.citation;
+    applyState(state);
+    await loadChart();
     profile.offline = false;
     profile.error = "";
     if (profile.hasSaved && isDirty()) await refreshPreview();
@@ -386,6 +419,37 @@ export async function saveWeighIn(date: string, kg: number): Promise<WeighInResu
   } catch (error) {
     fail(error);
     return null;
+  }
+}
+
+export async function removeWeighIn(date: string): Promise<boolean> {
+  try {
+    await deleteWeighIn(date);
+    const state = await getProfile();
+    applyState(state);
+    await loadChart();
+    profile.offline = false;
+    profile.error = "";
+    return true;
+  } catch (error) {
+    fail(error);
+    return false;
+  }
+}
+
+export async function answerFreshStart(accept: boolean): Promise<boolean> {
+  try {
+    const result = await decideFreshStart(accept);
+    if (result.targets) profile.targets = result.targets;
+    const state = await getProfile();
+    applyState(state);
+    await loadChart();
+    profile.offline = false;
+    profile.error = "";
+    return true;
+  } catch (error) {
+    fail(error);
+    return false;
   }
 }
 
@@ -420,21 +484,19 @@ export async function retryLoad(): Promise<void> {
   if (profile.hasSaved && isDirty()) await refreshPreview();
 }
 
-export function weightCaption(weight: WeightResponse | null): { label: string; value: string } {
-  if (weight?.latestKg == null) {
-    return { label: "", value: "" };
-  }
-  if (weight.trendKg == null) {
-    return { label: "Trend not ready", value: "" };
-  }
-  if (!weight.trendVisible) {
-    const minimum = weight.trendMinimum > 0 ? weight.trendMinimum : 3;
+export function weightCaption(weight: WeightResponse | null): { label: string; value: string; note: string; low: boolean; fresh: boolean } {
+  const low = isLowAccuracy(weight);
+  const fresh = isFreshStart(weight);
+  if (weight?.trendKg != null) {
     return {
-      label: `${weight.weighInsInWindow} of ${minimum} weigh-ins · provisional`,
+      label: profileTrendLabel(weight),
       value: `${weight.trendKg.toFixed(2)} kg`,
+      note: low ? "low accuracy" : fresh ? "fresh start" : "",
+      low,
+      fresh,
     };
   }
-  return { label: "Trend", value: `${weight.trendKg.toFixed(2)} kg` };
+  return { label: "Weight", value: "—", note: "", low: false, fresh: false };
 }
 
 export interface ShownTargets {

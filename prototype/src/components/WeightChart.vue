@@ -2,7 +2,7 @@
 // Last 30 days: faint dots = weigh-ins, solid line = smoothed trend. Blue is the only colour in the app.
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { addDays, dayMonth } from "../lib/dates";
-import { state, trend, trendShown } from "../store";
+import { state, trendPlot } from "../store";
 
 const props = withDefaults(defineProps<{ end: string; days?: number; width?: number; height?: number; fluid?: boolean }>(), { days: 30, width: 290, height: 168 });
 // fluid: fill the container width (tablet/desktop); otherwise the fixed Figma size.
@@ -21,8 +21,8 @@ const W = computed(() => (props.fluid && measured.value ? Math.max(200, measured
 const data = computed(() => {
   const n = props.days;
   const dates = Array.from({ length: n }, (_, i) => addDays(props.end, i - (n - 1)));
-  // the trend line only where it is "shown" (≥3 weigh-ins in the 7 days up to that day)
-  const pts = dates.map((d) => ({ d, w: state.weights[d], t: trendShown(d) ? trend(d) : null }));
+  // S8: the trend line from the first weigh-in on; broken across a fresh-start gap (more than 28 days)
+  const pts = dates.map((d) => ({ d, w: state.weights[d], t: trendPlot(d) }));
   const vals = pts.flatMap((p) => [p.w, p.t]).filter((v): v is number => v != null);
   if (!vals.length) vals.push(state.profile.startWeight);
   const lo = Math.floor((Math.min(...vals) - 0.15) * 2) / 2;
@@ -33,7 +33,8 @@ const data = computed(() => {
   const grid: number[] = [];
   const step = hi - lo > 3 ? 1 : 0.5;
   for (let g = hi - step; g > lo + 1e-9; g -= step) grid.push(Math.round(g * 10) / 10);
-  const line = pts.map((p, i) => (p.t == null ? null : `${px(i).toFixed(1)},${py(p.t).toFixed(1)}`)).filter(Boolean).join(" ");
+  let pen = false;
+  const line = pts.map((p, i) => { if (p.t == null) { pen = false; return ""; } const s = `${pen ? "L" : "M"}${px(i).toFixed(1)},${py(p.t).toFixed(1)}`; pen = true; return s; }).join(" ");
   const lastIdx = pts.map((p) => p.t != null).lastIndexOf(true);
   const ticks = [0, 7, 14, 21, n - 1].filter((i) => i < n).map((i) => dayMonth(dates[i]));
   return { pts, px, py, grid, line, lastIdx, ticks, lo, hi };
@@ -47,7 +48,7 @@ const summary = computed(() => {
   let txt = `Weight, last ${props.days} days: ${ws.length} weigh-in${ws.length === 1 ? "" : "s"}`;
   if (ws.length) txt += `, from ${f(Math.min(...ws.map((p) => p.w!)))} to ${f(Math.max(...ws.map((p) => p.w!)))} kg`;
   if (ts.length >= 2) { const a = ts[0].t!, b = ts[ts.length - 1].t!; txt += `. Trend ${f(a)} to ${f(b)} kg (${b - a <= 0 ? "down" : "up"} ${f(Math.abs(b - a))} kg)`; }
-  else txt += ". Trend not shown yet";
+  else if (ts.length === 1) txt += `. Trend ${f(ts[0].t!)} kg`;
   return txt + ".";
 });
 </script>
@@ -60,7 +61,7 @@ const summary = computed(() => {
         <template v-for="(p, i) in data.pts" :key="p.d">
           <circle v-if="p.w != null" :cx="data.px(i)" :cy="data.py(p.w)" r="3" fill="#7DB1FF" fill-opacity="0.3" />
         </template>
-        <polyline :points="data.line" fill="none" stroke="#7DB1FF" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+        <path :d="data.line" fill="none" stroke="#7DB1FF" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
         <circle v-if="data.lastIdx >= 0" :cx="data.px(data.lastIdx)" :cy="data.py(data.pts[data.lastIdx].t!)" r="4.5" fill="#7DB1FF" stroke="#26262A" stroke-width="2" />
       </svg>
       <div class="ylabels" :style="{ height: height + 'px' }">
