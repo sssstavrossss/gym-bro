@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
+import AccuracyDot from "../components/AccuracyDot.vue";
 import Icon from "../components/Icon.vue";
 import Segmented from "../components/Segmented.vue";
 import { ACTIVITY, FAT_PRESETS, PROTEIN_PRESETS, RATES, type ActivityKey, type Goal, type MacroSetting, type Sex } from "../lib/nutrition";
@@ -99,9 +100,10 @@ async function onSignOut() {
       <div class="pcol">
         <section class="card">
           <span class="t-label c2">About you</span>
-          <div class="frow">
+          <div class="frow sexrow">
             <span class="t-body c2">Sex</span>
-            <Segmented :model-value="profile.form.sex" :options="[{ value: 'male', label: 'Male' }, { value: 'female', label: 'Female' }]" @update:model-value="setSex" />
+            <span class="grow" />
+            <Segmented label="Sex" :model-value="profile.form.sex" :options="[{ value: 'male', label: 'Male' }, { value: 'female', label: 'Female' }]" @update:model-value="setSex" />
           </div>
           <label class="frow">
             <span class="t-body c2">Birth year</span>
@@ -116,7 +118,10 @@ async function onSignOut() {
           <button type="button" class="frow" @click="openWeight()">
             <span class="t-body c2">Weight</span>
             <span class="grow" />
-            <span class="t-label c2">{{ caption.label }}</span>
+            <span class="row lowrow t-label c2">
+              <AccuracyDot v-if="caption.low" :interactive="false" />
+              {{ caption.label }}
+            </span>
             <span class="t-ns">{{ caption.value }}</span>
             <Icon name="right" :size="16" />
           </button>
@@ -140,7 +145,7 @@ async function onSignOut() {
 
         <section class="card">
           <span class="t-label c2">Goal</span>
-          <Segmented :model-value="profile.form.goal" :options="[{ value: 'lose', label: 'Lose' }, { value: 'maintain', label: 'Maintain' }, { value: 'gain', label: 'Gain' }]" @update:model-value="setGoal" />
+          <Segmented label="Goal" :model-value="profile.form.goal" :options="[{ value: 'lose', label: 'Lose' }, { value: 'maintain', label: 'Maintain' }, { value: 'gain', label: 'Gain' }]" @update:model-value="setGoal" />
           <div v-if="profile.form.goal !== 'maintain'" class="rate" role="group" aria-label="Rate">
             <span class="t-body c2">Rate</span>
             <button v-for="rate in RATES" :key="rate" type="button" class="chip t-label" :class="{ on: Number(profile.form.rate) === rate }" @click="setRate(rate)">{{ rate === 1 ? "1.0" : rate }}</button>
@@ -221,6 +226,9 @@ async function onSignOut() {
 
 <style scoped>
 .frow { min-height: 44px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--color-border); width: 100%; text-align: left; }
+.sexrow { flex-wrap: wrap; }
+.sexrow :deep(.seg) { width: auto; flex: 1 1 160px; min-width: 160px; }
+.lowrow { gap: 6px; }
 .frow.last { border-bottom: 0; }
 .ninput { width: 88px; margin-left: auto; text-align: right; background: transparent; border: 0; min-height: 44px; }
 .tz { margin-left: auto; width: 180px; text-align: right; background: transparent; border: 0; min-height: 44px; }

@@ -185,7 +185,10 @@ const diffText = computed(() => {
     <form class="row wfield" @submit.prevent="save(false)">
       <label class="base grow">
         <span class="sr-only">Weight in kilograms</span>
-        <input ref="input" v-model="value" class="t-dxl winput" inputmode="decimal" enterkeyhint="done" autocomplete="off" aria-label="Weight in kilograms" @focus="($event.target as HTMLInputElement).select()" />
+        <span class="autosize t-dxl">
+          <span class="mirror" aria-hidden="true">{{ value || "0" }}</span>
+          <input ref="input" v-model="value" class="t-dxl winput" size="1" inputmode="decimal" enterkeyhint="done" autocomplete="off" aria-label="Weight in kilograms" @focus="($event.target as HTMLInputElement).select()" />
+        </span>
         <span class="t-head c2">kg</span>
       </label>
       <button type="button" class="cbtn filled" aria-label="Save weight" :disabled="parsed === null" @click="save(false)">✓</button>
@@ -195,7 +198,7 @@ const diffText = computed(() => {
       <p id="tg-d" class="t-label c2 m0">{{ diffText }}</p>
       <div class="row tgb">
         <button type="button" class="chip on t-label big" @click="fix">Fix it</button>
-        <button type="button" class="chip t-label big" @click="save(true)">Yes, save</button>
+        <button type="button" class="chip t-label big" @click="save(true)">Yes, save {{ kg(confirm.kg) }} kg</button>
       </div>
     </div>
     <p v-if="invalid || localError" class="t-label m0" role="alert">{{ localError || "Enter a weight between 30 and 300 kg, e.g. 83,4 or 83.4" }}</p>
@@ -254,7 +257,11 @@ const diffText = computed(() => {
 .m0 { margin: 0; }
 .day select { min-height: 44px; max-width: 46vw; border-radius: 12px; border: 1px solid var(--color-border); background: var(--color-surface-2); padding: 0 8px; }
 .wfield { gap: 12px; align-items: center; }
-.winput { width: 100%; min-width: 0; background: transparent; border: 0; padding: 0; caret-color: #fff; }
+.wfield label { gap: 6px; min-width: 0; }
+.autosize { display: inline-grid; min-height: 44px; }
+.autosize > * { grid-area: 1 / 1; }
+.mirror { visibility: hidden; white-space: pre; padding-right: 4px; }
+.winput { width: 0; min-width: 100%; min-height: 44px; background: transparent; border: 0; padding: 0; caret-color: #fff; }
 .cbtn { width: 44px; height: 44px; font-size: 1.25rem; }
 .cbtn.filled { width: 56px; height: 56px; background: var(--color-action); color: var(--color-on-action); border-radius: 50%; }
 .cbtn.filled:disabled { opacity: .35; }
@@ -265,6 +272,9 @@ const diffText = computed(() => {
 .stats { gap: 8px; align-items: flex-start; flex-wrap: wrap; }
 .stats .col { gap: 2px; min-width: 5.5rem; }
 .wempty, .fresh, .tguard { gap: 8px; padding: 14px; border-radius: 14px; border: 1px solid var(--color-border); }
+.fresh { border-style: dashed; border-color: var(--text-tertiary); }
+.tguard { border-color: var(--color-border-strong); }
+.tgb { flex-wrap: wrap; }
 .tguard:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
 .chip.big { min-height: 44px; padding: 0 16px; border-radius: 22px; color: var(--text-primary); }
 .chip.big.on { color: var(--color-on-action); }

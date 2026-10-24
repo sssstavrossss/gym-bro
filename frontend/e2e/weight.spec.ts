@@ -199,7 +199,7 @@ test("typo guard asks inline and Fix it saves nothing", async ({ page }) => {
   await page.getByRole("button", { name: /Open weight|Log weight/ }).first().click();
   await page.getByRole("textbox", { name: "Weight in kilograms" }).fill("38.6");
   await page.getByRole("button", { name: "Save weight" }).click();
-  await page.getByRole("button", { name: "Yes, save" }).click();
+  await page.getByRole("button", { name: "Yes, save 38.6 kg", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Log weight" })).toHaveCount(0);
   const saved = await (await page.request.get(`/api/weigh-ins?from=${when.today}&to=${when.today}`, { headers: headers(oid) })).json();
   expect(saved.weighIns[0].kg).toBe(38.6);

@@ -37,12 +37,12 @@ test("setup, profile, weight sheet, and placeholders", async ({ page }, info) =>
   await check(page, `${info.project.name} setup`);
 
   const birthYear = String(new Date().getFullYear() - 36);
-  await page.getByRole("tab", { name: "Male", exact: true }).click();
+  await page.getByRole("radio", { name: "Male", exact: true }).click();
   await page.getByRole("textbox", { name: "Birth year" }).fill(birthYear);
   await page.getByRole("textbox", { name: "Height in centimetres" }).fill("180");
   await page.getByRole("button", { name: "Activity" }).click();
   await page.getByRole("button", { name: "Moderate" }).click();
-  await page.getByRole("tab", { name: "Lose" }).click();
+  await page.getByRole("radio", { name: "Lose" }).click();
   await page.getByRole("button", { name: "0.5" }).click();
   await page.getByRole("textbox", { name: "Goal weight in kilograms" }).fill("80");
   await page.getByRole("textbox", { name: "Starting weight in kilograms" }).fill("83,6");

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import type { WeightChartPoint } from "../api";
+import { axisBounds, axisMarks } from "../lib/chartScale";
 import { dayMonth } from "../lib/dates";
 
 const props = withDefaults(defineProps<{ series: WeightChartPoint[]; height?: number; fluid?: boolean }>(), {
@@ -25,17 +26,13 @@ const data = computed(() => {
   const pts = props.series;
   const n = Math.max(pts.length, 2);
   const vals = pts.flatMap((point) => [point.weighInKg, point.trendKg]).filter((value): value is number => value != null);
-  if (!vals.length) vals.push(80);
-  const lo = Math.floor((Math.min(...vals) - 0.15) * 2) / 2;
-  const hi = Math.ceil((Math.max(...vals) + 0.15) * 2) / 2;
+  const { lo, hi } = axisBounds(vals);
   const span = hi - lo || 1;
   const plotW = width.value;
   const plotH = props.height;
   const px = (index: number) => 6 + (index * (plotW - 12)) / (n - 1);
   const py = (value: number) => ((hi - value) / span) * (plotH - 12) + 6;
-  const grid: number[] = [];
-  const step = hi - lo > 3 ? 1 : 0.5;
-  for (let mark = hi - step; mark > lo + 1e-9; mark -= step) grid.push(Math.round(mark * 10) / 10);
+  const grid = axisMarks(lo, hi);
   let pen = false;
   const line = pts.map((point, index) => {
     if (point.trendKg == null) {
@@ -85,7 +82,7 @@ const summary = computed(() => {
         <circle v-if="data.lastIdx >= 0" :cx="data.px(data.lastIdx)" :cy="data.py(data.pts[data.lastIdx].trendKg!)" r="4.5" fill="#7DB1FF" stroke="#26262A" stroke-width="2" />
       </svg>
       <div class="ylabels" :style="{ height: height + 'px' }">
-        <span v-for="mark in data.grid" :key="mark" class="t-capn c2" :style="{ top: data.py(mark) - 7 + 'px' }">{{ mark.toFixed(1) }}</span>
+        <span v-for="mark in data.grid" :key="mark" class="t-capn c2 ymark" :data-kg="mark.toFixed(1)" :style="{ top: data.py(mark) - 7 + 'px' }">{{ mark.toFixed(1) }}</span>
       </div>
     </div>
     <div class="row xlabels"><span v-for="tick in data.ticks" :key="tick" class="t-capn c2">{{ tick }}</span></div>
@@ -96,7 +93,7 @@ const summary = computed(() => {
 .wchart { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
 .plot { gap: 6px; align-items: flex-start; }
 .ylabels { position: relative; flex: 1; min-width: 36px; }
-.ylabels span { position: absolute; left: 0; }
+.ylabels span { position: absolute; left: 0; white-space: nowrap; }
 .xlabels { justify-content: space-between; gap: 8px; }
 .dt-xl .plot { position: relative; }
 .dt-xl .ylabels { position: absolute; inset: 0; pointer-events: none; }

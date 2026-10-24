@@ -52,7 +52,7 @@ async function no() {
 </template>
 
 <style scoped>
-.fs { gap: 10px; border: 1px solid var(--color-border); }
+.fs { gap: 10px; border: 1px solid var(--color-border-strong); }
 .m0 { margin: 0; }
 .top { gap: 12px; align-items: flex-start; }
 .ic { width: 36px; height: 36px; border-radius: 18px; background: var(--color-surface-2); display: flex; align-items: center; justify-content: center; flex: none; }

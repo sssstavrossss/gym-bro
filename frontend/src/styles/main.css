@@ -20,8 +20,11 @@
   --color-action: #ffffff;
   --color-on-action: #0b0b0c;
   --text-primary: #ffffff;
-  --text-secondary: #9a9aa1;
-  --text-tertiary: #5e5e66;
+  /* Secondary and tertiary match the prototype so body text stays above WCAG AA on every surface.
+     Tertiary was #5e5e66 (about 2–3:1). Outlines that identify a control use --color-border-strong. */
+  --text-secondary: #b3b3ba;
+  --text-tertiary: #9c9ca4;
+  --color-border-strong: #737379;
   --chart-line: #7db1ff;
   --shade-on-target: #ededef;
   --shade-close: #9c9ca3;

@@ -3,6 +3,7 @@ import { computed } from "vue";
 import AccuracyDot from "../components/AccuracyDot.vue";
 import FreshStart from "../components/FreshStart.vue";
 import GoalReached from "../components/GoalReached.vue";
+import InfoTip from "../components/InfoTip.vue";
 import Sparkline from "../components/Sparkline.vue";
 import WeightChart from "../components/WeightChart.vue";
 import Icon from "../components/Icon.vue";
@@ -59,7 +60,7 @@ const tip = "The trend smooths out day-to-day swings from water, salt and food. 
     <div v-if="!vp.tablet" class="card wcard row">
       <button type="button" class="stretch" :aria-label="aria" @click="openWeight()" />
       <div v-if="shown && weight" class="col gap2">
-        <span class="row gap6"><span class="t-cap c2">Weight · trend</span></span>
+        <span class="row gap6"><span class="t-cap c2">Weight · trend</span><InfoTip label="What is the trend?">{{ tip }}</InfoTip></span>
         <span class="row gap8 numrow">
           <span class="base"><span class="t-nm">{{ kg(weight.trendKg!) }}</span><span class="t-label c2">kg</span></span>
           <AccuracyDot v-if="low" />
@@ -81,7 +82,7 @@ const tip = "The trend smooths out day-to-day swings from water, salt and food. 
       <button type="button" class="stretch" :aria-label="aria" @click="openWeight()" />
       <div class="row top">
         <div v-if="shown && weight" class="col gap2">
-          <span class="t-cap c2">Weight · trend</span>
+          <span class="row gap6"><span class="t-cap c2">Weight · trend</span><InfoTip label="What is the trend?">{{ tip }}</InfoTip></span>
           <span class="row gap8 numrow">
             <span class="base"><span class="t-nm">{{ kg(weight.trendKg!) }}</span><span class="t-label c2">kg</span></span>
             <AccuracyDot v-if="low" label />
@@ -115,6 +116,8 @@ const tip = "The trend smooths out day-to-day swings from water, salt and food. 
 .wbig > :not(.stretch) { pointer-events: none; }
 .wcard > :not(.stretch) :deep(.accdot),
 .wbig :deep(.accdot),
+.wcard > :not(.stretch) :deep(.itip),
+.wbig :deep(.itip),
 .wcard > :not(.stretch) :deep(button),
 .wbig :deep(button),
 .wcard > :not(.stretch) :deep(a),
@@ -124,7 +127,7 @@ const tip = "The trend smooths out day-to-day swings from water, salt and food. 
 .wcard > :not(.stretch) :deep(select),
 .wbig :deep(select) { pointer-events: auto; z-index: 2; }
 .wcard.row { flex-direction: row; flex-wrap: nowrap; align-items: center; gap: 12px; text-align: left; width: 100%; }
-.wcard :deep(svg:not(.c3)) { flex: 0 1 132px; min-width: 0; max-width: 132px; }
+.wcard :deep(svg.spark) { flex: none; width: 132px; min-width: 132px; max-width: 132px; }
 .wcard > .col { min-width: 0; }
 .nowrap { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 .wbig { gap: 12px; }
