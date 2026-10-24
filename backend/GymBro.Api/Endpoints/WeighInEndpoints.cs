@@ -33,9 +33,6 @@ public static class WeighInEndpoints
 
     public const string OnlyWeighInMessage = "This is your only weigh-in, so it can't be deleted. Edit it instead.";
 
-    private static string OneDecimal(decimal value) =>
-        decimal.Round(value, 1, MidpointRounding.AwayFromZero).ToString("0.0", CultureInfo.InvariantCulture);
-
     public static RouteGroupBuilder MapWeighIns(this RouteGroupBuilder api)
     {
         api.MapPut("/weigh-ins/{date}", Put);
@@ -375,7 +372,7 @@ public static class WeighInEndpoints
         var direction = difference < 0 ? "below" : "above";
         return Results.Json(new
         {
-            error = $"Is {kg.ToString("0.0", CultureInfo.InvariantCulture)} kg right? That's {OneDecimal(Math.Abs(difference))} kg {direction} your trend ({OneDecimal(trend)} kg). Nothing is saved until you choose.",
+            error = $"Is {TrendWeight.FormatOneDecimal(kg)} kg right? That's {TrendWeight.FormatOneDecimal(Math.Abs(difference))} kg {direction} your trend ({TrendWeight.FormatOneDecimal(trend)} kg). Nothing is saved until you choose.",
             code = ConfirmWeighIn,
             kg,
             localDate,
