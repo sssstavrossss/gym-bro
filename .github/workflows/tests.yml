@@ -88,4 +88,4 @@ jobs:
 
       - name: Prototype build
         working-directory: prototype
-        run: npm ci && npm run build
+        run: npm ci && npm run build && node scripts/unit-trend.mjs

@@ -15,8 +15,8 @@ await p.click(".dayline .chip"); await p.locator(".frow", { hasText: "Banana" })
 await p.click(".sbar .act:has-text('Copy to')"); await p.click(".opt:has-text('Yesterday')"); await p.click(".sheet .primary-btn"); await p.waitForTimeout(500);
 ok(p.url().includes("/log/2026-10-23"), "copy navigates to yesterday");
 ok(await p.locator(".frow:has-text('15:45')").count() >= 1, "copied entry keeps 15:45");
-await p.goto("http://localhost:8765/some/path/?demo=sparse#/today"); await p.waitForTimeout(500);
-ok((await p.locator(".wcard").innerText()).includes("Trend not ready"), "sparse → trend not ready");
+await p.goto("http://localhost:8765/some/path/?demo=lowacc#/today"); await p.waitForTimeout(500);
+ok(!(await p.content()).match(/Trend not ready|provisional|of 3 weigh-ins/), "S8 no 'Trend not ready' / 'provisional' anywhere");
 await p.goto("http://localhost:8765/some/path/#/profile"); await p.waitForTimeout(400);
 await p.click(".demo .dhead"); await p.click(".drow:has-text('Normal')"); await p.waitForTimeout(400);
 await p.goto("http://localhost:8765/some/path/#/profile"); await p.waitForTimeout(400);
@@ -122,5 +122,55 @@ await p.click(".goal .seg-btn:has-text('My own number')"); await p.waitForTimeou
 ok((await p.inputValue("#manual-kcal")) === "1500", "S7 switching back pre-fills the last number");
 await fresh("demo=goalreached", "/today"); ok((await p.locator(".gr").innerText()).includes("Keep 2,000 kcal, or switch to Maintain?"), "S7 goal-reached question");
 await p.click(".gr .chip:has-text('Keep')"); await p.waitForTimeout(200); ok((await p.locator(".gr").count()) === 0, "S7 keep → question closes, target unchanged");
+// ---------- S8 Part A: trend always on ----------
+await fresh("demo=normal", "/today");
+{ const sub = p.locator(".wcard .wsub"); const h = await sub.evaluate((e) => [e.scrollWidth <= e.clientWidth + 1, e.getBoundingClientRect().height]);
+  ok((await sub.innerText()) === "latest 83.3 · −0.4 kg/wk" && h[0] && h[1] < 20, "S8 nit: weight card line fits on one line (latest 83.3 · −0.4 kg/wk)"); }
+ok((await p.locator(".wcard .accdot").count()) === 0, "S8 normal: no low-accuracy dot (daily weigh-ins)");
+await fresh("demo=lowacc", "/today");
+ok((await p.locator(".wcard").innerText()).includes("83.6") || (await p.locator(".wcard .t-nm").count()) === 1, "S8 low accuracy: trend still shown");
+ok((await p.locator(".wcard .accdot").getAttribute("aria-label")).includes("only 1 weigh-in this week"), "S8 dot has a spoken label with the reason");
+{ const bb = await p.locator(".wcard .accdot").evaluate((e) => { const r = e.getBoundingClientRect(); const a = getComputedStyle(e, "::after"); return [r.width + parseFloat(a.left) * -1 + parseFloat(a.right) * -1, r.height - parseFloat(a.top) - parseFloat(a.bottom)]; });
+  ok(bb[0] >= 44 && bb[1] >= 44, "S8 dot tap area ≥ 44 pt"); }
+await p.click(".wcard .accdot"); await p.waitForTimeout(350);
+ok((await p.locator(".sheet-root[aria-label='Trend accuracy']").innerText()).includes("Only 1 weigh-in this week, so the trend is less accurate. Weighing in 2+ times a week helps."), "S8 tapping the dot explains it (spec text)");
+ok((await p.locator(".sheet-root[aria-label='Log weight']").count()) === 0, "S8 the dot doesn't also open the weight sheet");
+await p.click(".sheet-root[aria-label='Trend accuracy'] .ghost"); await p.waitForTimeout(300);
+await fresh("x=1", "/profile"); ok((await p.locator(".frow:has-text('Weight')").first().innerText()).includes("trend · low accuracy"), "S8 Profile weight row: trend · low accuracy");
+// typo guard
+await fresh("demo=normal", "/today"); await p.click(".wcard .stretch"); await p.waitForTimeout(350);
+await p.fill(".winput", "38.6"); await p.press(".winput", "Enter"); await p.waitForTimeout(200);
+ok((await p.locator(".tguard").innerText()).includes("Is 38.6 kg right?"), "S8 typo guard: 38.6 asks");
+await p.click(".tguard .chip:has-text('Fix it')"); await p.waitForTimeout(150);
+ok((await p.locator(".tguard").count()) === 0 && (await p.evaluate(() => JSON.parse(localStorage.getItem("gymbro-proto-v4")).weights["2026-10-24"])) === 83.3, "S8 Fix it saves nothing (83.3 kept)");
+await p.fill(".winput", "86.5"); await p.press(".winput", "Enter"); await p.waitForTimeout(300);
+ok((await p.locator(".tguard").count()) === 0 && (await p.evaluate(() => JSON.parse(localStorage.getItem("gymbro-proto-v4")).weights["2026-10-24"])) === 86.5, "S8 86.5 saves without asking");
+await fresh("demo=normal", "/today"); await p.click(".wcard .stretch"); await p.waitForTimeout(350);
+await p.fill(".winput", "86.7"); await p.press(".winput", "Enter"); await p.waitForTimeout(200);
+ok((await p.locator(".tguard").count()) === 1, "S8 86.7 asks");
+await p.click(".tguard .chip:has-text('Yes, save')"); await p.waitForTimeout(300);
+ok((await p.evaluate(() => JSON.parse(localStorage.getItem("gymbro-proto-v4")).weights["2026-10-24"])) === 86.7, "S8 Yes saves the confirmed value");
+await fresh("demo=typo", "/today"); ok((await p.locator(".tguard h3").innerText()) === "Is 38.6 kg right?", "S8 ?demo=typo opens the guard");
+// fresh start
+await fresh("demo=fresh", "/today");
+ok((await p.locator(".fs").innerText()).includes("It's been 6 weeks") && (await p.locator(".fs").innerText()).includes("Recalculate your targets from today's weight?"), "S8 fresh start prompt after 6 weeks");
+ok((await p.locator(".wcard .t-nm").innerText()) === "82.4", "S8 fresh start: trend = the new weigh-in exactly");
+const histLen = async () => (await p.evaluate(() => JSON.parse(localStorage.getItem("gymbro-proto-v4")).history)).length;
+const h0 = await histLen();
+await p.click(".fs .chip:has-text('Not now')"); await p.waitForTimeout(200);
+ok((await histLen()) === h0 && (await p.locator(".fs").count()) === 0, "S8 Not now writes nothing");
+await fresh("demo=fresh", "/today"); await p.click(".fs .chip:has-text('Recalculate')"); await p.waitForTimeout(200);
+{ const h = await p.evaluate(() => JSON.parse(localStorage.getItem("gymbro-proto-v4")).history.at(-1));
+  ok(h.date === "2026-10-24" && h.reasons.includes("fresh_start") && h.weight === 82.4, "S8 Recalculate writes today's row, reason fresh_start, from 82.4 kg"); }
+// onboarding: starting weight → first weigh-in, low-accuracy dot, targets straight away
+await fresh("demo=onboarding", "/today");
+await p.click(".ob .primary-btn"); await p.click(".ob .seg-btn:has-text('Male')"); await p.fill(".ob input[placeholder='e.g. 1990']", "1990"); await p.fill(".ob input[placeholder='e.g. 180']", "180"); await p.click(".ob .primary-btn");
+ok((await p.locator(".ob h1").innerText()) === "Your starting weight", "S8 setup has a starting-weight step");
+await p.fill(".ob input[aria-label='Weight in kg']", "84.0"); await p.click(".ob .primary-btn");
+await p.click(".ob .opt:has-text('Moderate')"); await p.click(".ob .primary-btn");
+await p.click(".ob .seg-btn:has-text('Maintain')"); await p.click(".ob .primary-btn"); await p.click(".ob .primary-btn"); await p.waitForTimeout(400);
+{ const st = await p.evaluate(() => JSON.parse(localStorage.getItem("gymbro-proto-v4")));
+  ok(Object.keys(st.weights).length === 1 && st.weights["2026-10-24"] === 84 && st.history.length === 1, "S8 starting weight saved as the first weigh-in; targets straight away"); }
+ok((await p.locator(".wcard .t-nm").innerText()) === "84.0" && (await p.locator(".wcard .accdot").count()) === 1, "S8 after setup: trend = 84.0 with the low-accuracy dot");
 console.log(errors.length ? "ERRORS " + errors.join("\n") : "no page errors");
 await b.close();

@@ -4,10 +4,10 @@ import type { Entry } from "./store";
 import { today } from "./store";
 import { nowHM } from "./lib/time";
 
-export type Sheet = null | "chooser" | "food" | "weight" | "copy" | "group";
+export type Sheet = null | "chooser" | "food" | "weight" | "copy" | "group" | "accuracy";
 export type FoodTab = "search" | "quick";
 /** Hidden reviewer switch (Profile → Demo states). */
-export type DemoState = "normal" | "onboarding" | "empty" | "sparse" | "loading" | "offline" | "unreachable" | "down" | "manual" | "goalreached";
+export type DemoState = "normal" | "onboarding" | "empty" | "lowacc" | "fresh" | "typo" | "loading" | "offline" | "unreachable" | "down" | "manual" | "goalreached";
 
 export const ui = reactive({
   sheet: null as Sheet,
@@ -26,6 +26,10 @@ export const ui = reactive({
   /** ids added during the current food-sheet session (for "Save as group") */
   session: [] as string[],
   weightDate: today,
+  /** demo: a value typed into the weight sheet on open (typo-guard demo) */
+  weightDraft: null as string | null,
+  /** S8: sheet to return to after the trend-accuracy sheet closes */
+  accReturn: null as Sheet,
   /** Log multi-select */
   selecting: false,
   selected: [] as string[],
@@ -65,6 +69,9 @@ export function openEdit(e: Entry) {
 export const entryTime = () => ui.time ?? nowHM();
 export function openWeight(date = today) { ui.weightDate = date; ui.sheet = "weight"; }
 export function closeSheet() { ui.sheet = null; }
+/** S8: the low-accuracy dot explains itself in a small sheet; from the weight sheet it returns there. */
+export function openAccuracy() { ui.accReturn = ui.sheet === "weight" ? "weight" : null; ui.sheet = "accuracy"; }
+export function closeAccuracy() { ui.sheet = ui.accReturn; ui.accReturn = null; }
 export function openGroupSheet(list: Entry[]) {
   ui.groupDraft = list.map((e) => ({ ...e }));
   ui.groupReturn = ui.sheet === "food" ? "food" : null;

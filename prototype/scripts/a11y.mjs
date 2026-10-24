@@ -46,6 +46,13 @@ const steps = [
   ["Quick Add", "/today", async (p) => { await openAdd(p); await p.click(".seg-btn:has-text('Quick Add')"); }],
   ["Edit entry", "/log", async (p) => { await p.locator(".frow").first().click(); }],
   ["Weight sheet", "/today", async (p) => { await p.keyboard.press("w").catch(() => {}); if (!(await p.locator(".sheet-root").count())) await p.locator(".wcard .stretch, .wbig .stretch").first().click(); }],
+  // S8 Part A
+  ["S8 low accuracy · Today", "/today", async (p) => { await p.goto(url + "?demo=lowacc&now=17:20&s8=1#/today"); await p.waitForTimeout(300); }],
+  ["S8 accuracy sheet", "/today", async (p) => { await p.goto(url + "?demo=lowacc&now=17:20&s8=2#/today"); await p.waitForTimeout(300); await p.locator(".wcard .accdot, .wbig .accdot").first().click(); }],
+  ["S8 fresh start · Today", "/today", async (p) => { await p.goto(url + "?demo=fresh&now=17:20&s8=3#/today"); await p.waitForTimeout(300); }],
+  ["S8 fresh start · Weight sheet", "/today", async (p) => { await p.goto(url + "?demo=fresh&now=17:20&s8=4#/today"); await p.waitForTimeout(300); await p.locator(".wcard .stretch, .wbig .stretch").first().click(); }],
+  ["S8 typo guard", "/today", async (p) => { await p.goto(url + "?demo=typo&now=17:20&s8=5#/today"); await p.waitForTimeout(300); }],
+  ["S8 low accuracy · Profile", "/profile", async (p) => { await p.goto(url + "?demo=lowacc&now=17:20&s8=6#/profile"); await p.waitForTimeout(300); }],
   ["Server unreachable", "/today?demo=down"],
 ];
 await run("Phone", phone, steps.map(([a, b, c]) => [a, b.includes("?") ? b : b, c]).map(([a, b, c]) => (b.includes("?demo") ? [a, "/today", async (p) => { await p.goto(url + "?demo=down&now=17:20#/today"); await p.waitForTimeout(300); }] : [a, b, c])));

@@ -45,7 +45,7 @@ test("setup, profile, weight sheet, and placeholders", async ({ page }, info) =>
   await page.getByRole("tab", { name: "Lose" }).click();
   await page.getByRole("button", { name: "0.5" }).click();
   await page.getByRole("textbox", { name: "Goal weight in kilograms" }).fill("80");
-  await page.getByRole("textbox", { name: "First weigh-in in kilograms" }).fill("83,6");
+  await page.getByRole("textbox", { name: "Starting weight in kilograms" }).fill("83,6");
   await page.getByRole("button", { name: "Save and see targets" }).click();
   await expect(page.locator("[data-field=kcal]")).toHaveText("2218");
   await check(page, `${info.project.name} profile`);
@@ -54,7 +54,7 @@ test("setup, profile, weight sheet, and placeholders", async ({ page }, info) =>
   await expect(page.getByText("More carbs means less protein or fat.")).toBeVisible();
   await check(page, `${info.project.name} customise`);
 
-  await page.getByRole("button", { name: /Trend not ready/ }).click();
+  await page.getByRole("button", { name: /trend/i }).click();
   await expect(page.getByRole("dialog", { name: "Log weight" })).toBeVisible();
   await check(page, `${info.project.name} weight sheet`);
   await page.keyboard.press("Escape");

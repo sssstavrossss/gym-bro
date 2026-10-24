@@ -35,6 +35,7 @@ public static class TargetReasons
     public const string ProfileChange = "profile_change";
     public const string MacroBalanceChange = "macro_balance_change";
     public const string WeeklyRecalculation = "weekly_recalculation";
+    public const string FreshStart = "fresh_start";
 }
 
 public sealed record NutritionInput(

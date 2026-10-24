@@ -1,4 +1,9 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <rect width="32" height="32" rx="8" fill="#0b0b0c"/>
-  <path d="M9 16h14M6 12v8M26 12v8M11 9v14M21 9v14" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- Option B · tiny sizes (≤23 px, e.g. 16 px favicon). As icon-b-sm but plate scaled 1.6× (almost full tile)
+       and G stroke 78→100 so the counter and crossbar survive at 16 px. -->
+  <rect width="1024" height="1024" rx="160" fill="#0B0B0C"/>
+  <g transform="translate(512 512) scale(1.6) translate(-512 -512)">
+    <circle cx="512" cy="512" r="290" fill="#FFFFFF"/>
+    <path d="M596.3 418.4 A126 126 0 1 0 611.3 589.6 L611.3 512 L536 512" fill="none" stroke="#0B0B0C" stroke-width="100" stroke-linejoin="miter"/>
+  </g>
 </svg>

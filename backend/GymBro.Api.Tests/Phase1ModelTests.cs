@@ -57,12 +57,57 @@ public sealed class Phase1ModelTests(ApiFactory factory)
         Assert.Contains("source_id", log);
         Assert.Contains("grams", log);
         Assert.DoesNotContain(log, column => column.Contains("meal", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains("fasting", found["day_status"]);
         Assert.Equal(5, weightPrecision);
         Assert.Equal(2, weightScale);
 
         var model = db.Model.FindEntityType(typeof(LogEntry));
         Assert.NotNull(model);
         Assert.DoesNotContain(model.GetProperties(), property => property.Name.Contains("Meal", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task Day_status_fasting_defaults_to_false()
+    {
+        var user = TestData.NewUser("fasting");
+        using var client = factory.AsUser(user);
+        Assert.Equal(System.Net.HttpStatusCode.OK, (await client.GetAsync("/api/me")).StatusCode);
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var connection = db.Database.GetDbConnection();
+        await connection.OpenAsync();
+        await using (var insert = connection.CreateCommand())
+        {
+            insert.CommandText = """
+                INSERT INTO day_status (user_id, local_date, complete)
+                VALUES (@user, DATE '2026-10-24', false)
+                """;
+            var parameter = insert.CreateParameter();
+            parameter.ParameterName = "user";
+            parameter.Value = user;
+            insert.Parameters.Add(parameter);
+            Assert.Equal(1, await insert.ExecuteNonQueryAsync());
+        }
+
+        await using var read = connection.CreateCommand();
+        read.CommandText = """
+            SELECT fasting, is_nullable, column_default
+            FROM day_status, information_schema.columns
+            WHERE day_status.user_id = @user
+              AND table_schema = 'public'
+              AND table_name = 'day_status'
+              AND column_name = 'fasting'
+            """;
+        var readParameter = read.CreateParameter();
+        readParameter.ParameterName = "user";
+        readParameter.Value = user;
+        read.Parameters.Add(readParameter);
+        await using var reader = await read.ExecuteReaderAsync();
+        Assert.True(await reader.ReadAsync());
+        Assert.False(reader.GetBoolean(0));
+        Assert.Equal("NO", reader.GetString(1));
+        Assert.Contains("false", reader.GetString(2), StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

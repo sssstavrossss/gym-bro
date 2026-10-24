@@ -1,17 +1,11 @@
 import PlaceholderView from "./views/PlaceholderView.vue";
 import ProfileView from "./views/ProfileView.vue";
 import SetupView from "./views/SetupView.vue";
+import TodayView from "./views/TodayView.vue";
 
 export const routes = [
   { path: "/", redirect: "/today" },
-  {
-    path: "/today",
-    component: PlaceholderView,
-    meta: {
-      title: "Today",
-      body: "Today’s food log arrives in a later update. Your targets live on Profile.",
-    },
-  },
+  { path: "/today", component: TodayView },
   {
     path: "/log",
     component: PlaceholderView,

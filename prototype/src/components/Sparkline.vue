@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { addDays } from "../lib/dates";
-import { state, trend } from "../store";
+import { state, trendPlot } from "../store";
 const props = defineProps<{ end: string }>();
 const W = 132, H = 52;
 const d = computed(() => {
   const dates = Array.from({ length: 7 }, (_, i) => addDays(props.end, i - 6));
   const w = dates.map((x) => state.weights[x] ?? null);
-  const t = dates.map((x) => trend(x));
+  const t = dates.map((x) => trendPlot(x));
   const vals = [...w, ...t].filter((v): v is number => v != null);
   const hi = Math.max(...vals) + 0.05, lo = Math.min(...vals) - 0.05;
   const span = Math.max(hi - lo, 0.6);

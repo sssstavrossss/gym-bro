@@ -25,7 +25,7 @@ public static class TargetBook
     /// already on the row stay, and <paramref name="reasons"/> are appended
     /// in order, skipping any that are already there.
     /// </summary>
-    public static async Task StageAsync(
+    public static async Task<TargetHistory> StageAsync(
         AppDbContext db,
         string userId,
         DateOnly effectiveDate,
@@ -40,8 +40,9 @@ public static class TargetBook
             cancellationToken);
         if (row is null)
         {
-            db.TargetHistories.Add(NewRow(userId, effectiveDate, result, weightKg, reasons, createdAt));
-            return;
+            var created = NewRow(userId, effectiveDate, result, weightKg, reasons, createdAt);
+            db.TargetHistories.Add(created);
+            return created;
         }
 
         row.Bmr = result.Bmr;
@@ -54,6 +55,7 @@ public static class TargetBook
         row.WeightKg = decimal.Round(weightKg, 2, MidpointRounding.AwayFromZero);
         row.Reasons = MergeReasons(row.Reasons, reasons);
         row.CreatedAt = createdAt;
+        return row;
     }
 
     public static string[] MergeReasons(IReadOnlyList<string> existing, IReadOnlyList<string> added)
@@ -102,4 +104,5 @@ public static class TargetBook
             CreatedAt = createdAt,
         };
     }
+
 }

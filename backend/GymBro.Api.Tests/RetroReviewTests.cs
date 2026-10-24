@@ -92,13 +92,18 @@ public sealed class RetroMathTests
             (asOf.AddDays(-1), 80m),
             (asOf, 80m),
         };
-        Assert.Equal(3, TrendWeight.CountInWindow(edge, asOf));
-        Assert.True(TrendWeight.IsShown(3));
-        Assert.Equal(2, TrendWeight.CountInWindow(justOutside, asOf));
-        Assert.False(TrendWeight.IsShown(2));
+        // Part A dropped the "shown after 3 weigh-ins" gate. The window is still
+        // seven local days inclusive. Two weigh-ins in that window is a normal
+        // published trend; fewer than two is low accuracy.
+        var edgeSeries = TrendWeight.Compute(edge, asOf);
+        Assert.Equal(3, edgeSeries.WeighInsInWindow);
+        Assert.Equal(TrendWeight.Normal, edgeSeries.TrendState);
+        var outsideSeries = TrendWeight.Compute(justOutside, asOf);
+        Assert.Equal(2, outsideSeries.WeighInsInWindow);
+        Assert.Equal(TrendWeight.Normal, outsideSeries.TrendState);
 
-        var midpoint = new List<(DateOnly, decimal)> { (asOf.AddDays(-1), 80.00m), (asOf, 80.05m) };
-        Assert.Equal(80.01m, TrendWeight.Compute(midpoint, asOf));
+        var midpoint = TrendWeight.Compute([(asOf.AddDays(-1), 80.00m), (asOf, 80.05m)], asOf);
+        Assert.Equal(80.01m, midpoint.TrendKg);
     }
 }
 

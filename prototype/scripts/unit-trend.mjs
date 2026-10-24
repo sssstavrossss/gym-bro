@@ -1,0 +1,27 @@
+// S8 Part A acceptance checks for the trend maths. Usage: node scripts/unit-trend.mjs
+import { build } from "esbuild";
+const out = await build({ entryPoints: [new URL("../src/lib/trend.ts", import.meta.url).pathname], bundle: true, format: "esm", write: false, platform: "node" });
+const m = await import("data:text/javascript;base64," + Buffer.from(out.outputFiles[0].text).toString("base64"));
+const sd = await build({ entryPoints: [new URL("../src/data/seed.ts", import.meta.url).pathname], bundle: true, format: "esm", write: false, platform: "node" });
+const s = await import("data:text/javascript;base64," + Buffer.from(sd.outputFiles[0].text).toString("base64"));
+let fail = 0; const ok = (c, msg) => { console.log(c ? "PASS" : "FAIL", msg); if (!c) fail++; };
+const f2 = (n) => n.toFixed(2);
+const W = s.seedWeights(), T = "2026-10-24";
+ok(f2(m.trendAsOf(W, T)) === "83.60", "daily 36-day dataset → trend 83.60");
+const two = { "2026-10-23": 80, "2026-10-24": 90 };
+ok(f2(m.trendAsOf(two, T)) === "81.00" && m.trendStatus(two, T).state === "normal", "80 then 90 consecutive → 81.00, no dot");
+const one = { "2026-10-10": 80, "2026-10-24": 81 };
+ok(m.trendStatus(one, T).state === "low_accuracy" && m.trendStatus(one, T).reasons.includes("few_weigh_ins"), "one weigh-in in the last 7 days → low accuracy");
+ok(m.trendStatus({ [T]: 84 }, T).state === "low_accuracy" && m.trendAsOf({ [T]: 84 }, T) === 84, "setup weigh-in only → trend = that weight, low accuracy");
+const g = { "2026-10-01": 80, "2026-10-04": 83 }, gs = m.trendSeries(g, "2026-10-04").series;
+ok([gs["2026-10-02"], gs["2026-10-03"], gs["2026-10-04"]].map(f2).join(" ") === "80.10 80.29 80.56", "3-day gap → 80.10, 80.29, 80.56");
+const g28 = { "2026-09-26": 80, "2026-10-24": 84 }, g29 = { "2026-09-25": 80, "2026-10-24": 84 };
+ok(m.trendAsOf(g28, T) !== 84 && m.trendStatus(g28, T).state !== "fresh_start", "28-day gap interpolated (no reset)");
+ok(m.trendAsOf(g29, T) === 84 && m.trendStatus(g29, T).state === "fresh_start" && m.trendStatus(g29, T).freshGapDays === 29, "29-day gap → fresh start, trend = new weigh-in");
+ok(m.typoCheck(W, T, 38.6).ask && !m.typoCheck(W, T, 86.5).ask && m.typoCheck(W, T, 86.7).ask, "typo guard: 38.6 asks, 86.5 saves, 86.7 asks");
+ok(!m.typoCheck({}, T, 38.6).ask, "typo guard not applied to the first weigh-in");
+const del = { ...W }; delete del["2026-10-15"]; const never = Object.fromEntries(Object.entries(W).filter(([d]) => d !== "2026-10-15"));
+ok(m.trendAsOf(del, T) === m.trendAsOf(never, T), "deleting a weigh-in = never entered");
+const back = { "2026-10-01": 80, "2026-10-10": 82 }, back2 = { ...back, "2026-10-05": 79 };
+ok(m.trendAsOf(back, T) !== m.trendAsOf(back2, T), "a back-dated weigh-in inside a gap changes today's trend");
+process.exitCode = fail ? 1 : 0;

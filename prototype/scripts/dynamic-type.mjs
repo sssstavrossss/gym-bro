@@ -28,6 +28,10 @@ const SCREENS = [
   ["food-detail", "/today", async () => { await openAdd(); await page.locator(".rrow:not(.grp):has-text('Eggs') .rtext").first().click(); await settle(); }],
   ["weight", "/today", async () => { await page.locator(".wcard .stretch").click(); await settle(); await page.locator(".winput").blur(); }],
   ["progress", "/progress"], ["profile", "/profile"],
+  ["s8-lowacc-today", "/today", null, "lowacc"],
+  ["s8-accuracy-sheet", "/today", async () => { await page.locator(".wcard .accdot").click(); await settle(); }, "lowacc"],
+  ["s8-fresh-today", "/today", null, "fresh"],
+  ["s8-typo-guard", "/today", null, "typo"],
   ["onboarding-1", "/today", null, "onboarding"],
   ["onboarding-2", "/today", async () => { await page.locator("form .primary-btn").last().click(); await settle(); }, "onboarding"],
 ];

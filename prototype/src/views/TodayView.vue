@@ -10,11 +10,13 @@ import Skeleton from "../components/Skeleton.vue";
 import InfoTip from "../components/InfoTip.vue";
 import ManualTag from "../components/ManualTag.vue";
 import GoalReached from "../components/GoalReached.vue";
+import FreshStart from "../components/FreshStart.vue";
+import AccuracyDot from "../components/AccuracyDot.vue";
 import WeightChart from "../components/WeightChart.vue";
 import { addDays, dayNum, longDate, shortDate, weekStart, weekday, weekdayShort } from "../lib/dates";
 import { int, kg, signed } from "../lib/format";
 import { vp } from "../lib/viewport";
-import { dayTotals, hasLog, hasWeights, isManual, isOver, latestWeighIn, macroStatus, shadeFor, targetFor, today, trend, trendVisible, trendWeight, weighInsLast7 } from "../store";
+import { dayTotals, hasLog, hasWeights, isManual, isOver, latestWeighIn, macroStatus, shadeFor, targetFor, today, lowAccuracy, trend, trendInfo, trendWeight } from "../store";
 import { openFood, openWeight, ui } from "../ui";
 
 const sel = ref(today);
@@ -27,12 +29,19 @@ const title = computed(() => (sel.value === today ? "Today" : sel.value === addD
 const w = computed(() => {
   const latest = latestWeighIn(today);
   const prev = trend(addDays(today, -7));
-  return { trend: trendWeight.value, latest, week: prev != null ? trendWeight.value - prev : 0, shown: trendVisible.value, n7: weighInsLast7(today), any: hasWeights.value };
+  const fresh = trendInfo.value.state === "fresh_start";
+  // S8: always shown once there is a weigh-in; across a fresh start there is no comparable week change
+  return { trend: trendWeight.value, latest, week: prev != null && !fresh ? trendWeight.value - prev : null, shown: hasWeights.value, low: lowAccuracy.value, fresh, any: hasWeights.value };
 });
-/** Weight card copy when the trend can't be shown yet (spec: needs ≥3 weigh-ins in the last 7 days). */
-const wEmpty = computed(() => (!w.value.any
-  ? { title: "No weigh-ins yet", sub: "Log your weight to start a trend" }
-  : { title: "Trend not ready", sub: `${w.value.n7} of 3 weigh-ins this week${w.value.latest ? ` · latest ${kg(w.value.latest.kg)} kg` : ""}` }));
+/** S8: one short line under the trend (fits one line at the default text size on a 375 pt phone). */
+const wSub = computed(() => {
+  const l = w.value.latest ? `latest ${kg(w.value.latest.kg)}` : "";
+  const tail = w.value.fresh ? "fresh start" : w.value.low ? "low accuracy" : w.value.week != null ? `${signed(w.value.week)} kg/wk` : "";
+  return [l, tail].filter(Boolean).join(" · ");
+});
+const wAria = computed(() => `Weight trend ${kg(w.value.trend)} kg${w.value.low ? ", low accuracy" : ""}. ${wSub.value.replace("kg/wk", "kg this week")}. Open weight`);
+/** No weigh-ins at all (only if the setup weigh-in was deleted; S8 Q1 makes it the first weigh-in). */
+const wEmpty = { title: "No weigh-ins yet", sub: "Log your weight to start a trend" };
 const loading = computed(() => ui.demo === "loading");
 // This week: each day against its own target (decision 14) and the decision 7 rule.
 const weekRows = computed(() => week.value.map((d) => {
@@ -70,6 +79,7 @@ const layout = computed(() => (vp.wide ? "three" : vp.desktop ? "two" : vp.table
     </div>
     <div v-else class="grid">
       <div class="stack c-a">
+        <FreshStart v-if="sel === today" />
         <GoalReached v-if="sel === today" />
         <section v-if="!g" class="card kcal">
           <span class="t-dxl num">{{ int(t.kcal) }}</span>
@@ -100,11 +110,11 @@ const layout = computed(() => (vp.wide ? "three" : vp.desktop ? "two" : vp.table
         </button>
         <!-- phone: compact weight card -->
         <div v-if="layout === 'phone'" class="card wcard row">
-          <button type="button" class="stretch" :aria-label="w.shown ? `Weight trend ${kg(w.trend)} kg. Open weight` : 'Weigh in'" @click="openWeight()" />
+          <button type="button" class="stretch" :aria-label="w.shown ? wAria : 'Weigh in'" @click="openWeight()" />
           <div v-if="w.shown" class="col gap2">
             <span class="row gap6"><span class="t-cap c2">Weight · trend</span><InfoTip label="What is the trend?">{{ TREND_TIP }}</InfoTip></span>
-            <span class="base"><span class="t-nm">{{ kg(w.trend) }}</span><span class="t-label c2">kg</span></span>
-            <span class="t-capn c3 nowrap">{{ w.latest ? `latest ${kg(w.latest.kg)} · ` : "" }}{{ signed(w.week) }} kg this week</span>
+            <span class="row gap8 numrow"><span class="base"><span class="t-nm">{{ kg(w.trend) }}</span><span class="t-label c2">kg</span></span><AccuracyDot v-if="w.low" /></span>
+            <span class="t-capn c3 nowrap wsub">{{ wSub }}</span>
           </div>
           <div v-else class="col gap2">
             <span class="t-cap c2">Weight</span>
@@ -121,12 +131,12 @@ const layout = computed(() => (vp.wide ? "three" : vp.desktop ? "two" : vp.table
       <div v-if="layout !== 'phone'" class="stack c-b">
         <!-- larger screens: weight card with the 30-day chart -->
         <div class="card wbig clickable">
-          <button type="button" class="stretch" :aria-label="w.shown ? `Weight trend ${kg(w.trend)} kg. Log weight` : 'Log weight'" @click="openWeight()" />
+          <button type="button" class="stretch" :aria-label="w.shown ? wAria.replace('Open weight', 'Log weight') : 'Log weight'" @click="openWeight()" />
           <div class="row top">
             <div v-if="w.shown" class="col gap2">
               <span class="row gap6"><span class="t-cap c2">Weight · trend</span><InfoTip label="What is the trend?">{{ TREND_TIP }}</InfoTip></span>
-              <span class="base"><span class="t-nm">{{ kg(w.trend) }}</span><span class="t-label c2">kg</span></span>
-              <span class="t-capn c3">{{ w.latest ? `latest ${kg(w.latest.kg)} · ` : "" }}{{ signed(w.week) }} kg this week</span>
+              <span class="row gap8 numrow"><span class="base"><span class="t-nm">{{ kg(w.trend) }}</span><span class="t-label c2">kg</span></span><AccuracyDot v-if="w.low" label /></span>
+              <span class="t-capn c3">{{ w.latest ? `latest ${kg(w.latest.kg)}` : "" }}{{ w.fresh ? " · fresh start" : w.week != null ? ` · ${signed(w.week)} kg this week` : "" }}</span>
             </div>
             <div v-else class="col gap2">
               <span class="t-cap c2">Weight</span>
@@ -195,7 +205,9 @@ const layout = computed(() => (vp.wide ? "three" : vp.desktop ? "two" : vp.table
 .wcard { flex-direction: row; align-items: center; gap: 12px; text-align: left; width: 100%; }
 .wcard svg:not(.c3) { flex: 0 1 132px; min-width: 0; max-width: 132px; }
 .wcard > .col { min-width: 0; }
-.wcard .nowrap { white-space: normal; }
+.wcard .wsub { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.numrow { align-items: center; }
+.wcard > :not(.stretch) :deep(.accdot), .wbig :deep(.accdot) { pointer-events: auto; z-index: 2; }
 .wcard:has(.stretch:active) { background: #202023; }
 /* larger screens */
 .wbig { cursor: pointer; gap: 14px; }
