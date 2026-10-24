@@ -212,6 +212,12 @@ export function freshStartDemo() {
   s.complete = {};
   replaceWith(s);
 }
+/** Demo (decision 35.3): last weigh-in 9 days ago → 0 in the last 7 days, trend held at that weigh-in. */
+export function zeroIn7Demo() {
+  const s = seed();
+  for (let i = 0; i < 9; i++) delete s.weights[addDays(DEMO_TODAY, -i)];
+  replaceWith(s);
+}
 /** Demo: first sign-in, no profile yet → onboarding. */
 export function startOnboarding() {
   const s = seed();
@@ -295,6 +301,8 @@ export const trendInfo = computed(() => trendStatus(state.weights, today));
 export const lowAccuracy = computed(() => trendInfo.value.reasons.length > 0);
 export const hasWeights = computed(() => Object.keys(state.weights).length > 0);
 export const weighInCount = computed(() => Object.keys(state.weights).length);
+/** Decision 35.2: the only remaining weigh-in can't be deleted (edit it instead). */
+export const onlyWeighIn = computed(() => weighInCount.value === 1);
 /** S8 Q5: typo guard for a new or edited weigh-in */
 export const checkTypo = (date: string, kg: number) => typoCheck(state.weights, date, kg);
 
@@ -312,7 +320,9 @@ export function saveWeight(date: string, kg: number) {
   state.weights[date] = Math.round(kg * 10) / 10;
 }
 export function deleteWeight(date: string) {
+  if (Object.keys(state.weights).length <= 1) return false; // decision 35.2 (the API answers 409 only_weigh_in)
   delete state.weights[date];
+  return true;
 }
 
 // ---------- targets ----------
@@ -482,7 +492,8 @@ export const goalReached = computed(() => {
   const p = state.profile;
   // S8 Q4: only judged on a day with a real weigh-in (the latest one), never on an estimate-only day
   const last = latestWeighIn(today);
-  if (!state.onboarded || !last || state.goalAnswered === goalKey()) return false;
+  // decision 35.8 / 35.10: only the latest real weigh-in, and only on that weigh-in's own day (never a lasting flag)
+  if (!state.onboarded || !last || last.date !== today || state.goalAnswered === goalKey()) return false;
   const dir = p.goalMode === "manual" ? p.manualDir : p.goal === "maintain" ? undefined : p.goal;
   const t = trend(last.date) ?? trendWeight.value;
   return dir === "lose" ? t <= p.goalWeight : dir === "gain" ? t >= p.goalWeight : false;
@@ -492,6 +503,8 @@ export const freshPrompt = computed(() => {
   const i = trendInfo.value;
   const last = latestWeighIn(today);
   if (!state.onboarded || i.state !== "fresh_start" || !last || state.freshAnswered === last.date) return null;
+  // decision 35.5: an unanswered prompt ends at the next Monday job after it appeared
+  for (let d = addDays(last.date, 1); d <= today; d = addDays(d, 1)) if (parse(d).getDay() === 1) return null;
   return { date: last.date, gapDays: i.freshGapDays!, kg: last.kg };
 });
 /** Yes: a target row today with reason fresh_start (merged into today's row, decision 31). No: nothing written. */

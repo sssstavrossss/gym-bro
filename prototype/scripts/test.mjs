@@ -172,5 +172,29 @@ await p.click(".ob .seg-btn:has-text('Maintain')"); await p.click(".ob .primary-
 { const st = await p.evaluate(() => JSON.parse(localStorage.getItem("gymbro-proto-v4")));
   ok(Object.keys(st.weights).length === 1 && st.weights["2026-10-24"] === 84 && st.history.length === 1, "S8 starting weight saved as the first weigh-in; targets straight away"); }
 ok((await p.locator(".wcard .t-nm").innerText()) === "84.0" && (await p.locator(".wcard .accdot").count()) === 1, "S8 after setup: trend = 84.0 with the low-accuracy dot");
+// ---------- decision 35 ----------
+await fresh("demo=only", "/today");
+{ const sh = p.locator(".sheet-root[aria-label='Log weight']");
+  ok((await sh.locator(".only").innerText()).includes("This is your only weigh-in, so it can't be deleted.") && (await sh.locator(".dlink").count()) === 0, "35.2 only weigh-in: reason shown, no Delete");
+  const bb = await sh.locator(".editb").boundingBox(); ok(bb.height >= 44 && bb.width >= 44, "35.2 Edit is a 44 pt button");
+  await sh.locator(".winput").blur(); await sh.locator(".editb").click(); await p.waitForTimeout(150);
+  ok(await p.evaluate(() => document.activeElement?.classList.contains("winput")), "35.2 Edit puts the cursor in the number");
+  await p.fill(".winput", "84.0"); await p.press(".winput", "Enter"); await p.waitForTimeout(300);
+  ok((await p.locator(".wcard .t-nm").innerText()) === "84.0", "35.2b editing the only weigh-in recomputes the trend (84.0)"); }
+await fresh("demo=only", "/today");
+ok((await p.locator(".sheet-root .ylabels").innerText()).split(/\s+/).includes("85.0"), "single weigh-in chart: a tick at the value itself (85.0)");
+await fresh("demo=zero7", "/today");
+ok((await p.locator(".sheet-root[aria-label='Trend accuracy']").innerText()).includes("No weigh-ins in the last 7 days (last one 9 days ago), so the trend is held at that weigh-in."), "35.3a dot sheet wording, N = 9");
+await p.click(".sheet-root[aria-label='Trend accuracy'] .ghost"); await p.waitForTimeout(300);
+ok((await p.locator(".wcard .accdot").getAttribute("aria-label")).includes("no weigh-ins in the last 7 days"), "35.3 dot's spoken name");
+await fresh("demo=datewin", "/today");
+{ const opts = await p.locator(".menu .opt .grow").allInnerTexts(); ok(opts.length === 8 && opts[7] === "Sat, 17 Oct", "35.11b day list: 8 days, earliest today − 7 (Sat, 17 Oct)"); }
+for (const lbl of ["Sat, 17 Oct", "Yesterday, 23 Oct"]) {
+  await p.click(`.menu .opt:has-text('${lbl}')`); await p.waitForTimeout(150);
+  const fit = await p.locator(".mchip").evaluate((e) => e.scrollWidth <= e.clientWidth + 1 && e.getBoundingClientRect().height < 40);
+  ok(fit, `date chip label never truncates at 390 (${lbl})`); await p.click(".mchip"); await p.waitForTimeout(100);
+}
+await fresh("demo=normal", "/today"); await p.click(".wcard .stretch"); await p.waitForTimeout(350);
+ok((await p.locator(".sheet-root .dlink:has-text('Delete')").count()) === 1, "with 2+ weigh-ins Delete is still offered");
 console.log(errors.length ? "ERRORS " + errors.join("\n") : "no page errors");
 await b.close();

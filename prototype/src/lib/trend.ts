@@ -10,8 +10,14 @@ export const TREND_ALPHA = 0.1;
 export const GAP_MAX_DAYS = 28;
 /** Low accuracy: fewer than this many real weigh-ins in the last 7 days */
 export const LOW_ACC_MIN = 2;
-/** Typo guard: ask before saving a weigh-in more than this far from the previous day's trend */
+/** Typo guard: ask before saving a weigh-in more than this far from the previous day's trend (no gap) */
 export const TYPO_KG = 3.0;
+/** Decision 35.1: + 1 kg per full week since the last real weigh-in before that date, capped at 10 kg */
+export const TYPO_CAP_KG = 10;
+/** Decision 35.11: new weigh-ins (and the sheet's day list) run from today − 7 to today: 8 days */
+export const ENTRY_WINDOW_DAYS = 7;
+/** Low accuracy counts the 7 days ending today (today − 6 … today), the same as the server's TrendWeight.WindowDays */
+export const ACCURACY_WINDOW_DAYS = 7;
 
 export interface TrendResult {
   /** trend per day, from the first weigh-in to `end` */
@@ -54,9 +60,19 @@ export function trendAsOf(weights: Record<string, number>, date: string): number
   return trendSeries(weights, date).series[date] ?? null;
 }
 
-/** Real weigh-ins in the 7 days ending on `date`. */
+/** Real weigh-ins in the 7 days ending on `date` (date − 6 … date). */
 export const weighInsIn7 = (weights: Record<string, number>, date: string) =>
-  Object.keys(weights).filter((d) => d <= date && diffDays(date, d) < 7).length;
+  Object.keys(weights).filter((d) => d <= date && diffDays(date, d) < ACCURACY_WINDOW_DAYS).length;
+/** Decision 35.11: the dates a new weigh-in may have, newest first (today … today − 7). */
+export const entryDates = (today: string) => Array.from({ length: ENTRY_WINDOW_DAYS + 1 }, (_, i) => addDays(today, -i));
+/** Decision 35.11: is `date` inside the new-weigh-in window? */
+export const inEntryWindow = (today: string, date: string) => date <= today && diffDays(today, date) <= ENTRY_WINDOW_DAYS;
+/** Decision 35.1: typo-guard threshold for a weigh-in on `date`. */
+export function typoLimit(weights: Record<string, number>, date: string): number {
+  const prev = Object.keys(weights).filter((d) => d < date).sort().pop();
+  if (!prev) return TYPO_KG;
+  return Math.min(TYPO_CAP_KG, TYPO_KG + Math.floor(diffDays(date, prev) / 7));
+}
 
 export type TrendState = "none" | "normal" | "low_accuracy" | "fresh_start";
 export type TrendReason = "few_weigh_ins" | "fresh_start";
@@ -76,13 +92,16 @@ export function trendStatus(weights: Record<string, number>, date: string): { st
 }
 
 /** Typo guard (Q5): the previous day's trend, without the weigh-in being entered/edited. null = first weigh-in → no guard. */
-export function typoCheck(weights: Record<string, number>, date: string, kg: number): { ask: boolean; ref: number | null; diff: number } {
+/** Decision 35.6: back-dated and edited entries are judged against the trend on the day before their own date,
+ *  with the threshold from the gap before that date (35.1). */
+export function typoCheck(weights: Record<string, number>, date: string, kg: number): { ask: boolean; ref: number | null; diff: number; limit: number } {
   const others = { ...weights };
   delete others[date];
+  const limit = typoLimit(others, date);
   const ref = trendAsOf(others, addDays(date, -1));
-  if (ref == null) return { ask: false, ref: null, diff: 0 };
+  if (ref == null) return { ask: false, ref: null, diff: 0, limit };
   const diff = kg - ref;
-  return { ask: Math.abs(diff) > TYPO_KG + 1e-9, ref, diff };
+  return { ask: Math.abs(diff) > limit + 1e-9, ref, diff, limit };
 }
 
 /** "6 weeks", or "over 4 weeks" for 29–34 days */

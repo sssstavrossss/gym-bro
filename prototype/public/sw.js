@@ -1,7 +1,7 @@
 // Gym Bro service worker (spec S4): network-first, caches only the app shell (same-origin GETs:
 // index.html, JS, CSS, fonts, icons). Never caches API calls; with no network it serves the last
 // shell, and the app shows its own "Server unreachable" screen instead of a browser error.
-const CACHE = "gymbro-shell-v3";
+const CACHE = "gymbro-shell-v4";
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(["./", "./index.html", "./manifest.webmanifest"])).catch(() => {}));
   self.skipWaiting();

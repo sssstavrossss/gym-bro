@@ -7,7 +7,7 @@ import { nowHM } from "./lib/time";
 export type Sheet = null | "chooser" | "food" | "weight" | "copy" | "group" | "accuracy";
 export type FoodTab = "search" | "quick";
 /** Hidden reviewer switch (Profile → Demo states). */
-export type DemoState = "normal" | "onboarding" | "empty" | "lowacc" | "fresh" | "typo" | "loading" | "offline" | "unreachable" | "down" | "manual" | "goalreached";
+export type DemoState = "normal" | "onboarding" | "empty" | "lowacc" | "fresh" | "typo" | "only" | "zero7" | "datewin" | "loading" | "offline" | "unreachable" | "down" | "manual" | "goalreached";
 
 export const ui = reactive({
   sheet: null as Sheet,
@@ -28,6 +28,8 @@ export const ui = reactive({
   weightDate: today,
   /** demo: a value typed into the weight sheet on open (typo-guard demo) */
   weightDraft: null as string | null,
+  /** demo: open the weight sheet's day list */
+  weightPicker: false,
   /** S8: sheet to return to after the trend-accuracy sheet closes */
   accReturn: null as Sheet,
   /** Log multi-select */
