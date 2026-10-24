@@ -421,13 +421,20 @@ export async function retryLoad(): Promise<void> {
 }
 
 export function weightCaption(weight: WeightResponse | null): { label: string; value: string } {
-  if (weight?.trendVisible && weight.trendKg != null) {
-    return { label: "Trend", value: `${weight.trendKg.toFixed(2)} kg` };
+  if (weight?.latestKg == null) {
+    return { label: "", value: "" };
   }
-  if (weight?.latestKg != null) {
-    return { label: "Latest weigh-in", value: `${weight.latestKg.toFixed(1)} kg` };
+  if (weight.trendKg == null) {
+    return { label: "Trend not ready", value: "" };
   }
-  return { label: "Weight", value: "—" };
+  if (!weight.trendVisible) {
+    const minimum = weight.trendMinimum > 0 ? weight.trendMinimum : 3;
+    return {
+      label: `${weight.weighInsInWindow} of ${minimum} weigh-ins · provisional`,
+      value: `${weight.trendKg.toFixed(2)} kg`,
+    };
+  }
+  return { label: "Trend", value: `${weight.trendKg.toFixed(2)} kg` };
 }
 
 export interface ShownTargets {

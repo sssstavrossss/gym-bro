@@ -71,7 +71,8 @@ public sealed class WeighInEndpointTests(ApiFactory factory)
         var early = await client.GetFromJsonAsync<JsonElement>("/api/weight/trend?date=2026-10-24");
         Assert.Equal(2, early.GetProperty("weighInsInWindow").GetInt32());
         Assert.False(early.GetProperty("trendVisible").GetBoolean());
-        Assert.Equal(JsonValueKind.Null, early.GetProperty("trendKg").ValueKind);
+        Assert.Equal(71.0m, early.GetProperty("trendKg").GetDecimal());
+        Assert.NotEqual(80m, early.GetProperty("trendKg").GetDecimal());
         Assert.Equal(71.0m, early.GetProperty("usedKg").GetDecimal());
         Assert.Equal("trend", early.GetProperty("source").GetString());
 

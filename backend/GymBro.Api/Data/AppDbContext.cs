@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata;
 
 namespace GymBro.Api.Data;
 
@@ -77,14 +78,12 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         target.Property(t => t.FatGrams).HasColumnName("fat_grams");
         target.Property(t => t.CarbGrams).HasColumnName("carb_grams");
         target.Property(t => t.FloorApplied).HasColumnName("floor_applied");
-        target.Property(t => t.Reason).HasColumnName("reason").HasMaxLength(32);
+        target.Property(t => t.Reasons).HasColumnName("reasons").HasColumnType("text[]");
         target.Property(t => t.WeightKg).HasColumnName("weight_kg").HasPrecision(5, 2);
         target.Property(t => t.CreatedAt).HasColumnName("created_at");
-        target.HasIndex(t => new { t.UserId, t.EffectiveDate, t.CreatedAt }).HasDatabaseName("ix_target_history_user_date");
         target.HasIndex(t => new { t.UserId, t.EffectiveDate })
             .IsUnique()
-            .HasDatabaseName("ux_target_history_weekly")
-            .HasFilter("reason = 'weekly_recalculation'");
+            .HasDatabaseName("ux_target_history_user_date");
         target.HasOne<AppUser>().WithMany().HasForeignKey(t => t.UserId).OnDelete(DeleteBehavior.Cascade);
 
         var food = modelBuilder.Entity<Food>();
@@ -92,15 +91,29 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         {
             table.HasCheckConstraint("ck_foods_custom_owner", "source <> 'custom' OR user_id IS NOT NULL");
             table.HasCheckConstraint("ck_foods_catalog_owner", "source = 'custom' OR user_id IS NULL");
+            table.HasCheckConstraint(
+                "ck_foods_nutrient_basis",
+                "(nutrient_basis = 'per_100' AND basis IN ('g', 'ml')) OR (nutrient_basis = 'per_serving' AND basis = 'serving' AND serving_quantity IS NULL AND piece_quantity IS NULL)");
         });
         food.HasKey(f => f.Id);
         food.Property(f => f.Id).HasColumnName("id");
         food.Property(f => f.UserId).HasColumnName("user_id").HasMaxLength(64);
+        // Stored generated column. EF would mark it ValueGeneratedOnAddOrUpdate, which
+        // cannot be part of the alternate key, so the value is fixed once inserted.
+        // user_id does not change after a food is created.
+        var ownerKey = food.Property(f => f.OwnerKey)
+            .HasColumnName("owner_key")
+            .HasMaxLength(64)
+            .HasComputedColumnSql("COALESCE(user_id, '')", stored: true)
+            .ValueGeneratedOnAdd();
+        ownerKey.Metadata.SetBeforeSaveBehavior(PropertySaveBehavior.Ignore);
+        ownerKey.Metadata.SetAfterSaveBehavior(PropertySaveBehavior.Ignore);
         food.Property(f => f.Source).HasColumnName("source").HasMaxLength(16);
         food.Property(f => f.SourceId).HasColumnName("source_id").HasMaxLength(64);
         food.Property(f => f.Barcode).HasColumnName("barcode").HasMaxLength(32);
         food.Property(f => f.Name).HasColumnName("name").HasMaxLength(300);
         food.Property(f => f.Basis).HasColumnName("basis").HasMaxLength(8);
+        food.Property(f => f.NutrientBasis).HasColumnName("nutrient_basis").HasMaxLength(16);
         food.Property(f => f.KcalPer100).HasColumnName("kcal_per_100").HasPrecision(8, 2);
         food.Property(f => f.ProteinPer100).HasColumnName("protein_per_100").HasPrecision(8, 2);
         food.Property(f => f.FatPer100).HasColumnName("fat_per_100").HasPrecision(8, 2);
@@ -114,10 +127,16 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         food.HasIndex(f => new { f.Source, f.SourceId }).IsUnique().HasFilter("user_id IS NULL");
         food.HasIndex(f => new { f.UserId, f.Source, f.SourceId }).IsUnique().HasFilter("user_id IS NOT NULL");
         food.HasIndex(f => f.Barcode);
+        food.HasAlternateKey(f => new { f.OwnerKey, f.Id }).HasName("ux_foods_owner_key_id");
         food.HasOne<AppUser>().WithMany().HasForeignKey(f => f.UserId).OnDelete(DeleteBehavior.Cascade);
 
         var entry = modelBuilder.Entity<LogEntry>();
-        entry.ToTable("log_entries");
+        entry.ToTable("log_entries", table =>
+        {
+            table.HasCheckConstraint(
+                "ck_log_entries_food_owner",
+                "food_owner_key = '' OR food_owner_key = user_id");
+        });
         entry.HasKey(e => e.Id);
         entry.Property(e => e.Id).HasColumnName("id");
         entry.Property(e => e.UserId).HasColumnName("user_id").HasMaxLength(64);
@@ -126,6 +145,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         entry.Property(e => e.TimeZone).HasColumnName("time_zone").HasMaxLength(64);
         entry.Property(e => e.GroupId).HasColumnName("group_id");
         entry.Property(e => e.FoodId).HasColumnName("food_id");
+        entry.Property(e => e.FoodOwnerKey).HasColumnName("food_owner_key").HasMaxLength(64);
         entry.Property(e => e.Source).HasColumnName("source").HasMaxLength(32);
         entry.Property(e => e.SourceId).HasColumnName("source_id").HasMaxLength(64);
         entry.Property(e => e.Grams).HasColumnName("grams").HasPrecision(8, 2);
@@ -140,8 +160,23 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         entry.HasIndex(e => new { e.UserId, e.IdempotencyKey }).IsUnique();
         entry.HasIndex(e => new { e.UserId, e.LocalDate });
         entry.HasOne<AppUser>().WithMany().HasForeignKey(e => e.UserId).OnDelete(DeleteBehavior.Cascade);
-        entry.HasOne<EntryGroup>().WithMany().HasForeignKey(e => e.GroupId).OnDelete(DeleteBehavior.SetNull);
-        entry.HasOne<Food>().WithMany().HasForeignKey(e => e.FoodId).OnDelete(DeleteBehavior.SetNull);
+        // Catalogue foods have a null owner, so (user_id, food_id) cannot reference them.
+        // owner_key is the user id or '' for the catalogue. food_owner_key must be '' or
+        // this row's user_id (see ck_log_entries_food_owner). ON DELETE SET NULL (food_id)
+        // is applied in the migration; EF models the relationship as NoAction because
+        // food_owner_key is not nullable.
+        entry.HasOne<Food>()
+            .WithMany()
+            .HasForeignKey(e => new { e.FoodOwnerKey, e.FoodId })
+            .HasPrincipalKey(f => new { f.OwnerKey, f.Id })
+            .OnDelete(DeleteBehavior.NoAction)
+            .HasConstraintName("fk_log_entries_food_owner");
+        entry.HasOne<EntryGroup>()
+            .WithMany()
+            .HasForeignKey(e => new { e.UserId, e.GroupId })
+            .HasPrincipalKey(g => new { g.UserId, g.Id })
+            .OnDelete(DeleteBehavior.NoAction)
+            .HasConstraintName("fk_log_entries_group_owner");
 
         var group = modelBuilder.Entity<EntryGroup>();
         group.ToTable("entry_groups");
@@ -151,6 +186,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         group.Property(g => g.Name).HasColumnName("name").HasMaxLength(120);
         group.Property(g => g.CreatedAt).HasColumnName("created_at");
         group.HasIndex(g => g.UserId);
+        group.HasAlternateKey(g => new { g.UserId, g.Id }).HasName("ux_entry_groups_user_id");
         group.HasOne<AppUser>().WithMany().HasForeignKey(g => g.UserId).OnDelete(DeleteBehavior.Cascade);
 
         var day = modelBuilder.Entity<DayStatus>();

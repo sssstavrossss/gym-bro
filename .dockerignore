@@ -11,4 +11,5 @@
 **/TestResults
 **/*.user
 **/*.md
+**/.data
 backend/GymBro.Api.Tests
