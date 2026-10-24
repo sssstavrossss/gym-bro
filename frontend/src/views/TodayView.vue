@@ -123,7 +123,7 @@ const tip = "The trend smooths out day-to-day swings from water, salt and food. 
 .wbig :deep(input),
 .wcard > :not(.stretch) :deep(select),
 .wbig :deep(select) { pointer-events: auto; z-index: 2; }
-.wcard { flex-direction: row; align-items: center; gap: 12px; text-align: left; width: 100%; }
+.wcard.row { flex-direction: row; flex-wrap: nowrap; align-items: center; gap: 12px; text-align: left; width: 100%; }
 .wcard :deep(svg:not(.c3)) { flex: 0 1 132px; min-width: 0; max-width: 132px; }
 .wcard > .col { min-width: 0; }
 .nowrap { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }

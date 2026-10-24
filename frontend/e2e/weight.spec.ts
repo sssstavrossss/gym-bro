@@ -282,19 +282,21 @@ test("weight card opens from the number and the subtitle", async ({ page }) => {
       window.dispatchEvent(new Event("resize"));
     }, rootPx);
     const layout = await card.evaluate((node) => {
+      const style = getComputedStyle(node);
       const number = node.querySelector(".t-nm")?.getBoundingClientRect();
       const spark = node.querySelector("svg.spark")?.getBoundingClientRect();
       return {
-        direction: getComputedStyle(node).flexDirection,
+        direction: style.flexDirection,
+        wrap: style.flexWrap,
         number,
         spark,
       };
     });
     expect(layout.direction).toBe("row");
+    expect(layout.wrap).toBe("nowrap");
     expect(layout.number).toBeTruthy();
     expect(layout.spark).toBeTruthy();
-    expect(layout.spark!.x).toBeGreaterThan(layout.number!.x);
-    expect(layout.spark!.y).toBeLessThan(layout.number!.y + layout.number!.height);
+    expect(layout.spark!.x).toBeGreaterThan(layout.number!.x + layout.number!.width / 2);
     await tapCenter(page, card.locator(".t-nm"));
     await expect(page.getByRole("dialog", { name: "Log weight" })).toBeVisible();
     await page.keyboard.press("Escape");
