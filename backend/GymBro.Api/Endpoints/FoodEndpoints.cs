@@ -95,9 +95,10 @@ public static class FoodEndpoints
         var userId = Caller.Id(principal);
         var localBefore = await FoodCatalog.SearchAsync(db, userId, query, cancellationToken);
         var outcome = await off.SearchAsync(query, cancellationToken);
+        IReadOnlyDictionary<string, Guid> cachedIds = new Dictionary<string, Guid>();
         if (outcome.Status == OffStatus.Ok && outcome.Foods.Count > 0)
         {
-            await FoodCatalog.UpsertCatalogAsync(db, outcome.Foods, clock, cancellationToken);
+            cachedIds = await FoodCatalog.UpsertCatalogAsync(db, outcome.Foods, clock, cancellationToken);
         }
 
         return Results.Ok(new
@@ -112,7 +113,9 @@ public static class FoodEndpoints
                     OffStatus.RateLimited => "rate_limited",
                     _ => "unavailable",
                 },
-                results = outcome.Foods.Select(ToParsedResponse).ToList(),
+                results = outcome.Foods.Select(food => ToParsedResponse(
+                    food,
+                    cachedIds.TryGetValue(food.SourceId, out var id) ? id : null)).ToList(),
             },
         });
     }
@@ -340,8 +343,9 @@ public static class FoodEndpoints
         owned = food.UserId is not null,
     };
 
-    private static object ToParsedResponse(ParsedFood food) => new
+    private static object ToParsedResponse(ParsedFood food, Guid? id) => new
     {
+        id,
         source = food.Source,
         sourceId = food.SourceId,
         barcode = food.Barcode,

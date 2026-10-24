@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Security.Claims;
 using GymBro.Api.Data;
 using GymBro.Api.Nutrition;
@@ -39,7 +40,7 @@ public static class WeighInEndpoints
             return denied;
         }
 
-        if (!DateOnly.TryParse(date, out var localDate))
+        if (!TryDate(date, out var localDate))
         {
             return ApiResults.Error("Use a date like 2026-10-24.");
         }
@@ -104,7 +105,7 @@ public static class WeighInEndpoints
             return denied;
         }
 
-        if (!DateOnly.TryParse(date, out var localDate))
+        if (!TryDate(date, out var localDate))
         {
             return ApiResults.Error("Use a date like 2026-10-24.");
         }
@@ -190,6 +191,9 @@ public static class WeighInEndpoints
             smoothingShare = TrendWeight.SmoothingShare,
         });
     }
+
+    private static bool TryDate(string date, out DateOnly localDate) =>
+        DateOnly.TryParseExact(date, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out localDate);
 
     private static async Task<(decimal Kg, string? TimeZone, string? Error)> ReadBody(
         HttpRequest http,

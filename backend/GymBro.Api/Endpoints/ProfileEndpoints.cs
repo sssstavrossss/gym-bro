@@ -78,12 +78,6 @@ public static class ProfileEndpoints
             return ApiResults.Error("Choose a time zone.");
         }
 
-        error = ProfileRules.Validate(request, today.Year, out normalized);
-        if (error is not null)
-        {
-            return ApiResults.Error(error);
-        }
-
         var weight = await WeightReader.ReadAsync(db, userId, today, cancellationToken);
         if (weight.UsedKg is not decimal weightKg)
         {

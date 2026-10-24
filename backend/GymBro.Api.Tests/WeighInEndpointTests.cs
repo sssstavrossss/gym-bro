@@ -61,6 +61,11 @@ public sealed class WeighInEndpointTests(ApiFactory factory)
         var future = await client.PutAsync("/api/weigh-ins/2026-10-25", Json("""{"kg":80,"timeZone":"UTC"}"""));
         Assert.Equal(HttpStatusCode.BadRequest, future.StatusCode);
 
+        var dayFirst = await client.PutAsync("/api/weigh-ins/24-10-2026", Json("""{"kg":80,"timeZone":"UTC"}"""));
+        Assert.Equal(HttpStatusCode.BadRequest, dayFirst.StatusCode);
+        var withTime = await client.PutAsync("/api/weigh-ins/2026-10-24T08:00:00", Json("""{"kg":80,"timeZone":"UTC"}"""));
+        Assert.Equal(HttpStatusCode.BadRequest, withTime.StatusCode);
+
         await TestData.PutWeighIn(client, "2026-10-22", """{"kg":70,"timeZone":"UTC"}""");
         await TestData.PutWeighIn(client, "2026-10-23", """{"kg":80,"timeZone":"UTC"}""");
         var early = await client.GetFromJsonAsync<JsonElement>("/api/weight/trend?date=2026-10-24");

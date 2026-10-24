@@ -28,7 +28,7 @@ public static class FoodCatalog
             .ToListAsync(cancellationToken);
     }
 
-    public static async Task<int> UpsertCatalogAsync(
+    public static async Task<IReadOnlyDictionary<string, Guid>> UpsertCatalogAsync(
         AppDbContext db,
         IReadOnlyList<ParsedFood> foods,
         TimeProvider clock,
@@ -36,7 +36,7 @@ public static class FoodCatalog
     {
         if (foods.Count == 0)
         {
-            return 0;
+            return new Dictionary<string, Guid>();
         }
 
         var source = foods[0].Source;
@@ -45,7 +45,6 @@ public static class FoodCatalog
             .Where(food => food.Source == source && food.UserId == null && ids.Contains(food.SourceId))
             .ToDictionaryAsync(food => food.SourceId, cancellationToken);
         var now = clock.GetUtcNow();
-        var written = 0;
         foreach (var parsed in foods)
         {
             if (parsed.Source != "off" || string.IsNullOrWhiteSpace(parsed.SourceId))
@@ -79,11 +78,10 @@ public static class FoodCatalog
             row.PieceLabel = TrimOrNull(parsed.PieceLabel, 80);
             row.RetiredAt = null;
             row.UpdatedAt = now;
-            written++;
         }
 
         await db.SaveChangesAsync(cancellationToken);
-        return written;
+        return existing.ToDictionary(pair => pair.Key, pair => pair.Value.Id);
     }
 
     public static string? ValidateQuery(string? query)

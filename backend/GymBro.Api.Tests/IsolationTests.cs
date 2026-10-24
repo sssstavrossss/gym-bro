@@ -9,6 +9,7 @@ namespace GymBro.Api.Tests;
 public sealed class IsolationTests(ApiFactory factory)
 {
     [Theory]
+    [InlineData("GET", "/api/me")]
     [InlineData("GET", "/api/profile")]
     [InlineData("PUT", "/api/profile")]
     [InlineData("POST", "/api/targets/preview")]
@@ -20,6 +21,9 @@ public sealed class IsolationTests(ApiFactory factory)
     [InlineData("GET", "/api/foods/search?q=oat")]
     [InlineData("POST", "/api/foods/search/open-food-facts")]
     [InlineData("POST", "/api/foods")]
+    [InlineData("GET", "/api/foods/11111111-1111-1111-1111-111111111111")]
+    [InlineData("PUT", "/api/foods/11111111-1111-1111-1111-111111111111")]
+    [InlineData("DELETE", "/api/foods/11111111-1111-1111-1111-111111111111")]
     [InlineData("GET", "/api/about")]
     public async Task Anonymous_calls_are_rejected(string method, string path)
     {
@@ -69,6 +73,20 @@ public sealed class IsolationTests(ApiFactory factory)
         var targetsB = await clientB.GetFromJsonAsync<JsonElement>("/api/targets?date=2026-10-24");
         Assert.Equal(JsonValueKind.Null, targetsB.GetProperty("targets").ValueKind);
 
+        var preview = await clientB.PostAsJsonAsync("/api/targets/preview", TestData.Profile());
+        var previewText = await preview.Content.ReadAsStringAsync();
+        Assert.Equal(HttpStatusCode.BadRequest, preview.StatusCode);
+        Assert.Contains("Add a weigh-in", previewText, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("83.6", previewText, StringComparison.Ordinal);
+        Assert.DoesNotContain("2218", previewText, StringComparison.Ordinal);
+
+        factory.Off.Reset();
+        var off = await clientB.PostAsJsonAsync("/api/foods/search/open-food-facts", new { query = "private mash" });
+        var offBody = await off.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(HttpStatusCode.OK, off.StatusCode);
+        Assert.Equal(0, offBody.GetProperty("local").GetArrayLength());
+        Assert.DoesNotContain(foodId.ToString(), offBody.GetProperty("local").ToString(), StringComparison.OrdinalIgnoreCase);
+
         var searchB = await clientB.GetFromJsonAsync<JsonElement>("/api/foods/search?q=private%20mash");
         Assert.Equal(0, searchB.GetProperty("foods").GetArrayLength());
         Assert.Equal(HttpStatusCode.NotFound, (await clientB.GetAsync("/api/foods/" + foodId)).StatusCode);
@@ -84,14 +102,21 @@ public sealed class IsolationTests(ApiFactory factory)
         Assert.Equal(HttpStatusCode.NotFound, tamper.StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await clientB.DeleteAsync("/api/foods/" + foodId)).StatusCode);
 
-        await TestData.PutWeighIn(clientB, "2026-10-23", """{"kg":60,"timeZone":"UTC"}""");
+        var savedB = await TestData.PutWeighIn(clientB, "2026-10-24", """{"kg":60,"timeZone":"UTC"}""");
+        Assert.False(savedB.GetProperty("replaced").GetBoolean());
         await TestData.PutProfile(clientB, TestData.Profile(birthYear: 1980, sex: "female", heightCm: 160, goalWeightKg: 55));
 
         var profileA = await clientA.GetFromJsonAsync<JsonElement>("/api/profile");
         Assert.Equal(1990, profileA.GetProperty("profile").GetProperty("birthYear").GetInt32());
         Assert.Equal(2218, profileA.GetProperty("targets").GetProperty("kcal").GetInt32());
         var weightsA = await clientA.GetFromJsonAsync<JsonElement>("/api/weigh-ins");
-        Assert.Equal(83.6m, Assert.Single(weightsA.GetProperty("weighIns").EnumerateArray()).GetProperty("kg").GetDecimal());
+        var rowA = Assert.Single(weightsA.GetProperty("weighIns").EnumerateArray());
+        Assert.Equal("2026-10-24", rowA.GetProperty("localDate").GetString());
+        Assert.Equal(83.6m, rowA.GetProperty("kg").GetDecimal());
+        var afterB = await clientB.GetFromJsonAsync<JsonElement>("/api/weigh-ins");
+        var rowB = Assert.Single(afterB.GetProperty("weighIns").EnumerateArray());
+        Assert.Equal("2026-10-24", rowB.GetProperty("localDate").GetString());
+        Assert.Equal(60m, rowB.GetProperty("kg").GetDecimal());
         var foodA = await clientA.GetFromJsonAsync<JsonElement>("/api/foods/" + foodId);
         Assert.Equal("Fictional private mash", foodA.GetProperty("name").GetString());
         Assert.Equal(90, foodA.GetProperty("kcalPer100").GetDecimal());

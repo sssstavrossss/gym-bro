@@ -9,7 +9,8 @@ namespace GymBro.Api.Hosting;
 /// Writes one weekly target row per person per local week. On Monday the row
 /// is dated Monday. If Monday was missed, the first later run dates the row
 /// the day it actually runs and does not backdate it. A second run that week
-/// does nothing.
+/// does nothing. Each person is saved in their own transaction. One failure
+/// is logged and the job continues with the next person.
 /// </summary>
 public sealed class WeeklyTargetRecalculator(AppDbContext db, TimeProvider clock, ILogger<WeeklyTargetRecalculator> logger)
 {
@@ -43,26 +44,24 @@ public sealed class WeeklyTargetRecalculator(AppDbContext db, TimeProvider clock
             }
 
             var result = NutritionMath.Calculate(ProfileRules.ToInput(profile, weightKg, today.Year));
-            db.TargetHistories.Add(TargetBook.NewRow(
-                profile.UserId,
-                today,
-                result,
-                weightKg,
-                TargetReasons.WeeklyRecalculation,
-                clock.GetUtcNow()));
-            wrote++;
-        }
-
-        if (wrote > 0)
-        {
+            await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
             try
             {
+                db.TargetHistories.Add(TargetBook.NewRow(
+                    profile.UserId,
+                    today,
+                    result,
+                    weightKg,
+                    TargetReasons.WeeklyRecalculation,
+                    clock.GetUtcNow()));
                 await db.SaveChangesAsync(cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
+                wrote++;
             }
-            catch (DbUpdateException ex)
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                logger.LogInformation(ex, "Weekly target row already existed.");
-                return 0;
+                logger.LogError(ex, "Weekly target for user {UserId} was not saved.", profile.UserId);
+                db.ChangeTracker.Clear();
             }
         }
 

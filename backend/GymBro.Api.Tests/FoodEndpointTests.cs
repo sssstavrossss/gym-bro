@@ -85,10 +85,13 @@ public sealed class FoodEndpointTests(ApiFactory factory)
         Assert.Equal(HttpStatusCode.OK, fetched.StatusCode);
         Assert.Equal("ok", body.GetProperty("openFoodFacts").GetProperty("status").GetString());
         Assert.Equal(100, body.GetProperty("openFoodFacts").GetProperty("results")[0].GetProperty("kcalPer100").GetDecimal());
+        var cachedId = body.GetProperty("openFoodFacts").GetProperty("results")[0].GetProperty("id").GetGuid();
+        Assert.NotEqual(Guid.Empty, cachedId);
         Assert.Equal(1, factory.Off.Calls);
 
         var cached = await client.GetFromJsonAsync<JsonElement>("/api/foods/search?q=crunch");
         var row = Assert.Single(cached.GetProperty("foods").EnumerateArray());
+        Assert.Equal(cachedId, row.GetProperty("id").GetGuid());
         Assert.Equal("off", row.GetProperty("source").GetString());
         Assert.Equal("0000000000017", row.GetProperty("barcode").GetString());
         Assert.Equal(1, factory.Off.Calls);
@@ -161,6 +164,18 @@ public sealed class FoodEndpointTests(ApiFactory factory)
         Assert.Equal(0, hidden.GetProperty("foods").GetArrayLength());
         Assert.Equal(HttpStatusCode.NotFound, (await otherClient.GetAsync("/api/foods/" + id)).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await otherClient.DeleteAsync("/api/foods/" + id)).StatusCode);
+        var edited = await otherClient.PutAsJsonAsync("/api/foods/" + id, new
+        {
+            name = "Stolen shake",
+            kcalPer100 = 1,
+            proteinPer100 = 0,
+            fatPer100 = 0,
+            carbsPer100 = 0,
+            basis = "ml",
+        });
+        Assert.Equal(HttpStatusCode.NotFound, edited.StatusCode);
+        var unchanged = await ownerClient.GetFromJsonAsync<JsonElement>("/api/foods/" + id);
+        Assert.Equal("Fictional secret shake", unchanged.GetProperty("name").GetString());
 
         var owned = await ownerClient.GetFromJsonAsync<JsonElement>("/api/foods/search?q=1234567890123");
         Assert.Equal(id, Assert.Single(owned.GetProperty("foods").EnumerateArray()).GetProperty("id").GetGuid());

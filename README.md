@@ -194,13 +194,19 @@ Point the proxy at `http://127.0.0.1:8100`. Register the HTTPS origin it present
 
 Open Food Facts is not searched as you type. `GET /api/foods/search` reads the local table. `POST /api/foods/search/open-food-facts` calls Open Food Facts, at most 10 searches a minute from this server, and returns the local rows plus `ok`, `rate_limited`, or `unavailable`. The User-Agent is `OPENFOODFACTS_USER_AGENT`.
 
-Matvaretabellen is imported from the official foods.json, not committed as a dump:
+Matvaretabellen is imported from the official foods.json, not committed as a dump. On the host:
 
 ```bash
 dotnet run --project backend/GymBro.Api -- --import-matvaretabellen
 ```
 
-Run that again for the yearly refresh. The command prints `Matvaretabellen 2026. Mattilsynet. www.matvaretabellen.no`, and the app shows the same line from `/api/about` and the profile payload. Label kilocalories are stored as published. USDA is not used.
+With the Compose app image, against the Compose database:
+
+```bash
+docker compose run --rm app --import-matvaretabellen
+```
+
+That one-off container applies migrations, imports, prints the citation, and exits. Run it again for the yearly refresh. The command prints `Matvaretabellen 2026. Mattilsynet. www.matvaretabellen.no`, and the app shows the same line from `/api/about` and the profile payload. Label kilocalories are stored as published. USDA is not used.
 
 ## Targets and trend weight
 
