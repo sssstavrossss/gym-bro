@@ -147,7 +147,7 @@ namespace GymBro.Api.Data.Migrations
                     carb_grams = table.Column<int>(type: "integer", nullable: false),
                     floor_applied = table.Column<bool>(type: "boolean", nullable: false),
                     reason = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
-                    weight_kg = table.Column<decimal>(type: "numeric(5,1)", precision: 5, scale: 1, nullable: false),
+                    weight_kg = table.Column<decimal>(type: "numeric(5,2)", precision: 5, scale: 2, nullable: false),
                     created_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false)
                 },
                 constraints: table =>
@@ -193,6 +193,9 @@ namespace GymBro.Api.Data.Migrations
                     time_zone = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false),
                     group_id = table.Column<Guid>(type: "uuid", nullable: true),
                     food_id = table.Column<Guid>(type: "uuid", nullable: true),
+                    source = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: true),
+                    source_id = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: true),
+                    grams = table.Column<decimal>(type: "numeric(8,2)", precision: 8, scale: 2, nullable: true),
                     name = table.Column<string>(type: "character varying(300)", maxLength: 300, nullable: false),
                     amount = table.Column<decimal>(type: "numeric(8,2)", precision: 8, scale: 2, nullable: false),
                     unit = table.Column<string>(type: "character varying(16)", maxLength: 16, nullable: false),

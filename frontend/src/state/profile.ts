@@ -421,7 +421,7 @@ export async function retryLoad(): Promise<void> {
 }
 
 export function weightCaption(weight: WeightResponse | null): { label: string; value: string } {
-  if (weight?.source === "trend" && weight.trendKg != null) {
+  if (weight?.trendVisible && weight.trendKg != null) {
     return { label: "Trend", value: `${weight.trendKg.toFixed(2)} kg` };
   }
   if (weight?.latestKg != null) {

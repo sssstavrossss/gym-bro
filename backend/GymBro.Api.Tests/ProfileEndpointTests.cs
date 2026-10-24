@@ -32,7 +32,9 @@ public sealed class ProfileEndpointTests(ApiFactory factory)
         Assert.Equal(TargetReasons.ProfileChange, targets.GetProperty("reason").GetString());
         Assert.Equal("Matvaretabellen 2026. Mattilsynet. www.matvaretabellen.no", saved.GetProperty("citation").GetString());
         Assert.Equal("weigh_in", saved.GetProperty("weight").GetProperty("source").GetString());
+        Assert.False(saved.GetProperty("weight").GetProperty("trendVisible").GetBoolean());
         Assert.Null(saved.GetProperty("weight").GetProperty("trendKg").GetString());
+        Assert.Equal(83.60m, targets.GetProperty("weightKg").GetDecimal());
 
         await TestData.PutProfile(client, TestData.Profile());
         Assert.Equal(1, await HistoryCount(user));
@@ -152,6 +154,54 @@ public sealed class ProfileEndpointTests(ApiFactory factory)
         Assert.Equal(0, await RunWeekly());
         var stillMonday = await client.GetFromJsonAsync<JsonElement>("/api/targets?date=2026-10-26");
         Assert.Equal(TargetReasons.WeeklyRecalculation, stillMonday.GetProperty("targets").GetProperty("reason").GetString());
+    }
+
+    [Fact]
+    public async Task A_missed_Monday_is_written_on_the_day_the_job_actually_runs()
+    {
+        factory.Clock.UtcNow = new DateTimeOffset(2026, 10, 25, 8, 0, 0, TimeSpan.Zero);
+        var user = TestData.NewUser("missed-monday");
+        using var client = factory.AsUser(user);
+        await TestData.PutWeighIn(client, "2026-10-25", """{"kg":83.6,"timeZone":"UTC"}""");
+        await TestData.PutProfile(client, TestData.Profile());
+
+        factory.Clock.UtcNow = new DateTimeOffset(2026, 10, 28, 9, 0, 0, TimeSpan.Zero);
+        Assert.True(await RunWeekly() >= 1);
+        Assert.Equal(0, await RunWeekly());
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var weekly = await db.TargetHistories.SingleAsync(
+            row => row.UserId == user && row.Reason == TargetReasons.WeeklyRecalculation);
+        Assert.Equal(new DateOnly(2026, 10, 28), weekly.EffectiveDate);
+        Assert.Equal(83.60m, weekly.WeightKg);
+
+        var monday = await client.GetFromJsonAsync<JsonElement>("/api/targets?date=2026-10-26");
+        Assert.Equal(TargetReasons.ProfileChange, monday.GetProperty("targets").GetProperty("reason").GetString());
+        var wednesday = await client.GetFromJsonAsync<JsonElement>("/api/targets?date=2026-10-28");
+        Assert.Equal(TargetReasons.WeeklyRecalculation, wednesday.GetProperty("targets").GetProperty("reason").GetString());
+        Assert.Equal("2026-10-28", wednesday.GetProperty("targets").GetProperty("effectiveDate").GetString());
+    }
+
+    [Fact]
+    public async Task Two_weigh_ins_still_feed_the_weekly_target_while_the_trend_stays_hidden()
+    {
+        factory.Clock.UtcNow = new DateTimeOffset(2026, 10, 26, 8, 0, 0, TimeSpan.Zero);
+        var user = TestData.NewUser("sparse");
+        using var client = factory.AsUser(user);
+        await TestData.PutWeighIn(client, "2026-10-25", """{"kg":80,"timeZone":"UTC"}""");
+        await TestData.PutWeighIn(client, "2026-10-26", """{"kg":90,"timeZone":"UTC"}""");
+        var saved = await TestData.PutProfile(client, TestData.Profile());
+        Assert.False(saved.GetProperty("weight").GetProperty("trendVisible").GetBoolean());
+        Assert.Equal("trend", saved.GetProperty("weight").GetProperty("source").GetString());
+        Assert.Equal(81.00m, saved.GetProperty("targets").GetProperty("weightKg").GetDecimal());
+
+        factory.Clock.UtcNow = new DateTimeOffset(2026, 11, 2, 9, 0, 0, TimeSpan.Zero);
+        Assert.True(await RunWeekly() >= 1);
+        var next = await client.GetFromJsonAsync<JsonElement>("/api/targets?date=2026-11-02");
+        Assert.Equal(TargetReasons.WeeklyRecalculation, next.GetProperty("targets").GetProperty("reason").GetString());
+        Assert.Equal(81.00m, next.GetProperty("targets").GetProperty("weightKg").GetDecimal());
+        Assert.Equal("2026-11-02", next.GetProperty("targets").GetProperty("effectiveDate").GetString());
     }
 
     private async Task<int> HistoryCount(string userId)

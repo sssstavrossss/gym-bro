@@ -164,6 +164,20 @@ public sealed class FoodEndpointTests(ApiFactory factory)
 
         var owned = await ownerClient.GetFromJsonAsync<JsonElement>("/api/foods/search?q=1234567890123");
         Assert.Equal(id, Assert.Single(owned.GetProperty("foods").EnumerateArray()).GetProperty("id").GetGuid());
+
+        Assert.Equal(HttpStatusCode.NoContent, (await ownerClient.DeleteAsync("/api/foods/" + id)).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await ownerClient.GetAsync("/api/foods/" + id)).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await ownerClient.DeleteAsync("/api/foods/" + id)).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await otherClient.DeleteAsync("/api/foods/" + id)).StatusCode);
+        var after = await ownerClient.GetFromJsonAsync<JsonElement>("/api/foods/search?q=secret%20shake");
+        Assert.Equal(0, after.GetProperty("foods").GetArrayLength());
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var row = await db.Foods.SingleAsync(food => food.Id == id);
+        Assert.NotNull(row.RetiredAt);
+        Assert.Equal(owner, row.UserId);
+        Assert.Equal("Fictional secret shake", row.Name);
     }
 
     [Fact]

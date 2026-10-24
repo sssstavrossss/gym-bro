@@ -181,6 +181,9 @@ public static class WeighInEndpoints
         {
             asOf,
             trendKg = weight.TrendKg,
+            trendVisible = weight.TrendVisible,
+            usedKg = weight.UsedKg,
+            source = weight.Source,
             weighInsInWindow = weight.WeighInsInWindow,
             minimumWeighIns = TrendWeight.MinimumWeighIns,
             windowDays = TrendWeight.WindowDays,

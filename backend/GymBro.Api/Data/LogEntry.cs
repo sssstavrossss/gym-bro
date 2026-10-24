@@ -23,6 +23,13 @@ public sealed class LogEntry
 
     public Guid? FoodId { get; set; }
 
+    /// <summary><c>off</c>, <c>matvaretabellen</c>, <c>custom</c>, or <c>manual</c>.</summary>
+    public string? Source { get; set; }
+
+    public string? SourceId { get; set; }
+
+    public decimal? Grams { get; set; }
+
     public string Name { get; set; } = "";
 
     public decimal Amount { get; set; }

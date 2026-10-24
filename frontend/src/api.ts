@@ -53,13 +53,14 @@ export interface ProfileResponse {
 
 export interface WeightResponse {
   trendKg: number | null;
+  trendVisible: boolean;
   latestKg: number | null;
   latestDate: string | null;
   weighInsInWindow: number;
   trendMinimum: number;
   windowDays: number;
   usedKg: number | null;
-  source: "trend" | "weigh_in" | "none";
+  source: "trend" | "weigh_in" | "setup" | "none";
 }
 
 export interface TargetsResponse {

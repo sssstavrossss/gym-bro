@@ -6,9 +6,10 @@ using Microsoft.EntityFrameworkCore;
 namespace GymBro.Api.Hosting;
 
 /// <summary>
-/// Writes one weekly target row per person on Monday in their time zone.
-/// A second run the same Monday does nothing. Days after Monday are left alone,
-/// so a machine that was off on Monday does not rewrite the days already shown.
+/// Writes one weekly target row per person per local week. On Monday the row
+/// is dated Monday. If Monday was missed, the first later run dates the row
+/// the day it actually runs and does not backdate it. A second run that week
+/// does nothing.
 /// </summary>
 public sealed class WeeklyTargetRecalculator(AppDbContext db, TimeProvider clock, ILogger<WeeklyTargetRecalculator> logger)
 {
@@ -18,15 +19,17 @@ public sealed class WeeklyTargetRecalculator(AppDbContext db, TimeProvider clock
         var wrote = 0;
         foreach (var profile in profiles)
         {
-            if (!LocalDates.TryToday(profile.TimeZone, clock, out var today) || today.DayOfWeek != DayOfWeek.Monday)
+            if (!LocalDates.TryToday(profile.TimeZone, clock, out var today))
             {
                 continue;
             }
 
+            var weekStart = today.AddDays(-(((int)today.DayOfWeek - (int)DayOfWeek.Monday + 7) % 7));
             var exists = await db.TargetHistories.AnyAsync(
                 row => row.UserId == profile.UserId
-                    && row.EffectiveDate == today
-                    && row.Reason == TargetReasons.WeeklyRecalculation,
+                    && row.Reason == TargetReasons.WeeklyRecalculation
+                    && row.EffectiveDate >= weekStart
+                    && row.EffectiveDate <= today,
                 cancellationToken);
             if (exists)
             {

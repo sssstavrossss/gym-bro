@@ -78,7 +78,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         target.Property(t => t.CarbGrams).HasColumnName("carb_grams");
         target.Property(t => t.FloorApplied).HasColumnName("floor_applied");
         target.Property(t => t.Reason).HasColumnName("reason").HasMaxLength(32);
-        target.Property(t => t.WeightKg).HasColumnName("weight_kg").HasPrecision(5, 1);
+        target.Property(t => t.WeightKg).HasColumnName("weight_kg").HasPrecision(5, 2);
         target.Property(t => t.CreatedAt).HasColumnName("created_at");
         target.HasIndex(t => new { t.UserId, t.EffectiveDate, t.CreatedAt }).HasDatabaseName("ix_target_history_user_date");
         target.HasIndex(t => new { t.UserId, t.EffectiveDate })
@@ -126,6 +126,9 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         entry.Property(e => e.TimeZone).HasColumnName("time_zone").HasMaxLength(64);
         entry.Property(e => e.GroupId).HasColumnName("group_id");
         entry.Property(e => e.FoodId).HasColumnName("food_id");
+        entry.Property(e => e.Source).HasColumnName("source").HasMaxLength(32);
+        entry.Property(e => e.SourceId).HasColumnName("source_id").HasMaxLength(64);
+        entry.Property(e => e.Grams).HasColumnName("grams").HasPrecision(8, 2);
         entry.Property(e => e.Name).HasColumnName("name").HasMaxLength(300);
         entry.Property(e => e.Amount).HasColumnName("amount").HasPrecision(8, 2);
         entry.Property(e => e.Unit).HasColumnName("unit").HasMaxLength(16);

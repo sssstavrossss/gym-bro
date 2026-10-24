@@ -191,7 +191,7 @@ public static class FoodEndpoints
 
         var userId = Caller.Id(principal);
         var food = await db.Foods.FirstOrDefaultAsync(
-            row => row.Id == id && row.UserId == userId && row.Source == "custom",
+            row => row.Id == id && row.UserId == userId && row.Source == "custom" && row.RetiredAt == null,
             cancellationToken);
         if (food is null)
         {
@@ -208,6 +208,7 @@ public static class FoodEndpoints
         ClaimsPrincipal principal,
         Guid id,
         AppDbContext db,
+        TimeProvider clock,
         CancellationToken cancellationToken)
     {
         if (Caller.MissingOid(principal) is { } denied)
@@ -217,14 +218,15 @@ public static class FoodEndpoints
 
         var userId = Caller.Id(principal);
         var food = await db.Foods.FirstOrDefaultAsync(
-            row => row.Id == id && row.UserId == userId && row.Source == "custom",
+            row => row.Id == id && row.UserId == userId && row.Source == "custom" && row.RetiredAt == null,
             cancellationToken);
         if (food is null)
         {
             return ApiResults.Error("No food with that id.", StatusCodes.Status404NotFound);
         }
 
-        db.Foods.Remove(food);
+        food.RetiredAt = clock.GetUtcNow();
+        food.UpdatedAt = food.RetiredAt.Value;
         await db.SaveChangesAsync(cancellationToken);
         return Results.NoContent();
     }

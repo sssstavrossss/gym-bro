@@ -199,6 +199,7 @@ public static class ProfileEndpoints
 
     public static WeightResponse ToWeight(WeightSnapshot weight) => new(
         weight.TrendKg,
+        weight.TrendVisible,
         weight.LatestKg,
         weight.LatestDate,
         weight.WeighInsInWindow,
@@ -238,6 +239,7 @@ public sealed record ProfileResponse(
 
 public sealed record WeightResponse(
     decimal? TrendKg,
+    bool TrendVisible,
     decimal? LatestKg,
     DateOnly? LatestDate,
     int WeighInsInWindow,

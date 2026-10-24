@@ -263,6 +263,11 @@ namespace GymBro.Api.Data.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("food_id");
 
+                    b.Property<decimal?>("Grams")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("grams");
+
                     b.Property<Guid?>("GroupId")
                         .HasColumnType("uuid")
                         .HasColumnName("group_id");
@@ -296,6 +301,16 @@ namespace GymBro.Api.Data.Migrations
                         .HasPrecision(8, 2)
                         .HasColumnType("numeric(8,2)")
                         .HasColumnName("protein");
+
+                    b.Property<string>("Source")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("source");
+
+                    b.Property<string>("SourceId")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("source_id");
 
                     b.Property<string>("TimeZone")
                         .IsRequired()
@@ -472,8 +487,8 @@ namespace GymBro.Api.Data.Migrations
                         .HasColumnName("user_id");
 
                     b.Property<decimal>("WeightKg")
-                        .HasPrecision(5, 1)
-                        .HasColumnType("numeric(5,1)")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("numeric(5,2)")
                         .HasColumnName("weight_kg");
 
                     b.HasKey("Id");

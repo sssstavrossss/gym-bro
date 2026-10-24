@@ -16,23 +16,31 @@ public sealed class Phase1ModelTests(ApiFactory factory)
         await connection.OpenAsync();
         await using var command = connection.CreateCommand();
         command.CommandText = """
-            SELECT table_name, column_name
+            SELECT table_name, column_name, numeric_precision, numeric_scale
             FROM information_schema.columns
             WHERE table_schema = 'public'
               AND table_name IN ('profiles', 'weigh_ins', 'target_history', 'foods', 'log_entries', 'entry_groups', 'day_status')
             """;
         var found = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+        int? weightScale = null;
+        int? weightPrecision = null;
         await using var reader = await command.ExecuteReaderAsync();
         while (await reader.ReadAsync())
         {
             var table = reader.GetString(0);
+            var column = reader.GetString(1);
             if (!found.TryGetValue(table, out var columns))
             {
                 columns = [];
                 found[table] = columns;
             }
 
-            columns.Add(reader.GetString(1));
+            columns.Add(column);
+            if (table == "target_history" && column == "weight_kg")
+            {
+                weightPrecision = reader.GetInt32(2);
+                weightScale = reader.GetInt32(3);
+            }
         }
 
         Assert.Equal(
@@ -45,7 +53,12 @@ public sealed class Phase1ModelTests(ApiFactory factory)
         Assert.Contains("group_id", log);
         Assert.Contains("idempotency_key", log);
         Assert.Contains("user_id", log);
+        Assert.Contains("source", log);
+        Assert.Contains("source_id", log);
+        Assert.Contains("grams", log);
         Assert.DoesNotContain(log, column => column.Contains("meal", StringComparison.OrdinalIgnoreCase));
+        Assert.Equal(5, weightPrecision);
+        Assert.Equal(2, weightScale);
 
         var model = db.Model.FindEntityType(typeof(LogEntry));
         Assert.NotNull(model);
@@ -74,6 +87,9 @@ public sealed class Phase1ModelTests(ApiFactory factory)
         LoggedAt = new DateTime(2026, 10, 24, 8, 30, 0),
         TimeZone = "UTC",
         Name = "Fictional oats",
+        Source = "manual",
+        SourceId = null,
+        Grams = 40,
         Amount = 40,
         Unit = "g",
         Kcal = 100,

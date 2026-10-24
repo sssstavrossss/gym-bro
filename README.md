@@ -204,9 +204,9 @@ Run that again for the yearly refresh. The command prints `Matvaretabellen 2026.
 
 ## Targets and trend weight
 
-BMR is Mifflin-St Jeor. Daily burn is BMR times the activity factor. The calorie target moves off that burn by the weekly rate times 7,700 divided by 7, and is never below BMR. Protein is grams per kilogram, fat is a percent of the target, and carbs fill the rest (never below 0). A profile or macro change writes `target_history`. A hosted job writes one weekly row on Monday in the person's time zone and does not backfill a missed Monday.
+BMR is Mifflin-St Jeor. Daily burn is BMR times the activity factor. The calorie target moves off that burn by the weekly rate times 7,700 divided by 7, and is never below BMR. Protein is grams per kilogram, fat is a percent of the target, and carbs fill the rest (never below 0). A profile or macro change writes `target_history`. A hosted job writes one weekly row per local week. On Monday that row is dated Monday. If the process was off on Monday, the first later run dates the row the day it actually runs and does not backdate it.
 
-Trend weight starts at the first weigh-in. Each later weigh-in moves it 10 percent of the way toward that weigh-in (`TrendWeight.SmoothingShare`). A day with no weigh-in does not add a step. The number is hidden until there are at least 3 weigh-ins in the last 7 days. It is published to two decimal places.
+Trend weight starts at the first weigh-in. Each later weigh-in moves it 10 percent of the way toward that weigh-in (`TrendWeight.SmoothingShare`). A day with no weigh-in does not add a step. Targets use that smoothed weight from the second weigh-in onward, including the weekly recalculation. The trend number is hidden in the API and the UI until there are at least 3 weigh-ins in the last 7 days. Exactly one weigh-in uses that raw weight. It is published to two decimal places. The weight stored on a target row is `numeric(5,2)`.
 
 ## Tests
 

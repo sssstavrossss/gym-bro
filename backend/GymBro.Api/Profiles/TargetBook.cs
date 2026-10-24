@@ -40,7 +40,7 @@ public static class TargetBook
             CarbGrams = result.Carbs,
             FloorApplied = result.FloorApplied,
             Reason = reason,
-            WeightKg = weightKg,
+            WeightKg = decimal.Round(weightKg, 2, MidpointRounding.AwayFromZero),
             CreatedAt = createdAt,
         };
     }
