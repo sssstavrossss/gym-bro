@@ -80,7 +80,12 @@ public static class WeighInEndpoints
         if (!body.Confirm)
         {
             var previous = await WeightReader.ReadAsync(db, userId, localDate.AddDays(-1), cancellationToken);
-            if (previous.TrendKg is decimal previousTrend && Math.Abs(kg - previousTrend) > TrendWeight.TypoLimitKg)
+            int? daysSincePrevious = previous.LatestDate is DateOnly last
+                ? localDate.DayNumber - last.DayNumber
+                : null;
+            if (previous.TrendKg is decimal previousTrend
+                && Math.Abs(kg - previousTrend) > TrendWeight.TypoLimitKg
+                && PartADecisions.TypoGuardApplies(daysSincePrevious))
             {
                 return Results.Json(new
                 {
@@ -112,6 +117,12 @@ public static class WeighInEndpoints
 
         existing.Kg = kg;
         existing.UpdatedAt = now;
+        if (PartADecisions.ShouldRewriteFreshStartRow())
+        {
+            throw new InvalidOperationException(
+                "Rewriting a fresh_start target row when a later weigh-in closes the gap is not the current spec.");
+        }
+
         await db.SaveChangesAsync(cancellationToken);
 
         var today = await TodayAsync(principal, db, clock, cancellationToken);
@@ -143,6 +154,12 @@ public static class WeighInEndpoints
         }
 
         var userId = Caller.Id(principal);
+        var count = await db.WeighIns.CountAsync(row => row.UserId == userId, cancellationToken);
+        if (!PartADecisions.MayDeleteWeighIn(count))
+        {
+            return ApiResults.Error("Keep your first weigh-in.", StatusCodes.Status409Conflict);
+        }
+
         var existing = await db.WeighIns.FirstOrDefaultAsync(
             row => row.UserId == userId && row.LocalDate == localDate,
             cancellationToken);
@@ -237,17 +254,18 @@ public static class WeighInEndpoints
         {
             if (!byDate.TryGetValue(cursor, out var day))
             {
-                series.Add(new WeightChartPoint(cursor, null, null, null, false, false));
+                series.Add(new WeightChartPoint(cursor, null, null, null, false, false, false));
                 continue;
             }
 
             series.Add(new WeightChartPoint(
                 cursor,
-                day.TrendKg,
+                day.Gap ? null : day.TrendKg,
                 day.WeighInKg,
                 day.ReadingKg,
                 day.Real,
-                day.Estimated));
+                day.Estimated,
+                day.Gap));
         }
 
         return Results.Ok(new WeightChartResponse(

@@ -56,7 +56,7 @@ jobs:
 
       - name: Install Playwright
         working-directory: frontend
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install --with-deps chromium webkit
 
       - name: End-to-end smoke
         working-directory: frontend
@@ -82,4 +82,4 @@ jobs:
 
       - name: Prototype build
         working-directory: prototype
-        run: npm ci && npm run build
+        run: npm ci && npm run build && node scripts/unit-trend.mjs

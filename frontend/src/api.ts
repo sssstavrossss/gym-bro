@@ -125,11 +125,57 @@ export interface ProfileBody {
   timeZone: string;
 }
 
-export interface WeighInResult {
+export interface WeighInWriteResponse {
   localDate: string;
   kg: number;
   replaced: boolean;
   notice: string | null;
+  trend: WeightResponse;
+}
+
+export interface ConfirmWeighInBody {
+  error: string;
+  code: "confirm_weigh_in";
+  kg: number;
+  localDate: string;
+  previousTrendKg: number;
+  limitKg: number;
+}
+
+export type WeighInWriteResult =
+  | { saved: WeighInWriteResponse; confirm?: undefined }
+  | { saved?: undefined; confirm: ConfirmWeighInBody };
+
+export interface WeightChartPoint {
+  date: string;
+  trendKg: number | null;
+  weighInKg: number | null;
+  readingKg: number | null;
+  realWeighIn: boolean;
+  estimated: boolean;
+  gap: boolean;
+}
+
+export interface WeightChartResponse {
+  asOf: string;
+  days: number;
+  trendKg: number | null;
+  trendState: TrendState | null;
+  reasons: string[];
+  goalReached: boolean;
+  freshStart: FreshStartResponse | null;
+  series: WeightChartPoint[];
+}
+
+export interface WeighInRow {
+  localDate: string;
+  kg: number;
+}
+
+export interface FreshStartDecisionResponse {
+  accepted: boolean;
+  wrote: boolean;
+  targets: TargetsResponse | null;
 }
 
 let configPromise: Promise<PublicConfig> | null = null;
@@ -204,10 +250,49 @@ export async function previewTargets(body: ProfileBody): Promise<PreviewResponse
   }));
 }
 
-export async function putWeighIn(date: string, kg: number, timeZone: string): Promise<WeighInResult> {
-  return jsonOrThrow(await request(`/api/weigh-ins/${date}`, {
+export async function putWeighIn(date: string, kg: number, timeZone: string, confirm = false): Promise<WeighInWriteResult> {
+  const response = await request(`/api/weigh-ins/${date}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ kg, timeZone }),
+    body: JSON.stringify({ kg, timeZone, confirm }),
+  });
+  if (response.status === 409) {
+    const body = (await response.json()) as Partial<ConfirmWeighInBody>;
+    if (body.code === "confirm_weigh_in" && body.kg != null && body.localDate && body.previousTrendKg != null) {
+      return {
+        confirm: {
+          error: body.error ?? `Is ${body.kg.toFixed(1)} kg right?`,
+          code: "confirm_weigh_in",
+          kg: body.kg,
+          localDate: body.localDate,
+          previousTrendKg: body.previousTrendKg,
+          limitKg: body.limitKg ?? 3,
+        },
+      };
+    }
+    throw new ApiError(body.error ?? "Request failed (409).", 409);
+  }
+  return { saved: await jsonOrThrow<WeighInWriteResponse>(response) };
+}
+
+export async function deleteWeighIn(date: string): Promise<void> {
+  const response = await request(`/api/weigh-ins/${date}`, { method: "DELETE" });
+  if (response.status === 204) return;
+  await jsonOrThrow(response);
+}
+
+export async function listWeighIns(): Promise<{ weighIns: WeighInRow[] }> {
+  return jsonOrThrow(await request("/api/weigh-ins"));
+}
+
+export async function getWeightChart(days = 30): Promise<WeightChartResponse> {
+  return jsonOrThrow(await request(`/api/weight/chart?days=${days}`));
+}
+
+export async function decideFreshStart(accept: boolean): Promise<FreshStartDecisionResponse> {
+  return jsonOrThrow(await request("/api/weight/fresh-start", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ accept }),
   }));
 }

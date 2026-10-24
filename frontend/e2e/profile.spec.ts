@@ -28,7 +28,8 @@ for (const layout of widths) {
     await page.getByRole("tab", { name: "Lose" }).click();
     await page.getByRole("button", { name: "0.5" }).click();
     await page.getByRole("textbox", { name: "Goal weight in kilograms" }).fill("80");
-    await page.getByRole("textbox", { name: "First weigh-in in kilograms" }).fill("83,6");
+    await expect(page.getByRole("heading", { name: "Your starting weight" })).toBeVisible();
+    await page.getByRole("textbox", { name: "Starting weight in kilograms" }).fill("83,6");
     await page.getByRole("button", { name: "Save and see targets" }).click();
 
     await expect(page.getByRole("heading", { name: "Profile", exact: true })).toBeVisible();
@@ -38,8 +39,8 @@ for (const layout of widths) {
     await expect(page.locator("[data-field=protein]")).toHaveText("167");
     await expect(page.locator("[data-field=fat]")).toHaveText("62");
     await expect(page.locator("[data-field=carbs]")).toHaveText("249");
-    await expect(page.getByRole("button", { name: /Trend/ })).toContainText("83.60");
-    await expect(page.getByText("Low accuracy").first()).toBeVisible();
+    await expect(page.getByRole("button", { name: /trend/i })).toContainText("83.60");
+    await expect(page.getByText(/low accuracy/i).first()).toBeVisible();
     await expect(page.getByText("not ready")).toHaveCount(0);
     await expect(page.getByText("provisional")).toHaveCount(0);
     await expect(page.getByText("Matvaretabellen 2026. Mattilsynet. www.matvaretabellen.no")).toBeVisible();

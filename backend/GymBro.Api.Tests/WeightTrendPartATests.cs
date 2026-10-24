@@ -160,6 +160,11 @@ public sealed class WeightTrendPartATests(ApiFactory factory)
         Assert.Equal(4, info.GetProperty("weeksSincePrevious").GetInt32());
         Assert.Equal("2026-09-01", info.GetProperty("previousDate").GetString());
         Assert.True(info.GetProperty("recalculatePending").GetBoolean());
+        var chart = await client.GetFromJsonAsync<JsonElement>("/api/weight/chart?date=2026-09-30&days=30");
+        Assert.True(chart.GetProperty("series")[1].GetProperty("gap").GetBoolean());
+        Assert.Equal(JsonValueKind.Null, chart.GetProperty("series")[1].GetProperty("trendKg").ValueKind);
+        Assert.False(chart.GetProperty("series")[29].GetProperty("gap").GetBoolean());
+        Assert.Equal(90.00m, chart.GetProperty("series")[29].GetProperty("trendKg").GetDecimal());
 
         var declined = await client.PostAsJsonAsync("/api/weight/fresh-start", new { accept = false });
         Assert.Equal(HttpStatusCode.OK, declined.StatusCode);
@@ -318,7 +323,7 @@ public sealed class WeightTrendPartATests(ApiFactory factory)
     }
 
     [Fact]
-    public async Task Goal_reached_fires_only_on_a_weigh_in_day_for_lose_and_gain_and_changes_nothing()
+    public async Task Goal_reached_follows_the_latest_real_weigh_in_and_changes_nothing()
     {
         factory.Clock.UtcNow = new DateTimeOffset(2026, 10, 24, 8, 0, 0, TimeSpan.Zero);
         var user = TestData.NewUser("goal-reached");
@@ -330,7 +335,7 @@ public sealed class WeightTrendPartATests(ApiFactory factory)
         Assert.True(onWeighIn.GetProperty("goalReached").GetBoolean());
         var carried = await client.GetFromJsonAsync<JsonElement>("/api/weight/trend?date=2026-10-25");
         Assert.Equal(83.60m, carried.GetProperty("trendKg").GetDecimal());
-        Assert.False(carried.GetProperty("goalReached").GetBoolean());
+        Assert.True(carried.GetProperty("goalReached").GetBoolean());
 
         var profile = await client.GetFromJsonAsync<JsonElement>("/api/profile");
         Assert.Equal("lose", profile.GetProperty("profile").GetProperty("goal").GetString());
@@ -385,6 +390,58 @@ public sealed class WeightTrendPartATests(ApiFactory factory)
         var declineB = await clientB.PostAsJsonAsync("/api/weight/fresh-start", new { accept = false });
         Assert.Equal(HttpStatusCode.BadRequest, declineB.StatusCode);
         Assert.Single(await History(userA));
+    }
+
+    [Fact]
+    public async Task Long_gap_still_asks_the_typo_guard_before_the_fresh_start_saves()
+    {
+        Assert.True(PartADecisions.TypoGuardAfterLongGap);
+        factory.Clock.UtcNow = new DateTimeOffset(2026, 9, 30, 8, 0, 0, TimeSpan.Zero);
+        var user = TestData.NewUser("typo-gap");
+        using var client = factory.AsUser(user);
+        await TestData.PutWeighIn(client, "2026-09-01", WeighIn(80m));
+        var asked = await client.PutAsync("/api/weigh-ins/2026-09-30", Json(WeighIn(90m)));
+        await AssertConfirm(asked, 90.0m, 80.00m);
+        Assert.Equal(1, (await client.GetFromJsonAsync<JsonElement>("/api/weigh-ins")).GetProperty("weighIns").GetArrayLength());
+    }
+
+    [Fact]
+    public async Task Deleting_the_only_weigh_in_is_allowed_and_clears_the_trend()
+    {
+        Assert.True(PartADecisions.AllowDeletingTheOnlyWeighIn);
+        factory.Clock.UtcNow = new DateTimeOffset(2026, 10, 24, 8, 0, 0, TimeSpan.Zero);
+        var user = TestData.NewUser("delete-only");
+        using var client = factory.AsUser(user);
+        await TestData.PutWeighIn(client, "2026-10-24", WeighIn(83.6m));
+        var removed = await client.DeleteAsync("/api/weigh-ins/2026-10-24");
+        Assert.Equal(HttpStatusCode.NoContent, removed.StatusCode);
+        var trend = await client.GetFromJsonAsync<JsonElement>("/api/weight/trend");
+        Assert.Equal(JsonValueKind.Null, trend.GetProperty("trendKg").ValueKind);
+        Assert.Equal("none", trend.GetProperty("source").GetString());
+    }
+
+    [Fact]
+    public async Task Back_dated_weigh_in_that_closes_a_fresh_start_leaves_the_target_row()
+    {
+        Assert.False(PartADecisions.RewriteFreshStartRowWhenGapCloses);
+        factory.Clock.UtcNow = new DateTimeOffset(2026, 9, 1, 8, 0, 0, TimeSpan.Zero);
+        var user = TestData.NewUser("close-gap");
+        using var client = factory.AsUser(user);
+        await TestData.PutWeighIn(client, "2026-09-01", WeighIn(80m));
+        await TestData.PutProfile(client, TestData.Profile(goalWeightKg: 70));
+        factory.Clock.UtcNow = new DateTimeOffset(2026, 9, 30, 8, 0, 0, TimeSpan.Zero);
+        await TestData.PutWeighIn(client, "2026-09-30", WeighIn(90m, confirm: true));
+        var accepted = await client.PostAsJsonAsync("/api/weight/fresh-start", new { accept = true });
+        Assert.Equal(HttpStatusCode.OK, accepted.StatusCode);
+        var written = await History(user);
+        var freshRow = written[^1];
+        Assert.Equal(TargetReasons.FreshStart, freshRow.Reason);
+
+        await TestData.PutWeighIn(client, "2026-09-20", WeighIn(85m, confirm: true));
+        var closed = await client.GetFromJsonAsync<JsonElement>("/api/weight/trend");
+        Assert.NotEqual(TrendWeight.FreshStartState, closed.GetProperty("trendState").GetString());
+        var after = await History(user);
+        Assert.Contains(after, row => row.Id == freshRow.Id && row.Reason == TargetReasons.FreshStart && row.Kcal == freshRow.Kcal);
     }
 
     private static void AssertSame(IReadOnlyList<HistoryRow> before, IReadOnlyList<HistoryRow> after)

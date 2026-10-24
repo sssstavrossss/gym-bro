@@ -45,6 +45,7 @@ public static class TrendWeight
 
         var gapReadings = new Dictionary<DateOnly, decimal>();
         var freshStartDates = new HashSet<DateOnly>();
+        var freshGaps = new HashSet<DateOnly>();
         for (var i = 1; i < real.Count; i++)
         {
             var previous = real[i - 1];
@@ -53,6 +54,11 @@ public static class TrendWeight
             if (gap > MaxInterpolatedGapDays)
             {
                 freshStartDates.Add(current.Date);
+                for (var dayNumber = previous.Date.DayNumber + 1; dayNumber < current.Date.DayNumber; dayNumber++)
+                {
+                    freshGaps.Add(DateOnly.FromDayNumber(dayNumber));
+                }
+
                 continue;
             }
 
@@ -72,7 +78,7 @@ public static class TrendWeight
         var realKg = real.ToDictionary(row => row.Date, row => row.Kg);
         var days = new List<TrendDay>(asOf.DayNumber - real[0].Date.DayNumber + 1);
         var trend = real[0].Kg;
-        days.Add(Day(real[0].Date, trend, realKg, gapReadings));
+        days.Add(Day(real[0].Date, trend, realKg, gapReadings, freshGaps));
 
         for (var date = real[0].Date.AddDays(1); date <= asOf; date = date.AddDays(1))
         {
@@ -85,7 +91,7 @@ public static class TrendWeight
                 trend += SmoothingShare * (reading - trend);
             }
 
-            days.Add(Day(date, trend, realKg, gapReadings));
+            days.Add(Day(date, trend, realKg, gapReadings, freshGaps));
         }
 
         var windowStart = asOf.AddDays(-(WindowDays - 1));
@@ -116,28 +122,30 @@ public static class TrendWeight
     }
 
     /// <summary>
-    /// The question is asked on a real weigh-in day when the trend is at or past
-    /// the goal. Lose means at or under the goal weight; gain means at or over.
-    /// Rate mode stores that direction on the profile. Manual mode uses the same
-    /// lose or gain direction. Maintain does not ask. This never changes the profile.
+    /// Judged on the latest real weigh-in on or before <paramref name="series"/>'s day,
+    /// never on an estimate-only day's trend. Lose means that weigh-in's trend is at or
+    /// under the goal; gain means at or over. Maintain does not ask. This never changes the profile.
     /// </summary>
     public static bool GoalReached(string? direction, decimal goalWeightKg, TrendSeries series)
     {
-        if (series.TrendKg is not decimal trend)
+        TrendDay? judged = null;
+        foreach (var day in series.Days)
         {
-            return false;
+            if (day.Real)
+            {
+                judged = day;
+            }
         }
 
-        var today = series.Days.Count == 0 ? null : series.Days[^1];
-        if (today is null || today.Date != series.AsOf || !today.Real)
+        if (judged is null)
         {
             return false;
         }
 
         return direction switch
         {
-            Goals.Lose => trend <= goalWeightKg,
-            Goals.Gain => trend >= goalWeightKg,
+            Goals.Lose => judged.TrendKg <= goalWeightKg,
+            Goals.Gain => judged.TrendKg >= goalWeightKg,
             _ => false,
         };
     }
@@ -167,12 +175,13 @@ public static class TrendWeight
         DateOnly date,
         decimal trend,
         Dictionary<DateOnly, decimal> realKg,
-        Dictionary<DateOnly, decimal> gapReadings)
+        Dictionary<DateOnly, decimal> gapReadings,
+        HashSet<DateOnly> freshGaps)
     {
         decimal? weighIn = realKg.TryGetValue(date, out var kg) ? kg : null;
         decimal? reading = weighIn ?? (gapReadings.TryGetValue(date, out var gap) ? gap : null);
         var real = weighIn is not null;
-        return new TrendDay(date, Publish(trend), weighIn, reading, real, !real);
+        return new TrendDay(date, Publish(trend), weighIn, reading, real, !real, freshGaps.Contains(date));
     }
 }
 
@@ -182,7 +191,8 @@ public sealed record TrendDay(
     decimal? WeighInKg,
     decimal? ReadingKg,
     bool Real,
-    bool Estimated);
+    bool Estimated,
+    bool Gap);
 
 public sealed record FreshStartFacts(
     DateOnly Date,

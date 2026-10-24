@@ -89,12 +89,13 @@ async function onContinue() {
     </section>
 
     <section class="card">
+      <h2 class="t-head">Your starting weight</h2>
       <label class="frow last">
-        <span class="t-body c2">First weigh-in</span>
-        <input v-model="profile.form.weighInKg" class="ninput" type="text" inputmode="decimal" autocomplete="off" aria-label="First weigh-in in kilograms" />
+        <span class="t-body c2">Today</span>
+        <input v-model="profile.form.weighInKg" class="ninput" type="text" inputmode="decimal" autocomplete="off" aria-label="Starting weight in kilograms" />
         <span class="t-label c2">kg</span>
       </label>
-      <p class="t-label c2">Today, in {{ profile.form.timeZone }}. A comma or a point both work.</p>
+      <p class="t-label c2">Saved as your first weigh-in, in {{ profile.form.timeZone }}. The trend that day is this weight. A comma or a point both work.</p>
     </section>
 
     <p v-if="profile.error" class="alert" role="alert">{{ profile.error }}</p>

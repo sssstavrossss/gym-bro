@@ -117,7 +117,6 @@ async function onSignOut() {
             <span class="t-body c2">Weight</span>
             <span class="grow" />
             <span class="t-label c2">{{ caption.label }}</span>
-            <span v-if="caption.note" class="t-label c2">{{ caption.note }}</span>
             <span class="t-ns">{{ caption.value }}</span>
             <Icon name="right" :size="16" />
           </button>

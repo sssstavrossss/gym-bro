@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useRoute } from "vue-router";
+import AccuracyDot from "./AccuracyDot.vue";
 import Icon from "./Icon.vue";
 import { profile, weightCaption } from "../state/profile";
 import { openAdd, openWeight } from "../ui";
@@ -38,10 +39,12 @@ const weight = computed(() => weightCaption(profile.weight));
 
     <span class="grow" />
     <div class="glance col">
-      <span class="t-label c2">{{ weight.label }}</span>
+      <span class="row gap">
+        <span class="t-label c2">{{ weight.low ? "Trend" : weight.label }}</span>
+        <AccuracyDot v-if="weight.low" />
+      </span>
       <span class="t-head">{{ weight.value }}</span>
-      <span v-if="weight.note" class="t-label c2">{{ weight.note }}</span>
-      <span class="t-label c2">Food logging comes later.</span>
+      <span class="t-label c2">{{ weight.note || "Food logging comes later." }}</span>
     </div>
     <p class="keys t-label c2"><kbd>N</kbd> or <kbd>/</kbd> add food · <kbd>Q</kbd> quick add · <kbd>W</kbd> weight · <kbd>Esc</kbd> close</p>
   </aside>
@@ -59,5 +62,6 @@ kbd { font: 600 11px/1 Inter, sans-serif; padding: 3px 6px; border-radius: 5px; 
 .item { height: 44px; padding: 0 12px; gap: 12px; border-radius: 12px; color: var(--text-secondary); text-decoration: none; }
 .item.on { background: var(--color-surface); color: var(--text-primary); }
 .glance { gap: 6px; padding: 12px; border-radius: 12px; background: var(--color-surface); }
+.gap { gap: 4px; }
 .keys { margin: 4px 4px 0; line-height: 20px; }
 </style>

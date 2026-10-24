@@ -282,7 +282,8 @@ public sealed record WeightChartPoint(
     decimal? WeighInKg,
     decimal? ReadingKg,
     bool RealWeighIn,
-    bool Estimated);
+    bool Estimated,
+    bool Gap);
 
 public sealed record WeighInWriteResponse(
     DateOnly LocalDate,

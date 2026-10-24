@@ -11,7 +11,7 @@ import { toast, ui } from "../ui";
 import { useRouter } from "vue-router";
 
 const router = useRouter();
-const STEPS = ["Welcome", "About you", "Weight", "Activity", "Goal", "Your targets"];
+const STEPS = ["Welcome", "About you", "Starting weight", "Activity", "Goal", "Your targets"];
 const step = ref(0);
 // each step starts at the top (at large text sizes the Continue button is below the fold)
 const obEl = ref<HTMLElement>();
@@ -76,10 +76,11 @@ function finish() {
         </template>
         <!-- 2 -->
         <template v-else-if="step === 2">
-          <h1 class="t-title">Your weight today</h1>
-          <p class="t-label c2">This is your first weigh-in. Targets use it until your trend is ready (3 weigh-ins within 7 days).</p>
+          <h1 class="t-title">Your starting weight</h1>
+          <p class="t-label c2">Saved as today's weigh-in. Your trend starts here and your targets are worked out from it straight away.</p>
           <label class="fld big row"><input v-model="f.weight" class="t-dl" inputmode="decimal" maxlength="5" placeholder="0.0" autocomplete="off" aria-label="Weight in kg" /><span class="t-head c2">kg</span></label>
           <span v-if="f.weight && !valid" class="t-label">Enter a weight between 30 and 300 kg — 83,4 and 83.4 both work.</span>
+          <p v-else class="t-capn c2 obtip row"><i class="odot" aria-hidden="true" />Until you have 2 weigh-ins within 7 days, the trend shows a small grey dot: it's less accurate. Weigh in 2+ times a week, ideally each morning.</p>
         </template>
         <!-- 3 -->
         <template v-else-if="step === 3">
@@ -161,4 +162,6 @@ function finish() {
 .dt-xl .two { flex-direction: column; flex-wrap: nowrap; }
 .dt-xl .two > .fld { width: 100%; }
 .dt-xl .dots { flex-basis: 100%; order: 3; }
+.obtip { gap: 8px; align-items: flex-start; margin: 4px 0 0; }
+.odot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-secondary); flex: none; margin-top: 4px; }
 </style>

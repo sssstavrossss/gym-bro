@@ -6,6 +6,7 @@ import SideNav from "./components/SideNav.vue";
 import AddChooser from "./components/AddChooser.vue";
 import FoodSheet from "./components/FoodSheet.vue";
 import WeightSheet from "./components/WeightSheet.vue";
+import AccuracySheet from "./components/AccuracySheet.vue";
 import Toast from "./components/Toast.vue";
 import CopySheet from "./components/CopySheet.vue";
 import GroupSheet from "./components/GroupSheet.vue";
@@ -17,7 +18,7 @@ import { state } from "./store";
 import { DEMO_STATES, applyDemo, isDemoState } from "./lib/demo";
 import { openRowId } from "./components/swipeState";
 import { vp } from "./lib/viewport";
-import { closeSheet, endSelect, openFood, openWeight, ui } from "./ui";
+import { closeAccuracy, closeSheet, endSelect, openFood, openWeight, ui } from "./ui";
 
 const route = useRoute();
 const scroller = ref<HTMLElement | null>(null);
@@ -39,6 +40,7 @@ function onKey(e: KeyboardEvent) {
     e.preventDefault();
     // In food detail, Esc steps back to the list first.
     if (ui.sheet === "food" && ui.detailFoodId && !ui.editEntry) ui.detailFoodId = null;
+    else if (ui.sheet === "accuracy") closeAccuracy();
     else closeSheet();
     return;
   }
@@ -83,6 +85,7 @@ function retryDown() { if (ui.demo !== "down" && navigator.onLine) online.value 
     <AddChooser />
     <FoodSheet />
     <WeightSheet />
+    <AccuracySheet />
     <SelectBar />
     <CopySheet />
     <GroupSheet />

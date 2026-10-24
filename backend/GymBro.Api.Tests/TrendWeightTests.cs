@@ -138,6 +138,9 @@ public sealed class TrendWeightTests
         Assert.Equal(start, reset.FreshStart.PreviousDate);
         Assert.Equal(80.00m, reset.On(resetDay.AddDays(-1))!.TrendKg);
         Assert.True(reset.On(resetDay)!.Real);
+        Assert.True(reset.On(resetDay.AddDays(-1))!.Gap);
+        Assert.False(reset.On(resetDay)!.Gap);
+        Assert.False(interpolated.On(start.AddDays(14))!.Gap);
     }
 
     [Fact]
@@ -214,9 +217,9 @@ public sealed class TrendWeightTests
     [Fact]
     public void Goal_reached_uses_lose_and_gain_for_rate_mode_and_manual_mode()
     {
-        // Rate mode stores lose or gain on the profile. Manual mode is not a
-        // saved field yet; the question uses that same direction and never
-        // fires on an estimate-only day or while the goal is maintain.
+        // Judged on the latest real weigh-in, including a later day that only carries
+        // that trend. An estimate between weigh-ins is not compared on its own.
+        // Manual mode is not a saved field yet; it uses the same lose or gain direction.
         var day = TrendWeight.Compute([(AsOf, 83.6m)], AsOf);
         Assert.True(TrendWeight.GoalReached(Goals.Lose, 84m, day));
         Assert.True(TrendWeight.GoalReached(Goals.Lose, 83.6m, day));
@@ -228,8 +231,16 @@ public sealed class TrendWeightTests
         Assert.False(TrendWeight.GoalReached(null, 80m, day));
 
         var carried = TrendWeight.Compute([(AsOf.AddDays(-1), 83.6m)], AsOf);
-        Assert.False(TrendWeight.GoalReached(Goals.Lose, 84m, carried));
-        Assert.False(TrendWeight.GoalReached(Goals.Gain, 80m, carried));
+        Assert.False(carried.On(AsOf)!.Real);
+        Assert.True(TrendWeight.GoalReached(Goals.Lose, 84m, carried));
+        Assert.True(TrendWeight.GoalReached(Goals.Gain, 80m, carried));
+
+        var beforeAny = TrendWeight.Compute([(AsOf, 83.6m)], AsOf.AddDays(-1));
+        Assert.False(TrendWeight.GoalReached(Goals.Lose, 84m, beforeAny));
+
+        var latest = TrendWeight.Compute([(AsOf.AddDays(-3), 80m), (AsOf, 83m)], AsOf);
+        Assert.True(TrendWeight.GoalReached(Goals.Gain, 80.5m, latest));
+        Assert.False(TrendWeight.GoalReached(Goals.Gain, 80.5m, TrendWeight.Compute([(AsOf.AddDays(-3), 80m)], AsOf)));
     }
 
     [Fact]
@@ -244,6 +255,62 @@ public sealed class TrendWeightTests
         var setup = WeightReader.FromSeries(series, setupKg: 85m, goal: null, goalWeightKg: 0, freshStartAccepted: false);
         Assert.Equal(WeightReader.Setup, setup.Source);
         Assert.Equal(85m, setup.UsedKg);
+    }
+
+    [Fact]
+    public void Prototype_trend_script_fixtures_match_the_published_series()
+    {
+        // Same cases as prototype/scripts/unit-trend.mjs. Published values are
+        // rounded to 2 places; the script's toFixed(2) checks are the same numbers.
+        var end = new DateOnly(2026, 10, 24);
+        var weights = new List<(DateOnly Date, decimal Kg)>();
+        for (var i = 0; i < PrototypeWeights.Length; i++)
+        {
+            weights.Add((new DateOnly(2026, 9, 19).AddDays(i), PrototypeWeights[i]));
+        }
+
+        Assert.Equal(83.60m, TrendWeight.Compute(weights, end).TrendKg);
+
+        var two = TrendWeight.Compute([(new DateOnly(2026, 10, 23), 80m), (end, 90m)], end);
+        Assert.Equal(81.00m, two.TrendKg);
+        Assert.Equal(TrendWeight.Normal, two.TrendState);
+
+        var one = TrendWeight.Compute([(new DateOnly(2026, 10, 10), 80m), (end, 81m)], end);
+        Assert.Equal(TrendWeight.LowAccuracy, one.TrendState);
+        Assert.Contains(TrendWeight.FewerThanTwoWeighInsInSevenDays, one.Reasons);
+
+        var setup = TrendWeight.Compute([(end, 84m)], end);
+        Assert.Equal(84m, setup.TrendKg);
+        Assert.Equal(TrendWeight.LowAccuracy, setup.TrendState);
+
+        var gap = TrendWeight.Compute([(new DateOnly(2026, 10, 1), 80m), (new DateOnly(2026, 10, 4), 83m)], new DateOnly(2026, 10, 4));
+        Assert.Equal(80.10m, gap.On(new DateOnly(2026, 10, 2))!.TrendKg);
+        Assert.Equal(80.29m, gap.On(new DateOnly(2026, 10, 3))!.TrendKg);
+        Assert.Equal(80.56m, gap.On(new DateOnly(2026, 10, 4))!.TrendKg);
+
+        var held = TrendWeight.Compute([(new DateOnly(2026, 9, 26), 80m), (end, 84m)], end);
+        Assert.NotEqual(84m, held.TrendKg);
+        Assert.NotEqual(TrendWeight.FreshStartState, held.TrendState);
+        var reset = TrendWeight.Compute([(new DateOnly(2026, 9, 25), 80m), (end, 84m)], end);
+        Assert.Equal(84m, reset.TrendKg);
+        Assert.Equal(TrendWeight.FreshStartState, reset.TrendState);
+        Assert.Equal(29, reset.FreshStart!.DaysSincePrevious);
+
+        var withoutLast = weights.Where(row => row.Date != end).ToList();
+        var reference = TrendWeight.Compute(withoutLast, end.AddDays(-1)).TrendKg!.Value;
+        Assert.True(Math.Abs(38.6m - reference) > TrendWeight.TypoLimitKg);
+        Assert.True(Math.Abs(86.5m - reference) <= TrendWeight.TypoLimitKg);
+        Assert.True(Math.Abs(86.7m - reference) > TrendWeight.TypoLimitKg);
+        Assert.Null(TrendWeight.Compute([], end.AddDays(-1)).TrendKg);
+
+        var deleted = weights.Where(row => row.Date != new DateOnly(2026, 10, 15)).ToList();
+        Assert.NotEqual(TrendWeight.Compute(weights, end).TrendKg, TrendWeight.Compute(deleted, end).TrendKg);
+
+        var back = TrendWeight.Compute([(new DateOnly(2026, 10, 1), 80m), (new DateOnly(2026, 10, 10), 82m)], end);
+        var filled = TrendWeight.Compute(
+            [(new DateOnly(2026, 10, 1), 80m), (new DateOnly(2026, 10, 5), 79m), (new DateOnly(2026, 10, 10), 82m)],
+            end);
+        Assert.NotEqual(back.TrendKg, filled.TrendKg);
     }
 
     private static readonly decimal[] PrototypeWeights =

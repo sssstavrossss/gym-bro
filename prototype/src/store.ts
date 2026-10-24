@@ -4,6 +4,7 @@ import { computed, reactive, watch } from "vue";
 import { addDays, range, DEMO_TODAY, parse, diffDays } from "./lib/dates";
 import { targets as calcTargets, type Profile, type Targets } from "./lib/nutrition";
 import { CLUSTER_GAP_MIN, toMin } from "./lib/time";
+import { trendAsOf, trendSeries, trendStatus, typoCheck } from "./lib/trend";
 import { SEED_PROFILE, seedEntries, seedGroups, seedWeights, seedMyFoods } from "./data/seed";
 import { FOODS, amountLabel, type Food, type Serving } from "./data/foods";
 
@@ -28,7 +29,7 @@ export interface Entry {
 export type GroupItem = Omit<Entry, "id" | "date" | "time">;
 
 /** One row of target_history (S1). A day uses the last row dated on or before it. */
-export type TargetReason = "setup" | "weekly" | "profile" | "goal" | "macro" | "mode_switch" | "manual_changed";
+export type TargetReason = "setup" | "weekly" | "profile" | "goal" | "macro" | "mode_switch" | "manual_changed" | "fresh_start";
 export interface TargetRow {
   id: string;
   date: string;
@@ -54,7 +55,7 @@ export interface TargetRow {
   belowBmr?: boolean;
   fatCut?: boolean;
 }
-export const REASON_LABEL: Record<TargetReason, string> = { setup: "First setup", weekly: "Weekly update", profile: "Profile change", goal: "Goal change", macro: "Macro balance change", mode_switch: "Goal mode switch", manual_changed: "Own number changed" };
+export const REASON_LABEL: Record<TargetReason, string> = { setup: "First setup", weekly: "Weekly update", profile: "Profile change", goal: "Goal change", macro: "Macro balance change", mode_switch: "Goal mode switch", manual_changed: "Own number changed", fresh_start: "Fresh start" };
 /** All reasons of a (possibly merged) row, e.g. "Goal change · Macro balance change". */
 export const reasonText = (r: TargetRow) => [...new Set(r.reasons?.length ? r.reasons : [r.reason])].map((x) => REASON_LABEL[x]).join(" · ");
 export interface SavedGroup { id: string; name: string; items: GroupItem[] }
@@ -74,25 +75,21 @@ interface State {
   servings: Record<string, Serving[]>; // private servings added to any food (S2)
   /** goal-reached question answered "keep" for this goal (key = mode|goal weight|number) */
   goalAnswered?: string;
+  /** S8: fresh-start "recalculate targets?" answered for the weigh-in on this date */
+  freshAnswered?: string;
 }
 
-const KEY = "gymbro-proto-v3";
-const VERSION = 3;
+const KEY = "gymbro-proto-v4";
+const VERSION = 4;
 export const today = DEMO_TODAY;
 
 /**
- * Trend weight (decision 5): exponentially weighted — each weigh-in moves the trend a fixed share
- * (TREND_ALPHA) towards it; days without a weigh-in keep the trend. Approved 24 Oct 2026: 10 % per weigh-in
- * (spec decision 5). The fictional example weigh-ins are set so today's trend is 83.6 kg (worked example).
+ * Trend weight (S8 / decision 34, replaces decision 5): always on, 10 % per reading (decision 17),
+ * straight-line gap readings for gaps up to 28 days, fresh start after longer gaps. Maths in lib/trend.ts.
+ * The fictional example weigh-ins are daily, so today's trend is still 83.6 kg (worked example).
  */
-export const TREND_ALPHA = 0.1;
-function trendOf(weights: Record<string, number>, date: string): number | null {
-  const ds = Object.keys(weights).filter((d) => d <= date).sort();
-  if (!ds.length) return null;
-  let t = weights[ds[0]];
-  for (const d of ds.slice(1)) t += TREND_ALPHA * (weights[d] - t);
-  return t;
-}
+export { TREND_ALPHA } from "./lib/trend";
+const trendOf = (weights: Record<string, number>, date: string) => trendAsOf(weights, date);
 
 let rowSeq = 0;
 function makeRow(p: Profile, weights: Record<string, number>, date: string, reason: TargetReason, note: string, field?: string): TargetRow {
@@ -173,20 +170,46 @@ function replaceWith(s: State) {
   state.myFoods = s.myFoods;
   state.servings = s.servings;
   state.goalAnswered = s.goalAnswered;
+  state.freshAnswered = s.freshAnswered;
   syncProfileSnapshot();
 }
 /** Demo: full example data. */
 export function resetDemo() { replaceWith(seed()); }
-/** Demo: a signed-up account with a profile but nothing logged and no weigh-ins. */
+/** Demo: a signed-up account, nothing logged; only the setup weigh-in (S8 Q1: setup saves the first weigh-in). */
 export function emptyAccount() {
   const s = seed();
-  replaceWith({ ...s, weights: {}, entries: [], groups: [], lastUsed: {}, complete: {}, myFoods: [], servings: {},
-    history: [makeRow(s.profile, {}, DEMO_TODAY, "setup", "Profile set up")] });
+  const weights = { [DEMO_TODAY]: s.profile.startWeight };
+  replaceWith({ ...s, weights, entries: [], groups: [], lastUsed: {}, complete: {}, myFoods: [], servings: {},
+    history: [makeRow(s.profile, weights, DEMO_TODAY, "setup", "Profile set up")] });
 }
-/** Demo: example data, but only 2 weigh-ins in the last 7 days → no trend shown. */
-export function sparseWeighIns() {
+/** Demo (S8): example data, but only today's weigh-in in the last 7 days → low-accuracy dot. */
+export function lowAccuracyDemo() {
   const s = seed();
-  for (let i = 0; i < 7; i++) { const d = addDays(DEMO_TODAY, -i); if (i !== 0 && i !== 3) delete s.weights[d]; }
+  for (let i = 1; i < 7; i++) delete s.weights[addDays(DEMO_TODAY, -i)];
+  s.weights[DEMO_TODAY] = 83.4;
+  replaceWith(s);
+}
+/** Demo (S8): no weigh-ins for 6 weeks (last one Sat 12 Sep), then 82.4 kg today → fresh start + "recalculate?". */
+export function freshStartDemo() {
+  const s = seed();
+  const old = seedWeights(), shift = -42;
+  const weights: Record<string, number> = {};
+  for (const [d, w] of Object.entries(old)) if (d < DEMO_TODAY) weights[addDays(d, shift)] = w;
+  weights[addDays(DEMO_TODAY, shift)] = old[DEMO_TODAY];
+  weights[DEMO_TODAY] = 82.4;
+  const keep = (d: string) => d <= addDays(DEMO_TODAY, shift);
+  const before = Object.fromEntries(Object.entries(weights).filter(([d]) => keep(d)));
+  const P = s.profile;
+  // target rows only up to the last weigh-in before the gap, plus Monday rows during the gap (trend flat)
+  s.history = [
+    makeRow({ ...P, rate: 0.75 }, before, addDays(DEMO_TODAY, shift - 35), "setup", "Profile set up · lose 0.75 kg/week"),
+    makeRow(P, before, addDays(DEMO_TODAY, shift - 20), "goal", "Rate 0.75 → 0.5 kg/week", "rate"),
+    makeRow(P, before, "2026-10-19", "weekly", "Trend weight updated"),
+  ];
+  s.weights = weights;
+  // the gap: nothing logged either (away), so no food history to judge
+  s.entries = s.entries.filter((e) => e.date === DEMO_TODAY);
+  s.complete = {};
   replaceWith(s);
 }
 /** Demo: first sign-in, no profile yet → onboarding. */
@@ -258,14 +281,22 @@ export const currentTarget = computed(() => rowFor(state.history, today));
 export const firstTargetDate = computed(() => state.history[0]?.date ?? null);
 
 // ---------- weight ----------
+/** S8: the whole trend series up to today (recomputed from all weigh-ins: back-dated edits shift the past line). */
+const series = computed(() => trendSeries(state.weights, today));
 /** Smoothed trend on a date (null before the first weigh-in). */
-export const trend = (date: string) => trendOf(state.weights, date);
+export const trend = (date: string) => series.value.series[date] ?? null;
+/** For charts: null inside a fresh-start gap (more than 28 days without a weigh-in), so no line is drawn across it. */
+export const trendPlot = (date: string) => (series.value.gapDays.has(date) ? null : trend(date));
 /** Weigh-ins in the 7 days ending on `date`. */
 export const weighInsLast7 = (date = today) => Object.keys(state.weights).filter((d) => d <= date && diffDays(date, d) < 7).length;
-/** The trend is only shown with ≥3 weigh-ins in the last 7 days. */
-export const trendShown = (date = today) => weighInsLast7(date) >= 3;
+/** S8: trendState + reasons (normal · low_accuracy · fresh_start · none). */
+export const trendInfo = computed(() => trendStatus(state.weights, today));
+/** S8: the trend is always shown once there is a weigh-in; the dot marks low accuracy. */
+export const lowAccuracy = computed(() => trendInfo.value.reasons.length > 0);
 export const hasWeights = computed(() => Object.keys(state.weights).length > 0);
 export const weighInCount = computed(() => Object.keys(state.weights).length);
+/** S8 Q5: typo guard for a new or edited weigh-in */
+export const checkTypo = (date: string, kg: number) => typoCheck(state.weights, date, kg);
 
 /** Most recent weigh-in on or before `date`. */
 export function latestWeighIn(date = today): { date: string; kg: number } | null {
@@ -276,7 +307,6 @@ export function latestWeighIn(date = today): { date: string; kg: number } | null
 
 /** Weight the targets use: the smoothed trend, or the setup weight before any weigh-in. */
 export const trendWeight = computed(() => trend(today) ?? state.profile.startWeight);
-export const trendVisible = computed(() => trendShown(today));
 
 export function saveWeight(date: string, kg: number) {
   state.weights[date] = Math.round(kg * 10) / 10;
@@ -450,11 +480,35 @@ const goalKey = () => `${state.profile.goalMode ?? "rate"}|${state.profile.goalW
 /** Decision 12 / S7: trend reached the goal weight from the direction that was set → ask, change nothing. */
 export const goalReached = computed(() => {
   const p = state.profile;
-  if (!state.onboarded || !trendShown(today) || state.goalAnswered === goalKey()) return false;
+  // S8 Q4: only judged on a day with a real weigh-in (the latest one), never on an estimate-only day
+  const last = latestWeighIn(today);
+  if (!state.onboarded || !last || state.goalAnswered === goalKey()) return false;
   const dir = p.goalMode === "manual" ? p.manualDir : p.goal === "maintain" ? undefined : p.goal;
-  const t = trendWeight.value;
+  const t = trend(last.date) ?? trendWeight.value;
   return dir === "lose" ? t <= p.goalWeight : dir === "gain" ? t >= p.goalWeight : false;
 });
+/** S8 Q6: fresh start → "Recalculate your targets from today's weight?" until answered (or the next weigh-in). */
+export const freshPrompt = computed(() => {
+  const i = trendInfo.value;
+  const last = latestWeighIn(today);
+  if (!state.onboarded || i.state !== "fresh_start" || !last || state.freshAnswered === last.date) return null;
+  return { date: last.date, gapDays: i.freshGapDays!, kg: last.kg };
+});
+/** Yes: a target row today with reason fresh_start (merged into today's row, decision 31). No: nothing written. */
+export function answerFresh(recalc: boolean) {
+  const f = freshPrompt.value;
+  if (!f) return;
+  state.freshAnswered = f.date;
+  if (!recalc) return;
+  const row = makeRow(state.profile, state.weights, today, "fresh_start", `Fresh start · trend ${f.kg.toFixed(1)} kg`);
+  const last = state.history[state.history.length - 1];
+  if (last && last.date === today) {
+    row.reasons = [...new Set([...(last.reasons ?? [last.reason]), "fresh_start" as const])];
+    row.note = `${last.note}; ${row.note}`;
+    row.changes = last.changes;
+    state.history.splice(state.history.length - 1, 1, row);
+  } else { row.reasons = ["fresh_start"]; state.history.push(row); }
+}
 export function keepGoal() { state.goalAnswered = goalKey(); }
 export function switchToMaintain() {
   if (state.profile.goalMode === "manual") Object.assign(state.profile, { goalMode: "rate", goal: "maintain" });

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AccuracyDot from "../components/AccuracyDot.vue";
 import { computed, ref, watch } from "vue";
 import Icon from "../components/Icon.vue";
 import Segmented from "../components/Segmented.vue";
@@ -9,7 +10,7 @@ import ManualTag from "../components/ManualTag.vue";
 import { addDays, dayMonth, parse, weekdayShort } from "../lib/dates";
 import { int, kg } from "../lib/format";
 import { ACTIVITY, RATES, KCAL_PER_KG, MANUAL_MAX, MANUAL_MIN, impliedKgPerWeek, parseManualKcal, type ActivityKey, type Goal, type Sex } from "../lib/nutrition";
-import { currentTarget, hasWeights, reasonText, setGoalMode, shown, state, targets, today, trendVisible, trendWeight, weighInsLast7 } from "../store";
+import { currentTarget, hasWeights, reasonText, setGoalMode, shown, state, targets, today, lowAccuracy, trendWeight } from "../store";
 import { openWeight, toast, ui } from "../ui";
 import { DEMO_STATES, applyDemo } from "../lib/demo";
 import { useRouter } from "vue-router";
@@ -112,9 +113,7 @@ const sinceLabel = computed(() => (cur.value ? (cur.value.date === today ? "toda
       <button type="button" class="frow row" @click="openWeight()">
         <span class="t-body c2">Weight</span><span class="grow" />
         <template v-if="!hasWeights"><span class="t-label c3">no weigh-ins · using {{ kg(p.startWeight) }} kg</span><span class="t-label">Weigh in</span></template>
-        <template v-else-if="!trendVisible"><span class="t-label c3">{{ weighInsLast7() }} of 3 weigh-ins · provisional</span>
-          <span class="base"><span class="t-ns c2">{{ kg(trendWeight) }}</span><span class="t-label c2">kg</span></span></template>
-        <template v-else><span class="t-label c3">trend</span>
+        <template v-else><span class="row lowrow t-label c3"><AccuracyDot v-if="lowAccuracy" :interactive="false" />{{ lowAccuracy ? "trend · low accuracy" : "trend" }}</span>
         <span class="base"><span class="t-ns">{{ kg(trendWeight) }}</span><span class="t-label c2">kg</span></span></template>
         <Icon name="right" :size="16" class="c3" />
       </button>
@@ -258,4 +257,5 @@ const sinceLabel = computed(() => (cur.value ? (cur.value.date === today ? "toda
 .how { margin: 0 4px; line-height: 1.45; }
 .can-hover .frow:is(button):hover { background: linear-gradient(90deg, transparent, rgba(255,255,255,.03)); }
 .stats > .col { min-width: 0; }
+.lowrow { gap: 6px; align-items: center; }
 </style>

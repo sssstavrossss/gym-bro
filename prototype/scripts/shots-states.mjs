@@ -101,10 +101,10 @@ async function longPress(page, locator, ms = 650) {
   await go("/today", "empty"); await page.click(".wcard"); await settle(); await page.locator(".winput").blur(); await shot("p25-empty-weight-sheet");
   await page.click(".cbtn[aria-label='Close']");
   await page.click(".tabbar .plus"); await page.click(".tile:has-text('Food')"); await shot("p26-empty-food-sheet");
-  // Trend not ready
-  await go("/today", "sparse"); await shot("p27-trend-not-ready-today");
-  await page.click(".wcard"); await settle(); await page.locator(".winput").blur(); await shot("p28-trend-not-ready-weight-sheet");
-  await go("/profile", "sparse"); await shot("p29-trend-not-ready-profile");
+  // Low accuracy (S8)
+  await go("/today", "lowacc"); await shot("p27-low-accuracy-today");
+  await page.click(".wcard"); await settle(); await page.locator(".winput").blur(); await shot("p28-low-accuracy-weight-sheet");
+  await go("/profile", "lowacc"); await shot("p29-low-accuracy-profile");
   // Loading
   await go("/today", "loading"); await shot("p30-loading-today");
   await go("/log", "loading"); await shot("p31-loading-log");
@@ -124,7 +124,7 @@ async function longPress(page, locator, ms = 650) {
   await reset();
   await go("/today", "onboarding"); await page.click(".ob .primary-btn"); await shot("d01-1440-onboarding");
   await go("/today", "empty"); await shot("d02-1440-empty-today");
-  await go("/today", "sparse"); await shot("d03-1440-trend-not-ready");
+  await go("/today", "lowacc"); await shot("d03-1440-low-accuracy");
   await go("/today", "loading"); await shot("d04-1440-loading");
   await go("/today", "offline"); await page.keyboard.press("n"); await settle(); await page.keyboard.type("salm"); await shot("d05-1440-error-food-search");
   await go("/today"); await page.keyboard.press("n"); await settle(); await shot("d06-1440-food-saved-groups");

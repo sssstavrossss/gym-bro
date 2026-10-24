@@ -154,6 +154,8 @@ kbd { font: 600 0.6471rem/1 "Inter", sans-serif; padding: 2px 5px; border-radius
 
 /* ---- Dynamic Type: reflow at large sizes (classes set in main.ts from the root size) ---- */
 /* xxLarge+ (≥22 px): single-line truncation turns into wrapping so names and numbers are never cut. */
+/* S8: the Today weight line is one line at default size, wraps from xxxL */
+.dt-l .wcard .wsub { white-space: normal !important; overflow: visible !important; text-overflow: clip !important; }
 .dt-l .ell, .dt-l .nowrap { white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; }
 /* AX sizes (≥28 px): rows wrap instead of overflowing; headers stack. */
 .dt-xl .row { flex-wrap: wrap; row-gap: 4px; }
