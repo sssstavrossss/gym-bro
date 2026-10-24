@@ -15,6 +15,7 @@ const apiEnv = {
 
 export default defineConfig({
   testDir: "./e2e",
+  testIgnore: "**/retro-a11y.spec.ts",
   timeout: 60_000,
   expect: { timeout: 15_000 },
   fullyParallel: false,

@@ -6,11 +6,14 @@ using Microsoft.EntityFrameworkCore;
 namespace GymBro.Api.Hosting;
 
 /// <summary>
-/// Writes one weekly target row per person per local week. On Monday the row
-/// is dated Monday. If Monday was missed, the first later run dates the row
-/// the day it actually runs and does not backdate it. A second run that week
-/// does nothing. Each person is saved in their own transaction. One failure
-/// is logged and the job continues with the next person.
+/// Upserts one target row per person for their local today, adding
+/// <see cref="TargetReasons.WeeklyRecalculation"/> to that row's reasons.
+/// On Monday the row is dated Monday. If Monday was missed, the catch-up
+/// merges into today's row and does not backdate it. A second run that week
+/// does nothing. A profile created today on a day other than Monday does not
+/// get a weekly reason the same day: that save already wrote today's targets.
+/// Each person is saved in their own transaction. One failure is logged and
+/// the job continues with the next person.
 /// </summary>
 public sealed class WeeklyTargetRecalculator(AppDbContext db, TimeProvider clock, ILogger<WeeklyTargetRecalculator> logger)
 {
@@ -25,14 +28,19 @@ public sealed class WeeklyTargetRecalculator(AppDbContext db, TimeProvider clock
                 continue;
             }
 
+            if (!IncludeWeeklyReason(profile, today))
+            {
+                continue;
+            }
+
             var weekStart = today.AddDays(-(((int)today.DayOfWeek - (int)DayOfWeek.Monday + 7) % 7));
-            var exists = await db.TargetHistories.AnyAsync(
-                row => row.UserId == profile.UserId
-                    && row.Reason == TargetReasons.WeeklyRecalculation
+            var weekReasons = await db.TargetHistories.AsNoTracking()
+                .Where(row => row.UserId == profile.UserId
                     && row.EffectiveDate >= weekStart
-                    && row.EffectiveDate <= today,
-                cancellationToken);
-            if (exists)
+                    && row.EffectiveDate <= today)
+                .Select(row => row.Reasons)
+                .ToListAsync(cancellationToken);
+            if (weekReasons.Any(reasons => reasons.Contains(TargetReasons.WeeklyRecalculation)))
             {
                 continue;
             }
@@ -49,13 +57,15 @@ public sealed class WeeklyTargetRecalculator(AppDbContext db, TimeProvider clock
             await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
             try
             {
-                db.TargetHistories.Add(TargetBook.NewRow(
+                await TargetBook.StageAsync(
+                    db,
                     profile.UserId,
                     today,
                     result,
                     weightKg,
-                    TargetReasons.WeeklyRecalculation,
-                    clock.GetUtcNow()));
+                    [TargetReasons.WeeklyRecalculation],
+                    clock.GetUtcNow(),
+                    cancellationToken);
                 await db.SaveChangesAsync(cancellationToken);
                 await transaction.CommitAsync(cancellationToken);
                 wrote++;
@@ -68,6 +78,22 @@ public sealed class WeeklyTargetRecalculator(AppDbContext db, TimeProvider clock
         }
 
         return wrote;
+    }
+
+    /// <summary>
+    /// The first profile save of a week that is not Monday already calculated
+    /// today's targets. The job must not add <c>weekly_recalculation</c> that
+    /// same local day. Monday, and any later day, still upsert today's row.
+    /// </summary>
+    public static bool IncludeWeeklyReason(Profile profile, DateOnly today)
+    {
+        if (!LocalDates.TryZone(profile.TimeZone, out var zone))
+        {
+            return true;
+        }
+
+        var created = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(profile.CreatedAt, zone).DateTime);
+        return created != today || today.DayOfWeek == DayOfWeek.Monday;
     }
 }
 

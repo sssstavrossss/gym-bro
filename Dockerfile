@@ -20,6 +20,10 @@ COPY --from=web /src/frontend/dist /app/publish/wwwroot
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
 COPY --from=build /app/publish .
+# A new named volume copies this directory's ownership. Create it as root
+# and hand it to the non-root app user before switching USER, or the app
+# cannot write Data Protection keys on first start.
+RUN mkdir -p /var/lib/gymbro/keys && chown -R "$APP_UID" /var/lib/gymbro
 USER $APP_UID
 # Default for `docker run` without Compose. Compose replaces this when
 # BIND_PORT is set, and publishes that port on BIND_ADDRESS on the host.

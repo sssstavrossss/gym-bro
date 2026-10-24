@@ -25,7 +25,14 @@ public sealed class OpenFoodFactsClient(HttpClient http, OpenFoodFactsGate gate,
 
         try
         {
-            using var response = await http.GetAsync(address, cancellationToken);
+            // Headers first, so a huge body is never buffered before the cap is applied.
+            using var response = await http.GetAsync(address, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+            var code = (int)response.StatusCode;
+            if (code is >= 300 and < 400)
+            {
+                return new OffSearchOutcome(OffStatus.Unavailable, []);
+            }
+
             if (response.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
             {
                 return new OffSearchOutcome(OffStatus.RateLimited, []);
@@ -36,13 +43,102 @@ public sealed class OpenFoodFactsClient(HttpClient http, OpenFoodFactsGate gate,
                 return new OffSearchOutcome(OffStatus.Unavailable, []);
             }
 
+            if (response.Content.Headers.ContentLength is long advertised && advertised > MaxResponseBytes)
+            {
+                return new OffSearchOutcome(OffStatus.Unavailable, []);
+            }
+
             await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
-            var foods = OpenFoodFactsParser.Read(stream);
+            await using var capped = new CappedReadStream(stream, MaxResponseBytes);
+            var foods = OpenFoodFactsParser.Read(capped);
             return new OffSearchOutcome(OffStatus.Ok, foods);
         }
-        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException)
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException or IOException)
         {
             return new OffSearchOutcome(OffStatus.Unavailable, []);
+        }
+    }
+
+    /// <summary>2 MiB. Larger Open Food Facts bodies are treated as unavailable.</summary>
+    public const int MaxResponseBytes = 2_097_152;
+
+    /// <summary>
+    /// The handler the app and the tests share. Redirects are not followed:
+    /// a 3xx is <see cref="OffStatus.Unavailable"/> and the Location is never requested.
+    /// </summary>
+    public static SocketsHttpHandler CreateHandler() => new()
+    {
+        AllowAutoRedirect = false,
+        PooledConnectionLifetime = TimeSpan.FromMinutes(2),
+    };
+
+    private sealed class CappedReadStream(Stream inner, int max) : Stream
+    {
+        private int _total;
+
+        public override bool CanRead => true;
+
+        public override bool CanSeek => false;
+
+        public override bool CanWrite => false;
+
+        public override long Length => throw new NotSupportedException();
+
+        public override long Position
+        {
+            get => throw new NotSupportedException();
+            set => throw new NotSupportedException();
+        }
+
+        public override void Flush()
+        {
+        }
+
+        public override int Read(byte[] buffer, int offset, int count) => Count(inner.Read(buffer, offset, count));
+
+        public override int Read(Span<byte> buffer) => Count(inner.Read(buffer));
+
+        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            return ReadLimitedAsync(buffer, cancellationToken);
+        }
+
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+
+        public override void SetLength(long value) => throw new NotSupportedException();
+
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+
+        private async ValueTask<int> ReadLimitedAsync(Memory<byte> buffer, CancellationToken cancellationToken)
+        {
+            var read = await inner.ReadAsync(buffer, cancellationToken);
+            return Count(read);
+        }
+
+        private int Count(int read)
+        {
+            if (read <= 0)
+            {
+                return read;
+            }
+
+            _total += read;
+            if (_total > max)
+            {
+                throw new IOException("Open Food Facts response exceeded the size cap.");
+            }
+
+            return read;
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                inner.Dispose();
+            }
+
+            base.Dispose(disposing);
         }
     }
 }

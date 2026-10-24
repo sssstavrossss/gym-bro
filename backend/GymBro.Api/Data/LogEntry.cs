@@ -23,11 +23,22 @@ public sealed class LogEntry
 
     public Guid? FoodId { get; set; }
 
-    /// <summary><c>off</c>, <c>matvaretabellen</c>, <c>custom</c>, or <c>manual</c>.</summary>
+    /// <summary>
+    /// Empty when <see cref="FoodId"/> is a shared catalogue food (<c>mvt</c> or <c>off</c>).
+    /// The owner's id when the food is custom. Must be empty or equal to <see cref="UserId"/>,
+    /// so a row cannot point at another person's food.
+    /// </summary>
+    public string FoodOwnerKey { get; set; } = Food.CatalogueOwnerKey;
+
+    /// <summary><c>off</c>, <c>mvt</c>, <c>custom</c>, or <c>manual</c>.</summary>
     public string? Source { get; set; }
 
     public string? SourceId { get; set; }
 
+    /// <summary>
+    /// Gram weight of what was logged. Null for a per-serving food that has no gram weight.
+    /// A gram weight added to the food later does not rewrite this snapshot.
+    /// </summary>
     public decimal? Grams { get; set; }
 
     public string Name { get; set; } = "";

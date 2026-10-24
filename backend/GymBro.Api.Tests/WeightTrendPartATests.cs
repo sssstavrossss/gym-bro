@@ -178,13 +178,16 @@ public sealed class WeightTrendPartATests(ApiFactory factory)
         var acceptedBody = await accepted.Content.ReadFromJsonAsync<JsonElement>();
         Assert.True(acceptedBody.GetProperty("wrote").GetBoolean());
         Assert.Equal(TargetReasons.FreshStart, acceptedBody.GetProperty("targets").GetProperty("reason").GetString());
+        Assert.Equal(
+            TargetReasons.FreshStart,
+            acceptedBody.GetProperty("targets").GetProperty("reasons")[0].GetString());
         Assert.Equal("2026-09-30", acceptedBody.GetProperty("targets").GetProperty("effectiveDate").GetString());
         Assert.Equal(90.00m, acceptedBody.GetProperty("targets").GetProperty("weightKg").GetDecimal());
 
         var after = await History(user);
         Assert.Equal(2, after.Count);
         Assert.Equal(before[0], after[0]);
-        Assert.Equal(TargetReasons.FreshStart, after[1].Reason);
+        Assert.Equal(TargetReasons.FreshStart, after[1].Reasons);
         Assert.Equal(new DateOnly(2026, 9, 30), after[1].EffectiveDate);
 
         var again = await client.PostAsJsonAsync("/api/weight/fresh-start", new { accept = true });
@@ -192,7 +195,7 @@ public sealed class WeightTrendPartATests(ApiFactory factory)
         var upserted = await History(user);
         Assert.Equal(2, upserted.Count);
         Assert.Equal(after[1].Id, upserted[1].Id);
-        Assert.Equal(TargetReasons.FreshStart, upserted[1].Reason);
+        Assert.Equal(TargetReasons.FreshStart, upserted[1].Reasons);
 
         var pending = await client.GetFromJsonAsync<JsonElement>("/api/weight/trend");
         Assert.False(pending.GetProperty("freshStart").GetProperty("recalculatePending").GetBoolean());
@@ -213,16 +216,20 @@ public sealed class WeightTrendPartATests(ApiFactory factory)
         await TestData.PutProfile(client, TestData.Profile(fatSetting: "more", fatPercent: 30));
         var before = await History(user);
         Assert.Equal(2, before.Count);
-        Assert.Equal(TargetReasons.MacroBalanceChange, before[1].Reason);
+        Assert.Equal(TargetReasons.MacroBalanceChange, before[1].Reasons);
         Assert.Equal(new DateOnly(2026, 9, 30), before[1].EffectiveDate);
 
         var accepted = await client.PostAsJsonAsync("/api/weight/fresh-start", new { accept = true });
         Assert.Equal(HttpStatusCode.OK, accepted.StatusCode);
+        var acceptedBody = await accepted.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(TargetReasons.FreshStart, acceptedBody.GetProperty("targets").GetProperty("reason").GetString());
+        var mergedReasons = acceptedBody.GetProperty("targets").GetProperty("reasons").EnumerateArray().Select(item => item.GetString()!).ToArray();
+        Assert.Equal([TargetReasons.MacroBalanceChange, TargetReasons.FreshStart], mergedReasons);
         var after = await History(user);
         Assert.Equal(2, after.Count);
         Assert.Equal(before[0], after[0]);
         Assert.Equal(before[1].Id, after[1].Id);
-        Assert.Equal(TargetReasons.FreshStart, after[1].Reason);
+        Assert.Equal($"{TargetReasons.MacroBalanceChange},{TargetReasons.FreshStart}", after[1].Reasons);
         Assert.Equal(90.00m, after[1].WeightKg);
         Assert.Equal(before[1].FatGrams, after[1].FatGrams);
         Assert.Equal(before[1].Kcal, after[1].Kcal);
@@ -435,13 +442,13 @@ public sealed class WeightTrendPartATests(ApiFactory factory)
         Assert.Equal(HttpStatusCode.OK, accepted.StatusCode);
         var written = await History(user);
         var freshRow = written[^1];
-        Assert.Equal(TargetReasons.FreshStart, freshRow.Reason);
+        Assert.Equal(TargetReasons.FreshStart, freshRow.Reasons);
 
         await TestData.PutWeighIn(client, "2026-09-20", WeighIn(85m, confirm: true));
         var closed = await client.GetFromJsonAsync<JsonElement>("/api/weight/trend");
         Assert.NotEqual(TrendWeight.FreshStartState, closed.GetProperty("trendState").GetString());
         var after = await History(user);
-        Assert.Contains(after, row => row.Id == freshRow.Id && row.Reason == TargetReasons.FreshStart && row.Kcal == freshRow.Kcal);
+        Assert.Contains(after, row => row.Id == freshRow.Id && row.Reasons == TargetReasons.FreshStart && row.Kcal == freshRow.Kcal);
     }
 
     private static void AssertSame(IReadOnlyList<HistoryRow> before, IReadOnlyList<HistoryRow> after)
@@ -507,7 +514,7 @@ public sealed class WeightTrendPartATests(ApiFactory factory)
             .Select(row => new HistoryRow(
                 row.Id,
                 row.EffectiveDate,
-                row.Reason,
+                string.Join(",", row.Reasons),
                 row.WeightKg,
                 row.Kcal,
                 row.Bmr,
@@ -529,7 +536,7 @@ public sealed class WeightTrendPartATests(ApiFactory factory)
     private sealed record HistoryRow(
         long Id,
         DateOnly EffectiveDate,
-        string Reason,
+        string Reasons,
         decimal WeightKg,
         int Kcal,
         int Bmr,

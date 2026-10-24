@@ -50,7 +50,7 @@ public static class WeightReader
             var freshDate = computed.FreshStart.Date;
             accepted = await db.TargetHistories.AsNoTracking().AnyAsync(
                 row => row.UserId == userId
-                    && row.Reason == TargetReasons.FreshStart
+                    && row.Reasons.Contains(TargetReasons.FreshStart)
                     && row.EffectiveDate >= freshDate
                     && row.EffectiveDate <= asOf,
                 cancellationToken);

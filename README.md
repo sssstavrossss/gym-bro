@@ -64,7 +64,7 @@ Sign-in settings are not baked into the JavaScript bundle. The API reads them fr
 | `Dockerfile` | Multi-stage build. One runtime image, Node and the SDK are not in it. |
 | `docker-compose.yml` | `app` and `postgres`. Every secret and id comes from the environment. |
 | `.env.example` | The values you copy into `.env`. `.env` is gitignored. |
-| `.github/workflows/tests.yml` | The `tests` job: backend tests, frontend typecheck and build, Docker image build. |
+| `.github/workflows/tests.yml` | The `tests` job: backend tests, frontend checks, Chromium and WebKit smoke, axe, Docker image build. A separate `prototype` job builds `prototype/`. |
 
 ## Endpoints
 
@@ -73,7 +73,7 @@ Sign-in settings are not baked into the JavaScript bundle. The API reads them fr
 | `GET` | `/api/health` | anonymous | `{ "status": "ok", "databaseReachable": true }` while the process is up. The flag is false when Postgres cannot be reached. |
 | `GET` | `/api/me` | bearer token with scope `access_as_user` | Upserts `users` by `oid` and returns the row, including `firstSeenAt` and `lastSeenAt`. |
 | `GET` | `/api/profile` | bearer | Profile, weight, the targets in effect today, and the Matvaretabellen citation. `profile` is null on first run. |
-| `PUT` | `/api/profile` | bearer | Saves the profile. Requires a weigh-in on or before today. Writes `target_history` when something changed. |
+| `PUT` | `/api/profile` | bearer | Saves the profile. Requires a weigh-in on or before today. Upserts today's `target_history` row when something changed. |
 | `POST` | `/api/targets/preview` | bearer | Same maths, nothing stored. |
 | `GET` | `/api/targets?date=` | bearer | The target row in effect on that date. |
 | `PUT` | `/api/weigh-ins/{date}` | bearer | Create or replace that day's weigh-in. One decimal, 30–300 kg. A comma or a point is accepted. `confirm: true` saves a value more than 3.0 kg from the previous day's trend. |
@@ -81,10 +81,10 @@ Sign-in settings are not baked into the JavaScript bundle. The API reads them fr
 | `DELETE` | `/api/weigh-ins/{date}` | bearer | Deletes that day's weigh-in. The trend is computed again; `target_history` is left as it was. |
 | `GET` | `/api/weight/trend?date=` | bearer | Trend for that local day (today when `date` is omitted), plus `trendState`, `reasons`, `goalReached`, and `freshStart`. |
 | `GET` | `/api/weight/chart?date=&days=` | bearer | Daily series ending on that day. `days` defaults to 30 (1–366). Real weigh-ins are flagged; other days are estimated. `gap: true` and `trendKg: null` mark a fresh-start break (no line across a gap over 28 days). |
-| `POST` | `/api/weight/fresh-start` | bearer | `{ "accept": true }` upserts today's `target_history` row with reason `fresh_start`. `{ "accept": false }` writes nothing. |
+| `POST` | `/api/weight/fresh-start` | bearer | `{ "accept": true }` upserts today's `target_history` row and appends `fresh_start` to its `reasons`. `{ "accept": false }` writes nothing. |
 | `GET` | `/api/foods/search?q=` | bearer | Local foods only. This never calls Open Food Facts. |
 | `POST` | `/api/foods/search/open-food-facts` | bearer | On-demand Open Food Facts search, throttled to 10 a minute. Local matches are always returned. |
-| `POST` `/GET` `/PUT` `/DELETE` | `/api/foods` | bearer | Custom foods. Private to the owner. |
+| `POST` `/GET` `/PUT` `/DELETE` | `/api/foods` | bearer | Custom foods. Private to the owner. Nutrients are per 100 g/ml, or per serving with no gram weight. Labels over 80 characters are 400. |
 | `GET` | `/api/about` | bearer | Food-data credits, including the Matvaretabellen citation. |
 | `GET` | `/config.json` | anonymous | Runtime Entra settings for the SPA. `Cache-Control: no-store`. |
 | other `/api/*` | | same as `/api/me` | Unknown routes are not anonymous. |
@@ -185,7 +185,7 @@ Open <http://localhost:5173>. Vite proxies `/api` and `/config.json` to `http://
 docker compose up --build
 ```
 
-This builds one app image (Vue build, then `dotnet publish`) and starts Postgres with the named volume `gymbro-postgres`. The app container listens on `0.0.0.0` inside the network. Compose publishes that port on the host at `BIND_ADDRESS:BIND_PORT`, which defaults to `127.0.0.1:8100`. Open that URL on the machine, or put the HTTPS proxy in front of it.
+This builds one app image (Vue build, then `dotnet publish`) and starts Postgres with the named volume `gymbro-postgres`. Data Protection keys use the named volume `gymbro-dataprotection`. The app container listens on `0.0.0.0` inside the network. Compose publishes that port on the host at `BIND_ADDRESS:BIND_PORT`, which defaults to `127.0.0.1:8100`. Open that URL on the machine, or put the HTTPS proxy in front of it.
 
 On startup the API applies EF Core migrations, retrying for a few seconds if Postgres is still coming up. `docker compose down` keeps the volume. `docker compose down -v` drops it.
 
@@ -213,13 +213,35 @@ That one-off container applies migrations, imports, prints the citation, and exi
 
 ## Targets and trend weight
 
-BMR is Mifflin-St Jeor. Daily burn is BMR times the activity factor. The calorie target moves off that burn by the weekly rate times 7,700 divided by 7, and is never below BMR. Protein is grams per kilogram, fat is a percent of the target, and carbs fill the rest (never below 0). A profile or macro change writes `target_history`. A hosted job writes one weekly row per local week. On Monday that row is dated Monday. If the process was off on Monday, the first later run dates the row the day it actually runs and does not backdate it.
+BMR is Mifflin-St Jeor. Daily burn is BMR times the activity factor. The calorie target moves off that burn by the weekly rate times 7,700 divided by 7, and is never below BMR. Protein is grams per kilogram, fat is a percent of the target, and carbs fill the rest (never below 0).
 
-Trend weight is one server series (`TrendWeight.Compute`), from the first real weigh-in through the user's local today. The setup weight is that first weigh-in, and the trend that day is the weigh-in itself. Each later day keeps the previous trend (Part A has no intake step) unless the day has a real weigh-in or a gap reading, in which case the trend moves 10 percent of the way toward that reading (`TrendWeight.SmoothingShare`). A gap of 2 to 28 days is a straight line between the two real weigh-ins. A gap longer than 28 days is a fresh start: that day's trend equals the new weigh-in. Profile, targets, BMR, the Monday job, and the weight API all use this published figure, rounded to two decimal places, half away from zero. The weight stored on a target row is `numeric(5,2)`. Past `target_history` rows are not rewritten when a weigh-in changes.
+`target_history` has one row per user per effective date. A later change the same day updates that row: the numbers are the latest calculation, and `reasons` (`text[]`) keeps every reason in the order it first applied (`profile_change`, `macro_balance_change`, `weekly_recalculation`, `fresh_start`). The JSON field `reason` is the last of those. `PUT /api/profile`, the weekly job, and a fresh-start accept all use that upsert. Accept appends `fresh_start` and does not drop the reasons already on today's row.
 
-`trendState` is `normal`, `low_accuracy` (fewer than 2 real weigh-ins in the last 7 days; `reasons` includes `fewer_than_2_weighins_7d`), or `fresh_start` (the latest weigh-in followed a gap longer than 28 days, until the next weigh-in). `freshStart.weeksSincePrevious` is the whole weeks in that gap. `goalReached` is judged on the latest real weigh-in on or before that day (lose: trend at or under the goal, gain: at or over), including later days that only carry the trend. An estimate-only day is not compared on its own. Nothing switches the goal on its own.
+The hosted job adds `weekly_recalculation` to today's row. On Monday that row is dated Monday. If the process was off on Monday, the catch-up merges into the day the job actually runs and does not backdate a Monday row. A second run that week does nothing. A profile created today on a day other than Monday does not also get a weekly reason that same day.
 
-A new or edited weigh-in more than 3.0 kg from the previous day's trend returns `409` with `code: "confirm_weigh_in"` and `error: "Is 38.6 kg right?"`. The first weigh-in is not checked. Sending `confirm: true` saves it. `POST /api/weight/fresh-start` with `accept: true` writes today's target row with reason `fresh_start`, updating the latest row already stored for today when there is one. `accept: false` writes nothing. The Monday job is otherwise unchanged and still uses the trend. `day_status.fasting` defaults to false and is unused until learned burn.
+Trend weight is one server series (`TrendWeight.Compute`), from the first real weigh-in through the user's local today. The setup weight is that first weigh-in, and the trend that day is the weigh-in itself. Each later day keeps the previous trend (Part A has no intake step) unless the day has a real weigh-in or a gap reading, in which case the trend moves 10 percent of the way toward that reading (`TrendWeight.SmoothingShare`). A gap of 2 to 28 days is a straight line between the two real weigh-ins. A gap longer than 28 days is a fresh start: that day's trend equals the new weigh-in. Profile, targets, BMR, the weekly job, and the weight API all use this published figure, rounded to two decimal places, half away from zero. The weight stored on a target row is `numeric(5,2)`. Past `target_history` rows are not rewritten when a weigh-in changes.
+
+`trendState` is `normal`, `low_accuracy` (fewer than 2 real weigh-ins in the last 7 days; the weight `reasons` includes `fewer_than_2_weighins_7d`), or `fresh_start` (the latest weigh-in followed a gap longer than 28 days, until the next weigh-in). `freshStart.weeksSincePrevious` is the whole weeks in that gap. `goalReached` is judged on the latest real weigh-in on or before that day (lose: trend at or under the goal, gain: at or over), including later days that only carry the trend. An estimate-only day is not compared on its own. Nothing switches the goal on its own. The profile shows the published kilograms from the first weigh-in, with “trend · low accuracy” when the window has fewer than two weigh-ins.
+
+A new or edited weigh-in more than 3.0 kg from the previous day's trend returns `409` with `code: "confirm_weigh_in"` and `error: "Is 38.6 kg right?"`. The first weigh-in is not checked. Sending `confirm: true` saves it. `POST /api/weight/fresh-start` with `accept: true` upserts today's target row and appends `fresh_start` to `reasons`. `accept: false` writes nothing. The weekly job still uses the same trend and the same upsert. `day_status.fasting` defaults to false and is unused until learned burn.
+
+## Custom foods and log references
+
+A custom food can be per serving only: `nutrientBasis` is `per_serving`, the kcal and macro fields are for one serving, and there is no gram weight. `log_entries.grams` stays nullable. Adding a serving weight later stores nutrients per 100 g for future logs (`value * 100 / grams`). Rows already logged keep the snapshot that was copied onto them. Omitted `nutrientBasis` means per 100 g, which is what Matvaretabellen (`source` `mvt`) and Open Food Facts use. Serving and piece labels longer than 80 characters are rejected with 400.
+
+Catalogue foods have no owner, so a foreign key of `(log.user_id, food_id)` cannot point at them. `foods.owner_key` is a stored `COALESCE(user_id, '')` (`''` is the catalogue). `log_entries.food_owner_key` must be `''` or that row's `user_id`. The foreign key is `(food_owner_key, food_id)` → `foods (owner_key, id)`. A null `food_id` skips the key. Groups always have an owner, so `(user_id, group_id)` → `entry_groups (user_id, id)`. Deleting a food or a group sets only `food_id` or `group_id` to null. EF models those relationships as `NO ACTION` because `food_owner_key` and `user_id` are not nullable; the migration SQL uses PostgreSQL's `ON DELETE SET NULL (food_id)` and `ON DELETE SET NULL (group_id)`. A later `migrations add` compares the model to the snapshot, so it will not rewrite that SQL.
+
+## Open Food Facts and response headers
+
+The Open Food Facts client does not follow redirects. A 3xx, a network failure, or a body over 2 MiB comes back as `unavailable`. Every response, including static files and errors, sends a Content-Security-Policy that allows the built SPA and MSAL calls to `https://*.ciamlogin.com` (no script inline or eval; style attributes stay allowed for the sheet drag). Silent renewal needs `frame-src 'self' https://*.ciamlogin.com` and `frame-ancestors 'self'`, with `X-Frame-Options: SAMEORIGIN`, so the hidden iframe can load CIAM and the same-origin redirect page. Responses also send `X-Content-Type-Options: nosniff` and `Referrer-Policy: strict-origin-when-cross-origin`. The Playwright smoke checks those headers on `http://127.0.0.1:8100/api/health` and walks the e2e sign-in flag. It does not complete a real CIAM redirect.
+
+## Data Protection keys
+
+ASP.NET Data Protection keys are stored on disk so a new container does not mint a new key ring. Compose sets `DataProtection__KeysPath=/var/lib/gymbro/keys` and mounts the named volume `gymbro-dataprotection` there. The image creates that directory as root and `chown`s it to the non-root app user before `USER`, so a fresh volume is writable. Development, tests, and the e2e host use `.data/keys` under the content root (gitignored). Sign-in uses bearer tokens, not Data Protection cookies; the keys are still persisted. The first deploy after this change writes a new ring into the volume. Later rebuilds reuse it.
+
+## Deploy
+
+Take a database backup before deploying this release. The migration merges same-day `target_history` rows (latest numbers, every reason kept), adds per-serving nutrient basis, and replaces the food and group foreign keys. A log row that pointed at another person's food or group has that reference cleared so the new keys can be created. Bring the new image up with Compose so `gymbro-dataprotection` is mounted. Do not use `docker compose down -v` if you need the database or the key ring. The first start writes Data Protection keys into the volume; rebuilding the image after that keeps them.
 
 ## Tests
 
@@ -230,7 +252,7 @@ cd frontend && npm run typecheck && npm test && npm run build && npm run e2e
 
 Backend tests use Testcontainers Postgres 17 and `TestAuthHandler`. They do not call Entra. The end-to-end smoke test starts the API with `ASPNETCORE_ENVIRONMENT=E2e` and `E2E_AUTH=true` (both are required; that handler is not registered otherwise) and a browser session flag. It needs Postgres on `127.0.0.1:5432` with user, password, and database `gymbro`.
 
-CI is `.github/workflows/tests.yml`. The required job name is `tests`. It runs backend tests, the frontend checks, the Playwright smoke test, and the Docker image build. A separate `prototype` job runs `npm ci && npm run build` in `prototype/` and is not part of that check.
+CI is `.github/workflows/tests.yml`. The required job name is `tests`. It runs backend tests, the frontend checks, the Playwright smoke test on Chromium and WebKit (each at 390, 820, and 1440), then the axe spec (`npx playwright test --config e2e/retro.config.ts`) on Chromium and WebKit. The smoke step and the axe step both bind ports 8100 and 5173, so CI runs them one after the other. The Docker image build is last. A separate `prototype` job runs `npm ci && npm run build && node scripts/unit-trend.mjs` in `prototype/` and is not part of the `tests` check.
 
 New migrations, when you need one:
 
@@ -241,4 +263,4 @@ dotnet tool run dotnet-ef -- migrations add <Name> --project backend/GymBro.Api 
 
 ## Later pull requests
 
-The weight chart, food logging screens, Today, Log, and Progress are not in this pull request. Logging on a past day will require picking a time, the food sheet will stay open after Add on a phone, and Copy will default to Today. Workouts are out of scope. There is no meal field on a log entry.
+Food logging screens are still placeholders. Logging on a past day will require picking a time, the food sheet will stay open after Add on a phone, and Copy will default to Today. Workouts are out of scope. There is no meal field on a log entry.

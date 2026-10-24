@@ -92,7 +92,7 @@ public static class ProfileEndpoints
             return Results.Ok(new ProfileStateResponse(ToResponse(profile), ToWeight(weight), ToTargets(current), Matvaretabellen.Citation));
         }
 
-        var reason = ProfileRules.ReasonFor(profile, normalized);
+        var reasons = ProfileRules.ReasonFor(profile, normalized);
         if (profile is null)
         {
             profile = new Profile { UserId = userId, CreatedAt = now };
@@ -102,7 +102,7 @@ public static class ProfileEndpoints
         ProfileRules.Apply(profile, normalized);
         profile.UpdatedAt = now;
         var result = NutritionMath.Calculate(ProfileRules.ToInput(normalized, weightKg, today.Year));
-        db.TargetHistories.Add(TargetBook.NewRow(userId, today, result, weightKg, reason, now));
+        await TargetBook.StageAsync(db, userId, today, result, weightKg, reasons, now, cancellationToken);
         await db.SaveChangesAsync(cancellationToken);
 
         var saved = await TargetBook.InEffectAsync(db, userId, today, cancellationToken);
@@ -226,7 +226,8 @@ public static class ProfileEndpoints
             row.FatGrams,
             row.CarbGrams,
             row.FloorApplied,
-            row.Reason,
+            row.LatestReason,
+            row.Reasons,
             row.WeightKg);
 }
 
@@ -307,6 +308,7 @@ public sealed record TargetsResponse(
     int Carbs,
     bool FloorApplied,
     string Reason,
+    IReadOnlyList<string> Reasons,
     decimal WeightKg);
 
 public sealed record ProfileStateResponse(

@@ -91,6 +91,79 @@ public sealed class OpenFoodFactsTests
         Assert.Equal(OffStatus.Unavailable, (await other.SearchAsync("oats", CancellationToken.None)).Status);
     }
 
+    [Fact]
+    public async Task An_oversized_response_is_unavailable()
+    {
+        var advertised = new ScriptedHandler
+        {
+            Respond = _ =>
+            {
+                var message = new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent("""{"products":[]}""", Encoding.UTF8, "application/json"),
+                };
+                message.Content.Headers.ContentLength = OpenFoodFactsClient.MaxResponseBytes + 1;
+                return message;
+            },
+        };
+        using var http = new HttpClient(advertised);
+        var client = new OpenFoodFactsClient(http, new OpenFoodFactsGate(new ManualTimeProvider()), Options.Create(new FoodOptions()));
+        Assert.Equal(OffStatus.Unavailable, (await client.SearchAsync("oats", CancellationToken.None)).Status);
+
+        var streamed = new ScriptedHandler
+        {
+            Respond = _ => new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StreamContent(new UnboundedStream(OpenFoodFactsClient.MaxResponseBytes + 8)),
+            },
+        };
+        using var streamedHttp = new HttpClient(streamed);
+        var streamedClient = new OpenFoodFactsClient(streamedHttp, new OpenFoodFactsGate(new ManualTimeProvider()), Options.Create(new FoodOptions()));
+        Assert.Equal(OffStatus.Unavailable, (await streamedClient.SearchAsync("oats", CancellationToken.None)).Status);
+    }
+
+    private sealed class UnboundedStream(int bytes) : Stream
+    {
+        private int _left = bytes;
+
+        public override bool CanRead => true;
+
+        public override bool CanSeek => false;
+
+        public override bool CanWrite => false;
+
+        public override long Length => throw new NotSupportedException();
+
+        public override long Position
+        {
+            get => throw new NotSupportedException();
+            set => throw new NotSupportedException();
+        }
+
+        public override void Flush()
+        {
+        }
+
+        public override int Read(byte[] buffer, int offset, int count)
+        {
+            if (_left == 0)
+            {
+                return 0;
+            }
+
+            var n = Math.Min(count, _left);
+            Array.Fill(buffer, (byte)' ', offset, n);
+            _left -= n;
+            return n;
+        }
+
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+
+        public override void SetLength(long value) => throw new NotSupportedException();
+
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+    }
+
     private sealed class ScriptedHandler : HttpMessageHandler
     {
         public int Calls { get; private set; }

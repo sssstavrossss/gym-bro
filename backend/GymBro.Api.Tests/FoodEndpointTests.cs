@@ -25,6 +25,8 @@ public sealed class FoodEndpointTests(ApiFactory factory)
         using var clientB = factory.AsUser(userB);
         var found = await clientA.GetFromJsonAsync<JsonElement>("/api/foods/search?q=Fictional%20oat");
         var food = Assert.Single(found.GetProperty("foods").EnumerateArray());
+        Assert.Equal("mvt", food.GetProperty("source").GetString());
+        Assert.Equal("per_100", food.GetProperty("nutrientBasis").GetString());
         Assert.Equal(100, food.GetProperty("kcalPer100").GetDecimal());
         Assert.Equal(40, food.GetProperty("servingQuantity").GetDecimal());
         Assert.Equal(12, food.GetProperty("pieceQuantity").GetDecimal());

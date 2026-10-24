@@ -49,9 +49,13 @@ services:
       Postgres__Password: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
       Foods__OpenFoodFactsUserAgent: "${OPENFOODFACTS_USER_AGENT:-GymBro/1.0 (self-hosted nutrition tracker)}"
       Foods__MatvaretabellenUrl: "${MATVARETABELLEN_URL:-https://www.matvaretabellen.no/api/nb/foods.json}"
+      DataProtection__KeysPath: /var/lib/gymbro/keys
     ports:
       - "${BIND_ADDRESS:-127.0.0.1}:${BIND_PORT:-8100}:${BIND_PORT:-8100}"
+    volumes:
+      - gymbro-dataprotection:/var/lib/gymbro/keys
     restart: unless-stopped
 
 volumes:
   gymbro-postgres:
+  gymbro-dataprotection:

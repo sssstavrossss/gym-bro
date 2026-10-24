@@ -188,14 +188,34 @@ public static class ProfileRules
         && profile.FatPercent == next.FatPercent
         && profile.TimeZone == next.TimeZone;
 
-    public static string ReasonFor(Profile? before, NormalizedProfile next)
+    /// <summary>
+    /// Every reason this save should record. A new profile is a profile change.
+    /// Editing body fields and macros in one save keeps both reasons.
+    /// </summary>
+    public static IReadOnlyList<string> ReasonFor(Profile? before, NormalizedProfile next)
     {
-        if (before is null || !MacroOnly(before, next))
+        if (before is null)
         {
-            return TargetReasons.ProfileChange;
+            return [TargetReasons.ProfileChange];
         }
 
-        return TargetReasons.MacroBalanceChange;
+        var reasons = new List<string>(2);
+        if (!SameBody(before, next))
+        {
+            reasons.Add(TargetReasons.ProfileChange);
+        }
+
+        if (MacrosChanged(before, next))
+        {
+            reasons.Add(TargetReasons.MacroBalanceChange);
+        }
+
+        if (reasons.Count == 0)
+        {
+            reasons.Add(TargetReasons.ProfileChange);
+        }
+
+        return reasons;
     }
 
     public static void Apply(Profile profile, NormalizedProfile next)
@@ -236,22 +256,21 @@ public static class ProfileRules
         profile.ProteinGramsPerKg,
         profile.FatPercent);
 
-    private static bool MacroOnly(Profile before, NormalizedProfile next)
-    {
-        var bodySame = before.Sex == next.Sex
-            && before.BirthYear == next.BirthYear
-            && before.HeightCm == next.HeightCm
-            && before.Activity == next.Activity
-            && before.Goal == next.Goal
-            && before.RateKgPerWeek == next.RateKgPerWeek
-            && before.GoalWeightKg == next.GoalWeightKg
-            && before.TimeZone == next.TimeZone;
-        var macroChanged = before.ProteinSetting != next.ProteinSetting
-            || before.ProteinGramsPerKg != next.ProteinGramsPerKg
-            || before.FatSetting != next.FatSetting
-            || before.FatPercent != next.FatPercent;
-        return bodySame && macroChanged;
-    }
+    private static bool SameBody(Profile before, NormalizedProfile next) =>
+        before.Sex == next.Sex
+        && before.BirthYear == next.BirthYear
+        && before.HeightCm == next.HeightCm
+        && before.Activity == next.Activity
+        && before.Goal == next.Goal
+        && before.RateKgPerWeek == next.RateKgPerWeek
+        && before.GoalWeightKg == next.GoalWeightKg
+        && before.TimeZone == next.TimeZone;
+
+    private static bool MacrosChanged(Profile before, NormalizedProfile next) =>
+        before.ProteinSetting != next.ProteinSetting
+        || before.ProteinGramsPerKg != next.ProteinGramsPerKg
+        || before.FatSetting != next.FatSetting
+        || before.FatPercent != next.FatPercent;
 
     private static string Lower(string? value) => (value ?? "").Trim().ToLowerInvariant();
 }

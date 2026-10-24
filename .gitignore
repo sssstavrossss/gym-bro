@@ -29,6 +29,9 @@ playwright-report/
 test-results/
 blob-report/
 
+# Data Protection keys (Development, Testing, E2e)
+.data/
+
 # Local databases
 *.db
 *.db-wal

@@ -68,6 +68,7 @@ public static class FoodCatalog
             row.Barcode = parsed.Barcode;
             row.Name = Trim(parsed.Name, 300);
             row.Basis = parsed.Basis == "ml" ? "ml" : "g";
+            row.NutrientBasis = NutrientBases.Per100;
             row.KcalPer100 = parsed.KcalPer100;
             row.ProteinPer100 = parsed.ProteinPer100;
             row.FatPer100 = parsed.FatPer100;

@@ -146,6 +146,7 @@ test("fresh start Recalculate writes today's fresh_start target", async ({ page 
   await expect(page.getByRole("heading", { name: "Fresh start" })).toHaveCount(0);
   const after = await (await page.request.get("/api/profile", { headers: headers(oid) })).json();
   expect(after.targets.reason).toBe("fresh_start");
+  expect(after.targets.reasons).toEqual(["profile_change", "fresh_start"]);
   expect(after.targets.weightKg).toBe(90);
   await expect(page.getByText(/New target from today/)).toBeHidden({ timeout: 6000 });
   await expectClean(page);

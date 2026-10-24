@@ -315,13 +315,13 @@ public static class WeighInEndpoints
         }
 
         var result = NutritionMath.Calculate(ProfileRules.ToInput(profile, trendKg, today.Year));
-        var row = await TargetBook.UpsertTodayAsync(
+        var row = await TargetBook.StageAsync(
             db,
             userId,
             today,
             result,
             trendKg,
-            TargetReasons.FreshStart,
+            [TargetReasons.FreshStart],
             clock.GetUtcNow(),
             cancellationToken);
         await db.SaveChangesAsync(cancellationToken);
