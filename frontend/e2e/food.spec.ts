@@ -94,7 +94,7 @@ async function openQuickAdd(page: Page, width: number) {
     await page.getByRole("button", { name: "Add food" }).click();
   } else {
     await page.getByRole("button", { name: "Add", exact: true }).click();
-    await page.getByRole("button", { name: "Food" }).click();
+    await page.getByRole("dialog", { name: "Add" }).getByRole("button", { name: /Search or quick add/ }).click();
   }
   await expect(page.getByRole("heading", { name: "Add food" })).toBeVisible();
   await expect(page.getByRole("radio", { name: "Quick Add" })).toBeChecked();
@@ -118,7 +118,7 @@ test("today empty, quick add, on target, edit, undo, and no sideways scroll", as
   await expectClean(page);
 
   await page.getByRole("button", { name: "Add", exact: true }).click();
-  const food = page.getByRole("button", { name: "Food" });
+  const food = page.getByRole("dialog", { name: "Add" }).getByRole("button", { name: /Search or quick add/ });
   const foodBox = await food.boundingBox();
   expect(foodBox!.width).toBeGreaterThanOrEqual(44);
   expect(foodBox!.height).toBeGreaterThanOrEqual(44);
