@@ -17,7 +17,7 @@ public sealed class LogEntryEndpointTests(ApiFactory factory)
         factory.Clock.UtcNow = new DateTimeOffset(2026, 10, 24, 8, 0, 0, TimeSpan.Zero);
         var user = TestData.NewUser("quick");
         using var client = factory.AsUser(user);
-        await TestData.PutProfile(client, TestData.Profile());
+        await Setup(client, "2026-10-24");
 
         var created = await client.PostAsync("/api/log-entries", Json(Quick("same-key", "2026-10-24", "\"12,5\"")));
         Assert.Equal(HttpStatusCode.Created, created.StatusCode);
@@ -46,7 +46,7 @@ public sealed class LogEntryEndpointTests(ApiFactory factory)
     {
         factory.Clock.UtcNow = new DateTimeOffset(2026, 10, 24, 8, 0, 0, TimeSpan.Zero);
         using var client = factory.AsUser(TestData.NewUser("limits"));
-        await TestData.PutProfile(client, TestData.Profile());
+        await Setup(client, "2026-10-24");
 
         Assert.Equal(HttpStatusCode.BadRequest, (await client.PostAsync("/api/log-entries", Json(Quick("k1", "2026-10-24", "10001")))).StatusCode);
         Assert.Equal(HttpStatusCode.BadRequest, (await client.PostAsync("/api/log-entries", Json("""
@@ -80,7 +80,7 @@ public sealed class LogEntryEndpointTests(ApiFactory factory)
     {
         factory.Clock.UtcNow = new DateTimeOffset(2026, 10, 20, 9, 0, 0, TimeSpan.Zero);
         using var client = factory.AsUser(TestData.NewUser("window"));
-        await TestData.PutProfile(client, TestData.Profile());
+        await Setup(client, "2026-10-20");
         factory.Clock.UtcNow = new DateTimeOffset(2026, 10, 24, 9, 0, 0, TimeSpan.Zero);
 
         Assert.Equal(HttpStatusCode.BadRequest, (await client.PostAsync("/api/log-entries", Json(Quick("d1", "2026-10-25")))).StatusCode);
@@ -103,7 +103,7 @@ public sealed class LogEntryEndpointTests(ApiFactory factory)
     {
         factory.Clock.UtcNow = new DateTimeOffset(2026, 10, 1, 8, 0, 0, TimeSpan.Zero);
         using var client = factory.AsUser(TestData.NewUser("zone"));
-        await TestData.PutProfile(client, TestData.Profile());
+        await Setup(client, "2026-10-01");
         factory.Clock.UtcNow = new DateTimeOffset(2026, 10, 30, 14, 0, 0, TimeSpan.Zero);
 
         var unknown = await client.PostAsync("/api/log-entries", Json(Quick("z0", "2026-10-30", "10", null, "Not/AZone")));
@@ -127,7 +127,7 @@ public sealed class LogEntryEndpointTests(ApiFactory factory)
         factory.Clock.UtcNow = new DateTimeOffset(2026, 10, 24, 8, 15, 0, TimeSpan.Zero);
         var user = TestData.NewUser("undo");
         using var client = factory.AsUser(user);
-        await TestData.PutProfile(client, TestData.Profile());
+        await Setup(client, "2026-10-24");
         var created = await client.PostAsync("/api/log-entries", Json(Quick("undo-1", "2026-10-24", "200", "\"time\":\"08:15\"")));
         var body = await created.Content.ReadFromJsonAsync<JsonElement>();
         var id = body.GetProperty("id").GetGuid();
@@ -163,7 +163,7 @@ public sealed class LogEntryEndpointTests(ApiFactory factory)
     {
         factory.Clock.UtcNow = new DateTimeOffset(2026, 10, 24, 8, 0, 0, TimeSpan.Zero);
         using var client = factory.AsUser(TestData.NewUser("edit"));
-        await TestData.PutProfile(client, TestData.Profile());
+        await Setup(client, "2026-10-24");
         var created = await client.PostAsync("/api/log-entries", Json(Quick("edit-1", "2026-10-24", "100", "\"time\":\"09:00\"")));
         var id = (await created.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
 
@@ -194,8 +194,8 @@ public sealed class LogEntryEndpointTests(ApiFactory factory)
         var other = TestData.NewUser("other");
         using var client = factory.AsUser(owner);
         using var stranger = factory.AsUser(other);
-        await TestData.PutProfile(client, TestData.Profile());
-        await TestData.PutProfile(stranger, TestData.Profile());
+        await Setup(client, "2026-10-24");
+        await Setup(stranger, "2026-10-24");
 
         var food = await client.PostAsJsonAsync("/api/foods", new
         {
@@ -252,6 +252,12 @@ public sealed class LogEntryEndpointTests(ApiFactory factory)
         var ownGroup = await client.PostAsync("/api/log-entries", Json(Quick("own-group", "2026-10-24", "10", $"\"groupId\":\"{groupId}\"")));
         Assert.Equal(HttpStatusCode.Created, ownGroup.StatusCode);
         Assert.Equal(groupId, (await ownGroup.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("groupId").GetGuid());
+    }
+
+    private static async Task Setup(HttpClient client, string date, string zone = "UTC")
+    {
+        await TestData.PutWeighIn(client, date, $$"""{"kg":83.6,"timeZone":"{{zone}}"}""");
+        await TestData.PutProfile(client, TestData.Profile(timeZone: zone));
     }
 
     private static async Task<HttpResponseMessage> PostAmount(HttpClient client, string key, decimal amount, string unit)

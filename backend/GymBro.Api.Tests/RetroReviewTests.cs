@@ -275,11 +275,11 @@ public sealed class RetroApiTests(ApiFactory factory)
     }
 
     [Fact]
-    public async Task There_is_no_log_entry_endpoint()
+    public async Task Log_entries_reject_a_request_without_a_date_or_key()
     {
         using var client = factory.AsUser(TestData.NewUser("nolog"));
-        Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync("/api/log-entries")).StatusCode);
-        Assert.Equal(HttpStatusCode.NotFound, (await client.PostAsJsonAsync("/api/log-entries", new { name = "oats" })).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await client.GetAsync("/api/log-entries")).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await client.PostAsJsonAsync("/api/log-entries", new { name = "oats" })).StatusCode);
     }
 
     [Fact]
