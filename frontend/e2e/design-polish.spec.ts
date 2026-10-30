@@ -462,3 +462,172 @@ test("trend info stays clear of the weight label at AX5", async ({ page }) => {
   expect(infoBox?.width).toBeGreaterThanOrEqual(44);
   expect(infoBox?.height).toBeGreaterThanOrEqual(44);
 });
+
+async function setRoot(page: Page, px: number | null) {
+  await page.evaluate((size) => {
+    document.documentElement.style.fontSize = size == null ? "" : `${size}px`;
+    window.dispatchEvent(new Event("resize"));
+  }, px);
+}
+
+function overlapsY(
+  a: { x: number; y: number; width: number; height: number },
+  b: { x: number; y: number; width: number; height: number },
+) {
+  return a.y < b.y + b.height && a.y + a.height > b.y;
+}
+
+test("large text keeps the close button, units, and the info hit target", async ({ page }) => {
+  const oid = `e2e-polish-ax-layout-${Date.now()}`;
+  const when = await clock(page);
+  await putWeighIn(page.request, oid, when.yesterday, 80, when.zone);
+  await putWeighIn(page.request, oid, when.today, 82.9, when.zone, true);
+  await putProfile(page.request, oid, when.zone);
+  await openToday(page, oid, 390);
+
+  for (const px of [17, 28, 53]) {
+    await setRoot(page, px);
+    const label = page.locator(".wcard .trendline .t-cap");
+    const info = page.getByRole("button", { name: "What is the trend?" });
+    await expect(info).toBeVisible();
+    const infoBox = await info.boundingBox();
+    expect(infoBox).toBeTruthy();
+    expect(Math.round(infoBox!.width)).toBe(44);
+    expect(Math.round(infoBox!.height)).toBe(44);
+    if (px >= 28) {
+      const labelBox = await label.boundingBox();
+      expect(labelBox && intersects(labelBox, infoBox!)).toBe(false);
+      const hits = await page.evaluate(([x, y]) => [[-21, -21], [21, -21], [-21, 21], [21, 21], [0, 0]].every(([dx, dy]) => (
+        !!document.elementFromPoint(x + dx, y + dy)?.closest(".ibtn")
+      )), [infoBox!.x + infoBox!.width / 2, infoBox!.y + infoBox!.height / 2]);
+      expect(hits).toBe(true);
+    }
+  }
+
+  for (const px of [17, 23, 53]) {
+    await setRoot(page, px);
+    await page.getByRole("button", { name: /Open weight|Log weight/ }).first().click();
+    const sheet = page.getByRole("dialog", { name: "Log weight" });
+    await expect(sheet.getByRole("heading", { name: "Log weight" })).toBeVisible();
+    await expect.poll(async () => {
+      const title = await sheet.getByRole("heading", { name: "Log weight" }).boundingBox();
+      const close = await sheet.getByRole("button", { name: "Close", exact: true }).boundingBox();
+      const day = await sheet.locator(".daybtn").boundingBox();
+      if (!title || !close || !day) return "missing";
+      const closeOnTitle = overlapsY(close, title) && close.x >= title.x + title.width - 1;
+      const dayOnTitle = overlapsY(day, title) && day.x < close.x;
+      const dayBelow = day.y >= title.y + title.height - 1 && day.y >= close.y + close.height - 1;
+      if (!closeOnTitle) return "close-wrapped";
+      if (px === 17 && !dayOnTitle) return "day-left-header";
+      if (px === 53 && !dayBelow) return "day-still-in-header";
+      if (!dayOnTitle && !dayBelow) return "day-overlap";
+      return "ok";
+    }).toBe("ok");
+
+    const historyRow = sheet.locator(".hrow").first();
+    const history = historyRow.locator(".hval");
+    await history.scrollIntoViewIfNeeded();
+    expect((await history.innerText()).replace(/\s+/g, " ").trim()).toBe("80.0 kg");
+    const historyLines = await history.evaluate((node) => node.getClientRects().length);
+    expect(historyLines).toBe(1);
+    if (px >= 28) {
+      const dateBox = await historyRow.locator(".t-body").boundingBox();
+      const valueBox = await history.boundingBox();
+      expect(dateBox && valueBox).toBeTruthy();
+      expect(valueBox!.y).toBeGreaterThanOrEqual(dateBox!.y + dateBox!.height - 1);
+    }
+
+    if (px === 53) {
+      await sheet.getByRole("button", { name: "Weigh-in day" }).click();
+      const dayRows = await sheet.locator(".dayopt").evaluateAll((nodes) => nodes.map((node) => {
+        const box = node.getBoundingClientRect();
+        const text = [...node.querySelectorAll("span")].map((span) => span.getBoundingClientRect());
+        return {
+          top: box.top,
+          bottom: Math.max(box.bottom, ...text.map((rect) => rect.bottom)),
+        };
+      }));
+      expect(dayRows.length).toBeGreaterThan(1);
+      for (let index = 1; index < dayRows.length; index += 1) {
+        expect(dayRows[index].top).toBeGreaterThanOrEqual(dayRows[index - 1].bottom - 1);
+      }
+      const option = sheet.getByRole("option", { name: /Yesterday/ });
+      const wordLines = await option.locator(".grow").evaluate((node) => {
+        const text = node.firstChild;
+        if (!text) return 0;
+        const start = (text.textContent || "").indexOf("Yesterday");
+        const range = document.createRange();
+        range.setStart(text, start);
+        range.setEnd(text, start + "Yesterday".length);
+        return range.getClientRects().length;
+      });
+      expect(wordLines).toBe(1);
+      const nameBox = await option.locator(".grow").boundingBox();
+      const kgBox = await option.locator(".t-label").boundingBox();
+      expect(nameBox && kgBox).toBeTruthy();
+      expect(kgBox!.y).toBeGreaterThanOrEqual(nameBox!.y + nameBox!.height - 1);
+      await page.keyboard.press("Escape");
+    }
+
+    await sheet.getByRole("button", { name: "Close", exact: true }).click();
+    await expect(sheet).toHaveCount(0);
+  }
+
+  await page.getByRole("link", { name: "Profile" }).click();
+  await expect(page.getByRole("heading", { name: "Profile", exact: true })).toBeVisible();
+  for (const px of [17, 23, 53]) {
+    await setRoot(page, px);
+    const kicker = page.locator(".about .about-kicker");
+    await kicker.scrollIntoViewIfNeeded();
+    const caption = await kicker.evaluate((node) => ({
+      text: node.innerText.trim(),
+      transform: getComputedStyle(node).textTransform,
+    }));
+    if (px >= 22) {
+      expect(caption).toEqual({ text: "ABOUT YOU", transform: "uppercase" });
+    } else {
+      expect(caption).toEqual({ text: "About you", transform: "none" });
+    }
+
+    const height = page.locator(".about .frow", { hasText: "Height" });
+    await height.scrollIntoViewIfNeeded();
+    const label = await height.locator(":scope > span.t-body").boundingBox();
+    const input = height.locator("input");
+    const inputBox = await input.boundingBox();
+    const unit = await height.locator(".fval > span").boundingBox();
+    expect(label && inputBox && unit).toBeTruthy();
+    expect(unit!.x).toBeGreaterThan(inputBox!.x + inputBox!.width - 1);
+    expect(overlapsY(inputBox!, unit!)).toBe(true);
+    expect(await input.inputValue()).toBe("180");
+    expect(await input.evaluate((node) => node.scrollWidth <= node.clientWidth + 1)).toBe(true);
+    if (px >= 22) {
+      expect(inputBox!.y).toBeGreaterThanOrEqual(label!.y + label!.height - 2);
+      expect(Math.abs(inputBox!.x - label!.x)).toBeLessThan(2);
+    } else {
+      expect(inputBox!.x).toBeGreaterThan(label!.x + label!.width);
+      expect(Math.abs((inputBox!.y + inputBox!.height / 2) - (label!.y + label!.height / 2))).toBeLessThan(10);
+    }
+
+    const sexRow = page.locator(".about .sexrow");
+    const sexLabel = await sexRow.locator(":scope > span.t-body").boundingBox();
+    const sex = await sexRow.locator(".seg").boundingBox();
+    const row = await sexRow.boundingBox();
+    expect(sexLabel && sex && row).toBeTruthy();
+    if (px >= 22) {
+      expect(sex!.width).toBeGreaterThanOrEqual(row!.width - 2);
+      expect(sex!.y).toBeGreaterThanOrEqual(sexLabel!.y + sexLabel!.height - 2);
+    }
+
+    const weight = page.locator(".about .frow", { hasText: "Weight" }).locator(".fval");
+    await weight.scrollIntoViewIfNeeded();
+    await expect(weight).toHaveText(/^\d+\.\d\s+kg$/);
+    expect(await weight.evaluate((node) => node.getClientRects().length)).toBe(1);
+
+    const goal = page.locator(".frow", { hasText: "Goal weight" }).locator(".fval");
+    await goal.scrollIntoViewIfNeeded();
+    const goalInput = await goal.locator("input").boundingBox();
+    const goalUnit = await goal.locator("span").boundingBox();
+    expect(goalInput && goalUnit && overlapsY(goalInput, goalUnit)).toBe(true);
+    expect(goalUnit!.x).toBeGreaterThan(goalInput!.x);
+  }
+});

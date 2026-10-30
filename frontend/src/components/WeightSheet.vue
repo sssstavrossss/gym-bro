@@ -21,6 +21,7 @@ const confirmEl = ref<HTMLElement | null>(null);
 const localError = ref("");
 const dayOpen = ref(false);
 const dayTight = ref(false);
+const dayBelow = ref(false);
 const dayRoot = ref<HTMLElement | null>(null);
 let dayObserver: ResizeObserver | undefined;
 
@@ -49,29 +50,40 @@ const closedDayLabel = computed(() => {
   return diffDays(today.value, ui.weightDate) === 0 ? "Today" : dayMonth(ui.weightDate);
 });
 
+function textWidth(node: HTMLElement) {
+  const probe = document.createElement("span");
+  const style = getComputedStyle(node);
+  probe.textContent = node.textContent;
+  probe.style.cssText = `position:absolute;left:0;top:0;visibility:hidden;white-space:nowrap;font:${style.font};letter-spacing:${style.letterSpacing};`;
+  document.body.append(probe);
+  const width = probe.getBoundingClientRect().width;
+  probe.remove();
+  return width;
+}
+
 function fitDayLabel() {
   const root = dayRoot.value;
-  const header = root?.parentElement;
+  const lead = root?.parentElement;
   const probe = root?.querySelector(".daymeasure");
-  const title = header?.querySelector("h2");
-  const close = header?.querySelector(".cbtn");
-  if (!root || !header || !(probe instanceof HTMLElement) || !title || !close) return;
-  const style = getComputedStyle(header);
+  const title = lead?.querySelector("h2");
+  if (!root || !lead || !(probe instanceof HTMLElement) || !(title instanceof HTMLElement)) return;
+  const style = getComputedStyle(lead);
   const gap = Number.parseFloat(style.columnGap || style.gap || "8") || 8;
-  const wrapped = root.offsetTop > title.offsetTop + 4;
-  const room = wrapped
-    ? header.clientWidth
-    : header.clientWidth - title.getBoundingClientRect().width - close.getBoundingClientRect().width - gap * 2;
-  const next = probe.scrollWidth + 36 > room + 1;
-  if (next !== dayTight.value) dayTight.value = next;
+  const below = root.offsetTop > title.offsetTop + 4;
+  const room = below ? lead.clientWidth : Math.max(0, lead.clientWidth - textWidth(title) - gap);
+  const tight = probe.scrollWidth + 36 > room + 1;
+  if (below !== dayBelow.value) dayBelow.value = below;
+  if (tight !== dayTight.value) dayTight.value = tight;
 }
 
 function watchDayFit() {
   dayObserver?.disconnect();
-  const header = dayRoot.value?.parentElement;
-  if (!header) return;
+  const lead = dayRoot.value?.parentElement;
+  const header = lead?.parentElement;
+  if (!lead) return;
   dayObserver = new ResizeObserver(() => fitDayLabel());
-  dayObserver.observe(header);
+  dayObserver.observe(lead);
+  if (header) dayObserver.observe(header);
   fitDayLabel();
 }
 
@@ -94,11 +106,13 @@ function keyDay(event: KeyboardEvent) {
 onMounted(() => {
   document.addEventListener("pointerdown", awayDay, true);
   document.addEventListener("keydown", keyDay, true);
+  window.addEventListener("resize", fitDayLabel);
 });
 onBeforeUnmount(() => {
   dayObserver?.disconnect();
   document.removeEventListener("pointerdown", awayDay, true);
   document.removeEventListener("keydown", keyDay, true);
+  window.removeEventListener("resize", fitDayLabel);
 });
 const canDelete = computed(() => selected.value?.canDelete === true);
 const onlyWeighIn = computed(() => selected.value != null && selected.value.canDelete === false);
@@ -118,6 +132,7 @@ watch(open, async (isOpen) => {
     return;
   }
   dayTight.value = false;
+  dayBelow.value = false;
   if (ui.keepWeightDraft) {
     ui.keepWeightDraft = false;
     await nextTick();
@@ -240,23 +255,25 @@ const diffText = computed(() => (
 <template>
   <BottomSheet :open="open" label="Log weight" @close="closeSheet">
     <template #header>
-      <div class="row hdr">
-        <h2 class="t-head">Log weight</h2>
-        <div ref="dayRoot" class="daypick">
-          <span class="daymeasure t-label" aria-hidden="true">{{ longDayLabel }}</span>
-          <button type="button" class="daybtn" :aria-label="`Weigh-in day, ${closedDayLabel}`" :aria-expanded="dayOpen" aria-haspopup="listbox" @click.stop="dayOpen = !dayOpen">
-            <span class="dayface t-label" aria-hidden="true">{{ closedDayLabel }}</span>
-            <span class="daychev" aria-hidden="true" />
-          </button>
-          <div v-if="dayOpen" class="daymenu" role="listbox" aria-label="Weigh-in day">
-            <button v-for="option in dayOptions" :key="option.value" type="button" role="option" class="dayopt" :data-date="option.value" :aria-selected="option.value === ui.weightDate" @click="chooseDay(option.value)">
-              <span class="grow">{{ option.title }}</span>
-              <span v-if="option.kgText" class="t-label c3">{{ option.kgText }}</span>
-              <Icon v-if="option.value === ui.weightDate" name="check" :size="16" :sw="2.6" />
+      <div class="hdr" :class="{ below: dayBelow }">
+        <div class="lead">
+          <h2 class="t-head htitle">Log weight</h2>
+          <div ref="dayRoot" class="daypick">
+            <span class="daymeasure t-label" aria-hidden="true">{{ longDayLabel }}</span>
+            <button type="button" class="daybtn" :aria-label="`Weigh-in day, ${closedDayLabel}`" :aria-expanded="dayOpen" aria-haspopup="listbox" @click.stop="dayOpen = !dayOpen">
+              <span class="dayface t-label" aria-hidden="true">{{ closedDayLabel }}</span>
+              <span class="daychev" aria-hidden="true" />
             </button>
+            <div v-if="dayOpen" class="daymenu" role="listbox" aria-label="Weigh-in day">
+              <button v-for="option in dayOptions" :key="option.value" type="button" role="option" class="dayopt" :data-date="option.value" :aria-selected="option.value === ui.weightDate" @click="chooseDay(option.value)">
+                <span class="grow">{{ option.title }}</span>
+                <span v-if="option.kgText" class="t-label c3">{{ option.kgText }}</span>
+                <Icon v-if="option.value === ui.weightDate" name="check" :size="16" :sw="2.6" />
+              </button>
+            </div>
           </div>
         </div>
-        <button type="button" class="cbtn" aria-label="Close" @click="closeSheet">×</button>
+        <button type="button" class="cbtn hclose" aria-label="Close" @click="closeSheet">×</button>
       </div>
     </template>
     <form class="row wfield" @submit.prevent="save(false)">
@@ -329,27 +346,36 @@ const diffText = computed(() => (
     <div class="col">
       <button v-for="row in history" :key="row.localDate" type="button" class="row hrow" @click="ui.weightDate = row.localDate">
         <span class="t-body c2 grow">{{ shortDate(row.localDate) }}</span>
-        <span class="t-bodys">{{ kg(row.kg) }}</span><span class="t-label c2"> kg</span>
+        <span class="hval"><span class="t-bodys">{{ kg(row.kg) }}</span><span class="t-label c2"> kg</span></span>
       </button>
     </div>
   </BottomSheet>
 </template>
 
 <style scoped>
-.hdr { display: grid; grid-template-columns: max-content minmax(0, 1fr) 44px; gap: 8px; align-items: center; }
+/* Title and × share one row at every text size. The day stays on that row when it fits, and wraps under them when it does not. */
+.hdr { display: flex; flex-wrap: nowrap; align-items: center; gap: 8px; }
+.hdr.below { align-items: flex-start; }
+.lead { display: flex; flex: 1 1 auto; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
+.htitle { flex: 1 1 auto; min-width: 0; margin: 0; overflow-wrap: anywhere; }
+.hclose { flex: none; }
+.hdr.below .htitle { padding-top: max(0px, calc((44px - 1.2941rem) / 2)); }
+.hdr.below .hclose { margin-top: max(0px, calc((1.2941rem - 44px) / 2)); }
 .m0 { margin: 0; }
-.daypick { position: relative; justify-self: end; min-width: 0; max-width: 100%; }
+.daypick { position: relative; flex: 0 0 auto; min-width: 0; max-width: 100%; }
 .daymeasure { position: absolute; visibility: hidden; white-space: nowrap; height: 0; overflow: hidden; pointer-events: none; }
 .daybtn { display: inline-flex; align-items: center; gap: 4px; min-height: 44px; max-width: 100%; padding: 0 10px 0 12px; border-radius: 16px; background: var(--color-surface-2); color: var(--text-primary); }
 .dayface { white-space: nowrap; overflow: hidden; min-width: 0; }
 .daychev { flex: none; width: 8px; height: 8px; margin-right: 2px; border-right: 1.5px solid var(--text-secondary); border-bottom: 1.5px solid var(--text-secondary); transform: translateY(-2px) rotate(45deg); }
 .daymenu { position: absolute; right: 0; top: calc(100% + 6px); z-index: 41; min-width: 220px; max-width: calc(100vw - 32px); max-height: min(70vh, 560px); overflow: auto; background: #2f2f34; border-radius: 14px; padding: 6px; box-shadow: 0 12px 32px rgba(0, 0, 0, .6); display: flex; flex-direction: column; }
-.dayopt { display: flex; align-items: center; gap: 10px; min-height: 44px; width: 100%; padding: 0 10px; border-radius: 10px; text-align: left; color: var(--text-primary); }
+.dayopt { flex: none; display: flex; align-items: center; gap: 10px; min-height: 44px; width: 100%; padding: 0 10px; border-radius: 10px; text-align: left; color: var(--text-primary); }
 .dayopt[aria-selected="true"] { background: transparent; }
 .dayopt:active { background: #3a3a40; }
-.dt-xl .hdr { display: flex; flex-wrap: wrap; align-items: center; row-gap: 8px; }
-.dt-xl .hdr h2 { flex: 1 1 auto; min-width: 0; }
-.dt-xl .daypick { flex: 1 1 100%; max-width: 100%; justify-self: stretch; }
+.hdr.below .daymenu { left: 0; right: auto; }
+.dt-l .dayopt { padding: 6px 10px; }
+.dt-l .dayopt .grow { min-width: 0; overflow-wrap: anywhere; }
+.dt-xl .dayopt { flex-wrap: wrap; align-items: flex-start; row-gap: 0; padding: 8px 10px; }
+.dt-xl .dayopt .grow { flex: 1 1 100%; overflow-wrap: break-word; }
 .wfield { gap: 12px; align-items: center; }
 .wfield label { gap: 6px; min-width: 0; }
 .autosize { display: inline-grid; min-height: 44px; }
@@ -373,6 +399,9 @@ const diffText = computed(() => (
 .chip.big { min-height: 44px; padding: 0 16px; border-radius: 22px; color: var(--text-primary); }
 .chip.big.on { color: var(--color-on-action); }
 .hrow { min-height: 44px; border-top: 1px solid var(--color-border); width: 100%; text-align: left; }
+.dt-xl .hrow { flex-wrap: wrap; align-items: flex-start; }
+.dt-xl .hrow > .grow { flex: 1 0 100%; }
+.hval { display: inline-flex; align-items: baseline; white-space: nowrap; flex: none; }
 .dlink { color: var(--text-secondary); text-decoration: underline; text-underline-offset: 2px; min-height: 44px; min-width: 44px; }
 .only { gap: 12px; align-items: center; margin-top: -6px; }
 .only p { min-width: 0; text-wrap: pretty; }

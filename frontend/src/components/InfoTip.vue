@@ -1,10 +1,23 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref, useId } from "vue";
+import { nextTick, onBeforeUnmount, onMounted, ref, useId, watch } from "vue";
 
 defineProps<{ label: string }>();
 const open = ref(false);
 const root = ref<HTMLElement | null>(null);
+const pop = ref<HTMLElement | null>(null);
+const shift = ref(0);
 const id = useId();
+
+watch(open, async (isOpen) => {
+  shift.value = 0;
+  if (!isOpen) return;
+  await nextTick();
+  const rect = pop.value?.getBoundingClientRect();
+  if (!rect) return;
+  const over = rect.right - (window.innerWidth - 16);
+  const under = 16 - rect.left;
+  shift.value = over > 0 ? -Math.min(over, Math.max(0, rect.left - 16)) : under > 0 ? under : 0;
+});
 
 function away(event: Event) {
   if (open.value && root.value && !root.value.contains(event.target as Node)) open.value = false;
@@ -33,7 +46,7 @@ onBeforeUnmount(() => {
         <path d="M9 8v5M9 5.2v.1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
       </svg>
     </button>
-    <span v-if="open" :id="id" class="pop t-capn" role="note"><slot /></span>
+    <span v-if="open" ref="pop" :id="id" class="pop t-capn" :style="shift ? { transform: `translateX(${shift}px)` } : undefined" role="note"><slot /></span>
   </span>
 </template>
 
@@ -45,9 +58,11 @@ onBeforeUnmount(() => {
   color: var(--text-secondary); border-radius: 22px;
 }
 .ibtn:hover, .ibtn[aria-expanded="true"] { color: var(--text-primary); }
-.dt-xl .ibtn { margin: 0; flex: none; }
+/* From AX1 the button's own box is the 44×44 hit target. The square fill keeps the corners, which a circle would miss. */
+.dt-xl .ibtn { width: 44px; height: 44px; min-width: 44px; min-height: 44px; margin: 0; flex: none; border-radius: 22px; }
+.dt-xl .ibtn::after { content: ""; position: absolute; inset: 0; }
 .pop {
-  position: absolute; top: calc(100% + 4px); left: -8px; width: min(264px, 80vw);
+  position: absolute; top: calc(100% + 4px); left: -8px; width: min(264px, calc(100vw - 32px));
   padding: 10px 12px; border-radius: 12px; background: var(--color-surface-2);
   border: 1px solid var(--color-border); color: var(--text-primary);
   box-shadow: 0 8px 24px rgba(0, 0, 0, .5); line-height: 1.45; text-align: left;
