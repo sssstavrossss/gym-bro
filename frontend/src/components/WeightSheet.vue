@@ -368,7 +368,7 @@ const diffText = computed(() => (
 .dayface { white-space: nowrap; overflow: hidden; min-width: 0; }
 .daychev { flex: none; width: 8px; height: 8px; margin-right: 2px; border-right: 1.5px solid var(--text-secondary); border-bottom: 1.5px solid var(--text-secondary); transform: translateY(-2px) rotate(45deg); }
 .daymenu { position: absolute; right: 0; top: calc(100% + 6px); z-index: 41; min-width: 220px; max-width: calc(100vw - 32px); max-height: min(70vh, 560px); overflow: auto; background: #2f2f34; border-radius: 14px; padding: 6px; box-shadow: 0 12px 32px rgba(0, 0, 0, .6); display: flex; flex-direction: column; }
-.dayopt { display: flex; align-items: center; gap: 10px; min-height: 44px; width: 100%; padding: 0 10px; border-radius: 10px; text-align: left; color: var(--text-primary); }
+.dayopt { flex: none; display: flex; align-items: center; gap: 10px; min-height: 44px; width: 100%; padding: 0 10px; border-radius: 10px; text-align: left; color: var(--text-primary); }
 .dayopt[aria-selected="true"] { background: transparent; }
 .dayopt:active { background: #3a3a40; }
 .hdr.below .daymenu { left: 0; right: auto; }
@@ -399,7 +399,8 @@ const diffText = computed(() => (
 .chip.big { min-height: 44px; padding: 0 16px; border-radius: 22px; color: var(--text-primary); }
 .chip.big.on { color: var(--color-on-action); }
 .hrow { min-height: 44px; border-top: 1px solid var(--color-border); width: 100%; text-align: left; }
-.dt-xl .hrow { flex-wrap: nowrap; }
+.dt-xl .hrow { flex-wrap: wrap; align-items: flex-start; }
+.dt-xl .hrow > .grow { flex: 1 0 100%; }
 .hval { display: inline-flex; align-items: baseline; white-space: nowrap; flex: none; }
 .dlink { color: var(--text-secondary); text-decoration: underline; text-underline-offset: 2px; min-height: 44px; min-width: 44px; }
 .only { gap: 12px; align-items: center; margin-top: -6px; }
