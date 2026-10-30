@@ -53,9 +53,9 @@ const macros = computed(() => {
 <style scoped>
 .macros { gap: 14px; }
 .gap6 { gap: 6px; }
-.mrow { gap: 4px; align-items: baseline; min-width: 0; }
+.mrow { gap: 4px; align-items: baseline; flex-wrap: wrap; min-width: 0; max-width: 100%; }
 .m0 { margin: 0; }
 .nt { gap: 4px; align-items: baseline; flex-wrap: wrap; }
 .nt .t-capn { margin-right: 10px; }
-.overtag { align-self: center; padding: 1px 6px; border-radius: 6px; border: 1px dashed var(--text-secondary); color: var(--text-secondary); margin-left: 2px; white-space: nowrap; }
+.overtag { align-self: center; padding: 1px 6px; border-radius: 6px; border: 1px dashed var(--text-secondary); color: var(--text-secondary); margin-left: 2px; }
 </style>

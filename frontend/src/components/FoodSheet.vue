@@ -210,7 +210,7 @@ async function deleteEdited() {
         <Icon name="alert" :size="18" class="c2" />
         <span class="col grow">
           <span class="t-bodys">Server unreachable</span>
-          <span class="t-label c2">Nothing was lost — your entry is still here. server unreachable, try again</span>
+          <span class="t-label c2">Nothing was lost — your entry is still here. Try again in a moment.</span>
         </span>
         <button type="button" class="chip" @click="saveError = false">Dismiss</button>
       </div>

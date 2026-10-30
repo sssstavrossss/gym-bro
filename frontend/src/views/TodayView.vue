@@ -166,7 +166,8 @@ onMounted(() => { void loadToday(); });
 .gap6 { gap: 6px; }
 .gap8 { gap: 8px; }
 .m0 { margin: 0; }
-.kcal { padding: 20px 16px; gap: 4px; min-width: 0; }
+.kcal { padding: 20px 16px; gap: 4px; min-width: 0; max-width: 100%; }
+.today { min-width: 0; max-width: 100%; }
 .end { align-items: flex-end; flex-wrap: wrap; }
 .right { align-items: flex-end; }
 .tags { flex-wrap: wrap; }

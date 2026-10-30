@@ -203,7 +203,7 @@ test("a failed add stays pending and retry uses the same key", async ({ page }) 
   await macroField(page, "Fat").fill("8");
   await macroField(page, "Carbs").fill("12");
   await foodSheet(page).getByRole("button", { name: /Add ·/ }).click();
-  await expect(page.getByText(/server unreachable, try again/i)).toBeVisible();
+  await expect(page.getByText("server unreachable, try again", { exact: true })).toBeVisible();
   await expect(macroField(page, "Name (optional)")).toHaveValue("Fictional shake");
   await expect(page.getByText("Nothing was lost — your entry is still here.")).toBeVisible();
   await foodSheet(page).getByRole("button", { name: "Close", exact: true }).click();
