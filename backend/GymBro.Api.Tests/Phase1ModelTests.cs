@@ -56,6 +56,7 @@ public sealed class Phase1ModelTests(ApiFactory factory)
         Assert.Contains("source", log);
         Assert.Contains("source_id", log);
         Assert.Contains("grams", log);
+        Assert.Contains("deleted_at", log);
         Assert.DoesNotContain(log, column => column.Contains("meal", StringComparison.OrdinalIgnoreCase));
         Assert.Contains("fasting", found["day_status"]);
         Assert.Equal(5, weightPrecision);

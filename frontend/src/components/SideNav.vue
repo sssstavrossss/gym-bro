@@ -3,8 +3,10 @@ import { computed } from "vue";
 import { useRoute } from "vue-router";
 import AccuracyDot from "./AccuracyDot.vue";
 import Icon from "./Icon.vue";
+import { int } from "../lib/format";
+import { dayTotals } from "../state/log";
 import { profile, weightCaption } from "../state/profile";
-import { openAdd, openWeight } from "../ui";
+import { openFood, openWeight } from "../ui";
 
 const route = useRoute();
 const items = [
@@ -15,6 +17,11 @@ const items = [
 ];
 const active = (to: string) => route.path === to || route.path.startsWith(to + "/");
 const weight = computed(() => weightCaption(profile.weight));
+const eaten = computed(() => {
+  const totals = dayTotals();
+  const target = profile.targets?.kcal;
+  return target == null ? `Eaten ${int(totals.kcal)}` : `Eaten ${int(totals.kcal)} / ${int(target)}`;
+});
 </script>
 
 <template>
@@ -24,7 +31,7 @@ const weight = computed(() => weightCaption(profile.weight));
       <span class="t-head">Gym Bro</span>
     </div>
 
-    <button type="button" class="add row" @click="openAdd">
+    <button type="button" class="add row" @click="openFood()">
       <Icon name="plus" :size="18" :sw="2.6" /><span class="t-bodys grow">Add food</span><kbd>N</kbd>
     </button>
     <button type="button" class="add2 row" @click="openWeight">
@@ -44,7 +51,8 @@ const weight = computed(() => weightCaption(profile.weight));
         <AccuracyDot v-if="weight.low" />
       </span>
       <span class="t-head">{{ weight.value }}</span>
-      <span class="t-label c2">{{ weight.note || "Food logging comes later." }}</span>
+      <span v-if="weight.note" class="t-label c2">{{ weight.note }}</span>
+      <span class="t-label c2">{{ eaten }}</span>
     </div>
     <p class="keys t-label c2"><kbd>N</kbd> or <kbd>/</kbd> add food · <kbd>Q</kbd> quick add · <kbd>W</kbd> weight · <kbd>Esc</kbd> close</p>
   </aside>

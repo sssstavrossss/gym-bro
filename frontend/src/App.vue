@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
+import AddChooser from "./components/AddChooser.vue";
+import FoodSheet from "./components/FoodSheet.vue";
 import SideNav from "./components/SideNav.vue";
 import TabBar from "./components/TabBar.vue";
 import Toast from "./components/Toast.vue";
@@ -12,7 +14,8 @@ import { currentAccount } from "./auth/session";
 import { vp } from "./lib/viewport";
 import { boot } from "./state/boot";
 import { loadProfile, profile, retryLoad } from "./state/profile";
-import { closeSheet, openAdd, openWeight, ui } from "./ui";
+import { loadToday, log } from "./state/log";
+import { closeSheet, openAdd, openFood, openWeight, ui } from "./ui";
 import SignInView from "./views/SignInView.vue";
 
 const route = useRoute();
@@ -46,7 +49,10 @@ onMounted(async () => {
     }
   }
 
-  if (boot.signedIn) await loadProfile();
+  if (boot.signedIn) {
+    await loadProfile();
+    if (profile.hasSaved) await loadToday();
+  }
   boot.ready = true;
 });
 
@@ -75,10 +81,10 @@ function onKey(event: KeyboardEvent) {
   const key = event.key.toLowerCase();
   if (key === "n" || key === "/") {
     event.preventDefault();
-    openAdd();
+    openFood();
   } else if (key === "q") {
     event.preventDefault();
-    openAdd();
+    openFood("quick");
   } else if (key === "w") {
     event.preventDefault();
     openWeight();
@@ -99,7 +105,12 @@ function onKey(event: KeyboardEvent) {
     <TabBar v-if="showNav && !vp.desktop" />
     <WeightSheet />
     <AccuracySheet />
+    <AddChooser />
+    <FoodSheet />
     <Toast />
+    <div v-if="log.unreachable" class="offline" role="status">
+      <span class="t-body grow">server unreachable, try again</span>
+    </div>
     <div v-if="profile.offline" class="offline" role="status">
       <span class="t-body grow">Server unreachable, try again.</span>
       <button type="button" class="t-bodys" @click="retryLoad">Try again</button>

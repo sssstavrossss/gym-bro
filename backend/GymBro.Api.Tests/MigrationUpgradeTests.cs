@@ -90,6 +90,13 @@ public sealed class MigrationUpgradeTests(ApiFactory factory)
         Assert.True(await reader.ReadAsync());
         Assert.Equal("", reader.GetString(0));
         Assert.Equal("per_100", reader.GetString(1));
+        await reader.DisposeAsync();
+
+        await using var deleted = connection.CreateCommand();
+        deleted.CommandText = """
+            SELECT COUNT(*) FROM log_entries WHERE deleted_at IS NOT NULL
+            """;
+        Assert.Equal(0, Convert.ToInt32(await deleted.ExecuteScalarAsync()));
     }
 
     private static async Task<LogRow> ReadLogAsync(AppDbContext db, string key)

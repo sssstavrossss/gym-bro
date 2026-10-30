@@ -31,6 +31,7 @@ public static class GymBroEndpoints
         api.MapProfile();
         api.MapWeighIns();
         api.MapFoods();
+        api.MapLogEntries();
         api.MapFallback(() => Results.Json(new { error = "Not found" }, statusCode: StatusCodes.Status404NotFound));
 
         app.MapFallbackToFile("index.html");

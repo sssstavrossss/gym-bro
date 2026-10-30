@@ -489,6 +489,7 @@ test("large text keeps the close button, units, and the info hit target", async 
     await setRoot(page, px);
     const label = page.locator(".wcard .trendline .t-cap");
     const info = page.getByRole("button", { name: "What is the trend?" });
+    await info.evaluate((el) => el.scrollIntoView({ block: "center", inline: "nearest" }));
     await expect(info).toBeVisible();
     const infoBox = await info.boundingBox();
     expect(infoBox).toBeTruthy();

@@ -157,6 +157,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         entry.Property(e => e.Fat).HasColumnName("fat").HasPrecision(8, 2);
         entry.Property(e => e.Carbs).HasColumnName("carbs").HasPrecision(8, 2);
         entry.Property(e => e.IdempotencyKey).HasColumnName("idempotency_key").HasMaxLength(64);
+        entry.Property(e => e.DeletedAt).HasColumnName("deleted_at");
         entry.HasIndex(e => new { e.UserId, e.IdempotencyKey }).IsUnique();
         entry.HasIndex(e => new { e.UserId, e.LocalDate });
         entry.HasOne<AppUser>().WithMany().HasForeignKey(e => e.UserId).OnDelete(DeleteBehavior.Cascade);
