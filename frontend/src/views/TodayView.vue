@@ -137,6 +137,6 @@ const tip = "The trend smooths out day-to-day swings from water, salt and food. 
 .dt-xl .wcard > .grow { display: none; }
 .dt-xl .wcard > .col { flex: 1 1 auto; min-width: 0; }
 .dt-xl .trendline { flex-wrap: wrap; }
-.dt-xl .trendline .t-cap { flex: 1 1 100%; white-space: normal; }
+.dt-xl .trendline .t-cap { flex: 1 0 100%; min-width: 0; white-space: normal; }
 .dt-xl .trendline :deep(.itip) { flex: none; align-self: flex-start; }
 </style>
