@@ -182,6 +182,62 @@ export interface FreshStartDecisionResponse {
   targets: TargetsResponse | null;
 }
 
+export interface LogEntryResponse {
+  id: string;
+  localDate: string;
+  loggedAt: string;
+  time: string;
+  timeZone: string;
+  foodId: string | null;
+  groupId: string | null;
+  source: string;
+  grams: number | null;
+  name: string;
+  amount: number;
+  unit: string;
+  kcal: number;
+  protein: number;
+  fat: number;
+  carbs: number;
+  idempotencyKey: string;
+  deletedAt: string | null;
+}
+
+export interface LogListResponse {
+  localDate: string;
+  totals: { kcal: number; protein: number; fat: number; carbs: number };
+  entries: LogEntryResponse[];
+}
+
+export interface LogCreateBody {
+  idempotencyKey: string;
+  localDate: string;
+  timeZone: string;
+  name?: string;
+  time?: string | null;
+  kcal: number;
+  protein: number;
+  fat: number;
+  carbs: number;
+  amount?: number;
+  unit?: string;
+  foodId?: string | null;
+  groupId?: string | null;
+}
+
+export interface LogPatchBody {
+  name?: string;
+  time?: string;
+  localDate?: string;
+  timeZone?: string;
+  kcal?: number;
+  protein?: number;
+  fat?: number;
+  carbs?: number;
+  amount?: number;
+  unit?: string;
+}
+
 let configPromise: Promise<PublicConfig> | null = null;
 
 async function authHeaders(): Promise<Record<string, string>> {
@@ -299,4 +355,34 @@ export async function decideFreshStart(accept: boolean): Promise<FreshStartDecis
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ accept }),
   }));
+}
+
+export async function listLogEntries(date: string): Promise<LogListResponse> {
+  return jsonOrThrow(await request(`/api/log-entries?date=${encodeURIComponent(date)}`));
+}
+
+export async function addLogEntry(body: LogCreateBody): Promise<LogEntryResponse> {
+  return jsonOrThrow(await request("/api/log-entries", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  }));
+}
+
+export async function patchLogEntry(id: string, body: LogPatchBody): Promise<LogEntryResponse> {
+  return jsonOrThrow(await request(`/api/log-entries/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  }));
+}
+
+export async function deleteLogEntry(id: string): Promise<void> {
+  const response = await request(`/api/log-entries/${id}`, { method: "DELETE" });
+  if (response.status === 204) return;
+  await jsonOrThrow(response);
+}
+
+export async function restoreLogEntry(id: string): Promise<LogEntryResponse> {
+  return jsonOrThrow(await request(`/api/log-entries/${id}/restore`, { method: "POST" }));
 }

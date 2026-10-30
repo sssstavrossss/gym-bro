@@ -282,6 +282,10 @@ namespace GymBro.Api.Data.Migrations
                         .HasColumnType("numeric(8,2)")
                         .HasColumnName("carbs");
 
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
                     b.Property<decimal>("Fat")
                         .HasPrecision(8, 2)
                         .HasColumnType("numeric(8,2)")

@@ -30,7 +30,10 @@ public sealed class LogEntry
     /// </summary>
     public string FoodOwnerKey { get; set; } = Food.CatalogueOwnerKey;
 
-    /// <summary><c>off</c>, <c>mvt</c>, <c>custom</c>, or <c>manual</c>.</summary>
+    /// <summary>
+    /// <c>off</c>, <c>mvt</c>, <c>custom</c>, or <c>quick</c>.
+    /// Quick add is <c>quick</c> (not <c>manual</c>). Set on insert; never rewritten.
+    /// </summary>
     public string? Source { get; set; }
 
     public string? SourceId { get; set; }
@@ -56,4 +59,7 @@ public sealed class LogEntry
     public decimal Carbs { get; set; }
 
     public string IdempotencyKey { get; set; } = "";
+
+    /// <summary>Set when the entry is soft-deleted. Null means it still counts.</summary>
+    public DateTimeOffset? DeletedAt { get; set; }
 }
