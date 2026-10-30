@@ -524,14 +524,33 @@ test("large text keeps the close button, units, and the info hit target", async 
       return "ok";
     }).toBe("ok");
 
-    const history = sheet.locator(".hrow .hval").first();
+    const historyRow = sheet.locator(".hrow").first();
+    const history = historyRow.locator(".hval");
     await history.scrollIntoViewIfNeeded();
-    await expect(history).toHaveText(/80\.0\s+kg/);
+    expect((await history.innerText()).replace(/\s+/g, " ").trim()).toBe("80.0 kg");
     const historyLines = await history.evaluate((node) => node.getClientRects().length);
     expect(historyLines).toBe(1);
+    if (px >= 28) {
+      const dateBox = await historyRow.locator(".t-body").boundingBox();
+      const valueBox = await history.boundingBox();
+      expect(dateBox && valueBox).toBeTruthy();
+      expect(valueBox!.y).toBeGreaterThanOrEqual(dateBox!.y + dateBox!.height - 1);
+    }
 
     if (px === 53) {
       await sheet.getByRole("button", { name: "Weigh-in day" }).click();
+      const dayRows = await sheet.locator(".dayopt").evaluateAll((nodes) => nodes.map((node) => {
+        const box = node.getBoundingClientRect();
+        const text = [...node.querySelectorAll("span")].map((span) => span.getBoundingClientRect());
+        return {
+          top: box.top,
+          bottom: Math.max(box.bottom, ...text.map((rect) => rect.bottom)),
+        };
+      }));
+      expect(dayRows.length).toBeGreaterThan(1);
+      for (let index = 1; index < dayRows.length; index += 1) {
+        expect(dayRows[index].top).toBeGreaterThanOrEqual(dayRows[index - 1].bottom - 1);
+      }
       const option = sheet.getByRole("option", { name: /Yesterday/ });
       const wordLines = await option.locator(".grow").evaluate((node) => {
         const text = node.firstChild;
