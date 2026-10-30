@@ -181,6 +181,8 @@ test("today empty, quick add, on target, edit, undo, and no sideways scroll", as
   for (const width of widths) {
     await page.setViewportSize({ width, height: width >= 1024 ? 900 : 844 });
     await expect(page.getByRole("heading", { name: "Today", exact: true })).toBeVisible();
+    if (width < 600) await expect(page.locator(".wbig")).toHaveCount(0);
+    else await expect(page.locator(".wbig")).toBeVisible();
     await expectNoSideScroll(page);
     await expect(page.getByText("Open log")).toHaveCount(0);
   }
