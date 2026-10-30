@@ -153,11 +153,15 @@ test("today empty, quick add, on target, edit, undo, and no sideways scroll", as
   await foodSheet(page).getByRole("button", { name: /Add · .*kcal/ }).click();
   await expect(page.getByText(/Added Fictional bar/)).toBeVisible();
   await foodSheet(page).getByRole("button", { name: "Close", exact: true }).click();
-  await expect(page.getByText("On target ±5%")).toBeVisible();
+  await expect(page.getByText("On target ±5 %")).toBeVisible();
   await expect(page.getByText("kcal left").or(page.getByText("kcal over"))).toBeVisible();
   await expect(page.getByRole("img", { name: /Calories/ })).toBeVisible();
   await expect(page.getByRole("button", { name: /Fictional bar/ })).toBeVisible();
   await expectNoSideScroll(page);
+  await expectClean(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.locator(".wbig")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /Fictional bar/ })).toBeVisible();
   await expectClean(page);
 
   await page.getByRole("button", { name: /Fictional bar/ }).click();

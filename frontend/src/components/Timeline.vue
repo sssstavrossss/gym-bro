@@ -38,7 +38,7 @@ async function retry(pending: PendingAdd) {
         <button type="button" class="retry t-bodys" @click="retry(pending)">Retry</button>
         <span class="t-bodys kc" data-num>{{ int(pending.kcal) }}</span>
       </div>
-      <button v-for="entry in rows" :key="entry.id" type="button" class="frow" :aria-label="`${entry.name}, ${entry.time}, ${int(entry.kcal)} kcal`" @click="openEdit(entry.id)">
+      <button v-for="entry in rows" :key="entry.id" type="button" class="frow" @click="openEdit(entry.id)">
         <span class="time t-label num c2">{{ entry.time }}</span>
         <span class="col grow two">
           <span class="t-body name">{{ entry.name }}</span>

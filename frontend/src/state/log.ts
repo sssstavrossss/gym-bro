@@ -125,15 +125,11 @@ function dropPending(key: string): void {
 }
 
 export function dayTotals(): DayTotals {
-  const rows = [
-    ...log.entries.map((row) => ({ kcal: row.kcal, p: row.protein, f: row.fat, c: row.carbs })),
-    ...log.pending.map((row) => ({ kcal: row.kcal, p: row.protein, f: row.fat, c: row.carbs })),
-  ];
-  return rows.reduce((sum, row) => ({
+  return log.entries.reduce((sum, row) => ({
     kcal: sum.kcal + row.kcal,
-    p: sum.p + row.p,
-    f: sum.f + row.f,
-    c: sum.c + row.c,
+    p: sum.p + row.protein,
+    f: sum.f + row.fat,
+    c: sum.c + row.carbs,
   }), { kcal: 0, p: 0, f: 0, c: 0 });
 }
 

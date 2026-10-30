@@ -84,7 +84,7 @@ onMounted(() => { void loadToday(); });
             <span class="row gap8 tags">
               <span class="t-label c2">{{ left >= 0 ? "kcal left" : "kcal over" }}</span>
               <span v-if="kcalStatus === 'over'" class="overtag t-capn">Over target</span>
-              <span v-else-if="kcalStatus === 'hit'" class="hittag t-capn"><Icon name="check" :size="11" :sw="3" aria-hidden="true" /> On target ±5%</span>
+              <span v-else-if="kcalStatus === 'hit'" class="hittag t-capn"><Icon name="check" :size="11" :sw="3" aria-hidden="true" /> On target ±5 %</span>
             </span>
           </div>
           <span class="grow" />
