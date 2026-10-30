@@ -55,7 +55,7 @@ async function retry(pending: PendingAdd) {
 </template>
 
 <style scoped>
-.tl { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.tl { display: flex; flex-direction: column; gap: 4px; min-width: 0; max-width: 100%; }
 .frow { min-height: 52px; gap: 8px; display: flex; align-items: center; flex-wrap: wrap; text-align: left; width: 100%; min-width: 0; background: transparent; border-radius: 10px; padding: 4px 0; }
 .pending { border: 1px dashed var(--color-border); border-radius: 12px; padding: 8px; }
 .time { width: 3.2rem; flex: none; }
