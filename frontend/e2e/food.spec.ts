@@ -89,6 +89,14 @@ async function expectNumbersWhole(page: Page) {
   expect(clipped).toEqual([]);
 }
 
+function foodSheet(page: Page) {
+  return page.getByRole("dialog", { name: /^(Add food|Edit food)$/ });
+}
+
+function macroField(page: Page, name: string) {
+  return foodSheet(page).getByRole("textbox", { name, exact: true });
+}
+
 async function openQuickAdd(page: Page, width: number) {
   if (width >= 1024) {
     await page.getByRole("button", { name: "Add food" }).click();
@@ -96,6 +104,7 @@ async function openQuickAdd(page: Page, width: number) {
     await page.getByRole("button", { name: "Add", exact: true }).click();
     await page.getByRole("dialog", { name: "Add" }).getByRole("button", { name: /Search or quick add/ }).click();
   }
+  await expect(page.getByRole("dialog", { name: "Add", exact: true })).toBeHidden();
   await expect(page.getByRole("heading", { name: "Add food" })).toBeVisible();
   await expect(page.getByRole("radio", { name: "Quick Add" })).toBeChecked();
 }
@@ -123,7 +132,8 @@ test("today empty, quick add, on target, edit, undo, and no sideways scroll", as
   expect(foodBox!.width).toBeGreaterThanOrEqual(44);
   expect(foodBox!.height).toBeGreaterThanOrEqual(44);
   await food.click();
-  const close = page.getByRole("button", { name: "Close", exact: true });
+  await expect(page.getByRole("dialog", { name: "Add", exact: true })).toBeHidden();
+  const close = foodSheet(page).getByRole("button", { name: "Close", exact: true });
   const closeBox = await close.boundingBox();
   expect(closeBox!.width).toBeGreaterThanOrEqual(44);
   expect(closeBox!.height).toBeGreaterThanOrEqual(44);
@@ -135,14 +145,14 @@ test("today empty, quick add, on target, edit, undo, and no sideways scroll", as
   await expect(page.getByText("Open log")).toHaveCount(0);
 
   await openQuickAdd(page, 820);
-  await page.getByLabel("Name (optional)").fill("Fictional bar");
-  await page.getByLabel("Calories").fill(String(target));
-  await page.getByLabel("Protein").fill("10");
-  await page.getByLabel("Fat").fill("5");
-  await page.getByLabel("Carbs").fill("20");
-  await page.getByRole("button", { name: new RegExp(`Add · .*kcal`) }).click();
+  await macroField(page, "Name (optional)").fill("Fictional bar");
+  await macroField(page, "Calories").fill(String(target));
+  await macroField(page, "Protein").fill("10");
+  await macroField(page, "Fat").fill("5");
+  await macroField(page, "Carbs").fill("20");
+  await foodSheet(page).getByRole("button", { name: /Add · .*kcal/ }).click();
   await expect(page.getByText(/Added Fictional bar/)).toBeVisible();
-  await page.getByRole("button", { name: "Close", exact: true }).click();
+  await foodSheet(page).getByRole("button", { name: "Close", exact: true }).click();
   await expect(page.getByText("On target ±5%")).toBeVisible();
   await expect(page.getByText("kcal left").or(page.getByText("kcal over"))).toBeVisible();
   await expect(page.getByRole("img", { name: /Calories/ })).toBeVisible();
@@ -156,8 +166,8 @@ test("today empty, quick add, on target, edit, undo, and no sideways scroll", as
   const deleteBox = await deleteButton.boundingBox();
   expect(deleteBox!.width).toBeGreaterThanOrEqual(44);
   expect(deleteBox!.height).toBeGreaterThanOrEqual(44);
-  await page.getByLabel("Calories").fill(String(target + 500));
-  await page.getByRole("button", { name: /Save ·/ }).click();
+  await macroField(page, "Calories").fill(String(target + 500));
+  await foodSheet(page).getByRole("button", { name: /Save ·/ }).click();
   await expect(page.getByText("Over target")).toBeVisible();
   await expect(page.getByText(/over/).first()).toBeVisible();
 
@@ -187,16 +197,16 @@ test("a failed add stays pending and retry uses the same key", async ({ page }) 
     if (route.request().method() === "POST") return route.abort();
     return route.continue();
   });
-  await page.getByLabel("Name (optional)").fill("Fictional shake");
-  await page.getByLabel("Calories").fill("250");
-  await page.getByLabel("Protein").fill("20");
-  await page.getByLabel("Fat").fill("8");
-  await page.getByLabel("Carbs").fill("12");
-  await page.getByRole("button", { name: /Add ·/ }).click();
+  await macroField(page, "Name (optional)").fill("Fictional shake");
+  await macroField(page, "Calories").fill("250");
+  await macroField(page, "Protein").fill("20");
+  await macroField(page, "Fat").fill("8");
+  await macroField(page, "Carbs").fill("12");
+  await foodSheet(page).getByRole("button", { name: /Add ·/ }).click();
   await expect(page.getByText(/server unreachable, try again/i)).toBeVisible();
-  await expect(page.getByLabel("Name (optional)")).toHaveValue("Fictional shake");
+  await expect(macroField(page, "Name (optional)")).toHaveValue("Fictional shake");
   await expect(page.getByText("Nothing was lost — your entry is still here.")).toBeVisible();
-  await page.getByRole("button", { name: "Close", exact: true }).click();
+  await foodSheet(page).getByRole("button", { name: "Close", exact: true }).click();
   const retry = page.getByRole("button", { name: "Retry" });
   await expect(retry).toBeVisible();
   const retryBox = await retry.boundingBox();
@@ -221,12 +231,12 @@ test("kcal and macro numbers stay whole at the largest text size", async ({ page
   await putProfile(page.request, oid, when.zone);
   await openToday(page, oid, 390);
   await openQuickAdd(page, 390);
-  await page.getByLabel("Calories").fill("1800");
-  await page.getByLabel("Protein").fill("150");
-  await page.getByLabel("Fat").fill("60");
-  await page.getByLabel("Carbs").fill("180");
-  await page.getByRole("button", { name: /Add ·/ }).click();
-  await page.getByRole("button", { name: "Close", exact: true }).click();
+  await macroField(page, "Calories").fill("1800");
+  await macroField(page, "Protein").fill("150");
+  await macroField(page, "Fat").fill("60");
+  await macroField(page, "Carbs").fill("180");
+  await foodSheet(page).getByRole("button", { name: /Add ·/ }).click();
+  await foodSheet(page).getByRole("button", { name: "Close", exact: true }).click();
   await page.evaluate(() => {
     document.documentElement.style.fontSize = "53px";
     window.dispatchEvent(new Event("resize"));
