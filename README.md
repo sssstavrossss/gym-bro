@@ -263,4 +263,4 @@ dotnet tool run dotnet-ef -- migrations add <Name> --project backend/GymBro.Api 
 
 ## Later pull requests
 
-Food logging screens are still placeholders. Logging on a past day will require picking a time, the food sheet will stay open after Add on a phone, and Copy will default to Today. Workouts are out of scope. There is no meal field on a log entry.
+Food logging screens are still placeholders. Logging on a past day will require picking a time, the food sheet will stay open after Add on a phone, and Copy will default to Today. Workouts are out of scope. There is no meal field on a log entry. When the server can't be reached at all (for example, the host machine is asleep), Safari shows its own error page instead of the app's banner.
