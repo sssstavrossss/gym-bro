@@ -269,6 +269,7 @@ public static class FoodEndpoints
         return Results.Ok(new
         {
             matvaretabellen = Matvaretabellen.Citation,
+            openFoodFacts = OpenFoodFacts.Citation,
             importedAt = credit?.ImportedAt,
             foodCount = credit?.FoodCount ?? 0,
         });

@@ -92,8 +92,17 @@ export function unitsForFood(food: CatalogFood): UnitChoice[] {
   if (food.nutrientBasis === "per_serving") {
     return [{ unit: "serving", label: food.servingLabel || "serving", gramsEach: null }];
   }
+  if (food.basis === "ml") {
+    const liquid: UnitChoice[] = [{ unit: "ml", label: "ml", gramsEach: null }];
+    if (food.servingQuantity != null && food.servingQuantity > 0) {
+      liquid.push({ unit: "serving", label: food.servingLabel || "serving", gramsEach: food.servingQuantity });
+    }
+    if (food.pieceQuantity != null && food.pieceQuantity > 0) {
+      liquid.push({ unit: "piece", label: food.pieceLabel || "piece", gramsEach: food.pieceQuantity });
+    }
+    return liquid;
+  }
   const units: UnitChoice[] = [{ unit: "g", label: "g", gramsEach: 1 }];
-  if (food.basis === "ml") units.push({ unit: "ml", label: "ml", gramsEach: 1 });
   if (food.servingQuantity != null && food.servingQuantity > 0) {
     units.push({ unit: "serving", label: food.servingLabel || "serving", gramsEach: food.servingQuantity });
   }
@@ -106,6 +115,7 @@ export function unitsForFood(food: CatalogFood): UnitChoice[] {
 /** Edit offers grams (or ml) and the unit the entry was logged in. Sizes come from the entry. */
 export function unitsForEntry(entry: StoredEntry): UnitChoice[] {
   const kind = normalizeUnit(entry.unit);
+  if (kind === "ml") return [{ unit: "ml", label: "ml", gramsEach: null }];
   if (entry.grams == null || entry.grams <= 0) {
     const unit = kind === "piece" ? "piece" : "serving";
     return [{ unit, label: unit, gramsEach: null }];
@@ -117,12 +127,6 @@ export function unitsForEntry(entry: StoredEntry): UnitChoice[] {
       { unit: kind, label: kind, gramsEach: each },
     ];
   }
-  if (kind === "ml") {
-    return [
-      { unit: "g", label: "g", gramsEach: 1 },
-      { unit: "ml", label: "ml", gramsEach: 1 },
-    ];
-  }
   return [{ unit: "g", label: "g", gramsEach: 1 }];
 }
 
@@ -131,6 +135,16 @@ export function macrosForFood(food: CatalogFood, amount: number, unit: string): 
   if (amount <= 0) return empty;
   const choice = unitsForFood(food).find((item) => item.unit === normalizeUnit(unit));
   if (!choice) return empty;
+  if (normalizeUnit(unit) === "ml") {
+    const factor = amount / 100;
+    return {
+      kcal: round2(food.kcalPer100 * factor),
+      protein: round2(food.proteinPer100 * factor),
+      fat: round2(food.fatPer100 * factor),
+      carbs: round2(food.carbsPer100 * factor),
+      grams: null,
+    };
+  }
   if (food.nutrientBasis === "per_serving" || choice.gramsEach == null) {
     return {
       kcal: round2(food.kcalPer100 * amount),
@@ -192,5 +206,6 @@ export function per100Line(food: CatalogFood): string {
 
 export function defaultAmount(food: CatalogFood): { amount: string; unit: UnitChoice["unit"] } {
   if (food.nutrientBasis === "per_serving") return { amount: "1", unit: "serving" };
+  if (food.basis === "ml") return { amount: "100", unit: "ml" };
   return { amount: "100", unit: "g" };
 }

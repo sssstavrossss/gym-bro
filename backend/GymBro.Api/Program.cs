@@ -22,6 +22,7 @@ builder.Services.Configure<FoodOptions>(builder.Configuration.GetSection(FoodOpt
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<UserDirectory>();
 builder.Services.AddScoped<MatvaretabellenImporter>();
+builder.Services.AddScoped<OffNorwayImporter>();
 builder.Services.AddScoped<WeeklyTargetRecalculator>();
 builder.Services.AddSingleton<OpenFoodFactsGate>();
 builder.Services.AddHttpClient<IOpenFoodFactsClient, OpenFoodFactsClient>((serviceProvider, client) =>
@@ -34,6 +35,16 @@ builder.Services.AddHttpClient<IOpenFoodFactsClient, OpenFoodFactsClient>((servi
     client.DefaultRequestHeaders.UserAgent.ParseAdd(agent);
     client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
 }).ConfigurePrimaryHttpMessageHandler(OpenFoodFactsClient.CreateHandler);
+builder.Services.AddHttpClient("openfoodfacts-bulk", (serviceProvider, client) =>
+{
+    var foods = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<FoodOptions>>().Value;
+    var agent = string.IsNullOrWhiteSpace(foods.OpenFoodFactsUserAgent)
+        ? "GymBro/1.0 (+https://github.com/sssstavrossss/gym-bro)"
+        : foods.OpenFoodFactsUserAgent;
+    client.Timeout = Timeout.InfiniteTimeSpan;
+    client.DefaultRequestHeaders.UserAgent.ParseAdd(agent);
+    client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/gzip"));
+});
 builder.Services.AddHttpClient("matvaretabellen", client =>
 {
     client.Timeout = TimeSpan.FromMinutes(2);
@@ -218,6 +229,49 @@ if (args.Contains("--import-matvaretabellen"))
     catch (Exception ex) when (ex is not OperationCanceledException)
     {
         Console.Error.WriteLine("Matvaretabellen import failed: " + ex.Message);
+        Environment.ExitCode = 1;
+    }
+
+    return;
+}
+
+if (args.Contains("--import-open-food-facts-norway"))
+{
+    var dryRun = args.Contains("--dry-run");
+    var fileFlag = Array.IndexOf(args, "--file");
+    await using var scope = app.Services.CreateAsyncScope();
+    var importer = scope.ServiceProvider.GetRequiredService<OffNorwayImporter>();
+    try
+    {
+        OffImportReport report;
+        if (fileFlag >= 0 && fileFlag + 1 < args.Length)
+        {
+            await using var file = File.OpenRead(args[fileFlag + 1]);
+            report = args[fileFlag + 1].EndsWith(".gz", StringComparison.OrdinalIgnoreCase)
+                ? await importer.ImportGzipAsync(file, dryRun, CancellationToken.None)
+                : await importer.ImportCsvAsync(file, dryRun, compressedBytes: 0, CancellationToken.None);
+        }
+        else
+        {
+            report = await importer.ImportOfficialAsync(dryRun, CancellationToken.None);
+        }
+
+        Console.WriteLine(OpenFoodFacts.Citation);
+        Console.WriteLine(
+            $"Open Food Facts Norway: complete={report.Complete} dryRun={report.DryRun} rows={report.RowsRead} norway={report.NorwayRows} accepted={report.Accepted} upserted={report.Upserted} unchanged={report.Unchanged} grams={report.BasisGrams} millilitres={report.BasisMillilitres} labelKcal={report.LabelKcal} fromKj={report.ConvertedFromKilojoules} oatly={report.OatlyAccepted} compressedBytes={report.CompressedBytes}.");
+        foreach (var reason in report.SkipReasons.OrderBy(pair => pair.Key))
+        {
+            Console.WriteLine($"  skipped {reason.Key}: {reason.Value}");
+        }
+
+        if (!report.Complete || report.Accepted == 0)
+        {
+            Environment.ExitCode = 1;
+        }
+    }
+    catch (Exception ex) when (ex is not OperationCanceledException)
+    {
+        Console.Error.WriteLine("Open Food Facts import failed: " + ex.Message);
         Environment.ExitCode = 1;
     }
 

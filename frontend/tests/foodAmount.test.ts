@@ -65,7 +65,8 @@ it("rejects 0 and 10,001 g and 51 servings with the server's words", () => {
 it("offers grams plus a serving or piece only when the food has one", () => {
   expect(unitsForFood(chicken).map((unit) => unit.unit)).toEqual(["g", "serving", "piece"]);
   expect(unitsForFood({ ...chicken, servingQuantity: null, pieceQuantity: null }).map((unit) => unit.unit)).toEqual(["g"]);
-  expect(unitsForFood({ ...chicken, basis: "ml" }).map((unit) => unit.unit)).toEqual(["g", "ml", "serving", "piece"]);
+  expect(unitsForFood({ ...chicken, basis: "ml" }).map((unit) => unit.unit)).toEqual(["ml", "serving", "piece"]);
+  expect(macrosForFood({ ...chicken, basis: "ml", kcalPer100: 40, proteinPer100: 1, fatPer100: 1, carbsPer100: 4 }, 250, "ml")).toEqual({ kcal: 100, protein: 2.5, fat: 2.5, carbs: 10, grams: null });
   expect(unitsForFood(bar).map((unit) => unit.unit)).toEqual(["serving"]);
 });
 

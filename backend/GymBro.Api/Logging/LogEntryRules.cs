@@ -54,6 +54,10 @@ public static class LogEntryRules
 
     public const string MeasuredInGrams = "This food is measured in grams.";
 
+    public const string MeasuredInMillilitres = "This food is measured in millilitres.";
+
+    public const string KeepLoggedMillilitres = "This was logged in millilitres. Change the amount in millilitres.";
+
     public const string KeepLoggedUnit = "Keep the unit it was logged in, or change the amount in grams.";
 
     public const string BadTime = "Use a time like 08:15.";
@@ -241,6 +245,24 @@ public static class LogEntryRules
             return FoodSnapshot.Fail(MeasuredInGrams);
         }
 
+        if (kind == "g" && food.Basis == "ml")
+        {
+            return FoodSnapshot.Fail(MeasuredInMillilitres);
+        }
+
+        if (kind == "ml")
+        {
+            var byVolume = amount / 100m;
+            return new FoodSnapshot(
+                kind,
+                null,
+                Scale(food.KcalPer100, byVolume),
+                Scale(food.ProteinPer100, byVolume),
+                Scale(food.FatPer100, byVolume),
+                Scale(food.CarbsPer100, byVolume),
+                null);
+        }
+
         decimal? grams;
         if (kind == "serving")
         {
@@ -300,6 +322,11 @@ public static class LogEntryRules
         }
 
         var oldKind = NormalizeUnit(entry.Unit);
+        if (oldKind == "ml" && kind != "ml")
+        {
+            return StoredScale.Fail(KeepLoggedMillilitres);
+        }
+
         decimal factor;
         decimal? grams;
         if (entry.Grams is > 0 && kind is "g" or "ml" && kind != oldKind)
@@ -355,7 +382,12 @@ public static class LogEntryRules
         }
 
         var kind = NormalizeUnit(unit);
-        if (kind is "g" or "ml")
+        if (kind == "ml")
+        {
+            return null;
+        }
+
+        if (kind == "g")
         {
             return Round2(amount);
         }
