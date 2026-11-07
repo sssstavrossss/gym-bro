@@ -1,18 +1,29 @@
 <script setup lang="ts">
-import { ui } from "../ui";
+import { computed, watch } from "vue";
+import { vp } from "../lib/viewport";
+import { runToastAction, ui } from "../ui";
 
-function run() {
-  const action = ui.toast?.action;
-  ui.toast = null;
-  action?.run();
+/** Phone and tablet: while the food sheet is open, pin the toast to the top. Desktop stays at the bottom. */
+const parked = computed(() => ui.sheet === "food" && !vp.desktop);
+
+function place() {
+  const el = document.querySelector(".toast.top");
+  const space = parked.value && ui.toast && el
+    ? `${Math.ceil(el.getBoundingClientRect().height) + 12}px`
+    : "0px";
+  document.documentElement.style.setProperty("--food-toast-space", space);
 }
+
+watch([() => ui.toast?.id ?? 0, parked], () => {
+  place();
+}, { flush: "post" });
 </script>
 
 <template>
   <Transition name="toast">
-    <div v-if="ui.toast" :key="ui.toast.id" class="toast" role="status">
+    <div v-if="ui.toast" :key="ui.toast.id" class="toast" :class="{ top: parked }" role="status">
       <span class="t-label grow msg">{{ ui.toast.text }}</span>
-      <button v-if="ui.toast.action" type="button" class="t-bodys undo" @click="run">{{ ui.toast.action.label }}</button>
+      <button v-if="ui.toast.action" type="button" class="t-bodys undo" @click="runToastAction">{{ ui.toast.action.label }}</button>
     </div>
   </Transition>
 </template>
@@ -24,9 +35,15 @@ function run() {
   background: #1a1a1c; color: #fff; box-shadow: 0 10px 30px rgba(0,0,0,.5); max-width: calc(100% - 32px);
 }
 .msg { color: #fff; background: #1a1a1c; overflow-wrap: anywhere; }
+/* Above the sheet, in the gap the sheet header leaves open. Safe area stays below the clock. */
+.toast.top {
+  bottom: auto; top: calc(var(--sat) + 8px); z-index: 70;
+}
 .is-tablet .toast { left: 50%; right: auto; width: 440px; margin-left: -220px; }
+.is-tablet .toast.top { left: 16px; right: 16px; width: auto; margin-left: 0; }
 .is-desktop .toast { left: 264px; right: auto; bottom: 24px; width: 420px; }
 .undo { color: #fff; min-height: 44px; min-width: 44px; padding: 2px 4px; }
 .toast-enter-active, .toast-leave-active { transition: opacity .2s, transform .2s; }
-.toast-enter-from, .toast-leave-to { opacity: 0; transform: translateY(8px); }
+.toast-enter-from { opacity: 1; transform: translateY(8px); }
+.toast-leave-to { opacity: 0; transform: translateY(8px); }
 </style>

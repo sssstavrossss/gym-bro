@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref } from "vue";
 import { vp } from "../lib/viewport";
-defineProps<{ open: boolean; label: string }>();
+defineProps<{ open: boolean; label: string; full?: boolean }>();
 const emit = defineEmits<{ close: [] }>();
 const dy = ref(0);
 const dragging = ref(false);
@@ -38,7 +38,7 @@ function up() {
   <Transition name="sheet">
     <div v-if="open" class="sheet-root" :class="{ panel: vp.desktop }" role="dialog" aria-modal="true" :aria-label="label">
       <div class="scrim" @click="emit('close')" />
-      <div class="sheet" :class="{ dragging }" :style="dy ? { transform: `translateY(${dy}px)` } : undefined">
+      <div class="sheet" :class="{ dragging, full: full && !vp.desktop }" :style="dy ? { transform: `translateY(${dy}px)` } : undefined">
         <div class="drag-zone" @pointerdown="down" @pointermove="move" @pointerup="up" @pointercancel="up">
           <div class="grabber-row"><div class="grabber" /></div>
           <slot name="header" />
@@ -64,6 +64,9 @@ function up() {
 .grabber-row { display: flex; justify-content: center; }
 .grabber { width: 36px; height: 5px; border-radius: 3px; background: var(--color-track); }
 .is-tablet .sheet { left: max(0px, calc(50% - 300px)); right: max(0px, calc(50% - 300px)); }
+/* Food sheet matches the prototype: full height, not a short panel over Today. */
+.sheet.full { top: calc(var(--sat) + 10px); max-height: none; overflow: hidden; }
+.is-tablet .sheet.full { top: max(calc(var(--sat) + 10px), calc(100% - 900px)); }
 .panel .scrim { background: rgba(0, 0, 0, 0.45); }
 .panel .sheet { top: 12px; bottom: 12px; right: 12px; left: auto; width: 460px; max-height: none; border-radius: var(--radius-sheet); padding: 20px 24px 24px; }
 .panel .grabber-row { display: none; }

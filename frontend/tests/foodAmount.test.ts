@@ -1,8 +1,10 @@
 import { expect, it } from "vitest";
 import {
   amountError,
+  macroFigure,
   macrosForFood,
   parseAmount,
+  per100Line,
   scaleStored,
   unitsForEntry,
   unitsForFood,
@@ -71,6 +73,18 @@ it("previews label calories from the food", () => {
   expect(macrosForFood(chicken, 150, "g")).toEqual({ kcal: 300, protein: 45, fat: 6, carbs: 0, grams: 150 });
   expect(macrosForFood(chicken, 2, "piece")).toMatchObject({ grams: 120, kcal: 240 });
   expect(macrosForFood(bar, 1, "serving")).toEqual({ kcal: 80, protein: 10, fat: 2, carbs: 3, grams: null });
+});
+
+it("keeps one decimal on a fractional macro and no .0 on a whole one", () => {
+  expect(macroFigure(0)).toBe("0");
+  expect(macroFigure(4)).toBe("4");
+  expect(macroFigure(31)).toBe("31");
+  expect(macroFigure(10)).toBe("10");
+  expect(macroFigure(3.6)).toBe("3.6");
+  expect(macroFigure(3.64)).toBe("3.6");
+  expect(macroFigure(3.65)).toBe("3.7");
+  expect(per100Line({ ...chicken, kcalPer100: 165, proteinPer100: 31, fatPer100: 3.6, carbsPer100: 0 }))
+    .toBe("per 100 g · 165 kcal · P31 F3.6 C0");
 });
 
 it("scales an edited entry from its stored grams, not a new piece size", () => {

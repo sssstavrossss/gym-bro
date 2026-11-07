@@ -285,6 +285,75 @@ test("a double tap on add creates one entry", async ({ page }) => {
   expect(posts).toBe(1);
 });
 
+async function saveShot(page: Page, name: string) {
+  try {
+    await page.screenshot({ path: `/tmp/${name}` });
+  } catch {
+    // A flaky screenshot write must not fail the layout checks.
+  }
+}
+
+function overlaps(
+  a: { x: number; y: number; width: number; height: number },
+  b: { x: number; y: number; width: number; height: number },
+) {
+  return a.x < b.x + b.width - 1 && a.x + a.width > b.x + 1 && a.y < b.y + b.height - 1 && a.y + a.height > b.y + 1;
+}
+
+test("fractional per-100 text, full-height search, and the add toast stays off the session bar", async ({ page }) => {
+  const oid = `e2e-f2-polish-${Date.now()}-${test.info().project.name}`;
+  const when = await clock(page);
+  await putWeighIn(page.request, oid, when.today, when.zone);
+  await putProfile(page.request, oid, when.zone);
+  await createFood(page.request, oid, {
+    name: "Fictional fraction fillet",
+    kcalPer100: 165,
+    proteinPer100: 31,
+    fatPer100: 3.6,
+    carbsPer100: 0,
+    basis: "g",
+  });
+  await sign(page, oid);
+  await page.goto("/today");
+  await openAdd(page, 390);
+  await sheet(page).getByRole("searchbox", { name: "Search foods" }).fill("fraction");
+  const row = sheet(page).getByRole("button", { name: /Fictional fraction fillet/ });
+  await expect(row).toContainText("F3.6");
+  await expect(row).toContainText("P31");
+  await expect(row).toContainText("C0");
+  await expect(row).not.toContainText("F4");
+  await expect(row).not.toContainText("F3.60");
+  const panel = sheet(page).locator(".sheet");
+  const box = await panel.boundingBox();
+  expect(box!.y).toBeLessThan(40);
+  expect(box!.height).toBeGreaterThan(844 * 0.75);
+  expect(box!.y + box!.height).toBeGreaterThan(844 - 24);
+  await saveShot(page, "f2-polish-search-full.png");
+
+  await row.click();
+  await expect(sheet(page).getByText("per 100 g · 165 kcal · P31 F3.6 C0")).toBeVisible();
+  await page.evaluate(() => {
+    document.documentElement.style.fontSize = "53px";
+    window.dispatchEvent(new Event("resize"));
+  });
+  await sheet(page).getByRole("button", { name: /Add · 165 kcal/ }).click();
+  const toast = page.locator(".toast");
+  const session = sheet(page).locator(".session");
+  await expect(toast).toBeVisible();
+  await expect(session.getByText(/1 added/)).toBeVisible();
+  await expect(session.getByText(/Today · 165 kcal/)).toBeVisible();
+  const toastBox = await toast.boundingBox();
+  const sessionBox = await session.boundingBox();
+  const closeBox = await sheet(page).getByRole("button", { name: "Close", exact: true }).boundingBox();
+  const searchBox = await sheet(page).getByRole("searchbox", { name: "Search foods" }).boundingBox();
+  expect(overlaps(toastBox!, sessionBox!)).toBe(false);
+  expect(overlaps(toastBox!, closeBox!)).toBe(false);
+  expect(overlaps(toastBox!, searchBox!)).toBe(false);
+  expect(toastBox!.y + toastBox!.height).toBeLessThanOrEqual(closeBox!.y + 1);
+  expect(toastBox!.y).toBeLessThan(sessionBox!.y);
+  await saveShot(page, "f2-polish-toast-ax5.png");
+});
+
 test("desktop accepts a decimal comma and large text does not scroll sideways", async ({ page }) => {
   const oid = `e2e-f2-desk-${Date.now()}-${test.info().project.name}`;
   const when = await clock(page);
