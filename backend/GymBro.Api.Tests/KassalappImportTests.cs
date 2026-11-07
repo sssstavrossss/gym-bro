@@ -151,6 +151,39 @@ public sealed class KassalappImportTests(ApiFactory factory)
     }
 
     [Fact]
+    public async Task Out_of_bounds_nutrition_is_skipped_and_an_older_listing_is_not_revived()
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var importer = scope.ServiceProvider.GetRequiredService<KassalappImporter>();
+        var file = string.Join('\n',
+            Line("9001", "Oil", "Brand", "2026-11-07T08:00:00Z", 900, 0, 100, 0, "A"),
+            Line("9002", "Too much energy", "Brand", "2026-11-07T08:00:00Z", 900.01m, 1, 1, 1, "A"),
+            Line("9003", "Too much protein", "Brand", "2026-11-07T08:00:00Z", 100, 100.01m, 1, 1, "A"),
+            Line("9004", "Too much fat", "Brand", "2026-11-07T08:00:00Z", 100, 1, 101, 1, "A"),
+            Line("9005", "Too much carb", "Brand", "2026-11-07T08:00:00Z", 100, 1, 1, 101, "A"),
+            Line("9006", "Older flour", "Holli", "2026-03-23T14:46:39Z", 321, 8, 1.3m, 67.8m, "A"),
+            Line("9006", "Newer flour", "Holli", "2026-06-07T01:27:04Z", 1262, 7, 2.5m, 60, "B"),
+            Line("9007", "Older wild", "Brand", "2026-01-01T00:00:00Z", 5000, 1, 1, 1, "A"),
+            Line("9007", "Newer plain", "Brand", "2026-06-01T00:00:00Z", 40, 1, 1, 1, "B"),
+            Line("1234", "Short code", "Brand", "2026-11-07T08:00:00Z", 10, 1, 1, 1, "A"),
+            Line("9008", "Tie low", "Brand", "2026-11-07T08:00:00Z", 40, 1, 1, 1, "A"),
+            Line("9008", "Tie high", "Brand", "2026-11-07T08:00:00Z", 4000, 1, 1, 1, "B"));
+        var report = await importer.ImportFileAsync(Stream(file), CancellationToken.None);
+        Assert.Equal(3, report.Accepted);
+        Assert.Equal(2, report.SkipReasons.GetValueOrDefault("kcal-out-of-range"));
+        Assert.Equal(3, report.SkipReasons.GetValueOrDefault("macro-out-of-range"));
+        Assert.Equal(1, report.SkipReasons.GetValueOrDefault("conflicting-nutrition"));
+        Assert.Equal(900, (await db.Foods.SingleAsync(food => food.SourceId == "9001")).KcalPer100);
+        Assert.Equal(0, await db.Foods.CountAsync(food => food.SourceId == "9002" || food.SourceId == "9006"));
+        Assert.Equal(40, (await db.Foods.SingleAsync(food => food.SourceId == "9007")).KcalPer100);
+        Assert.Equal("1234", (await db.Foods.SingleAsync(food => food.SourceId == "1234")).Barcode);
+        var ids = new[] { "9001", "9003", "9004", "9005", "9007", "1234" };
+        db.Foods.RemoveRange(await db.Foods.Where(food => ids.Contains(food.SourceId)).ToListAsync());
+        await db.SaveChangesAsync();
+    }
+
+    [Fact]
     public async Task A_truncated_file_does_not_retire_a_previous_row()
     {
         await using var scope = factory.Services.CreateAsyncScope();

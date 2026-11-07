@@ -14,9 +14,11 @@ public static class Kassalapp
     public const string Citation =
         "Product names and nutrition from Kassalapp (https://kassal.app). The API terms describe a free personal non-commercial key at 60 requests a minute and suggest a 6 hour cache. They do not say whether a stored catalogue is allowed. This import does not call the API.";
 
-    public const decimal MaxKcal = 2000m;
+    /// <summary>Stored kilocalories above this are rejected. 900 is kept. The number is not rescaled.</summary>
+    public const decimal MaxKcal = 900m;
 
-    public const decimal MaxMacro = 150m;
+    /// <summary>A protein, fat, or carbohydrate figure above this many grams is rejected. 100 is kept.</summary>
+    public const decimal MaxMacro = 100m;
 }
 
 public sealed record KassalappImportReport(
@@ -119,6 +121,19 @@ public sealed class KassalappImporter(AppDbContext db, TimeProvider clock, ILogg
             if (state.Chosen is null)
             {
                 Count(reasons, "nutrition-incomplete");
+                continue;
+            }
+
+            // The newest complete listing is the only candidate. An older in-range listing is not substituted.
+            if (state.Chosen.Bound == NutritionBound.Kcal)
+            {
+                Count(reasons, "kcal-out-of-range");
+                continue;
+            }
+
+            if (state.Chosen.Bound == NutritionBound.Macro)
+            {
+                Count(reasons, "macro-out-of-range");
                 continue;
             }
 
@@ -297,7 +312,7 @@ public sealed class KassalappImporter(AppDbContext db, TimeProvider clock, ILogg
             rows[ean] = state;
         }
 
-        if (!TryNutrition(product, out var kcal, out var protein, out var fat, out var carbs))
+        if (!TryNutrition(product, out var kcal, out var protein, out var fat, out var carbs, out var bound))
         {
             if (state.Chosen is null && !state.Conflict)
             {
@@ -316,7 +331,7 @@ public sealed class KassalappImporter(AppDbContext db, TimeProvider clock, ILogg
             return;
         }
 
-        var listing = new AcceptedListing(ean, Trim(name), kcal, protein, fat, carbs, stamp, updated);
+        var listing = new AcceptedListing(ean, Trim(name), kcal, protein, fat, carbs, stamp, updated, bound);
         if (state.Conflict && (state.ChosenAt is null || updated is null || updated <= state.ChosenAt))
         {
             return;
@@ -338,9 +353,16 @@ public sealed class KassalappImporter(AppDbContext db, TimeProvider clock, ILogg
         }
     }
 
-    private static bool TryNutrition(JsonElement product, out decimal kcal, out decimal protein, out decimal fat, out decimal carbs)
+    private static bool TryNutrition(
+        JsonElement product,
+        out decimal kcal,
+        out decimal protein,
+        out decimal fat,
+        out decimal carbs,
+        out NutritionBound bound)
     {
         kcal = protein = fat = carbs = 0;
+        bound = NutritionBound.Ok;
         if (!product.TryGetProperty("nutrition", out var nutrition) || nutrition.ValueKind != JsonValueKind.Array)
         {
             return false;
@@ -387,15 +409,20 @@ public sealed class KassalappImporter(AppDbContext db, TimeProvider clock, ILogg
             return false;
         }
 
-        if (energy > Kassalapp.MaxKcal || proteinValue > Kassalapp.MaxMacro || fatValue > Kassalapp.MaxMacro || carbValue > Kassalapp.MaxMacro)
-        {
-            return false;
-        }
-
         kcal = decimal.Round(energy.Value, 2, MidpointRounding.AwayFromZero);
         protein = decimal.Round(proteinValue.Value, 2, MidpointRounding.AwayFromZero);
         fat = decimal.Round(fatValue.Value, 2, MidpointRounding.AwayFromZero);
         carbs = decimal.Round(carbValue.Value, 2, MidpointRounding.AwayFromZero);
+        if (energy > Kassalapp.MaxKcal || kcal > Kassalapp.MaxKcal)
+        {
+            bound = NutritionBound.Kcal;
+        }
+        else if (proteinValue > Kassalapp.MaxMacro || fatValue > Kassalapp.MaxMacro || carbValue > Kassalapp.MaxMacro
+            || protein > Kassalapp.MaxMacro || fat > Kassalapp.MaxMacro || carbs > Kassalapp.MaxMacro)
+        {
+            bound = NutritionBound.Macro;
+        }
+
         return true;
     }
 
@@ -532,6 +559,8 @@ public sealed class KassalappImporter(AppDbContext db, TimeProvider clock, ILogg
         public bool Incomplete;
     }
 
+    private enum NutritionBound { Ok, Kcal, Macro }
+
     private sealed record AcceptedListing(
         string Ean,
         string Name,
@@ -540,7 +569,8 @@ public sealed class KassalappImporter(AppDbContext db, TimeProvider clock, ILogg
         decimal Fat,
         decimal Carbs,
         string Stamp,
-        DateTimeOffset? Updated);
+        DateTimeOffset? Updated,
+        NutritionBound Bound);
 
     private sealed class Counters
     {
