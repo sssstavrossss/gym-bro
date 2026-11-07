@@ -15,6 +15,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
 
     public DbSet<Food> Foods => Set<Food>();
 
+    public DbSet<FoodAlias> FoodAliases => Set<FoodAlias>();
+
     public DbSet<LogEntry> LogEntries => Set<LogEntry>();
 
     public DbSet<EntryGroup> EntryGroups => Set<EntryGroup>();
@@ -130,6 +132,17 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         food.HasIndex(f => f.Barcode);
         food.HasAlternateKey(f => new { f.OwnerKey, f.Id }).HasName("ux_foods_owner_key_id");
         food.HasOne<AppUser>().WithMany().HasForeignKey(f => f.UserId).OnDelete(DeleteBehavior.Cascade);
+
+        var alias = modelBuilder.Entity<FoodAlias>();
+        alias.ToTable("food_aliases");
+        alias.HasKey(a => a.Id);
+        alias.Property(a => a.Id).HasColumnName("id");
+        alias.Property(a => a.Source).HasColumnName("source").HasMaxLength(16);
+        alias.Property(a => a.SourceId).HasColumnName("source_id").HasMaxLength(64);
+        alias.Property(a => a.Phrase).HasColumnName("phrase").HasMaxLength(80);
+        alias.Property(a => a.Normalized).HasColumnName("normalized").HasMaxLength(80);
+        alias.Property(a => a.ExpectedNameEn).HasColumnName("expected_name_en").HasMaxLength(300);
+        alias.HasIndex(a => new { a.Source, a.SourceId, a.Normalized }).IsUnique();
 
         var entry = modelBuilder.Entity<LogEntry>();
         entry.ToTable("log_entries", table =>

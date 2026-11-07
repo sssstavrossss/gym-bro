@@ -147,6 +147,12 @@ public sealed class MatvaretabellenImporter(
         credit.ImportedAt = started;
         credit.FoodCount = seen.Count;
         await db.SaveChangesAsync(cancellationToken);
+        var aliases = await FoodAliasCatalogue.ApplyAsync(db, cancellationToken);
+        logger.LogInformation(
+            "Food search aliases added {Inserted}, already present {AlreadyPresent}, skipped {Skipped}.",
+            aliases.Inserted,
+            aliases.AlreadyPresent,
+            aliases.Skipped);
         logger.LogInformation(
             "Matvaretabellen import upserted {Upserted}, retired {Retired}, skipped {Skipped}.",
             upserted,
