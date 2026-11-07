@@ -23,6 +23,13 @@ public sealed class KassalappImportTests(ApiFactory factory)
             Line("007394376620799", "Havredrikk", "Oatly", "2026-11-07T08:00:00Z", 48, 1.1m, 1.5m, 7, "Joker"),
             Line("007394376620799", "Havredrikk", "Oatly", "2026-11-07T08:00:00Z", 48, 1.1m, 1.5m, 7, "Meny"),
             """{"ean":"0002","name":"Incomplete","brand":"X","updated_at":"2026-11-07T08:00:00Z","weight_unit":"g","nutrition":[{"code":"energi_kj","unit":"kJ","amount":400},{"code":"fett_totalt","unit":"g","amount":1},{"code":"karbohydrater","unit":"g","amount":1}]}""");
+        var preview = await importer.ImportFileAsync(Stream(file), dryRun: true, CancellationToken.None);
+        Assert.True(preview.DryRun);
+        Assert.Equal(1, preview.Accepted);
+        Assert.Equal(0, preview.Upserted);
+        Assert.False(string.IsNullOrWhiteSpace(preview.Sha256));
+        Assert.Equal(0, await db.Foods.CountAsync(row => row.Source == "kassalapp" && row.SourceId == "007394376620799"));
+
         var first = await importer.ImportFileAsync(Stream(file), CancellationToken.None);
         Assert.True(first.Complete);
         Assert.Equal(1, first.Accepted);

@@ -1,4 +1,6 @@
 using System.Globalization;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using GymBro.Api.Data;
 using Microsoft.EntityFrameworkCore;
@@ -19,70 +21,90 @@ public static class Kassalapp
 
 public sealed record KassalappImportReport(
     bool Complete,
+    bool DryRun,
     int RowsRead,
     int Accepted,
     int Upserted,
     int Unchanged,
     int Reconfirm,
+    string Sha256,
     IReadOnlyDictionary<string, int> SkipReasons);
 
 public sealed class KassalappImporter(AppDbContext db, TimeProvider clock, ILogger<KassalappImporter> logger)
 {
     public const int BatchSize = 200;
 
-    public async Task<KassalappImportReport> ImportFileAsync(Stream file, CancellationToken cancellationToken)
-    {
-        using var reader = new StreamReader(file);
-        var text = await reader.ReadToEndAsync(cancellationToken);
-        if (text.Trim().Length == 0)
-        {
-            throw new InvalidOperationException("Kassalapp file was empty.");
-        }
+    /// <summary>One kept listing per EAN. Past this, stop rather than grow without a bound.</summary>
+    public const int MaxEans = 400_000;
 
+    public Task<KassalappImportReport> ImportFileAsync(Stream file, CancellationToken cancellationToken) =>
+        ImportFileAsync(file, dryRun: false, cancellationToken);
+
+    public async Task<KassalappImportReport> ImportFileAsync(Stream file, bool dryRun, CancellationToken cancellationToken)
+    {
+        using var hashing = new HashingStream(file);
+        using var reader = new StreamReader(hashing);
         var complete = true;
         var rows = new Dictionary<string, ListingState>(StringComparer.Ordinal);
         var reasons = new Dictionary<string, int>(StringComparer.Ordinal);
-        try
+        var pending = new StringBuilder();
+        var sawLine = false;
+        while (true)
         {
-            using var document = JsonDocument.Parse(text);
-            ReadDocument(document.RootElement, rows, reasons);
-        }
-        catch (JsonException)
-        {
-            var lines = text.Split('\n');
-            var parsedAny = false;
-            foreach (var raw in lines)
+            var raw = await reader.ReadLineAsync(cancellationToken);
+            if (raw is null)
             {
-                var line = raw.Trim();
-                if (line.Length == 0)
-                {
-                    continue;
-                }
+                break;
+            }
 
-                try
+            sawLine = true;
+            if (pending.Length == 0 && raw.Trim().Length == 0)
+            {
+                continue;
+            }
+
+            pending.Append(raw);
+            var chunk = pending.ToString().Trim();
+            if (chunk.Length == 0)
+            {
+                pending.Clear();
+                continue;
+            }
+
+            try
+            {
+                using var document = JsonDocument.Parse(chunk);
+                ReadDocument(document.RootElement, rows, reasons);
+                pending.Clear();
+                if (rows.Count > MaxEans)
                 {
-                    using var document = JsonDocument.Parse(line);
-                    ReadDocument(document.RootElement, rows, reasons);
-                    parsedAny = true;
-                }
-                catch (JsonException)
-                {
-                    if (!parsedAny && line == lines[^1].Trim())
-                    {
-                        complete = false;
-                        Count(reasons, "truncated-file");
-                    }
-                    else if (!line.EndsWith('}') && !line.EndsWith(']'))
-                    {
-                        complete = false;
-                        Count(reasons, "truncated-file");
-                    }
-                    else
-                    {
-                        Count(reasons, "malformed-row");
-                    }
+                    complete = false;
+                    Count(reasons, "too-many-eans");
+                    break;
                 }
             }
+            catch (JsonException)
+            {
+                if (pending.Length > 32 * 1024 * 1024)
+                {
+                    complete = false;
+                    Count(reasons, "truncated-file");
+                    break;
+                }
+
+                pending.Append('\n');
+            }
+        }
+
+        if (!sawLine || pending.Length > 0)
+        {
+            if (!sawLine)
+            {
+                throw new InvalidOperationException("Kassalapp file was empty.");
+            }
+
+            complete = false;
+            Count(reasons, "truncated-file");
         }
 
         var accepted = new List<AcceptedListing>();
@@ -105,13 +127,16 @@ public sealed class KassalappImporter(AppDbContext db, TimeProvider clock, ILogg
 
         var report = new Counters { RowsRead = reasons.GetValueOrDefault("rows") };
         var now = clock.GetUtcNow();
-        for (var index = 0; index < accepted.Count; index += BatchSize)
+        if (!dryRun)
         {
-            var slice = accepted.Skip(index).Take(BatchSize).ToList();
-            await FlushAsync(slice, now, report, cancellationToken);
+            for (var index = 0; index < accepted.Count; index += BatchSize)
+            {
+                var slice = accepted.Skip(index).Take(BatchSize).ToList();
+                await FlushAsync(slice, now, report, cancellationToken);
+            }
         }
 
-        if (complete)
+        if (complete && !dryRun)
         {
             var credit = await db.FoodSourceCredits.FirstOrDefaultAsync(row => row.Source == Kassalapp.Source, cancellationToken);
             if (credit is null)
@@ -133,7 +158,16 @@ public sealed class KassalappImporter(AppDbContext db, TimeProvider clock, ILogg
             complete,
             accepted.Count,
             report.Upserted);
-        return new KassalappImportReport(complete, report.RowsRead, accepted.Count, report.Upserted, report.Unchanged, report.Reconfirm, reasons);
+        return new KassalappImportReport(
+            complete,
+            dryRun,
+            report.RowsRead,
+            accepted.Count,
+            report.Upserted,
+            report.Unchanged,
+            report.Reconfirm,
+            Convert.ToHexString(hashing.Hash()).ToLowerInvariant(),
+            reasons);
     }
 
     public static string Stamp(decimal kcal, decimal protein, decimal fat, decimal carbs) =>
@@ -449,6 +483,45 @@ public sealed class KassalappImporter(AppDbContext db, TimeProvider clock, ILogg
     private static void Count(Dictionary<string, int> reasons, string reason)
     {
         reasons[reason] = reasons.GetValueOrDefault(reason) + 1;
+    }
+
+    private sealed class HashingStream(Stream inner) : Stream
+    {
+        private readonly IncrementalHash hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+
+        public byte[] Hash() => hash.GetHashAndReset();
+
+        public override bool CanRead => inner.CanRead;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => inner.Length;
+        public override long Position { get => inner.Position; set => throw new NotSupportedException(); }
+        public override void Flush() { }
+        public override int Read(byte[] buffer, int offset, int count) => Read(buffer.AsSpan(offset, count));
+
+        public override int Read(Span<byte> buffer)
+        {
+            var read = inner.Read(buffer);
+            if (read > 0)
+            {
+                hash.AppendData(buffer[..read]);
+            }
+
+            return read;
+        }
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            var read = await inner.ReadAsync(buffer, cancellationToken);
+            if (read > 0)
+            {
+                hash.AppendData(buffer.Span[..read]);
+            }
+
+            return read;
+        }
     }
 
     private sealed class ListingState

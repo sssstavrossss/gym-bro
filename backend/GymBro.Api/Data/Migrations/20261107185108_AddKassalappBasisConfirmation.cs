@@ -74,6 +74,17 @@ namespace GymBro.Api.Data.Migrations
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
+            // Unconfirmed rows have a null basis. Making basis required again fails, and deleting
+            // those foods would set log_entries.food_id to null. Refuse instead of doing either.
+            migrationBuilder.Sql(
+                """
+                DO $$
+                BEGIN
+                  IF EXISTS (SELECT 1 FROM foods WHERE basis IS NULL OR nutrient_basis = 'unconfirmed') THEN
+                    RAISE EXCEPTION 'Do not roll back AddKassalappBasisConfirmation while an unconfirmed food exists. Retiring those rows does not make this rollback succeed. Revert the application code and leave this schema. To hide the catalogue from search: UPDATE foods SET retired_at = now() WHERE source = ''kassalapp'' AND retired_at IS NULL. Do not DELETE those rows: log_entries.food_id is ON DELETE SET NULL.';
+                  END IF;
+                END $$;
+                """);
             migrationBuilder.DropTable(
                 name: "food_basis_confirmations");
 

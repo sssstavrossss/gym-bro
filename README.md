@@ -220,8 +220,27 @@ The file may be one JSON document (`{"data":[...]}` from search, or `{"data":{"e
 A kept row has `source` `kassalapp`, `source_id` and `barcode` equal to the EAN, and `nutrient_basis` `unconfirmed` with `basis` null. Search can find the name and brand. It cannot be logged until that signed-in person chooses per 100 g or per 100 ml. The choice is stored only for them and does not change the shared row or anyone else's log. If a later import changes the four numbers, that person has to choose again. Nothing is selected for them in advance. The detail shows the numbers as reported, with a note that Kassalapp did not say the basis. Existing Matvaretabellen foods stay loggable. A confirmed millilitre food is logged in millilitres and does not store a gram weight. A stopped file does not retire rows. To hide the import, set `retired_at` where `source` is `kassalapp`. Do not delete those rows, because `log_entries.food_id` is `ON DELETE SET NULL`.
 
 ```bash
+dotnet run --project backend/GymBro.Api -- --import-kassalapp --file norway.jsonl --dry-run
 dotnet run --project backend/GymBro.Api -- --import-kassalapp --file norway.jsonl
 ```
+
+Do not run the second command on a production database until the file's sha256 matches a manifest the operator has checked. The command prints that sha256. Take a database backup first. A dry run parses and counts and does not insert or update catalogue foods. The process still opens the database, applies pending migrations, and fills any null `search_name` or `search_name_en`, so point a trial at a copy when that backfill must not touch the live database. After a real import, count `foods` where `source` is `kassalapp` and `retired_at` is null, and run the same file again: a repeat reports those rows unchanged and does not insert a second copy.
+
+The import reads JSONL one line at a time and keeps one candidate per EAN. It stops if that map would pass 400,000 EANs. A single JSON array is only for a small file: more than 32 MB of unfinished JSON is rejected, so the large file should be one product per line.
+
+On this machine, an isolated database and a generated JSONL of 250,000 lines (80,638,890 bytes, sha256 `662c9eed7c73fa1ae0965f75385b7e8b1aa60b5a9d17c1db7941603a6c1ffda1`, every name starting `SYNTHETIC NOT A REAL PRODUCT`) finished a dry run in about 4.5 seconds with a peak resident set of 345,848 KB. The food count did not change. That file is not a Kassalapp download and this is not a production measurement. After those 250,000 rows were loaded and search text was filled, `pg_total_relation_size('foods')` was 167,337,984 bytes.
+
+Warm `EXPLAIN ANALYZE` of the search the app runs (JIT off, `ORDER BY` name, `LIMIT` 25, Norwegian name or English name or alias, every token on the same string) was about 66 ms for a two-word brand query (21,391 rows), 58 ms for `bryst` (16,453), 68 ms for the short word `ost` (28,207), 58 ms for `filet` (14,706), 59 ms for `kylling` plus `br` (no row contains both tokens), and 54 ms for an unknown food. A confirmation read by user and food id was 0.02 ms on a one-row table. A trigram index on the padded name makes one `LIKE` faster (`bryst` about 14 ms, an unknown food about 0.03 ms), but the planner does not use it for the query above, and forcing an index plan took about 300 ms. No search index was added. The match, the rank, and the private-food filter are unchanged. This is not a measurement of the real catalogue or of a phone.
+
+`dotnet ef database update` down to the migration before `AddKassalappBasisConfirmation` is not a safe rollback. `Down` stops if any food has a null basis or `nutrient_basis` `unconfirmed`, because making `basis` required again would fail and deleting those foods would clear `log_entries.food_id`. To take the catalogue out of search, retire it:
+
+```sql
+UPDATE foods SET retired_at = now() WHERE source = 'kassalapp' AND retired_at IS NULL;
+```
+
+Leave the schema in place. Retiring the rows does not make `Down` succeed: the basis is still null. Revert the application code if you need the previous behaviour, and do not delete the rows.
+
+The Kassalapp download was still running when this was written: about 72,900 rows at 20:15, near 14 pages a minute, down from about 44. The unique count is not known yet. Import that file only after its sha256 is the one recorded for that download.
 
 Matvaretabellen is imported from the official foods.json, not committed as a dump. The import also downloads the English file beside it (`/api/en/` when the configured URL contains `/api/nb/`) and stores that name on `foods.name_en`. Search matches the Norwegian name and the English name, so "kylling" and "chicken" find the same rows. Running the import again upserts by source id and does not insert a second copy. On the host:
 

@@ -228,6 +228,7 @@ if (args.Contains("--import-matvaretabellen"))
 
 if (args.Contains("--import-kassalapp"))
 {
+    var dryRun = args.Contains("--dry-run");
     var fileFlag = Array.IndexOf(args, "--file");
     if (fileFlag < 0 || fileFlag + 1 >= args.Length)
     {
@@ -241,10 +242,10 @@ if (args.Contains("--import-kassalapp"))
     try
     {
         await using var file = File.OpenRead(args[fileFlag + 1]);
-        var report = await importer.ImportFileAsync(file, CancellationToken.None);
+        var report = await importer.ImportFileAsync(file, dryRun, CancellationToken.None);
         Console.WriteLine(Kassalapp.Citation);
         Console.WriteLine(
-            $"Kassalapp: complete={report.Complete} rows={report.RowsRead} accepted={report.Accepted} upserted={report.Upserted} unchanged={report.Unchanged} reconfirm={report.Reconfirm}.");
+            $"Kassalapp: complete={report.Complete} dryRun={report.DryRun} sha256={report.Sha256} rows={report.RowsRead} accepted={report.Accepted} upserted={report.Upserted} unchanged={report.Unchanged} reconfirm={report.Reconfirm}.");
         foreach (var reason in report.SkipReasons.OrderBy(pair => pair.Key))
         {
             if (reason.Key == "rows")
