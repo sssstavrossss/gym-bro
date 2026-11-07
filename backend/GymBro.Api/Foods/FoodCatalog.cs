@@ -10,6 +10,12 @@ public static class FoodCatalog
     /// <summary>Enough words for a food name. More than this is rejected so a keystroke cannot build an unbounded predicate.</summary>
     public const int MaxSearchTokens = 8;
 
+    /// <summary>
+    /// A word this long may match inside a compound (<c>bryst</c> in <c>kyllingbryst</c>).
+    /// Shorter text stays on a word boundary, so <c>br</c> does not match every word that contains those letters.
+    /// </summary>
+    public const int CompoundTokenLength = 4;
+
     public static IQueryable<Food> Visible(IQueryable<Food> foods, string userId) =>
         foods.Where(food => food.RetiredAt == null && (food.UserId == null || food.UserId == userId));
 
@@ -38,33 +44,29 @@ public static class FoodCatalog
                 .ToListAsync(cancellationToken);
         }
 
-        // Every token must hit the same string: the Norwegian name, the English name, or one alias.
-        // Earlier tokens are whole words. The last token may be the start of a word, so "chicken br"
-        // matches "chicken breast" without also matching every food that contains only one of those words.
+        // Names are already folded by the same function as the query, so this does not call lower() or regexp_replace.
+        // Every token must hit the same string. Short words stay on a boundary. A longer word may also sit inside a compound.
         var args = new List<object>();
-        string Take() => "{" + (args.Count - 1) + "}";
         string Add(object value)
         {
             args.Add(value);
-            return Take();
+            return "{" + (args.Count - 1) + "}";
         }
 
         var userParam = Add(userId);
         var queryParam = Add(query);
         var normalizedParam = Add(normalized);
-        var prefixParam = Add(normalized + "%");
+        var prefixParam = Add(LikePrefix(normalized));
         var digitParam = Add(digits);
-        var tokenParams = tokens.Select((token, index) =>
-            Add(index == tokens.Length - 1 ? "% " + token + "%" : "% " + token + " %")).ToArray();
-        var lastWholeParam = Add("% " + tokens[^1] + " %");
+        var matchParams = tokens.Select((token, index) => Add(MatchPattern(token, index == tokens.Length - 1))).ToArray();
+        var lastWholeParam = Add(WholeWordPattern(tokens[^1]));
+        var lastPrefixParam = Add(WordPrefixPattern(tokens[^1]));
 
-        const string scrub = "' ' || regexp_replace(lower(coalesce({0}, '')), '[^[:alnum:]æøåÆØÅ]+', ' ', 'g') || ' '";
-        var namePad = string.Format(scrub, "f.name");
-        var enPad = string.Format(scrub, "f.name_en");
-        var aliasPad = string.Format(scrub, "a.normalized");
-        string All(string pad) => string.Join(" AND ", tokenParams.Select(param => pad + " ILIKE " + param));
-        var rankName = "btrim(regexp_replace(lower(coalesce(f.name, '')), '[^[:alnum:]æøåÆØÅ]+', ' ', 'g'))";
-        var rankEn = "btrim(regexp_replace(lower(coalesce(f.name_en, '')), '[^[:alnum:]æøåÆØÅ]+', ' ', 'g'))";
+        // COLLATE "C" keeps the match on the stored letters. A database collation must not treat é as e.
+        const string namePad = "(' ' || coalesce(f.search_name, '') || ' ') COLLATE \"C\"";
+        const string enPad = "(' ' || coalesce(f.search_name_en, '') || ' ') COLLATE \"C\"";
+        const string aliasPad = "(' ' || a.normalized || ' ') COLLATE \"C\"";
+        string All(string pad) => string.Join(" AND ", matchParams.Select(param => pad + " LIKE " + param));
 
         var sql = $"""
             SELECT f.id AS "Value"
@@ -85,28 +87,35 @@ public static class FoodCatalog
               )
             ORDER BY CASE
               WHEN ({digitParam} AND f.barcode = {queryParam})
-                OR {rankName} = {normalizedParam}
-                OR {rankEn} = {normalizedParam}
+                OR f.search_name COLLATE "C" = {normalizedParam}
+                OR f.search_name_en COLLATE "C" = {normalizedParam}
                 OR EXISTS (
                   SELECT 1 FROM food_aliases AS a
                   WHERE a.source = f.source AND a.source_id = f.source_id AND a.expected_name_en = f.name_en
-                    AND a.normalized = {normalizedParam}
+                    AND a.normalized COLLATE "C" = {normalizedParam}
                 ) THEN 0
-              WHEN {rankName} ILIKE {prefixParam}
-                OR {rankEn} ILIKE {prefixParam}
+              WHEN f.search_name COLLATE "C" LIKE {prefixParam}
+                OR f.search_name_en COLLATE "C" LIKE {prefixParam}
                 OR EXISTS (
                   SELECT 1 FROM food_aliases AS a
                   WHERE a.source = f.source AND a.source_id = f.source_id AND a.expected_name_en = f.name_en
-                    AND a.normalized ILIKE {prefixParam}
+                    AND a.normalized COLLATE "C" LIKE {prefixParam}
                 ) THEN 1
-              WHEN {namePad} ILIKE {lastWholeParam}
-                OR {enPad} ILIKE {lastWholeParam}
+              WHEN {namePad} LIKE {lastWholeParam}
+                OR {enPad} LIKE {lastWholeParam}
                 OR EXISTS (
                   SELECT 1 FROM food_aliases AS a
                   WHERE a.source = f.source AND a.source_id = f.source_id AND a.expected_name_en = f.name_en
-                    AND {aliasPad} ILIKE {lastWholeParam}
+                    AND {aliasPad} LIKE {lastWholeParam}
                 ) THEN 2
-              ELSE 3
+              WHEN {namePad} LIKE {lastPrefixParam}
+                OR {enPad} LIKE {lastPrefixParam}
+                OR EXISTS (
+                  SELECT 1 FROM food_aliases AS a
+                  WHERE a.source = f.source AND a.source_id = f.source_id AND a.expected_name_en = f.name_en
+                    AND {aliasPad} LIKE {lastPrefixParam}
+                ) THEN 3
+              ELSE 4
             END, f.name, f.source
             LIMIT {SearchLimit}
             """;
@@ -200,6 +209,22 @@ public static class FoodCatalog
 
         return null;
     }
+
+    private static string MatchPattern(string token, bool last)
+    {
+        if (token.Length >= CompoundTokenLength)
+        {
+            return "%" + token + "%";
+        }
+
+        return last ? WordPrefixPattern(token) : WholeWordPattern(token);
+    }
+
+    private static string WholeWordPattern(string token) => "% " + token + " %";
+
+    private static string WordPrefixPattern(string token) => "% " + token + "%";
+
+    private static string LikePrefix(string normalized) => normalized + "%";
 
     public static string ContainsPattern(string query)
     {

@@ -171,6 +171,87 @@ public sealed class FoodSearchPartialTests(ApiFactory factory)
         }
     }
 
+    [Fact]
+    public async Task Compound_words_rank_below_whole_words_and_accents_stay_consistent()
+    {
+        var user = TestData.NewUser("partial-compound");
+        var stranger = TestData.NewUser("partial-compound-b");
+        using var client = factory.AsUser(user);
+        using var other = factory.AsUser(stranger);
+        var ids = new[] { "srch.kbryst", "srch.wbryst", "srch.kfilet", "srch.wfilet", "srch.lar", "srch.rawc", "srch.friedc", "srch.accent" };
+        try
+        {
+            await Clear(ids);
+            await Add(client, "srch.kbryst", "Kyllingbryst", "Chickenbreast", []);
+            await Add(client, "srch.wbryst", "Kylling, bryst", "Chicken, breast", []);
+            await Add(client, "srch.kfilet", "Kyllingfilet", "Chickenfillet", []);
+            await Add(client, "srch.wfilet", "Kylling, filet", "Chicken, fillet", []);
+            await Add(client, "srch.lar", "Kyllinglår", "Chicken, thigh", []);
+            await Add(client, "srch.rawc", "Rå kyllingbryst", "Raw chickenbreast", []);
+            await Add(client, "srch.friedc", "Stekt kyllingbryst", "Fried chickenbreast", []);
+            await Add(client, "srch.accent", "Café crème", "Sweet cream", []);
+
+            await using (var scope = factory.Services.CreateAsyncScope())
+            {
+                var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                var accent = await db.Foods.SingleAsync(food => food.SourceId == "srch.accent");
+                Assert.Equal(FoodAliasCatalogue.Normalize("Café crème"), accent.SearchName);
+                Assert.Equal(FoodAliasCatalogue.Normalize("cafe\u0301 crème"), accent.SearchName);
+                Assert.NotEqual(FoodAliasCatalogue.Normalize("cafe creme"), accent.SearchName);
+            }
+
+            var bryst = await Ids(client, "bryst");
+            Assert.Contains("srch.wbryst", bryst);
+            Assert.Contains("srch.kbryst", bryst);
+            Assert.DoesNotContain("srch.lar", bryst);
+            Assert.True(bryst.IndexOf("srch.wbryst") < bryst.IndexOf("srch.kbryst"));
+
+            var filet = await Ids(client, "filet");
+            Assert.Contains("srch.wfilet", filet);
+            Assert.Contains("srch.kfilet", filet);
+            Assert.True(filet.IndexOf("srch.wfilet") < filet.IndexOf("srch.kfilet"));
+
+            var prefix = await Ids(client, "br");
+            Assert.Contains("srch.wbryst", prefix);
+            Assert.DoesNotContain("srch.kbryst", prefix);
+
+            var rawCompound = await Ids(client, "rå bryst");
+            Assert.Contains("srch.rawc", rawCompound);
+            Assert.DoesNotContain("srch.friedc", rawCompound);
+            Assert.DoesNotContain("srch.wbryst", rawCompound);
+            Assert.DoesNotContain("srch.kbryst", rawCompound);
+            var friedCompound = await Ids(client, "stekt bryst");
+            Assert.Contains("srch.friedc", friedCompound);
+            Assert.DoesNotContain("srch.rawc", friedCompound);
+
+            var custom = await other.PostAsJsonAsync("/api/foods", new
+            {
+                name = "Kyllingbryst",
+                kcalPer100 = 10,
+                proteinPer100 = 1,
+                fatPer100 = 1,
+                carbsPer100 = 1,
+            });
+            Assert.True(custom.IsSuccessStatusCode, await custom.Content.ReadAsStringAsync());
+            var privateId = (await custom.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+            Assert.Contains(privateId, await FoodIds(other, "bryst"));
+            Assert.DoesNotContain(privateId, await FoodIds(client, "bryst"));
+
+            Assert.Contains("srch.accent", await Ids(client, "cafe\u0301"));
+            Assert.Contains("srch.accent", await Ids(client, "crème"));
+            Assert.DoesNotContain("srch.accent", await Ids(client, "cafe"));
+        }
+        finally
+        {
+            await Clear(ids);
+            await using var scope = factory.Services.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var owned = await db.Foods.Where(food => food.UserId == stranger && food.Name == "Kyllingbryst").ToListAsync();
+            db.Foods.RemoveRange(owned);
+            await db.SaveChangesAsync();
+        }
+    }
+
     private async Task Add(HttpClient client, string sourceId, string name, string nameEn, string[] phrases)
     {
         await using var scope = factory.Services.CreateAsyncScope();

@@ -1,4 +1,5 @@
 using GymBro.Api.Data;
+using GymBro.Api.Foods;
 using Microsoft.EntityFrameworkCore;
 
 namespace GymBro.Api.Hosting;
@@ -15,6 +16,7 @@ public static class DatabaseStartup
                 await using var scope = app.Services.CreateAsyncScope();
                 var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
                 await db.Database.MigrateAsync();
+                await FoodSearchTextInterceptor.BackfillAsync(db, CancellationToken.None);
                 return;
             }
             catch (Exception ex) when (ex is not OperationCanceledException && attempt < attempts)

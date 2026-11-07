@@ -1,3 +1,4 @@
+using System.Text;
 using GymBro.Api.Data;
 using Microsoft.EntityFrameworkCore;
 
@@ -49,10 +50,14 @@ public static class FoodAliasCatalogue
             return "";
         }
 
-        var buffer = new char[value.Length];
+        // NFC first, so a typed "e" plus a combining accent is the same letter as "é".
+        // char.ToLowerInvariant matches the stored search text. Postgres lower() does not:
+        // it splits some letters and it drops combining marks.
+        var text = value.Trim().Normalize(NormalizationForm.FormC);
+        var buffer = new char[text.Length];
         var length = 0;
         var space = false;
-        foreach (var ch in value.Trim())
+        foreach (var ch in text)
         {
             if (char.IsLetterOrDigit(ch))
             {
