@@ -223,7 +223,9 @@ That one-off container applies migrations, imports, prints the citation, and exi
 
 Search also matches a hidden phrase table, `food_aliases`, for the whole query after lower-casing and turning punctuation into spaces. It does not split the query into tokens. A phrase is stored against a Matvaretabellen source id, and it matches only while that row's English name is still the name the phrase was written for. Official names, nutrients, and logged snapshots are not changed. The phrases are not returned by the API. Custom foods are not given phrases. Running the import again adds any missing phrases and does not delete ones already stored.
 
-The phrases below were checked against the public Norwegian and English foods.json files. Chicken fillet is the breast cut in that catalogue; thigh, drumstick, and whole leg are separate foods and are not listed. This is a first set, not every synonym.
+Lexicon v1 lives in `backend/GymBro.Api/Foods/food-alias-lexicon.v1.json`. It was checked against the public foods.json files (English sha256 `89b8f5f494a79731bf7d8d98065ee66c55263ccdbb519e7c87941218be6c948d`, Norwegian sha256 `7c7ebb52109433ea15032a29f495843a5da229313bbcf4a4fe7ebcc45b9c9b33`, 2121 foods). On that snapshot the backfill stores 5903 phrases. 137 foods get an everyday synonym or one of the original preserved phrases. 1808 more get only a punctuation or word-order phrase, such as `raw salmon` for `Salmon, farmed, raw`. 176 foods get nothing new because the official name is already a single searchable phrase. A phrase is not a nutrition match. Elk is not aliased to moose, shrimp is not aliased to king prawn, and plant drinks are not aliased to milk.
+
+The original seven foods and their 25 phrases are still included:
 
 | Source id | English name that must still match | Phrases |
 | --- | --- | --- |
@@ -235,19 +237,21 @@ The phrases below were checked against the public Norwegian and English foods.js
 | 03.204 | Turkey, breast, without skin, raw | turkey fillet |
 | 03.241 | Turkey breast, without skin, roasted | turkey fillet |
 
-`03.224` is included because the Norwegian name is "Høne, bryst, filet, uten skinn, rå". "Høne, filet, kokt" is not. Turkey fillet is only the two breast rows, not "Kalkunfilet, naturell/røkt". An import applies the phrases for foods it just wrote. A database that already has the foods, and is not being imported again, needs a separate run. That command is not part of web startup:
+`03.224` is included because the Norwegian name is "Høne, bryst, filet, uten skinn, rå". "Høne, filet, kokt" is not. Turkey fillet is only the two breast rows, not "Kalkunfilet, naturell/røkt". The same backfill also adds the lexicon: eggplant for aubergine, courgette for the zucchini squash row, garbanzo and chickpeas for the chick pea rows but not falafel, bell pepper and capsicum for sweet pepper but not the powder, cilantro only for raw coriander leaf, canola only for rapeseed oil that is not a sunflower or margarine blend, coley for saithe but not Alaska pollock, filet mignon only for beef tenderloin, brown cheese for the brunost whey cheeses but not prim, and the other rules in the lexicon file.
+
+An import applies phrases for every catalogue row already in the database. It does not need a second full download to add phrases to foods imported earlier. Web startup does not write them. For a database that already has the foods:
 
 ```bash
 dotnet run --project backend/GymBro.Api -- --backfill-food-aliases
 ```
 
-With Compose, after the migration is deployed:
+With Compose, against the database that already has the foods:
 
 ```bash
 docker compose run --rm app --backfill-food-aliases
 ```
 
-Run it again and it prints the same phrases as already present. It does not rewrite nutrients or log rows.
+Run it again and it prints the phrases as already present. It does not rewrite nutrients or log rows. Search still returns at most 25 rows, so a broad phrase such as `whole wheat` does not list every matching food. No new migration is required; the `food_aliases` table from the earlier release is reused.
 
 ## Targets and trend weight
 

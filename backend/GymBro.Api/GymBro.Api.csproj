@@ -7,6 +7,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <EmbeddedResource Include="Foods\food-alias-lexicon.v1.json" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.13" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.13">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
