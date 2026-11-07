@@ -91,9 +91,12 @@ public sealed class OffNorwayImporter(AppDbContext db, TimeProvider clock, ILogg
             }
 
             using var response = await client.GetAsync(NorwaySearchUrl(page, pageSize), cancellationToken);
-            if (response.StatusCode == System.Net.HttpStatusCode.TooManyRequests && retries < 2)
+            if (retries < 4 && response.StatusCode is System.Net.HttpStatusCode.TooManyRequests
+                or System.Net.HttpStatusCode.ServiceUnavailable
+                or System.Net.HttpStatusCode.BadGateway)
             {
                 retries++;
+                Console.WriteLine($"Open Food Facts Norway search: page={page} http={(int)response.StatusCode} retry={retries}.");
                 await Task.Delay(TimeSpan.FromSeconds(60), cancellationToken);
                 continue;
             }
