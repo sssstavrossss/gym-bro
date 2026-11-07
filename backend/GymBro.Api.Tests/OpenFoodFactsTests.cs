@@ -31,12 +31,29 @@ public sealed class OpenFoodFactsTests
                   "code": "0000000000024",
                   "product_name": "Fictional no label",
                   "nutriments": { "proteins_100g": 10, "fat_100g": 10, "carbohydrates_100g": 10 }
+                },
+                {
+                  "code": "0000000000031",
+                  "product_name": "Fictional drink",
+                  "nutrition_data_per": "100ml",
+                  "quantity": "100 g",
+                  "nutriments": { "energy-kcal_100g": 20, "proteins_100g": 1, "fat_100g": 1, "carbohydrates_100g": 1 }
+                },
+                {
+                  "code": "0000000000048",
+                  "product_name": "Fictional no basis",
+                  "quantity": "350 ml",
+                  "nutriments": { "energy-kcal_100g": 30, "proteins_100g": 1, "fat_100g": 1, "carbohydrates_100g": 1 }
                 }
               ]
             }
             """);
 
-        var food = Assert.Single(foods);
+        Assert.Equal(2, foods.Count);
+        var food = Assert.Single(foods, item => item.Barcode == "0000000000017");
+        var drink = Assert.Single(foods, item => item.Barcode == "0000000000031");
+        Assert.Equal("ml", drink.Basis);
+        Assert.DoesNotContain(foods, item => item.Barcode == "0000000000048");
         Assert.Equal("off", food.Source);
         Assert.Equal("0000000000017", food.Barcode);
         Assert.Equal(100, food.KcalPer100);

@@ -247,10 +247,18 @@ if (args.Contains("--import-open-food-facts-norway"))
         OffImportReport report;
         if (fileFlag >= 0 && fileFlag + 1 < args.Length)
         {
-            await using var file = File.OpenRead(args[fileFlag + 1]);
-            report = args[fileFlag + 1].EndsWith(".gz", StringComparison.OrdinalIgnoreCase)
-                ? await importer.ImportGzipAsync(file, dryRun, CancellationToken.None)
-                : await importer.ImportCsvAsync(file, dryRun, compressedBytes: 0, CancellationToken.None);
+            var path = args[fileFlag + 1];
+            await using var file = File.OpenRead(path);
+            var jsonl = path.EndsWith(".jsonl", StringComparison.OrdinalIgnoreCase)
+                || path.EndsWith(".jsonl.gz", StringComparison.OrdinalIgnoreCase);
+            var gzip = path.EndsWith(".gz", StringComparison.OrdinalIgnoreCase);
+            report = jsonl && gzip
+                ? await importer.ImportJsonlGzipAsync(file, dryRun, CancellationToken.None)
+                : jsonl
+                    ? await importer.ImportJsonlAsync(file, dryRun, compressedBytes: 0, CancellationToken.None)
+                    : gzip
+                        ? await importer.ImportGzipAsync(file, dryRun, CancellationToken.None)
+                        : await importer.ImportCsvAsync(file, dryRun, compressedBytes: 0, CancellationToken.None);
         }
         else
         {
@@ -259,7 +267,7 @@ if (args.Contains("--import-open-food-facts-norway"))
 
         Console.WriteLine(OpenFoodFacts.Citation);
         Console.WriteLine(
-            $"Open Food Facts Norway: complete={report.Complete} dryRun={report.DryRun} rows={report.RowsRead} norway={report.NorwayRows} accepted={report.Accepted} upserted={report.Upserted} unchanged={report.Unchanged} grams={report.BasisGrams} millilitres={report.BasisMillilitres} labelKcal={report.LabelKcal} fromKj={report.ConvertedFromKilojoules} oatly={report.OatlyAccepted} compressedBytes={report.CompressedBytes}.");
+            $"Open Food Facts Norway: complete={report.Complete} dryRun={report.DryRun} rows={report.RowsRead} norway={report.NorwayRows} accepted={report.Accepted} upserted={report.Upserted} unchanged={report.Unchanged} grams={report.BasisGrams} millilitres={report.BasisMillilitres} labelKcal={report.LabelKcal} oatly={report.OatlyAccepted} compressedBytes={report.CompressedBytes}.");
         foreach (var reason in report.SkipReasons.OrderBy(pair => pair.Key))
         {
             Console.WriteLine($"  skipped {reason.Key}: {reason.Value}");

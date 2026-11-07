@@ -205,9 +205,14 @@ public static class OpenFoodFactsParser
         TryDecimal(nutriments, "proteins_100g", out var protein);
         TryDecimal(nutriments, "fat_100g", out var fat);
         TryDecimal(nutriments, "carbohydrates_100g", out var carbs);
-        var basis = string.Equals(Text(product, "nutrition_data_per"), "100ml", StringComparison.OrdinalIgnoreCase)
-            ? "ml"
-            : "g";
+        var per = Text(product, "nutrition_data_per");
+        var basis = string.Equals(per, "100ml", StringComparison.OrdinalIgnoreCase) ? "ml"
+            : string.Equals(per, "100g", StringComparison.OrdinalIgnoreCase) ? "g"
+            : null;
+        if (basis is null)
+        {
+            return null;
+        }
         decimal? serving = null;
         if (TryDecimal(product, "serving_quantity", out var servingQuantity) && servingQuantity > 0)
         {
