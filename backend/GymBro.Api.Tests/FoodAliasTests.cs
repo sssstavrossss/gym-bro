@@ -81,7 +81,7 @@ public sealed class FoodAliasTests(ApiFactory factory)
             Assert.Contains("03.330", await Search(client, "thigh"));
             Assert.Contains("03.330", await Search(client, "overlår"));
             Assert.Contains("03.511", await Search(client, "butter chicken"));
-            Assert.Empty(await Search(client, "breast fillet"));
+            Assert.Equal(FilletIds.OrderBy(id => id), (await Search(client, "breast fillet")).OrderBy(id => id));
             var rawChicken = await Search(client, "raw chicken");
             Assert.Contains("03.205", rawChicken);
             Assert.Contains("03.330", rawChicken);

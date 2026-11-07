@@ -23,6 +23,7 @@ import {
   unitsForFood,
   type UnitChoice,
 } from "../lib/foodAmount";
+import { acceptSearchResult, preparedSearch, searchDebounceMs } from "../lib/foodSearch";
 import { kcalFromMacros, macroStatus } from "../lib/macros";
 import { nextQuickInput, nextQuickNumber } from "../lib/quickEntry";
 import { keyboardEntry } from "../lib/viewport";
@@ -303,7 +304,7 @@ async function runSearch(trimmed: string) {
   searchError.value = "";
   try {
     const body = await searchFoods(trimmed);
-    if (gen !== searchGen || q.value.trim() !== trimmed) return;
+    if (!acceptSearchResult(gen, trimmed, searchGen, q.value)) return;
     results.value = body.foods;
   } catch (error) {
     if (gen !== searchGen) return;
@@ -317,17 +318,18 @@ async function runSearch(trimmed: string) {
 }
 function scheduleSearch(value: string) {
   window.clearTimeout(searchTimer);
-  const trimmed = value.trim();
   hi.value = 0;
-  if (trimmed.length < 2) {
+  const plan = preparedSearch(value);
+  if (plan.kind !== "query") {
     searchGen += 1;
     results.value = [];
     searching.value = false;
-    searchError.value = trimmed.length === 1 ? "Type at least 2 letters." : "";
+    searchError.value = plan.kind === "hint" ? plan.message : "";
     return;
   }
   searching.value = true;
-  searchTimer = window.setTimeout(() => { void runSearch(trimmed); }, 200);
+  const trimmed = plan.query;
+  searchTimer = window.setTimeout(() => { void runSearch(trimmed); }, searchDebounceMs);
 }
 async function prepareEdit(entry: LogEntry) {
   const kind = normalizeUnit(entry.unit) ?? (entry.grams == null ? "serving" : "g");

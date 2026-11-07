@@ -7,6 +7,9 @@ public static class FoodCatalog
 {
     public const int SearchLimit = 25;
 
+    /// <summary>Enough words for a food name. More than this is rejected so a keystroke cannot build an unbounded predicate.</summary>
+    public const int MaxSearchTokens = 8;
+
     public static IQueryable<Food> Visible(IQueryable<Food> foods, string userId) =>
         foods.Where(food => food.RetiredAt == null && (food.UserId == null || food.UserId == userId));
 
@@ -16,24 +19,107 @@ public static class FoodCatalog
         string query,
         CancellationToken cancellationToken)
     {
-        var pattern = ContainsPattern(query);
-        var digits = query.All(char.IsAsciiDigit);
         var normalized = FoodAliasCatalogue.Normalize(query);
-        var phrase = normalized.Length >= 2;
-        return await Visible(db.Foods.AsNoTracking(), userId)
-            .Where(food =>
-                EF.Functions.ILike(food.Name, pattern, "\\")
-                || EF.Functions.ILike(food.NameEn ?? "", pattern, "\\")
-                || (digits && food.Barcode == query)
-                || (phrase && db.FoodAliases.Any(alias =>
-                    alias.Source == food.Source
-                    && alias.SourceId == food.SourceId
-                    && alias.Normalized == normalized
-                    && alias.ExpectedNameEn == food.NameEn)))
-            .OrderBy(food => food.Name)
-            .ThenBy(food => food.Source)
-            .Take(SearchLimit)
-            .ToListAsync(cancellationToken);
+        var tokens = normalized.Length == 0
+            ? []
+            : normalized.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var digits = query.Length > 0 && query.All(char.IsAsciiDigit);
+        if (tokens.Length == 0)
+        {
+            if (!digits)
+            {
+                return [];
+            }
+
+            return await Visible(db.Foods.AsNoTracking(), userId)
+                .Where(food => food.Barcode == query)
+                .OrderBy(food => food.Name)
+                .Take(SearchLimit)
+                .ToListAsync(cancellationToken);
+        }
+
+        // Every token must hit the same string: the Norwegian name, the English name, or one alias.
+        // Earlier tokens are whole words. The last token may be the start of a word, so "chicken br"
+        // matches "chicken breast" without also matching every food that contains only one of those words.
+        var args = new List<object>();
+        string Take() => "{" + (args.Count - 1) + "}";
+        string Add(object value)
+        {
+            args.Add(value);
+            return Take();
+        }
+
+        var userParam = Add(userId);
+        var queryParam = Add(query);
+        var normalizedParam = Add(normalized);
+        var prefixParam = Add(normalized + "%");
+        var digitParam = Add(digits);
+        var tokenParams = tokens.Select((token, index) =>
+            Add(index == tokens.Length - 1 ? "% " + token + "%" : "% " + token + " %")).ToArray();
+        var lastWholeParam = Add("% " + tokens[^1] + " %");
+
+        const string scrub = "' ' || regexp_replace(lower(coalesce({0}, '')), '[^[:alnum:]æøåÆØÅ]+', ' ', 'g') || ' '";
+        var namePad = string.Format(scrub, "f.name");
+        var enPad = string.Format(scrub, "f.name_en");
+        var aliasPad = string.Format(scrub, "a.normalized");
+        string All(string pad) => string.Join(" AND ", tokenParams.Select(param => pad + " ILIKE " + param));
+        var rankName = "btrim(regexp_replace(lower(coalesce(f.name, '')), '[^[:alnum:]æøåÆØÅ]+', ' ', 'g'))";
+        var rankEn = "btrim(regexp_replace(lower(coalesce(f.name_en, '')), '[^[:alnum:]æøåÆØÅ]+', ' ', 'g'))";
+
+        var sql = $"""
+            SELECT f.id AS "Value"
+            FROM foods AS f
+            WHERE f.retired_at IS NULL
+              AND (f.user_id IS NULL OR f.user_id = {userParam})
+              AND (
+                ({digitParam} AND f.barcode = {queryParam})
+                OR ({All(namePad)})
+                OR ({All(enPad)})
+                OR EXISTS (
+                  SELECT 1 FROM food_aliases AS a
+                  WHERE a.source = f.source
+                    AND a.source_id = f.source_id
+                    AND a.expected_name_en = f.name_en
+                    AND {All(aliasPad)}
+                )
+              )
+            ORDER BY CASE
+              WHEN ({digitParam} AND f.barcode = {queryParam})
+                OR {rankName} = {normalizedParam}
+                OR {rankEn} = {normalizedParam}
+                OR EXISTS (
+                  SELECT 1 FROM food_aliases AS a
+                  WHERE a.source = f.source AND a.source_id = f.source_id AND a.expected_name_en = f.name_en
+                    AND a.normalized = {normalizedParam}
+                ) THEN 0
+              WHEN {rankName} ILIKE {prefixParam}
+                OR {rankEn} ILIKE {prefixParam}
+                OR EXISTS (
+                  SELECT 1 FROM food_aliases AS a
+                  WHERE a.source = f.source AND a.source_id = f.source_id AND a.expected_name_en = f.name_en
+                    AND a.normalized ILIKE {prefixParam}
+                ) THEN 1
+              WHEN {namePad} ILIKE {lastWholeParam}
+                OR {enPad} ILIKE {lastWholeParam}
+                OR EXISTS (
+                  SELECT 1 FROM food_aliases AS a
+                  WHERE a.source = f.source AND a.source_id = f.source_id AND a.expected_name_en = f.name_en
+                    AND {aliasPad} ILIKE {lastWholeParam}
+                ) THEN 2
+              ELSE 3
+            END, f.name, f.source
+            LIMIT {SearchLimit}
+            """;
+
+        var orderedIds = await db.Database.SqlQueryRaw<Guid>(sql, args.ToArray()).ToListAsync(cancellationToken);
+        if (orderedIds.Count == 0)
+        {
+            return [];
+        }
+
+        var rows = await db.Foods.AsNoTracking().Where(food => orderedIds.Contains(food.Id)).ToListAsync(cancellationToken);
+        var byId = rows.ToDictionary(food => food.Id);
+        return orderedIds.Where(byId.ContainsKey).Select(id => byId[id]).ToList();
     }
 
     public static async Task<IReadOnlyDictionary<string, Guid>> UpsertCatalogAsync(
@@ -102,6 +188,12 @@ public static class FoodCatalog
         }
 
         if (trimmed.Length > 80)
+        {
+            return "That search is too long.";
+        }
+
+        var words = FoodAliasCatalogue.Normalize(trimmed).Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (words.Length > MaxSearchTokens)
         {
             return "That search is too long.";
         }
