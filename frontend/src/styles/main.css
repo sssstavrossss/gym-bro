@@ -152,3 +152,39 @@ input, select { font-size: 1rem; }
 .boot { min-height: 100dvh; display: flex; align-items: center; justify-content: center; background: var(--color-bg); }
 .alert { color: var(--text-primary); background: var(--color-surface-2); border-radius: 12px; padding: 12px 14px; }
 .offline button { min-height: 44px; min-width: 44px; color: var(--text-primary); }
+
+/* iOS Safari zooms a focused field whose computed font-size is under 16px and
+   often leaves the page zoomed. Touch phones match this query; a mouse or
+   trackpad does not, so desktop type stays at the design size. max() keeps
+   Dynamic Type once the scaled size is already at least 16px. Pinch zoom and
+   the viewport scale limits are left alone. */
+@media (hover: none) and (pointer: coarse) {
+  input.t-body,
+  input.t-bodys,
+  textarea.t-body,
+  textarea.t-bodys,
+  select.t-body,
+  select.t-bodys {
+    font-size: max(16px, 0.8824rem);
+  }
+  input.t-label,
+  textarea.t-label,
+  select.t-label {
+    font-size: max(16px, 0.7647rem);
+  }
+  input.t-cap,
+  input.t-capm,
+  input.t-capn,
+  textarea.t-cap,
+  textarea.t-capm,
+  textarea.t-capn,
+  select.t-cap,
+  select.t-capm,
+  select.t-capn {
+    font-size: max(16px, 0.6471rem);
+  }
+  input.ninput,
+  input.tz {
+    font-size: max(16px, 1rem);
+  }
+}
