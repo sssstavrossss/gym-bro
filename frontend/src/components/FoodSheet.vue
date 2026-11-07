@@ -16,6 +16,7 @@ import {
   macrosForFood,
   normalizeUnit,
   parseAmount,
+  macroFigure,
   per100Line,
   scaleStored,
   unitsForEntry,
@@ -148,10 +149,10 @@ const per100 = computed(() => {
   if (!entry) return "";
   if (entry.grams && entry.grams > 0) {
     const factor = 100 / entry.grams;
-    return `per 100 ${entry.unit === "ml" ? "ml" : "g"} · ${int(entry.kcal * factor)} kcal · P${int(entry.protein * factor)} F${int(entry.fat * factor)} C${int(entry.carbs * factor)}`;
+    return `per 100 ${entry.unit === "ml" ? "ml" : "g"} · ${int(entry.kcal * factor)} kcal · P${macroFigure(entry.protein * factor)} F${macroFigure(entry.fat * factor)} C${macroFigure(entry.carbs * factor)}`;
   }
   const each = entry.amount || 1;
-  return `per serving · ${int(entry.kcal / each)} kcal · P${int(entry.protein / each)} F${int(entry.fat / each)} C${int(entry.carbs / each)}`;
+  return `per serving · ${int(entry.kcal / each)} kcal · P${macroFigure(entry.protein / each)} F${macroFigure(entry.fat / each)} C${macroFigure(entry.carbs / each)}`;
 });
 const previewItems = computed(() => [
   { label: "KCAL", value: preview.value.kcal },
@@ -471,8 +472,9 @@ async function deleteEdited() {
 </script>
 
 <template>
-  <BottomSheet :open="open" :label="sheetLabel" @close="closeSheet">
+  <BottomSheet :open="open" :label="sheetLabel" full @close="closeSheet">
     <template #header>
+      <div class="toast-pad">
       <div class="row hdr">
         <button v-if="showDetail" type="button" class="cbtn" style="--s: 44px" aria-label="Back" @click="back">
           <Icon name="left" :size="18" />
@@ -485,9 +487,10 @@ async function deleteEdited() {
         </button>
       </div>
       <Segmented v-if="!showDetail && !editing" v-model="ui.foodTab" label="Add food" :options="[{ value: 'search', label: 'Search' }, { value: 'quick', label: 'Quick Add' }]" />
+      </div>
     </template>
 
-    <template v-if="showDetail">
+    <div v-if="showDetail" class="body">
       <div class="col center gap2">
         <h3 class="t-head dname">{{ detailTitle }}</h3>
         <span class="t-label c2">{{ per100 }}</span>
@@ -548,7 +551,7 @@ async function deleteEdited() {
           {{ saveError ? "Try again" : editing ? "Save" : "Add" }} · {{ int(preview.kcal) }} kcal
         </button>
       </div>
-    </template>
+    </div>
 
     <template v-else-if="!editing && ui.foodTab === 'search'">
       <label class="field row">
@@ -586,7 +589,7 @@ async function deleteEdited() {
       </div>
     </template>
 
-    <template v-else>
+    <div v-else class="body">
       <label class="field row">
         <input v-model="qName" class="t-body grow" type="text" placeholder="Protein bar" aria-label="Name (optional)" autocomplete="off" enterkeyhint="done" @keydown.enter.prevent="keyboardEntry && addQuick()" />
         <span class="t-capn c2">name · optional</span>
@@ -636,12 +639,13 @@ async function deleteEdited() {
           {{ saveError ? "Try again" : editing ? "Save" : "Add" }} · {{ int(qKcal) }} kcal
         </button>
       </div>
-    </template>
+    </div>
   </BottomSheet>
 </template>
 
 <style scoped>
 .hdr { gap: 8px; min-width: 0; flex-wrap: wrap; }
+.toast-pad { display: flex; flex-direction: column; gap: 12px; padding-top: var(--food-toast-space, 0px); }
 .gap2 { gap: 2px; }
 .gap8 { gap: 8px; }
 .center { align-items: center; text-align: center; }
@@ -649,7 +653,8 @@ async function deleteEdited() {
 .field input { border: 0; outline: 0; background: transparent; min-width: 0; width: 100%; padding: 0; }
 .field input::placeholder { color: var(--text-tertiary); }
 .field input::-webkit-search-cancel-button { display: none; }
-.list { display: flex; flex-direction: column; min-width: 0; }
+.list { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+.body { flex: 1 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
 .rrow { min-height: 56px; width: 100%; gap: 12px; padding: 6px 0; border-bottom: 1px solid var(--color-border); text-align: left; background: transparent; }
 .rrow.hl { background: var(--color-surface-2); border-radius: 12px; }
 .rtext { gap: 2px; min-width: 0; align-items: flex-start; }

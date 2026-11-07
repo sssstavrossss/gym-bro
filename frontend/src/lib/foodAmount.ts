@@ -1,4 +1,4 @@
-import { roundHalfAwayFromZero } from "./format";
+import { formatDecimal, roundHalfAwayFromZero } from "./format";
 
 /** A food row from `GET /api/foods/search` or `GET /api/foods/{id}`. */
 export interface CatalogFood {
@@ -175,11 +175,19 @@ export function scaleStored(entry: StoredEntry, amount: number, unit: string): M
   };
 }
 
+/** One decimal when the macro has a fraction. Whole numbers stay bare, including 0. */
+export function macroFigure(value: number): string {
+  const rounded = roundHalfAwayFromZero(value, 1);
+  if (rounded === 0) return "0";
+  if (Number.isInteger(rounded)) return String(rounded);
+  return formatDecimal(rounded, 1);
+}
+
 export function per100Line(food: CatalogFood): string {
   const basis = food.nutrientBasis === "per_serving"
     ? `per ${food.servingLabel || "serving"}`
     : `per 100 ${food.basis === "ml" ? "ml" : "g"}`;
-  return `${basis} · ${Math.round(food.kcalPer100)} kcal · P${Math.round(food.proteinPer100)} F${Math.round(food.fatPer100)} C${Math.round(food.carbsPer100)}`;
+  return `${basis} · ${Math.round(food.kcalPer100)} kcal · P${macroFigure(food.proteinPer100)} F${macroFigure(food.fatPer100)} C${macroFigure(food.carbsPer100)}`;
 }
 
 export function defaultAmount(food: CatalogFood): { amount: string; unit: UnitChoice["unit"] } {

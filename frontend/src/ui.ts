@@ -15,6 +15,12 @@ export const ui = reactive({
 
 let toastTimer = 0;
 
+export function runToastAction(): void {
+  const action = ui.toast?.action;
+  ui.toast = null;
+  action?.run();
+}
+
 export function toast(text: string, action?: { label: string; run: () => void }): void {
   const id = Date.now();
   ui.toast = action ? { id, text, action } : { id, text };
