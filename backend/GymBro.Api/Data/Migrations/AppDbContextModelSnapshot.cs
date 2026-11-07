@@ -150,6 +150,11 @@ namespace GymBro.Api.Data.Migrations
                         .HasColumnType("character varying(300)")
                         .HasColumnName("name");
 
+                    b.Property<string>("NameEn")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("name_en");
+
                     b.Property<string>("NutrientBasis")
                         .IsRequired()
                         .HasMaxLength(16)

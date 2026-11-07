@@ -39,6 +39,9 @@ public sealed class Food
 
     public string Name { get; set; } = "";
 
+    /// <summary>English name from Matvaretabellen. Null when the source has no English name. Search matches this as well as <see cref="Name"/>.</summary>
+    public string? NameEn { get; set; }
+
     /// <summary><c>g</c>, <c>ml</c>, or <c>serving</c>. See <see cref="NutrientBasis"/>.</summary>
     public string Basis { get; set; } = "g";
 

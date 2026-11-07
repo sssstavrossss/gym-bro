@@ -46,6 +46,16 @@ public static class LogEntryRules
 
     public const string NeedUnit = "Choose grams, ml, a serving or a piece.";
 
+    public const string PerServingUnit = "A per-serving food is logged in servings.";
+
+    public const string NoServing = "This food has no serving size.";
+
+    public const string NoPiece = "This food has no piece size.";
+
+    public const string MeasuredInGrams = "This food is measured in grams.";
+
+    public const string KeepLoggedUnit = "Keep the unit it was logged in, or change the amount in grams.";
+
     public const string BadTime = "Use a time like 08:15.";
 
     public const int ZoneToleranceDays = 1;
@@ -198,6 +208,141 @@ public static class LogEntryRules
         decimal.Round(value, 2, MidpointRounding.AwayFromZero);
 
     /// <summary>
+    /// Nutrients and grams for a new log of <paramref name="food"/>.
+    /// The caller stores these and does not keep the numbers the client sent.
+    /// A per-serving food has no gram weight. Anything else must produce grams.
+    /// </summary>
+    public static FoodSnapshot Snapshot(Food food, decimal amount, string? unit)
+    {
+        var kind = NormalizeUnit(unit);
+        if (kind is null)
+        {
+            return FoodSnapshot.Fail(NeedUnit);
+        }
+
+        var limit = RejectAmount(amount, kind);
+        if (limit is not null)
+        {
+            return FoodSnapshot.Fail(limit);
+        }
+
+        if (food.NutrientBasis == NutrientBases.PerServing)
+        {
+            if (kind != "serving")
+            {
+                return FoodSnapshot.Fail(PerServingUnit);
+            }
+
+            return new FoodSnapshot(kind, null, Scale(food.KcalPer100, amount), Scale(food.ProteinPer100, amount), Scale(food.FatPer100, amount), Scale(food.CarbsPer100, amount), null);
+        }
+
+        if (kind == "ml" && food.Basis != "ml")
+        {
+            return FoodSnapshot.Fail(MeasuredInGrams);
+        }
+
+        decimal? grams;
+        if (kind == "serving")
+        {
+            if (food.ServingQuantity is not > 0)
+            {
+                return FoodSnapshot.Fail(NoServing);
+            }
+
+            grams = Round2(amount * food.ServingQuantity.Value);
+        }
+        else if (kind == "piece")
+        {
+            if (food.PieceQuantity is not > 0)
+            {
+                return FoodSnapshot.Fail(NoPiece);
+            }
+
+            grams = Round2(amount * food.PieceQuantity.Value);
+        }
+        else
+        {
+            grams = Round2(amount);
+        }
+
+        if (grams is not > 0)
+        {
+            return FoodSnapshot.Fail(kind == "ml" ? MillilitresLimit : GramsLimit);
+        }
+
+        var perGram = grams.Value / 100m;
+        return new FoodSnapshot(
+            kind,
+            grams,
+            Scale(food.KcalPer100, perGram),
+            Scale(food.ProteinPer100, perGram),
+            Scale(food.FatPer100, perGram),
+            Scale(food.CarbsPer100, perGram),
+            null);
+    }
+
+    /// <summary>
+    /// Amount or unit edit. Scales the entry's stored kcal and grams.
+    /// A gram size comes from <see cref="LogEntry.Grams"/> divided by the logged amount, never from the food's current serving.
+    /// </summary>
+    public static StoredScale ScaleStored(LogEntry entry, decimal newAmount, string? newUnit)
+    {
+        var kind = NormalizeUnit(newUnit);
+        if (kind is null)
+        {
+            return StoredScale.Fail(NeedUnit);
+        }
+
+        var limit = RejectAmount(newAmount, kind);
+        if (limit is not null)
+        {
+            return StoredScale.Fail(limit);
+        }
+
+        var oldKind = NormalizeUnit(entry.Unit);
+        decimal factor;
+        decimal? grams;
+        if (entry.Grams is > 0 && kind is "g" or "ml" && kind != oldKind)
+        {
+            grams = Round2(newAmount);
+            factor = grams.Value / entry.Grams.Value;
+        }
+        else if (entry.Grams is > 0 && kind is "serving" or "piece" && oldKind is "g" or "ml")
+        {
+            return StoredScale.Fail(KeepLoggedUnit);
+        }
+        else if (entry.Grams is > 0 && kind is "serving" or "piece" && oldKind is "serving" or "piece" && kind != oldKind)
+        {
+            return StoredScale.Fail(KeepLoggedUnit);
+        }
+        else
+        {
+            if (entry.Amount == 0)
+            {
+                return StoredScale.Fail("This entry has no amount to scale.");
+            }
+
+            factor = newAmount / entry.Amount;
+            grams = entry.Grams is decimal stored ? Round2(stored * factor) : null;
+        }
+
+        if (entry.Source == QuickSource)
+        {
+            grams = null;
+        }
+
+        return new StoredScale(
+            Round2(entry.Kcal * factor),
+            Round2(entry.Protein * factor),
+            Round2(entry.Fat * factor),
+            Round2(entry.Carbs * factor),
+            grams,
+            null);
+    }
+
+    private static decimal Scale(decimal per, decimal factor) => Round2(per * factor);
+
+    /// <summary>
     /// Quick add has no gram weight (decision 29). A per-serving food doesn't either.
     /// Grams and ml store the amount. A serving or piece uses the gram size stored
     /// on the food, and stays null when that food has no gram weight.
@@ -237,4 +382,27 @@ public static class LogEntryRules
         var local = TimeZoneInfo.ConvertTime(clock.GetUtcNow(), zone).DateTime;
         return new TimeOnly(local.Hour, local.Minute);
     }
+}
+
+public readonly record struct FoodSnapshot(
+    string Unit,
+    decimal? Grams,
+    decimal Kcal,
+    decimal Protein,
+    decimal Fat,
+    decimal Carbs,
+    string? Error)
+{
+    public static FoodSnapshot Fail(string error) => new("", null, 0, 0, 0, 0, error);
+}
+
+public readonly record struct StoredScale(
+    decimal Kcal,
+    decimal Protein,
+    decimal Fat,
+    decimal Carbs,
+    decimal? Grams,
+    string? Error)
+{
+    public static StoredScale Fail(string error) => new(0, 0, 0, 0, null, error);
 }

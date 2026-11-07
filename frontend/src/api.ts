@@ -1,4 +1,5 @@
 import { accessToken } from "./auth/session";
+import type { CatalogFood } from "./lib/foodAmount";
 import { kg as formatKg } from "./lib/format";
 import { e2eSession } from "./auth/e2e";
 import { loadPublicConfig, type PublicConfig } from "./auth/publicConfig";
@@ -182,6 +183,13 @@ export interface FreshStartDecisionResponse {
   targets: TargetsResponse | null;
 }
 
+export type FoodSearchRow = CatalogFood & { owned?: boolean; sourceId?: string; barcode?: string | null };
+
+export interface FoodSearchResponse {
+  query: string;
+  foods: FoodSearchRow[];
+}
+
 export interface LogEntryResponse {
   id: string;
   localDate: string;
@@ -355,6 +363,14 @@ export async function decideFreshStart(accept: boolean): Promise<FreshStartDecis
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ accept }),
   }));
+}
+
+export async function searchFoods(query: string): Promise<FoodSearchResponse> {
+  return jsonOrThrow(await request(`/api/foods/search?q=${encodeURIComponent(query)}`));
+}
+
+export async function getFood(id: string): Promise<FoodSearchRow> {
+  return jsonOrThrow(await request(`/api/foods/${id}`));
 }
 
 export async function listLogEntries(date: string): Promise<LogListResponse> {

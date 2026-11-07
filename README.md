@@ -197,7 +197,7 @@ Point the proxy at `http://127.0.0.1:8100`. Register the HTTPS origin it present
 
 Open Food Facts is not searched as you type. `GET /api/foods/search` reads the local table. `POST /api/foods/search/open-food-facts` calls Open Food Facts, at most 10 searches a minute from this server, and returns the local rows plus `ok`, `rate_limited`, or `unavailable`. The User-Agent is `OPENFOODFACTS_USER_AGENT`.
 
-Matvaretabellen is imported from the official foods.json, not committed as a dump. On the host:
+Matvaretabellen is imported from the official foods.json, not committed as a dump. The import also downloads the English file beside it (`/api/en/` when the configured URL contains `/api/nb/`) and stores that name on `foods.name_en`. Search matches the Norwegian name and the English name, so "kylling" and "chicken" find the same rows. Running the import again upserts by source id and does not insert a second copy. On the host:
 
 ```bash
 dotnet run --project backend/GymBro.Api -- --import-matvaretabellen
@@ -263,4 +263,4 @@ dotnet tool run dotnet-ef -- migrations add <Name> --project backend/GymBro.Api 
 
 ## Later pull requests
 
-Food logging screens are still placeholders. Logging on a past day will require picking a time, the food sheet will stay open after Add on a phone, and Copy will default to Today. Workouts are out of scope. There is no meal field on a log entry. When the server can't be reached at all (for example, the host machine is asleep), Safari shows its own error page instead of the app's banner.
+Search and food detail are in the app. A Matvaretabellen or custom food opens with an amount, live calories and macros, quick amount chips, and grams, millilitres, a serving, or a piece when that food has one. Adding from the detail keeps the sheet open, confirms the add, clears the search, and shows today's calorie total; closing is the Close or Done button. Editing an amount scales the entry's stored snapshot. Recents, Open Food Facts inside the sheet, past days, creating a food from search, your own serving sizes, copy, and saved groups are still later. Workouts are out of scope. There is no meal field on a log entry. When the server can't be reached at all (for example, the host machine is asleep), Safari shows its own error page instead of the app's banner. A local search was not timed on an iPhone over Tailscale.

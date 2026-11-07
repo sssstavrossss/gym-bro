@@ -14,6 +14,21 @@ public sealed class FoodEndpointTests(ApiFactory factory)
     [Fact]
     public async Task Matvaretabellen_import_is_repeatable_and_keeps_label_kcal()
     {
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var extras = await db.Foods.Where(food => food.Source == "mvt" && food.SourceId == "test.kylling" && food.RetiredAt == null).ToListAsync();
+            foreach (var row in extras)
+            {
+                row.RetiredAt = DateTimeOffset.UtcNow;
+            }
+
+            if (extras.Count > 0)
+            {
+                await db.SaveChangesAsync();
+            }
+        }
+
         var first = await Import("matvaretabellen-sample.json");
         Assert.Equal(2, first.Upserted);
         Assert.Equal(1, first.Skipped);

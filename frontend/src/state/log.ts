@@ -27,6 +27,7 @@ export interface LogEntry {
   fat: number;
   carbs: number;
   source: string;
+  foodId: string | null;
   idempotencyKey: string;
 }
 
@@ -40,6 +41,9 @@ export interface PendingAdd {
   protein: number;
   fat: number;
   carbs: number;
+  foodId?: string;
+  amount?: number;
+  unit?: string;
 }
 
 export interface QuickValues {
@@ -108,6 +112,7 @@ function fromResponse(row: LogEntryResponse): LogEntry {
     fat: row.fat,
     carbs: row.carbs,
     source: row.source,
+    foodId: row.foodId,
     idempotencyKey: row.idempotencyKey,
   };
 }
@@ -183,6 +188,7 @@ export async function saveQuickAdd(pending: PendingAdd): Promise<SaveResult> {
       protein: pending.protein,
       fat: pending.fat,
       carbs: pending.carbs,
+      ...(pending.foodId ? { foodId: pending.foodId, amount: pending.amount, unit: pending.unit } : {}),
     });
     if (saved.deletedAt) {
       keepPending(pending);
@@ -206,6 +212,27 @@ export async function retryPending(key: string): Promise<SaveResult> {
   const pending = log.pending.find((row) => row.idempotencyKey === key);
   if (!pending) return { ok: false, message: "That entry is no longer waiting." };
   return saveQuickAdd(pending);
+}
+
+export async function updateFoodAmount(id: string, values: { amount: number; unit: string; time: string | null }): Promise<SaveResult> {
+  const body = {
+    amount: values.amount,
+    unit: values.unit,
+    ...(values.time ? { time: values.time } : {}),
+  };
+  try {
+    const saved = await patchLogEntry(id, body);
+    const entry = fromResponse(saved);
+    upsert(entry);
+    return { ok: true, entry };
+  } catch (error) {
+    if (error instanceof ServerUnreachable || (error instanceof ApiError && error.status >= 500)) {
+      log.unreachable = true;
+      return { ok: false, unreachable: true };
+    }
+    const message = error instanceof ApiError ? error.message : "Couldn't save that entry.";
+    return { ok: false, message };
+  }
 }
 
 export async function updateQuickAdd(id: string, values: QuickValues): Promise<SaveResult> {

@@ -452,6 +452,7 @@ public static class FoodEndpoints
         sourceId = food.SourceId,
         barcode = food.Barcode,
         name = food.Name,
+        nameEn = food.NameEn,
         basis = food.Basis,
         nutrientBasis = food.NutrientBasis,
         kcalPer100 = food.KcalPer100,

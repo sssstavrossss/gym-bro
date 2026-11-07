@@ -15,6 +15,7 @@ const saved: LogEntry = {
   fat: 5,
   carbs: 20,
   source: "quick",
+  foodId: null,
   idempotencyKey: "saved-key",
 };
 

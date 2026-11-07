@@ -74,7 +74,33 @@ public static class LogEntryEndpoints
         }
 
         var time = draft.Time ?? LogEntryRules.NowIn(window.Zone, clock);
-        var source = owned.Food is null ? LogEntryRules.QuickSource : owned.Food.Source;
+        var food = owned.Food;
+        var source = food is null ? LogEntryRules.QuickSource : food.Source;
+        var name = draft.Name;
+        var kcal = draft.Kcal;
+        var protein = draft.Protein;
+        var fat = draft.Fat;
+        var carbs = draft.Carbs;
+        var amount = draft.Amount;
+        var unit = draft.Unit;
+        decimal? grams = null;
+        if (food is not null)
+        {
+            var snapshot = LogEntryRules.Snapshot(food, draft.Amount, draft.Unit);
+            if (snapshot.Error is not null)
+            {
+                return ApiResults.Error(snapshot.Error);
+            }
+
+            name = food.Name.Length <= 300 ? food.Name : food.Name[..300];
+            kcal = snapshot.Kcal;
+            protein = snapshot.Protein;
+            fat = snapshot.Fat;
+            carbs = snapshot.Carbs;
+            unit = snapshot.Unit;
+            grams = snapshot.Grams;
+        }
+
         var entry = new LogEntry
         {
             Id = Guid.NewGuid(),
@@ -83,18 +109,18 @@ public static class LogEntryEndpoints
             LoggedAt = LogEntryRules.LocalTimestamp(draft.LocalDate, time),
             TimeZone = draft.TimeZone.Trim(),
             GroupId = owned.GroupId,
-            FoodId = owned.Food?.Id,
-            FoodOwnerKey = owned.Food?.UserId ?? Food.CatalogueOwnerKey,
+            FoodId = food?.Id,
+            FoodOwnerKey = food?.UserId ?? Food.CatalogueOwnerKey,
             Source = source,
-            SourceId = owned.Food?.SourceId,
-            Grams = LogEntryRules.GramsFor(source, draft.Unit, draft.Amount, owned.Food),
-            Name = draft.Name,
-            Amount = draft.Amount,
-            Unit = draft.Unit,
-            Kcal = draft.Kcal,
-            Protein = draft.Protein,
-            Fat = draft.Fat,
-            Carbs = draft.Carbs,
+            SourceId = food?.SourceId,
+            Grams = grams,
+            Name = name,
+            Amount = amount,
+            Unit = unit,
+            Kcal = kcal,
+            Protein = protein,
+            Fat = fat,
+            Carbs = carbs,
             IdempotencyKey = draft.IdempotencyKey,
         };
         db.LogEntries.Add(entry);
@@ -193,7 +219,7 @@ public static class LogEntryEndpoints
         }
 
         var amount = patch.Amount ?? entry.Amount;
-        var unit = patch.Unit ?? entry.Unit;
+        var unit = patch.Unit ?? (LogEntryRules.NormalizeUnit(entry.Unit) ?? entry.Unit);
         if (patch.Amount is not null || patch.Unit is not null)
         {
             if (string.IsNullOrEmpty(unit))
@@ -208,39 +234,46 @@ public static class LogEntryEndpoints
             }
         }
 
-        var scale = patch.Amount is not null
-            && patch.Kcal is null
-            && patch.Protein is null
-            && patch.Fat is null
-            && patch.Carbs is null
-            && patch.Amount.Value != entry.Amount;
+        var explicitNutrients = patch.Kcal is not null
+            || patch.Protein is not null
+            || patch.Fat is not null
+            || patch.Carbs is not null;
+        var oldUnit = LogEntryRules.NormalizeUnit(entry.Unit) ?? "";
+        var newUnit = string.IsNullOrEmpty(unit) ? "" : LogEntryRules.NormalizeUnit(unit) ?? unit;
+        var amountChanged = patch.Amount is not null && patch.Amount.Value != entry.Amount;
+        var unitChanged = (patch.Amount is not null || patch.Unit is not null) && newUnit != oldUnit;
         decimal kcal = patch.Kcal ?? entry.Kcal;
         decimal protein = patch.Protein ?? entry.Protein;
         decimal fat = patch.Fat ?? entry.Fat;
         decimal carbs = patch.Carbs ?? entry.Carbs;
         decimal? grams = entry.Grams;
-        if (scale)
+        var scaled = !explicitNutrients && (amountChanged || unitChanged);
+        if (scaled)
         {
-            if (entry.Amount == 0)
+            var stored = LogEntryRules.ScaleStored(entry, amount, newUnit);
+            if (stored.Error is not null)
             {
-                return ApiResults.Error("This entry has no amount to scale.");
+                return ApiResults.Error(stored.Error);
             }
 
-            var factor = patch.Amount!.Value / entry.Amount;
-            kcal = LogEntryRules.Round2(entry.Kcal * factor);
-            protein = LogEntryRules.Round2(entry.Protein * factor);
-            fat = LogEntryRules.Round2(entry.Fat * factor);
-            carbs = LogEntryRules.Round2(entry.Carbs * factor);
-            if (entry.Grams is decimal storedGrams)
-            {
-                grams = LogEntryRules.Round2(storedGrams * factor);
-            }
+            kcal = stored.Kcal;
+            protein = stored.Protein;
+            fat = stored.Fat;
+            carbs = stored.Carbs;
+            grams = stored.Grams;
+        }
+        else if (entry.Source == LogEntryRules.QuickSource)
+        {
+            grams = null;
         }
 
-        var nutrientError = LogEntryRules.RejectNutrients(kcal, protein, fat, carbs);
-        if (nutrientError is not null)
+        if (entry.Source == LogEntryRules.QuickSource || explicitNutrients)
         {
-            return ApiResults.Error(nutrientError);
+            var nutrientError = LogEntryRules.RejectNutrients(kcal, protein, fat, carbs);
+            if (nutrientError is not null)
+            {
+                return ApiResults.Error(nutrientError);
+            }
         }
 
         var time = patch.Time ?? TimeOnly.FromDateTime(entry.LoggedAt);
@@ -258,7 +291,7 @@ public static class LogEntryEndpoints
         {
             entry.Grams = null;
         }
-        else if (scale)
+        else if (scaled)
         {
             entry.Grams = grams;
         }
@@ -395,6 +428,7 @@ public static class LogEntryEndpoints
         foodId = entry.FoodId,
         groupId = entry.GroupId,
         source = entry.Source,
+        sourceId = entry.SourceId,
         grams = entry.Grams,
         name = entry.Name,
         amount = entry.Amount,

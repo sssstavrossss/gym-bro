@@ -29,22 +29,55 @@ public sealed class MatvaretabellenImporter(
         var url = string.IsNullOrWhiteSpace(options.Value.MatvaretabellenUrl)
             ? FoodOptions.DefaultMatvaretabellenUrl
             : options.Value.MatvaretabellenUrl;
-        var client = http.CreateClient("matvaretabellen");
-        using var response = await client.GetAsync(url, cancellationToken);
-        if (response.StatusCode != HttpStatusCode.OK)
+        await using var norwegian = await DownloadAsync(url, "Matvaretabellen", cancellationToken);
+        Stream? english = null;
+        try
         {
-            throw new InvalidOperationException(
-                "Could not download Matvaretabellen (" + (int)response.StatusCode + ").");
-        }
+            var englishUrl = EnglishUrl(url);
+            if (englishUrl is null)
+            {
+                logger.LogWarning("Matvaretabellen URL has no /nb/ segment, so English names are not downloaded.");
+            }
+            else
+            {
+                english = await DownloadAsync(englishUrl, "Matvaretabellen English names", cancellationToken);
+            }
 
-        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
-        return await ImportAsync(stream, cancellationToken);
+            return await ImportAsync(norwegian, english, cancellationToken);
+        }
+        finally
+        {
+            if (english is not null)
+            {
+                await english.DisposeAsync();
+            }
+        }
     }
 
-    public async Task<MatvaretabellenImportResult> ImportAsync(Stream json, CancellationToken cancellationToken)
+    /// <summary><c>https://…/api/nb/foods.json</c> → <c>https://…/api/en/foods.json</c>. Null when the URL has no <c>/nb/</c> segment.</summary>
+    public static string? EnglishUrl(string norwegianUrl)
     {
-        var file = await JsonSerializer.DeserializeAsync<MvtFile>(json, JsonOptions, cancellationToken)
-            ?? throw new InvalidOperationException("Matvaretabellen file was empty.");
+        const string token = "/nb/";
+        var index = norwegianUrl.IndexOf(token, StringComparison.OrdinalIgnoreCase);
+        if (index < 0)
+        {
+            return null;
+        }
+
+        return string.Concat(norwegianUrl.AsSpan(0, index), "/en/", norwegianUrl.AsSpan(index + token.Length));
+    }
+
+    public Task<MatvaretabellenImportResult> ImportAsync(Stream json, CancellationToken cancellationToken) =>
+        ImportAsync(json, null, cancellationToken);
+
+    public async Task<MatvaretabellenImportResult> ImportAsync(Stream norwegian, Stream? english, CancellationToken cancellationToken)
+    {
+        var file = await ReadFileAsync(norwegian, cancellationToken);
+        if (english is not null)
+        {
+            var englishFile = await ReadFileAsync(english, cancellationToken);
+            ApplyEnglishNames(file, englishFile);
+        }
         var started = clock.GetUtcNow();
         var existing = await db.Foods
             .Where(food => food.Source == Matvaretabellen.Source)
@@ -62,13 +95,13 @@ public sealed class MatvaretabellenImporter(
                 continue;
             }
 
-            if (!seen.Add(parsed.SourceId))
+            if (!seen.Add(parsed.Food.SourceId))
             {
                 skipped++;
                 continue;
             }
 
-            if (existing.TryGetValue(parsed.SourceId, out var row))
+            if (existing.TryGetValue(parsed.Food.SourceId, out var row))
             {
                 Copy(parsed, row);
                 row.RetiredAt = null;
@@ -80,12 +113,12 @@ public sealed class MatvaretabellenImporter(
                 {
                     Id = Guid.NewGuid(),
                     Source = Matvaretabellen.Source,
-                    SourceId = parsed.SourceId,
+                    SourceId = parsed.Food.SourceId,
                     UpdatedAt = started,
                 };
                 Copy(parsed, row);
                 db.Foods.Add(row);
-                existing[parsed.SourceId] = row;
+                existing[parsed.Food.SourceId] = row;
             }
 
             upserted++;
@@ -122,7 +155,7 @@ public sealed class MatvaretabellenImporter(
         return new MatvaretabellenImportResult(upserted, retired, skipped);
     }
 
-    internal static ParsedFood? Map(MvtFood food)
+    internal static MappedFood? Map(MvtFood food)
     {
         if (string.IsNullOrWhiteSpace(food.FoodId) || string.IsNullOrWhiteSpace(food.FoodName))
         {
@@ -169,20 +202,22 @@ public sealed class MatvaretabellenImporter(
             }
         }
 
-        return new ParsedFood(
-            Matvaretabellen.Source,
-            food.FoodId.Trim(),
-            null,
-            food.FoodName.Trim(),
-            "g",
-            kcal,
-            protein,
-            fat,
-            carbs,
-            serving?.Grams,
-            serving?.Label,
-            piece?.Grams,
-            piece?.Label);
+        return new MappedFood(
+            new ParsedFood(
+                Matvaretabellen.Source,
+                food.FoodId.Trim(),
+                null,
+                food.FoodName.Trim(),
+                "g",
+                kcal,
+                protein,
+                fat,
+                carbs,
+                serving?.Grams,
+                serving?.Label,
+                piece?.Grams,
+                piece?.Label),
+            CleanName(food.FoodNameEn));
     }
 
     private static decimal Nutrient(MvtFood food, string id)
@@ -226,13 +261,15 @@ public sealed class MatvaretabellenImporter(
         return false;
     }
 
-    private static void Copy(ParsedFood parsed, Food row)
+    private static void Copy(MappedFood mapped, Food row)
     {
+        var parsed = mapped.Food;
         row.UserId = null;
         row.Source = Matvaretabellen.Source;
         row.SourceId = parsed.SourceId;
         row.Barcode = parsed.Barcode;
         row.Name = parsed.Name;
+        row.NameEn = mapped.NameEn;
         row.Basis = parsed.Basis;
         row.NutrientBasis = NutrientBases.Per100;
         row.KcalPer100 = parsed.KcalPer100;
@@ -244,6 +281,64 @@ public sealed class MatvaretabellenImporter(
         row.PieceQuantity = parsed.PieceQuantity;
         row.PieceLabel = parsed.PieceLabel;
     }
+
+    private async Task<Stream> DownloadAsync(string url, string label, CancellationToken cancellationToken)
+    {
+        var client = http.CreateClient("matvaretabellen");
+        using var response = await client.GetAsync(url, cancellationToken);
+        if (response.StatusCode != HttpStatusCode.OK)
+        {
+            throw new InvalidOperationException(
+                "Could not download " + label + " (" + (int)response.StatusCode + ").");
+        }
+
+        var bytes = await response.Content.ReadAsByteArrayAsync(cancellationToken);
+        return new MemoryStream(bytes);
+    }
+
+    private static async Task<MvtFile> ReadFileAsync(Stream json, CancellationToken cancellationToken)
+    {
+        return await JsonSerializer.DeserializeAsync<MvtFile>(json, JsonOptions, cancellationToken)
+            ?? throw new InvalidOperationException("Matvaretabellen file was empty.");
+    }
+
+    internal static void ApplyEnglishNames(MvtFile norwegian, MvtFile english)
+    {
+        var names = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var food in english.Foods)
+        {
+            var id = food.FoodId?.Trim();
+            var name = CleanName(food.FoodName);
+            if (string.IsNullOrEmpty(id) || name is null || names.ContainsKey(id))
+            {
+                continue;
+            }
+
+            names[id] = name;
+        }
+
+        foreach (var food in norwegian.Foods)
+        {
+            var id = food.FoodId?.Trim();
+            if (id is not null && names.TryGetValue(id, out var name))
+            {
+                food.FoodNameEn = name;
+            }
+        }
+    }
+
+    private static string? CleanName(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var trimmed = value.Trim();
+        return trimmed.Length <= 300 ? trimmed : trimmed[..300];
+    }
+
+    internal sealed record MappedFood(ParsedFood Food, string? NameEn);
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -263,6 +358,8 @@ public sealed class MatvaretabellenImporter(
         public string? FoodId { get; set; }
 
         public string? FoodName { get; set; }
+
+        public string? FoodNameEn { get; set; }
 
         public MvtCalories? Calories { get; set; }
 
