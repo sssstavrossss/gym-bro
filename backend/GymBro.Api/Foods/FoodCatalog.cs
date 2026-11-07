@@ -18,11 +18,18 @@ public static class FoodCatalog
     {
         var pattern = ContainsPattern(query);
         var digits = query.All(char.IsAsciiDigit);
+        var normalized = FoodAliasCatalogue.Normalize(query);
+        var phrase = normalized.Length >= 2;
         return await Visible(db.Foods.AsNoTracking(), userId)
             .Where(food =>
                 EF.Functions.ILike(food.Name, pattern, "\\")
                 || EF.Functions.ILike(food.NameEn ?? "", pattern, "\\")
-                || (digits && food.Barcode == query))
+                || (digits && food.Barcode == query)
+                || (phrase && db.FoodAliases.Any(alias =>
+                    alias.Source == food.Source
+                    && alias.SourceId == food.SourceId
+                    && alias.Normalized == normalized
+                    && alias.ExpectedNameEn == food.NameEn)))
             .OrderBy(food => food.Name)
             .ThenBy(food => food.Source)
             .Take(SearchLimit)

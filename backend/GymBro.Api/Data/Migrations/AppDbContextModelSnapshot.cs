@@ -244,6 +244,51 @@ namespace GymBro.Api.Data.Migrations
                         });
                 });
 
+            modelBuilder.Entity("GymBro.Api.Data.FoodAlias", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("ExpectedNameEn")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("expected_name_en");
+
+                    b.Property<string>("Normalized")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("normalized");
+
+                    b.Property<string>("Phrase")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("phrase");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("source");
+
+                    b.Property<string>("SourceId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("source_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Source", "SourceId", "Normalized")
+                        .IsUnique();
+
+                    b.ToTable("food_aliases", (string)null);
+                });
+
             modelBuilder.Entity("GymBro.Api.Data.FoodSourceCredit", b =>
                 {
                     b.Property<string>("Source")

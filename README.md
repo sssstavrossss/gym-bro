@@ -211,6 +211,34 @@ docker compose run --rm app --import-matvaretabellen
 
 That one-off container applies migrations, imports, prints the citation, and exits. Run it again for the yearly refresh. The command prints `Matvaretabellen 2026. Mattilsynet. www.matvaretabellen.no`, and the app shows the same line from `/api/about` and the profile payload. Label kilocalories are stored as published. USDA is not used.
 
+Search also matches a hidden phrase table, `food_aliases`, for the whole query after lower-casing and turning punctuation into spaces. It does not split the query into tokens. A phrase is stored against a Matvaretabellen source id, and it matches only while that row's English name is still the name the phrase was written for. Official names, nutrients, and logged snapshots are not changed. The phrases are not returned by the API. Custom foods are not given phrases. Running the import again adds any missing phrases and does not delete ones already stored.
+
+The phrases below were checked against the public Norwegian and English foods.json files. Chicken fillet is the breast cut in that catalogue; thigh, drumstick, and whole leg are separate foods and are not listed. This is a first set, not every synonym.
+
+| Source id | English name that must still match | Phrases |
+| --- | --- | --- |
+| 03.205 | Chicken, fillet, without skin, raw | chicken breast; chicken breast fillet; chicken fillet; kyllingbryst; kylling bryst |
+| 03.242 | Chicken fillet, fried in fat | chicken breast; chicken breast fillet; chicken fillet; kyllingbryst; kylling bryst |
+| 03.418 | Chicken, fillet, simmered | chicken breast; chicken breast fillet; chicken fillet; kyllingbryst; kylling bryst |
+| 03.481 | Chicken fillet, fried without fat | chicken breast; chicken breast fillet; chicken fillet; kyllingbryst; kylling bryst |
+| 03.224 | Hen, fillet, raw | hen breast; hen fillet; hønebryst |
+| 03.204 | Turkey, breast, without skin, raw | turkey fillet |
+| 03.241 | Turkey breast, without skin, roasted | turkey fillet |
+
+`03.224` is included because the Norwegian name is "Høne, bryst, filet, uten skinn, rå". "Høne, filet, kokt" is not. Turkey fillet is only the two breast rows, not "Kalkunfilet, naturell/røkt". An import applies the phrases for foods it just wrote. A database that already has the foods, and is not being imported again, needs a separate run. That command is not part of web startup:
+
+```bash
+dotnet run --project backend/GymBro.Api -- --backfill-food-aliases
+```
+
+With Compose, after the migration is deployed:
+
+```bash
+docker compose run --rm app --backfill-food-aliases
+```
+
+Run it again and it prints the same phrases as already present. It does not rewrite nutrients or log rows.
+
 ## Targets and trend weight
 
 BMR is Mifflin-St Jeor. Daily burn is BMR times the activity factor. The calorie target moves off that burn by the weekly rate times 7,700 divided by 7, and is never below BMR. Protein is grams per kilogram, fat is a percent of the target, and carbs fill the rest (never below 0).

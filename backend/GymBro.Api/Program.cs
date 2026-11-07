@@ -224,6 +224,16 @@ if (args.Contains("--import-matvaretabellen"))
     return;
 }
 
+if (args.Contains("--backfill-food-aliases"))
+{
+    await using var scope = app.Services.CreateAsyncScope();
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    var aliases = await FoodAliasCatalogue.ApplyAsync(db, CancellationToken.None);
+    Console.WriteLine(
+        $"Food aliases: {aliases.Inserted} added, {aliases.AlreadyPresent} already present, {aliases.Skipped} foods skipped.");
+    return;
+}
+
 app.Run();
 
 public partial class Program
