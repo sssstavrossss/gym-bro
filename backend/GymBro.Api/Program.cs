@@ -61,6 +61,7 @@ var postgres = builder.Configuration.GetSection(PostgresOptions.SectionName).Get
 
 builder.Services.AddDbContext<AppDbContext>(options =>
 {
+    options.AddInterceptors(new FoodSearchTextInterceptor());
     if (string.Equals(database.Provider, "sqlite", StringComparison.OrdinalIgnoreCase))
     {
         options.UseSqlite(database.Sqlite);

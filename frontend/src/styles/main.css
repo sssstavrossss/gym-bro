@@ -97,7 +97,7 @@ svg { display: block; flex: none; }
 .screen-head { display: flex; align-items: center; min-height: 34px; }
 
 /* circle buttons */
-.cbtn { width: var(--s, 32px); height: var(--s, 32px); border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: var(--color-surface-2); color: #fff; flex: none; transition: transform .12s, opacity .12s; }
+.cbtn { width: var(--s, 32px); height: var(--s, 32px); min-width: var(--s, 32px); min-height: var(--s, 32px); border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: var(--color-surface-2); color: #fff; flex: none; transition: transform .12s, opacity .12s; }
 .cbtn.filled { background: var(--color-action); color: var(--color-on-action); }
 .cbtn:active { transform: scale(.92); opacity: .85; }
 .cbtn:disabled { opacity: .35; cursor: default; }

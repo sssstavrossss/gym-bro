@@ -188,6 +188,16 @@ namespace GymBro.Api.Data.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("retired_at");
 
+                    b.Property<string>("SearchName")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("search_name");
+
+                    b.Property<string>("SearchNameEn")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("search_name_en");
+
                     b.Property<string>("ServingLabel")
                         .HasMaxLength(80)
                         .HasColumnType("character varying(80)")

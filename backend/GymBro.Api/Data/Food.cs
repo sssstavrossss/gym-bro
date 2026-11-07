@@ -42,6 +42,12 @@ public sealed class Food
     /// <summary>English name from Matvaretabellen. Null when the source has no English name. Search matches this as well as <see cref="Name"/>.</summary>
     public string? NameEn { get; set; }
 
+    /// <summary>Folded <see cref="Name"/> used only for search. Null until startup or the next save fills it. Not shown in the API.</summary>
+    public string? SearchName { get; set; }
+
+    /// <summary>Folded <see cref="NameEn"/> used only for search.</summary>
+    public string? SearchNameEn { get; set; }
+
     /// <summary><c>g</c>, <c>ml</c>, or <c>serving</c>. See <see cref="NutrientBasis"/>.</summary>
     public string Basis { get; set; } = "g";
 
