@@ -124,7 +124,6 @@ namespace GymBro.Api.Data.Migrations
                         .HasColumnName("barcode");
 
                     b.Property<string>("Basis")
-                        .IsRequired()
                         .HasMaxLength(8)
                         .HasColumnType("character varying(8)")
                         .HasColumnName("basis");
@@ -250,7 +249,7 @@ namespace GymBro.Api.Data.Migrations
 
                             t.HasCheckConstraint("ck_foods_custom_owner", "source <> 'custom' OR user_id IS NOT NULL");
 
-                            t.HasCheckConstraint("ck_foods_nutrient_basis", "(nutrient_basis = 'per_100' AND basis IN ('g', 'ml')) OR (nutrient_basis = 'per_serving' AND basis = 'serving' AND serving_quantity IS NULL AND piece_quantity IS NULL)");
+                            t.HasCheckConstraint("ck_foods_nutrient_basis", "(nutrient_basis = 'per_100' AND basis IN ('g', 'ml')) OR (nutrient_basis = 'per_serving' AND basis = 'serving' AND serving_quantity IS NULL AND piece_quantity IS NULL) OR (nutrient_basis = 'unconfirmed' AND basis IS NULL AND source = 'kassalapp')");
                         });
                 });
 
@@ -297,6 +296,52 @@ namespace GymBro.Api.Data.Migrations
                         .IsUnique();
 
                     b.ToTable("food_aliases", (string)null);
+                });
+
+            modelBuilder.Entity("GymBro.Api.Data.FoodBasisConfirmation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Basis")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .HasColumnType("character varying(8)")
+                        .HasColumnName("basis");
+
+                    b.Property<DateTimeOffset>("ConfirmedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("confirmed_at");
+
+                    b.Property<Guid>("FoodId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("food_id");
+
+                    b.Property<string>("NutritionStamp")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("nutrition_stamp");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FoodId");
+
+                    b.HasIndex("UserId", "FoodId")
+                        .IsUnique();
+
+                    b.ToTable("food_basis_confirmations", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_food_basis_confirmations_basis", "basis IN ('g', 'ml')");
+                        });
                 });
 
             modelBuilder.Entity("GymBro.Api.Data.FoodSourceCredit", b =>
@@ -658,6 +703,21 @@ namespace GymBro.Api.Data.Migrations
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade);
+                });
+
+            modelBuilder.Entity("GymBro.Api.Data.FoodBasisConfirmation", b =>
+                {
+                    b.HasOne("GymBro.Api.Data.Food", null)
+                        .WithMany()
+                        .HasForeignKey("FoodId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("GymBro.Api.Data.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("GymBro.Api.Data.LogEntry", b =>

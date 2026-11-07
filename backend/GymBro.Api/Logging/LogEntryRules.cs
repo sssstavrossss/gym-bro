@@ -56,6 +56,10 @@ public static class LogEntryRules
 
     public const string KeepLoggedUnit = "Keep the unit it was logged in, or change the amount in grams.";
 
+    public const string NeedBasis = "Check the label and confirm whether these numbers are per 100 g or per 100 ml.";
+
+    public const string MeasuredInMillilitres = "This food is measured in millilitres.";
+
     public const string BadTime = "Use a time like 08:15.";
 
     public const int ZoneToleranceDays = 1;
@@ -212,7 +216,7 @@ public static class LogEntryRules
     /// The caller stores these and does not keep the numbers the client sent.
     /// A per-serving food has no gram weight. Anything else must produce grams.
     /// </summary>
-    public static FoodSnapshot Snapshot(Food food, decimal amount, string? unit)
+    public static FoodSnapshot Snapshot(Food food, decimal amount, string? unit, string? confirmedBasis = null)
     {
         var kind = NormalizeUnit(unit);
         if (kind is null)
@@ -226,6 +230,12 @@ public static class LogEntryRules
             return FoodSnapshot.Fail(limit);
         }
 
+        var basis = food.NutrientBasis == NutrientBases.Unconfirmed ? confirmedBasis : food.Basis;
+        if (food.NutrientBasis == NutrientBases.Unconfirmed && basis is not ("g" or "ml"))
+        {
+            return FoodSnapshot.Fail(NeedBasis);
+        }
+
         if (food.NutrientBasis == NutrientBases.PerServing)
         {
             if (kind != "serving")
@@ -236,7 +246,25 @@ public static class LogEntryRules
             return new FoodSnapshot(kind, null, Scale(food.KcalPer100, amount), Scale(food.ProteinPer100, amount), Scale(food.FatPer100, amount), Scale(food.CarbsPer100, amount), null);
         }
 
-        if (kind == "ml" && food.Basis != "ml")
+        if (basis == "ml")
+        {
+            if (kind != "ml")
+            {
+                return FoodSnapshot.Fail(MeasuredInMillilitres);
+            }
+
+            var factor = amount / 100m;
+            return new FoodSnapshot(
+                kind,
+                null,
+                Scale(food.KcalPer100, factor),
+                Scale(food.ProteinPer100, factor),
+                Scale(food.FatPer100, factor),
+                Scale(food.CarbsPer100, factor),
+                null);
+        }
+
+        if (kind == "ml")
         {
             return FoodSnapshot.Fail(MeasuredInGrams);
         }
@@ -344,7 +372,7 @@ public static class LogEntryRules
 
     /// <summary>
     /// Quick add has no gram weight (decision 29). A per-serving food doesn't either.
-    /// Grams and ml store the amount. A serving or piece uses the gram size stored
+    /// Millilitres are a volume, so the gram weight stays empty. A serving or piece uses the gram size stored
     /// on the food, and stays null when that food has no gram weight.
     /// </summary>
     public static decimal? GramsFor(string? source, string unit, decimal amount, Food? food)
@@ -355,7 +383,12 @@ public static class LogEntryRules
         }
 
         var kind = NormalizeUnit(unit);
-        if (kind is "g" or "ml")
+        if (kind == "ml")
+        {
+            return null;
+        }
+
+        if (kind == "g")
         {
             return Round2(amount);
         }

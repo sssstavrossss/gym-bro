@@ -6,6 +6,11 @@ using Microsoft.EntityFrameworkCore;
 
 namespace GymBro.Api.Endpoints;
 
+public sealed class BasisConfirmationRequest
+{
+    public string? Basis { get; set; }
+}
+
 public sealed class CustomFoodRequest
 {
     public string? Name { get; set; }
@@ -47,6 +52,7 @@ public static class FoodEndpoints
         api.MapPost("/foods/search/open-food-facts", SearchOpenFoodFacts);
         api.MapPost("/foods", Create);
         api.MapGet("/foods/{id:guid}", Get);
+        api.MapPost("/foods/{id:guid}/basis", ConfirmBasis);
         api.MapPut("/foods/{id:guid}", Update);
         api.MapDelete("/foods/{id:guid}", Delete);
         api.MapGet("/about", About);
@@ -71,8 +77,10 @@ public static class FoodEndpoints
             return ApiResults.Error(error);
         }
 
-        var foods = await FoodCatalog.SearchAsync(db, Caller.Id(principal), query, cancellationToken);
-        return Results.Ok(new { query, foods = foods.Select(ToResponse).ToList() });
+        var userId = Caller.Id(principal);
+        var foods = await FoodCatalog.SearchAsync(db, userId, query, cancellationToken);
+        var confirmed = await ConfirmedBases(db, userId, foods, cancellationToken);
+        return Results.Ok(new { query, foods = foods.Select(food => ToResponse(food, confirmed.GetValueOrDefault(food.Id))).ToList() });
     }
 
     private static async Task<IResult> SearchOpenFoodFacts(
@@ -97,6 +105,7 @@ public static class FoodEndpoints
 
         var userId = Caller.Id(principal);
         var localBefore = await FoodCatalog.SearchAsync(db, userId, query, cancellationToken);
+        var confirmed = await ConfirmedBases(db, userId, localBefore, cancellationToken);
         var outcome = await off.SearchAsync(query, cancellationToken);
         IReadOnlyDictionary<string, Guid> cachedIds = new Dictionary<string, Guid>();
         if (outcome.Status == OffStatus.Ok && outcome.Foods.Count > 0)
@@ -107,7 +116,7 @@ public static class FoodEndpoints
         return Results.Ok(new
         {
             query,
-            local = localBefore.Select(ToResponse).ToList(),
+            local = localBefore.Select(food => ToResponse(food, confirmed.GetValueOrDefault(food.Id))).ToList(),
             openFoodFacts = new
             {
                 status = outcome.Status switch
@@ -170,10 +179,15 @@ public static class FoodEndpoints
             return denied;
         }
 
-        var food = await FindVisible(db, Caller.Id(principal), id, cancellationToken);
-        return food is null
-            ? ApiResults.Error("No food with that id.", StatusCodes.Status404NotFound)
-            : Results.Ok(ToResponse(food));
+        var userId = Caller.Id(principal);
+        var food = await FindVisible(db, userId, id, cancellationToken);
+        if (food is null)
+        {
+            return ApiResults.Error("No food with that id.", StatusCodes.Status404NotFound);
+        }
+
+        var confirmed = await ConfirmedBases(db, userId, [food], cancellationToken);
+        return Results.Ok(ToResponse(food, confirmed.GetValueOrDefault(food.Id)));
     }
 
     private static async Task<IResult> Update(
@@ -445,7 +459,82 @@ public static class FoodEndpoints
         food.PieceLabel = request.PieceLabel;
     }
 
-    public static object ToResponse(Food food) => new
+    private static async Task<IResult> ConfirmBasis(
+        ClaimsPrincipal principal,
+        Guid id,
+        BasisConfirmationRequest request,
+        AppDbContext db,
+        TimeProvider clock,
+        CancellationToken cancellationToken)
+    {
+        if (Caller.MissingOid(principal) is { } denied)
+        {
+            return denied;
+        }
+
+        var basis = (request.Basis ?? "").Trim().ToLowerInvariant();
+        if (basis is not ("g" or "ml"))
+        {
+            return ApiResults.Error("Choose per 100 g or per 100 ml.");
+        }
+
+        var userId = Caller.Id(principal);
+        var food = await FindVisible(db, userId, id, cancellationToken);
+        if (food is null || food.NutrientBasis != NutrientBases.Unconfirmed)
+        {
+            return ApiResults.Error("That food does not need a basis confirmation.", StatusCodes.Status404NotFound);
+        }
+
+        var stamp = KassalappImporter.Stamp(food);
+        var existing = await db.FoodBasisConfirmations
+            .FirstOrDefaultAsync(row => row.UserId == userId && row.FoodId == food.Id, cancellationToken);
+        if (existing is null)
+        {
+            existing = new FoodBasisConfirmation
+            {
+                Id = Guid.NewGuid(),
+                UserId = userId,
+                FoodId = food.Id,
+            };
+            db.FoodBasisConfirmations.Add(existing);
+        }
+
+        existing.Basis = basis;
+        existing.NutritionStamp = stamp;
+        existing.ConfirmedAt = clock.GetUtcNow();
+        await db.SaveChangesAsync(cancellationToken);
+        return Results.Ok(ToResponse(food, basis));
+    }
+
+    private static async Task<Dictionary<Guid, string>> ConfirmedBases(
+        AppDbContext db,
+        string userId,
+        IReadOnlyList<Food> foods,
+        CancellationToken cancellationToken)
+    {
+        var pending = foods.Where(food => food.NutrientBasis == NutrientBases.Unconfirmed).Select(food => food.Id).ToArray();
+        var found = new Dictionary<Guid, string>();
+        if (pending.Length == 0)
+        {
+            return found;
+        }
+
+        var rows = await db.FoodBasisConfirmations.AsNoTracking()
+            .Where(row => row.UserId == userId && pending.Contains(row.FoodId))
+            .ToListAsync(cancellationToken);
+        foreach (var food in foods)
+        {
+            var match = rows.FirstOrDefault(row => row.FoodId == food.Id && row.NutritionStamp == KassalappImporter.Stamp(food));
+            if (match is { Basis: "g" or "ml" })
+            {
+                found[food.Id] = match.Basis;
+            }
+        }
+
+        return found;
+    }
+
+    public static object ToResponse(Food food, string? confirmedBasis = null) => new
     {
         id = food.Id,
         source = food.Source,
@@ -454,6 +543,7 @@ public static class FoodEndpoints
         name = food.Name,
         nameEn = food.NameEn,
         basis = food.Basis,
+        confirmedBasis,
         nutrientBasis = food.NutrientBasis,
         kcalPer100 = food.KcalPer100,
         proteinPer100 = food.ProteinPer100,

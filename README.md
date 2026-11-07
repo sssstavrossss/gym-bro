@@ -207,6 +207,47 @@ Point the proxy at `http://127.0.0.1:8100`. Register the HTTPS origin it present
 
 Open Food Facts is not searched as you type. `GET /api/foods/search` reads the local table. `POST /api/foods/search/open-food-facts` calls Open Food Facts, at most 10 searches a minute from this server, and returns the local rows plus `ok`, `rate_limited`, or `unavailable`. The User-Agent is `OPENFOODFACTS_USER_AGENT`.
 
+Kassalapp products can be copied from an offline file. The app does not call `https://kassal.app` and does not store an API key. The public docs are at `https://kassal.app/api/docs`. The free personal key is described as 60 requests a minute for non-commercial use, with a suggested 6 hour cache. Those docs do not say whether keeping a catalogue is allowed or forbidden. This command does not call the API.
+
+The file may be one JSON document (`{"data":[...]}` from search, or `{"data":{"ean","products":[...]}}` from an EAN lookup) or JSONL with one product object per line. A minimal line is:
+
+```json
+{"ean":"007394376620799","name":"Havredrikk","brand":"Oatly","updated_at":"2026-11-07T08:00:00Z","nutrition":[{"code":"energi_kcal","unit":"kcal","amount":48},{"code":"protein","unit":"g","amount":1.1},{"code":"fett_totalt","unit":"g","amount":1.5},{"code":"karbohydrater","unit":"g","amount":7}]}
+```
+
+`ean` must be a string of digits so leading zeros stay. A digit string is kept as written. It is not padded, stripped, or dropped because the length or check digit is not a GTIN-8, GTIN-12, GTIN-13, or GTIN-14. In the finished file, 481 EANs start with zero and 2,845 are not a valid GTIN of those lengths. The store listing `id` is not the barcode and is not stored. Several store rows for one EAN keep the newest `updated_at` that has kcal, protein, fat, and carbs. Those four numbers come from that one row. Two rows with the same time and different numbers are skipped as `conflicting-nutrition` and are not mixed. A missing macro stays missing; it is not stored as zero. `energi_kj` is not converted into kilocalories. A stored kcal above 900 is `kcal-out-of-range`. A protein, fat, or carbohydrate figure above 100 g is `macro-out-of-range`. 900 kcal and 100 g are kept. When both limits fail, the EAN is counted once, as `kcal-out-of-range`. The number is not rescaled, and the package is not used to guess a unit. If that newest complete listing is out of range, an older in-range listing is not used instead. `weight` and `weight_unit` are the package, not the nutrition basis, so they are ignored. Images, prices, and price history are not stored.
+
+A kept row has `source` `kassalapp`, `source_id` and `barcode` equal to the EAN, and `nutrient_basis` `unconfirmed` with `basis` null. Search can find the name and brand. It cannot be logged until that signed-in person chooses per 100 g or per 100 ml. The choice is stored only for them and does not change the shared row or anyone else's log. If a later import changes the four numbers, that person has to choose again. Nothing is selected for them in advance. The detail shows the numbers as reported, with a note that Kassalapp did not say the basis. Existing Matvaretabellen foods stay loggable. A confirmed millilitre food is logged in millilitres and does not store a gram weight. A stopped file does not retire rows. To hide the import, set `retired_at` where `source` is `kassalapp`. Do not delete those rows, because `log_entries.food_id` is `ON DELETE SET NULL`.
+
+```bash
+dotnet run --project backend/GymBro.Api -- --import-kassalapp --file norway.jsonl --dry-run
+dotnet run --project backend/GymBro.Api -- --import-kassalapp --file norway.jsonl
+```
+
+Do not run the second command on a production database until the file's sha256 matches a manifest the operator has checked. The command prints that sha256. Take a database backup first. A dry run parses and counts and does not insert or update catalogue foods. The process still opens the database, applies pending migrations, and fills any null `search_name` or `search_name_en`, so point a trial at a copy when that backfill must not touch the live database. After a real import, count `foods` where `source` is `kassalapp` and `retired_at` is null, and run the same file again: a repeat reports those rows unchanged and does not insert a second copy.
+
+The import reads JSONL one line at a time and keeps one candidate per EAN. It stops if that map would pass 400,000 EANs. A single JSON array is only for a small file: more than 32 MB of unfinished JSON is rejected, so the large file should be one product per line.
+
+On this machine, an isolated database and a generated JSONL of 250,000 lines (80,638,890 bytes, sha256 `662c9eed7c73fa1ae0965f75385b7e8b1aa60b5a9d17c1db7941603a6c1ffda1`, every name starting `SYNTHETIC NOT A REAL PRODUCT`) finished a dry run in about 4.5 seconds with a peak resident set of 345,848 KB. The food count did not change. That file is not a Kassalapp download and this is not a production measurement. After those 250,000 rows were loaded and search text was filled, `pg_total_relation_size('foods')` was 167,337,984 bytes.
+
+Warm `EXPLAIN ANALYZE` of the search the app runs (JIT off, `ORDER BY` name, `LIMIT` 25, Norwegian name or English name or alias, every token on the same string) was about 66 ms for a two-word brand query (21,391 rows), 58 ms for `bryst` (16,453), 68 ms for the short word `ost` (28,207), 58 ms for `filet` (14,706), 59 ms for `kylling` plus `br` (no row contains both tokens), and 54 ms for an unknown food. A confirmation read by user and food id was 0.02 ms on a one-row table. A trigram index on the padded name makes one `LIKE` faster (`bryst` about 14 ms, an unknown food about 0.03 ms), but the planner does not use it for the query above, and forcing an index plan took about 300 ms. No search index was added. The match, the rank, and the private-food filter are unchanged. This is not a measurement of the real catalogue or of a phone.
+
+`dotnet ef database update` down to the migration before `AddKassalappBasisConfirmation` is not a safe rollback. `Down` stops if any food has a null basis or `nutrient_basis` `unconfirmed`, because making `basis` required again would fail and deleting those foods would clear `log_entries.food_id`. To take the catalogue out of search, retire it:
+
+```sql
+UPDATE foods SET retired_at = now() WHERE source = 'kassalapp' AND retired_at IS NULL;
+```
+
+Leave the schema in place. Retiring the rows does not make `Down` succeed: the basis is still null. Revert the application code if you need the previous behaviour, and do not delete the rows.
+
+The finished file is 91,279,792 bytes, sha256 `41a1f4f73192783c7b558256a3290d316c1f507c6f67b354da70c4aced4b7b03`, 154,596 JSONL rows. Its gzip is 9,251,152 bytes, sha256 `bf05e203b4a5d639cdd9ee42361f67dbe98b5926cb990186322055e018b25f99`. It is not in this repository. No API key was used.
+
+On this machine, an empty isolated database (not production) accepted 66,919 foods. The dry run took about 4 seconds, peak resident set 237,960 KB, and wrote no foods. The import took 34 seconds, peak 365,320 KB, and upserted 66,919. The same file again took 26 seconds and reported 66,919 unchanged, 0 upserted, 0 reconfirm. Skips: `bad-barcode` 188, `nutrition-incomplete` 74,956, `conflicting-nutrition` 3, `kcal-out-of-range` 78, `macro-out-of-range` 32. Those five counts plus the 66,919 accepted foods are the 141,988 digit EANs. Every stored row has `nutrient_basis` `unconfirmed` and a null `basis`. The import wrote no confirmation rows and no log rows. The highest stored figures are 900 kcal and 100 g. Seven stored barcodes still start with zero, and 1,996 stored barcodes are not a valid GTIN of the lengths above. A 61,000 kcal mousetrap listing was not stored. A flour whose newest listing is 1,262 kcal was not stored either, even though an older listing was 301 kcal. `pg_total_relation_size('foods')` was 28,246,016 bytes (heap 14,663,680, indexes 13,541,376). There is no trigram index.
+
+Warm `EXPLAIN ANALYZE` of the search the app runs, JIT off, second run: `Oatly` 19 ms (70 rows), `chicken` 17 ms (236), the short prefix `chi` 24 ms (1,799), `ost` 21 ms (913), and an unknown food 16 ms. These are database times on this machine. They are not a phone and not a network.
+
+An independent tally that required the newest row itself to carry the four numbers reported 66,552 in-range candidates, 75,319 incomplete, and 7 ties. This import keeps an older complete listing when a later row has no four numbers, which is 366 EANs, and it conflicts only when the four stored numbers differ.
+
 Matvaretabellen is imported from the official foods.json, not committed as a dump. The import also downloads the English file beside it (`/api/en/` when the configured URL contains `/api/nb/`) and stores that name on `foods.name_en`. Search matches the Norwegian name and the English name, so "kylling" and "chicken" find the same rows. Running the import again upserts by source id and does not insert a second copy. On the host:
 
 ```bash

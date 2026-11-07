@@ -22,6 +22,7 @@ builder.Services.Configure<FoodOptions>(builder.Configuration.GetSection(FoodOpt
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<UserDirectory>();
 builder.Services.AddScoped<MatvaretabellenImporter>();
+builder.Services.AddScoped<KassalappImporter>();
 builder.Services.AddScoped<WeeklyTargetRecalculator>();
 builder.Services.AddSingleton<OpenFoodFactsGate>();
 builder.Services.AddHttpClient<IOpenFoodFactsClient, OpenFoodFactsClient>((serviceProvider, client) =>
@@ -219,6 +220,50 @@ if (args.Contains("--import-matvaretabellen"))
     catch (Exception ex) when (ex is not OperationCanceledException)
     {
         Console.Error.WriteLine("Matvaretabellen import failed: " + ex.Message);
+        Environment.ExitCode = 1;
+    }
+
+    return;
+}
+
+if (args.Contains("--import-kassalapp"))
+{
+    var dryRun = args.Contains("--dry-run");
+    var fileFlag = Array.IndexOf(args, "--file");
+    if (fileFlag < 0 || fileFlag + 1 >= args.Length)
+    {
+        Console.Error.WriteLine("Pass --file with a Kassalapp JSON or JSONL file.");
+        Environment.ExitCode = 1;
+        return;
+    }
+
+    await using var scope = app.Services.CreateAsyncScope();
+    var importer = scope.ServiceProvider.GetRequiredService<KassalappImporter>();
+    try
+    {
+        await using var file = File.OpenRead(args[fileFlag + 1]);
+        var report = await importer.ImportFileAsync(file, dryRun, CancellationToken.None);
+        Console.WriteLine(Kassalapp.Citation);
+        Console.WriteLine(
+            $"Kassalapp: complete={report.Complete} dryRun={report.DryRun} sha256={report.Sha256} rows={report.RowsRead} accepted={report.Accepted} upserted={report.Upserted} unchanged={report.Unchanged} reconfirm={report.Reconfirm}.");
+        foreach (var reason in report.SkipReasons.OrderBy(pair => pair.Key))
+        {
+            if (reason.Key == "rows")
+            {
+                continue;
+            }
+
+            Console.WriteLine($"  skipped {reason.Key}: {reason.Value}");
+        }
+
+        if (!report.Complete || report.Accepted == 0)
+        {
+            Environment.ExitCode = 1;
+        }
+    }
+    catch (Exception ex) when (ex is not OperationCanceledException)
+    {
+        Console.Error.WriteLine("Kassalapp import failed: " + ex.Message);
         Environment.ExitCode = 1;
     }
 

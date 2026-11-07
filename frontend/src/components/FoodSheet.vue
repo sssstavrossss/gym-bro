@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from "vue";
-import { ApiError, getFood, searchFoods, ServerUnreachable, type FoodSearchRow } from "../api";
+import { ApiError, confirmFoodBasis, getFood, searchFoods, ServerUnreachable, type FoodSearchRow } from "../api";
 import BottomSheet from "./BottomSheet.vue";
 import Bar from "./Bar.vue";
 import Icon from "./Icon.vue";
@@ -161,14 +161,21 @@ function fill(entry: LogEntry | null) {
   idempotencyKey.value = "";
 }
 
+const pickedBasis = ref<"g" | "ml" | null>(null);
+const shownFood = computed(() => {
+  const food = detailFood.value;
+  if (!food) return null;
+  return { ...food, confirmedBasis: pickedBasis.value ?? food.confirmedBasis ?? null };
+});
+const needsBasis = computed(() => shownFood.value?.nutrientBasis === "unconfirmed" && !shownFood.value.confirmedBasis);
 const units = computed(() => {
   if (editingFood.value) return unitsForEntry(editingFood.value);
-  return detailFood.value ? unitsForFood(detailFood.value) : [];
+  return shownFood.value ? unitsForFood(shownFood.value) : [];
 });
 const amountNumber = computed(() => parseAmount(amountText.value));
 const preview = computed(() => {
   if (editingFood.value) return scaleStored(editingFood.value, amountNumber.value, unit.value);
-  if (detailFood.value) return macrosForFood(detailFood.value, amountNumber.value, unit.value);
+  if (shownFood.value) return macrosForFood(shownFood.value, amountNumber.value, unit.value);
   return { kcal: 0, protein: 0, fat: 0, carbs: 0, grams: null as number | null };
 });
 const isCount = computed(() => unit.value === "serving" || unit.value === "piece");
@@ -177,7 +184,7 @@ const gramsEach = computed(() => units.value.find((item) => item.unit === unit.v
 const quickAmounts = computed(() => (unit.value === "g" ? [100, 150, 200] : unit.value === "ml" ? [100, 250, 500] : [0.5, 1, 2, 3]));
 const detailTitle = computed(() => detailFood.value?.name ?? editingFood.value?.name ?? "");
 const per100 = computed(() => {
-  if (detailFood.value && !editingFood.value) return per100Line(detailFood.value);
+  if (shownFood.value && !editingFood.value) return per100Line(shownFood.value);
   const entry = editingFood.value;
   if (!entry) return "";
   if (entry.grams && entry.grams > 0) {
@@ -214,8 +221,27 @@ function rowSub(food: FoodSearchRow): string {
   return english + per100Line(food);
 }
 
+async function chooseBasis(basis: "g" | "ml") {
+  const food = detailFood.value;
+  if (!food || saving.value) return;
+  saving.value = true;
+  formError.value = "";
+  try {
+    const saved = await confirmFoodBasis(food.id, basis);
+    detailFood.value = { ...food, ...saved, confirmedBasis: basis };
+    pickedBasis.value = basis;
+    unit.value = basis;
+    amountText.value = "100";
+  } catch (error) {
+    formError.value = error instanceof ApiError ? error.message : "Could not save that choice.";
+  } finally {
+    saving.value = false;
+  }
+}
+
 function openDetail(food: FoodSearchRow) {
-  const start = defaultAmount(food);
+  pickedBasis.value = food.confirmedBasis ?? null;
+  const start = defaultAmount({ ...food, confirmedBasis: food.confirmedBasis ?? null });
   ui.detailFoodId = food.id;
   detailFood.value = food;
   unit.value = start.unit;
@@ -528,24 +554,29 @@ async function deleteEdited() {
       <div class="col center gap2">
         <h3 class="t-head dname">{{ detailTitle }}</h3>
         <span class="t-label c2">{{ per100 }}</span>
+        <p v-if="needsBasis" class="t-capn basis-note">Kassalapp does not say if these numbers are per 100 g or per 100 ml. Check the package, then choose. This choice is only yours.</p>
         <span v-if="editingFood && foodChanged" class="t-capn c2">Using the values it was logged with — this food has changed since.</span>
       </div>
       <div class="col center gap8">
-        <div v-if="keyboardEntry" class="base">
+        <div v-if="keyboardEntry && !needsBasis" class="base">
           <input ref="amountEl" :value="amountText" class="t-dl num ginput" inputmode="decimal" autocomplete="off" :aria-label="`Amount in ${unit}`"
             @input="amountInput" @keydown.enter.prevent="addDetail" />
           <span class="t-head c2">{{ unitWord }}</span>
         </div>
-        <div v-else class="base" role="status" :aria-label="amountLabel(amountNumber, unit)">
+        <div v-else-if="!needsBasis" class="base" role="status" :aria-label="amountLabel(amountNumber, unit)">
           <span class="t-dl num" data-num>{{ amountText }}</span><span class="t-head c2">{{ unitWord }}</span>
         </div>
         <span v-if="isCount && preview.grams != null && gramsEach" class="t-label c2" aria-live="polite">= {{ int(preview.grams) }} g · 1 {{ unit }} = {{ gramsEach }} g</span>
-        <div class="row units" role="radiogroup" aria-label="Unit">
+        <div v-if="needsBasis" class="row basis-choice" role="group" aria-label="Nutrition basis">
+          <button type="button" class="basis-btn" @click="chooseBasis('g')">Per 100 g</button>
+          <button type="button" class="basis-btn" @click="chooseBasis('ml')">Per 100 ml</button>
+        </div>
+        <div v-else class="row units" role="radiogroup" aria-label="Unit">
           <button v-for="choice in units" :key="choice.unit" type="button" role="radio" class="uchip t-label" :class="{ on: choice.unit === unit }" :aria-checked="choice.unit === unit" @click="setUnit(choice)">
             {{ choice.label }}<span v-if="choice.gramsEach && choice.unit !== 'g' && choice.unit !== 'ml'" class="ug"> · {{ choice.gramsEach }} g</span>
           </button>
         </div>
-        <div class="row gap8 chips">
+        <div v-if="!needsBasis" class="row gap8 chips">
           <button v-for="amount in quickAmounts" :key="amount" type="button" class="chip t-label" @click="setAmount(amount)">{{ amountLabel(amount, unit) }}</button>
         </div>
       </div>
@@ -581,7 +612,7 @@ async function deleteEdited() {
         <button v-if="editing" type="button" class="del-btn t-bodys" aria-label="Delete" :disabled="saving" @click="deleteEdited">
           <Icon name="trash" :size="16" /><span>Delete</span>
         </button>
-        <button type="button" class="primary-btn t-bodys grow" :disabled="saving" @click="addDetail">
+        <button type="button" class="primary-btn t-bodys grow" :disabled="saving || needsBasis" @click="addDetail">
           {{ saveError ? "Try again" : editing ? "Save" : "Add" }} · {{ int(preview.kcal) }} kcal
         </button>
       </div>
@@ -706,6 +737,9 @@ async function deleteEdited() {
 .emptyc { gap: 8px; padding: 12px 0 20px; }
 .actions { flex: none; flex-wrap: wrap; }
 .actions .primary-btn { width: auto; flex: 1 1 160px; min-width: 0; }
+.basis-note { margin: 0; max-width: 36rem; text-align: center; color: var(--text-secondary); }
+.basis-choice { width: 100%; justify-content: center; }
+.basis-btn { min-width: 44px; min-height: 44px; padding: 0 16px; border-radius: 22px; border: 1px solid var(--color-border); background: transparent; color: var(--text-primary); font-size: 16px; }
 .del-btn { min-height: 52px; min-width: 44px; padding: 0 18px; border-radius: 26px; background: var(--color-surface-2); display: inline-flex; align-items: center; justify-content: center; gap: 8px; flex: none; }
 .base { min-width: 0; max-width: 100%; display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
 .dname { margin: 0; overflow-wrap: anywhere; }
