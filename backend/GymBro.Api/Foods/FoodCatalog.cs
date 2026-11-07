@@ -7,6 +7,15 @@ public static class FoodCatalog
 {
     public const int SearchLimit = 25;
 
+    /// <summary>Enough words for a food name. More than this is rejected so a keystroke cannot build an unbounded predicate.</summary>
+    public const int MaxSearchTokens = 8;
+
+    /// <summary>
+    /// A word this long may match inside a compound (<c>bryst</c> in <c>kyllingbryst</c>).
+    /// Shorter text stays on a word boundary, so <c>br</c> does not match every word that contains those letters.
+    /// </summary>
+    public const int CompoundTokenLength = 4;
+
     public static IQueryable<Food> Visible(IQueryable<Food> foods, string userId) =>
         foods.Where(food => food.RetiredAt == null && (food.UserId == null || food.UserId == userId));
 
@@ -16,24 +25,110 @@ public static class FoodCatalog
         string query,
         CancellationToken cancellationToken)
     {
-        var pattern = ContainsPattern(query);
-        var digits = query.All(char.IsAsciiDigit);
         var normalized = FoodAliasCatalogue.Normalize(query);
-        var phrase = normalized.Length >= 2;
-        return await Visible(db.Foods.AsNoTracking(), userId)
-            .Where(food =>
-                EF.Functions.ILike(food.Name, pattern, "\\")
-                || EF.Functions.ILike(food.NameEn ?? "", pattern, "\\")
-                || (digits && food.Barcode == query)
-                || (phrase && db.FoodAliases.Any(alias =>
-                    alias.Source == food.Source
-                    && alias.SourceId == food.SourceId
-                    && alias.Normalized == normalized
-                    && alias.ExpectedNameEn == food.NameEn)))
-            .OrderBy(food => food.Name)
-            .ThenBy(food => food.Source)
-            .Take(SearchLimit)
-            .ToListAsync(cancellationToken);
+        var tokens = normalized.Length == 0
+            ? []
+            : normalized.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var digits = query.Length > 0 && query.All(char.IsAsciiDigit);
+        if (tokens.Length == 0)
+        {
+            if (!digits)
+            {
+                return [];
+            }
+
+            return await Visible(db.Foods.AsNoTracking(), userId)
+                .Where(food => food.Barcode == query)
+                .OrderBy(food => food.Name)
+                .Take(SearchLimit)
+                .ToListAsync(cancellationToken);
+        }
+
+        // Names are already folded by the same function as the query, so this does not call lower() or regexp_replace.
+        // Every token must hit the same string. Short words stay on a boundary. A longer word may also sit inside a compound.
+        var args = new List<object>();
+        string Add(object value)
+        {
+            args.Add(value);
+            return "{" + (args.Count - 1) + "}";
+        }
+
+        var userParam = Add(userId);
+        var queryParam = Add(query);
+        var normalizedParam = Add(normalized);
+        var prefixParam = Add(LikePrefix(normalized));
+        var digitParam = Add(digits);
+        var matchParams = tokens.Select((token, index) => Add(MatchPattern(token, index == tokens.Length - 1))).ToArray();
+        var lastWholeParam = Add(WholeWordPattern(tokens[^1]));
+        var lastPrefixParam = Add(WordPrefixPattern(tokens[^1]));
+
+        // COLLATE "C" keeps the match on the stored letters. A database collation must not treat é as e.
+        const string namePad = "(' ' || coalesce(f.search_name, '') || ' ') COLLATE \"C\"";
+        const string enPad = "(' ' || coalesce(f.search_name_en, '') || ' ') COLLATE \"C\"";
+        const string aliasPad = "(' ' || a.normalized || ' ') COLLATE \"C\"";
+        string All(string pad) => string.Join(" AND ", matchParams.Select(param => pad + " LIKE " + param));
+
+        var sql = $"""
+            SELECT f.id AS "Value"
+            FROM foods AS f
+            WHERE f.retired_at IS NULL
+              AND (f.user_id IS NULL OR f.user_id = {userParam})
+              AND (
+                ({digitParam} AND f.barcode = {queryParam})
+                OR ({All(namePad)})
+                OR ({All(enPad)})
+                OR EXISTS (
+                  SELECT 1 FROM food_aliases AS a
+                  WHERE a.source = f.source
+                    AND a.source_id = f.source_id
+                    AND a.expected_name_en = f.name_en
+                    AND {All(aliasPad)}
+                )
+              )
+            ORDER BY CASE
+              WHEN ({digitParam} AND f.barcode = {queryParam})
+                OR f.search_name COLLATE "C" = {normalizedParam}
+                OR f.search_name_en COLLATE "C" = {normalizedParam}
+                OR EXISTS (
+                  SELECT 1 FROM food_aliases AS a
+                  WHERE a.source = f.source AND a.source_id = f.source_id AND a.expected_name_en = f.name_en
+                    AND a.normalized COLLATE "C" = {normalizedParam}
+                ) THEN 0
+              WHEN f.search_name COLLATE "C" LIKE {prefixParam}
+                OR f.search_name_en COLLATE "C" LIKE {prefixParam}
+                OR EXISTS (
+                  SELECT 1 FROM food_aliases AS a
+                  WHERE a.source = f.source AND a.source_id = f.source_id AND a.expected_name_en = f.name_en
+                    AND a.normalized COLLATE "C" LIKE {prefixParam}
+                ) THEN 1
+              WHEN {namePad} LIKE {lastWholeParam}
+                OR {enPad} LIKE {lastWholeParam}
+                OR EXISTS (
+                  SELECT 1 FROM food_aliases AS a
+                  WHERE a.source = f.source AND a.source_id = f.source_id AND a.expected_name_en = f.name_en
+                    AND {aliasPad} LIKE {lastWholeParam}
+                ) THEN 2
+              WHEN {namePad} LIKE {lastPrefixParam}
+                OR {enPad} LIKE {lastPrefixParam}
+                OR EXISTS (
+                  SELECT 1 FROM food_aliases AS a
+                  WHERE a.source = f.source AND a.source_id = f.source_id AND a.expected_name_en = f.name_en
+                    AND {aliasPad} LIKE {lastPrefixParam}
+                ) THEN 3
+              ELSE 4
+            END, f.name, f.source
+            LIMIT {SearchLimit}
+            """;
+
+        var orderedIds = await db.Database.SqlQueryRaw<Guid>(sql, args.ToArray()).ToListAsync(cancellationToken);
+        if (orderedIds.Count == 0)
+        {
+            return [];
+        }
+
+        var rows = await db.Foods.AsNoTracking().Where(food => orderedIds.Contains(food.Id)).ToListAsync(cancellationToken);
+        var byId = rows.ToDictionary(food => food.Id);
+        return orderedIds.Where(byId.ContainsKey).Select(id => byId[id]).ToList();
     }
 
     public static async Task<IReadOnlyDictionary<string, Guid>> UpsertCatalogAsync(
@@ -106,8 +201,30 @@ public static class FoodCatalog
             return "That search is too long.";
         }
 
+        var words = FoodAliasCatalogue.Normalize(trimmed).Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (words.Length > MaxSearchTokens)
+        {
+            return "That search is too long.";
+        }
+
         return null;
     }
+
+    private static string MatchPattern(string token, bool last)
+    {
+        if (token.Length >= CompoundTokenLength)
+        {
+            return "%" + token + "%";
+        }
+
+        return last ? WordPrefixPattern(token) : WholeWordPattern(token);
+    }
+
+    private static string WholeWordPattern(string token) => "% " + token + " %";
+
+    private static string WordPrefixPattern(string token) => "% " + token + "%";
+
+    private static string LikePrefix(string normalized) => normalized + "%";
 
     public static string ContainsPattern(string query)
     {

@@ -39,7 +39,7 @@ public sealed class FoodEndpointTests(ApiFactory factory)
         using var clientA = factory.AsUser(userA);
         using var clientB = factory.AsUser(userB);
         var found = await clientA.GetFromJsonAsync<JsonElement>("/api/foods/search?q=Fictional%20oat");
-        var food = Assert.Single(found.GetProperty("foods").EnumerateArray());
+        var food = found.GetProperty("foods").EnumerateArray().Single(row => row.GetProperty("sourceId").GetString() == "test.oat");
         Assert.Equal("mvt", food.GetProperty("source").GetString());
         Assert.Equal("per_100", food.GetProperty("nutrientBasis").GetString());
         Assert.Equal(100, food.GetProperty("kcalPer100").GetDecimal());
@@ -72,7 +72,7 @@ public sealed class FoodEndpointTests(ApiFactory factory)
         Assert.Equal(1, second.Retired);
 
         var revised = await clientA.GetFromJsonAsync<JsonElement>("/api/foods/search?q=Fictional%20oat");
-        var only = Assert.Single(revised.GetProperty("foods").EnumerateArray());
+        var only = revised.GetProperty("foods").EnumerateArray().Single(row => row.GetProperty("id").GetGuid() == id);
         Assert.Equal("Fictional oat brick revised", only.GetProperty("name").GetString());
         Assert.Equal(id, only.GetProperty("id").GetGuid());
         var broth = await clientB.GetFromJsonAsync<JsonElement>("/api/foods/search?q=Fictional%20broth");

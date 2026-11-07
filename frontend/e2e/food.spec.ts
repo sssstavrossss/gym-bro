@@ -1,5 +1,5 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
+import { expect, test, type APIRequestContext, type Locator, type Page } from "@playwright/test";
 
 const widths = [390, 820, 1440] as const;
 
@@ -93,6 +93,27 @@ function foodSheet(page: Page) {
   return page.getByRole("dialog", { name: /^(Add food|Edit food)$/ });
 }
 
+// A 44px box can measure as 43.999996. Half a pixel covers that. A 40px control still fails.
+async function expectTouchTarget(locator: Locator, minimum = 44) {
+  const box = await locator.boundingBox();
+  expect(box, "touch target is on screen").not.toBeNull();
+  const specified = await locator.evaluate((element) => {
+    const style = getComputedStyle(element);
+    const read = (value: string) => {
+      const parsed = Number.parseFloat(value);
+      return Number.isFinite(parsed) ? parsed : 0;
+    };
+    return {
+      width: Math.max(read(style.width), read(style.minWidth)),
+      height: Math.max(read(style.height), read(style.minHeight)),
+    };
+  });
+  expect(specified.width).toBeGreaterThanOrEqual(minimum - 0.5);
+  expect(specified.height).toBeGreaterThanOrEqual(minimum - 0.5);
+  expect(box!.width).toBeGreaterThanOrEqual(minimum - 0.5);
+  expect(box!.height).toBeGreaterThanOrEqual(minimum - 0.5);
+}
+
 function macroField(page: Page, name: string) {
   return foodSheet(page).getByRole("textbox", { name, exact: true });
 }
@@ -129,15 +150,11 @@ test("today empty, quick add, on target, edit, undo, and no sideways scroll", as
 
   await page.getByRole("button", { name: "Add", exact: true }).click();
   const food = page.getByRole("dialog", { name: "Add" }).getByRole("button", { name: /Search or quick add/ });
-  const foodBox = await food.boundingBox();
-  expect(foodBox!.width).toBeGreaterThanOrEqual(44);
-  expect(foodBox!.height).toBeGreaterThanOrEqual(44);
+  await expectTouchTarget(food);
   await food.click();
   await expect(page.getByRole("dialog", { name: "Add", exact: true })).toBeHidden();
   const close = foodSheet(page).getByRole("button", { name: "Close", exact: true });
-  const closeBox = await close.boundingBox();
-  expect(closeBox!.width).toBeGreaterThanOrEqual(44);
-  expect(closeBox!.height).toBeGreaterThanOrEqual(44);
+  await expectTouchTarget(close);
   await expectClean(page);
   await close.click();
 
@@ -168,9 +185,7 @@ test("today empty, quick add, on target, edit, undo, and no sideways scroll", as
   await page.getByRole("button", { name: /Fictional bar/ }).click();
   await expect(page.getByRole("heading", { name: "Edit food" })).toBeVisible();
   const deleteButton = page.getByRole("button", { name: "Delete", exact: true });
-  const deleteBox = await deleteButton.boundingBox();
-  expect(deleteBox!.width).toBeGreaterThanOrEqual(44);
-  expect(deleteBox!.height).toBeGreaterThanOrEqual(44);
+  await expectTouchTarget(deleteButton);
   await macroField(page, "Calories").fill(String(target + 500));
   await foodSheet(page).getByRole("button", { name: /Save ·/ }).click();
   await expect(page.getByText("Over target")).toBeVisible();
@@ -216,8 +231,7 @@ test("a failed add stays pending and retry uses the same key", async ({ page }) 
   await foodSheet(page).getByRole("button", { name: "Close", exact: true }).click();
   const retry = page.getByRole("button", { name: "Retry" });
   await expect(retry).toBeVisible();
-  const retryBox = await retry.boundingBox();
-  expect(retryBox!.height).toBeGreaterThanOrEqual(44);
+  await expectTouchTarget(retry);
 
   await page.unroute("**/api/log-entries");
   await retry.click();
@@ -251,7 +265,5 @@ test("kcal and macro numbers stay whole at the largest text size", async ({ page
   await expect(page.getByText("kcal left").or(page.getByText("kcal over"))).toBeVisible();
   await expectNumbersWhole(page);
   await expectNoSideScroll(page);
-  const entry = page.getByRole("button", { name: /Quick add/ });
-  const box = await entry.boundingBox();
-  expect(box!.height).toBeGreaterThanOrEqual(44);
+  await expectTouchTarget(page.getByRole("button", { name: /Quick add/ }));
 });
