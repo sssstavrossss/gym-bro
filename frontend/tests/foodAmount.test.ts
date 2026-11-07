@@ -65,7 +65,7 @@ it("rejects 0 and 10,001 g and 51 servings with the server's words", () => {
 it("offers grams plus a serving or piece only when the food has one", () => {
   expect(unitsForFood(chicken).map((unit) => unit.unit)).toEqual(["g", "serving", "piece"]);
   expect(unitsForFood({ ...chicken, servingQuantity: null, pieceQuantity: null }).map((unit) => unit.unit)).toEqual(["g"]);
-  expect(unitsForFood({ ...chicken, basis: "ml" }).map((unit) => unit.unit)).toEqual(["g", "ml", "serving", "piece"]);
+  expect(unitsForFood({ ...chicken, basis: "ml" }).map((unit) => unit.unit)).toEqual(["ml", "serving", "piece"]);
   expect(unitsForFood(bar).map((unit) => unit.unit)).toEqual(["serving"]);
 });
 
@@ -85,6 +85,31 @@ it("keeps one decimal on a fractional macro and no .0 on a whole one", () => {
   expect(macroFigure(3.65)).toBe("3.7");
   expect(per100Line({ ...chicken, kcalPer100: 165, proteinPer100: 31, fatPer100: 3.6, carbsPer100: 0 }))
     .toBe("per 100 g · 165 kcal · P31 F3.6 C0");
+});
+
+it("does not call an unconfirmed Kassalapp row per 100 g, and millilitres have no gram weight", () => {
+  const drink: CatalogFood = {
+    ...chicken,
+    id: "3",
+    source: "kassalapp",
+    name: "Oatly Havredrikk",
+    nameEn: null,
+    basis: null,
+    nutrientBasis: "unconfirmed",
+    kcalPer100: 48,
+    proteinPer100: 1.1,
+    fatPer100: 1.5,
+    carbsPer100: 7,
+    servingQuantity: null,
+    pieceQuantity: null,
+  };
+  expect(per100Line(drink)).toBe("as reported · 48 kcal · P1.1 F1.5 C7");
+  expect(unitsForFood(drink)).toEqual([]);
+  expect(per100Line({ ...drink, confirmedBasis: "ml" })).toContain("per 100 ml, confirmed by you");
+  expect(macrosForFood({ ...drink, confirmedBasis: "ml" }, 250, "ml")).toEqual({
+    kcal: 120, protein: 2.75, fat: 3.75, carbs: 17.5, grams: null,
+  });
+  expect(unitsForFood({ ...chicken, basis: "ml", servingQuantity: null, pieceQuantity: null }).map((unit) => unit.unit)).toEqual(["ml"]);
 });
 
 it("scales an edited entry from its stored grams, not a new piece size", () => {

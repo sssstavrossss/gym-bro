@@ -17,6 +17,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
 
     public DbSet<FoodAlias> FoodAliases => Set<FoodAlias>();
 
+    public DbSet<FoodBasisConfirmation> FoodBasisConfirmations => Set<FoodBasisConfirmation>();
+
     public DbSet<LogEntry> LogEntries => Set<LogEntry>();
 
     public DbSet<EntryGroup> EntryGroups => Set<EntryGroup>();
@@ -95,7 +97,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             table.HasCheckConstraint("ck_foods_catalog_owner", "source = 'custom' OR user_id IS NULL");
             table.HasCheckConstraint(
                 "ck_foods_nutrient_basis",
-                "(nutrient_basis = 'per_100' AND basis IN ('g', 'ml')) OR (nutrient_basis = 'per_serving' AND basis = 'serving' AND serving_quantity IS NULL AND piece_quantity IS NULL)");
+                "(nutrient_basis = 'per_100' AND basis IN ('g', 'ml')) OR (nutrient_basis = 'per_serving' AND basis = 'serving' AND serving_quantity IS NULL AND piece_quantity IS NULL) OR (nutrient_basis = 'unconfirmed' AND basis IS NULL AND source = 'kassalapp')");
         });
         food.HasKey(f => f.Id);
         food.Property(f => f.Id).HasColumnName("id");
@@ -117,7 +119,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         food.Property(f => f.NameEn).HasColumnName("name_en").HasMaxLength(300);
         food.Property(f => f.SearchName).HasColumnName("search_name").HasMaxLength(300);
         food.Property(f => f.SearchNameEn).HasColumnName("search_name_en").HasMaxLength(300);
-        food.Property(f => f.Basis).HasColumnName("basis").HasMaxLength(8);
+        food.Property(f => f.Basis).HasColumnName("basis").HasMaxLength(8).IsRequired(false);
         food.Property(f => f.NutrientBasis).HasColumnName("nutrient_basis").HasMaxLength(16);
         food.Property(f => f.KcalPer100).HasColumnName("kcal_per_100").HasPrecision(8, 2);
         food.Property(f => f.ProteinPer100).HasColumnName("protein_per_100").HasPrecision(8, 2);
@@ -145,6 +147,22 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         alias.Property(a => a.Normalized).HasColumnName("normalized").HasMaxLength(80);
         alias.Property(a => a.ExpectedNameEn).HasColumnName("expected_name_en").HasMaxLength(300);
         alias.HasIndex(a => new { a.Source, a.SourceId, a.Normalized }).IsUnique();
+
+        var confirmation = modelBuilder.Entity<FoodBasisConfirmation>();
+        confirmation.ToTable("food_basis_confirmations", table =>
+        {
+            table.HasCheckConstraint("ck_food_basis_confirmations_basis", "basis IN ('g', 'ml')");
+        });
+        confirmation.HasKey(c => c.Id);
+        confirmation.Property(c => c.Id).HasColumnName("id");
+        confirmation.Property(c => c.UserId).HasColumnName("user_id").HasMaxLength(64);
+        confirmation.Property(c => c.FoodId).HasColumnName("food_id");
+        confirmation.Property(c => c.Basis).HasColumnName("basis").HasMaxLength(8);
+        confirmation.Property(c => c.NutritionStamp).HasColumnName("nutrition_stamp").HasMaxLength(80);
+        confirmation.Property(c => c.ConfirmedAt).HasColumnName("confirmed_at");
+        confirmation.HasIndex(c => new { c.UserId, c.FoodId }).IsUnique();
+        confirmation.HasOne<AppUser>().WithMany().HasForeignKey(c => c.UserId).OnDelete(DeleteBehavior.Cascade);
+        confirmation.HasOne<Food>().WithMany().HasForeignKey(c => c.FoodId).OnDelete(DeleteBehavior.Cascade);
 
         var entry = modelBuilder.Entity<LogEntry>();
         entry.ToTable("log_entries", table =>

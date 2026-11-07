@@ -373,6 +373,14 @@ export async function getFood(id: string): Promise<FoodSearchRow> {
   return jsonOrThrow(await request(`/api/foods/${id}`));
 }
 
+export async function confirmFoodBasis(id: string, basis: "g" | "ml"): Promise<FoodSearchRow> {
+  return jsonOrThrow(await request(`/api/foods/${id}/basis`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ basis }),
+  }));
+}
+
 export async function listLogEntries(date: string): Promise<LogListResponse> {
   return jsonOrThrow(await request(`/api/log-entries?date=${encodeURIComponent(date)}`));
 }

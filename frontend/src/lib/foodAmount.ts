@@ -6,7 +6,8 @@ export interface CatalogFood {
   source: string;
   name: string;
   nameEn: string | null;
-  basis: string;
+  basis: string | null;
+  confirmedBasis?: "g" | "ml" | null;
   nutrientBasis: string;
   kcalPer100: number;
   proteinPer100: number;
@@ -89,11 +90,25 @@ export function amountLabel(amount: number, unit: string): string {
 }
 
 export function unitsForFood(food: CatalogFood): UnitChoice[] {
+  if (food.nutrientBasis === "unconfirmed") {
+    if (food.confirmedBasis === "ml") return [{ unit: "ml", label: "ml", gramsEach: null }];
+    if (food.confirmedBasis === "g") return [{ unit: "g", label: "g", gramsEach: 1 }];
+    return [];
+  }
   if (food.nutrientBasis === "per_serving") {
     return [{ unit: "serving", label: food.servingLabel || "serving", gramsEach: null }];
   }
+  if (food.basis === "ml") {
+    const units: UnitChoice[] = [{ unit: "ml", label: "ml", gramsEach: null }];
+    if (food.servingQuantity != null && food.servingQuantity > 0) {
+      units.push({ unit: "serving", label: food.servingLabel || "serving", gramsEach: food.servingQuantity });
+    }
+    if (food.pieceQuantity != null && food.pieceQuantity > 0) {
+      units.push({ unit: "piece", label: food.pieceLabel || "piece", gramsEach: food.pieceQuantity });
+    }
+    return units;
+  }
   const units: UnitChoice[] = [{ unit: "g", label: "g", gramsEach: 1 }];
-  if (food.basis === "ml") units.push({ unit: "ml", label: "ml", gramsEach: 1 });
   if (food.servingQuantity != null && food.servingQuantity > 0) {
     units.push({ unit: "serving", label: food.servingLabel || "serving", gramsEach: food.servingQuantity });
   }
@@ -118,10 +133,7 @@ export function unitsForEntry(entry: StoredEntry): UnitChoice[] {
     ];
   }
   if (kind === "ml") {
-    return [
-      { unit: "g", label: "g", gramsEach: 1 },
-      { unit: "ml", label: "ml", gramsEach: 1 },
-    ];
+    return [{ unit: "ml", label: "ml", gramsEach: null }];
   }
   return [{ unit: "g", label: "g", gramsEach: 1 }];
 }
@@ -131,6 +143,17 @@ export function macrosForFood(food: CatalogFood, amount: number, unit: string): 
   if (amount <= 0) return empty;
   const choice = unitsForFood(food).find((item) => item.unit === normalizeUnit(unit));
   if (!choice) return empty;
+  const kind = normalizeUnit(unit);
+  if (kind === "ml" || food.basis === "ml") {
+    const factor = amount / 100;
+    return {
+      kcal: round2(food.kcalPer100 * factor),
+      protein: round2(food.proteinPer100 * factor),
+      fat: round2(food.fatPer100 * factor),
+      carbs: round2(food.carbsPer100 * factor),
+      grams: null,
+    };
+  }
   if (food.nutrientBasis === "per_serving" || choice.gramsEach == null) {
     return {
       kcal: round2(food.kcalPer100 * amount),
@@ -184,7 +207,9 @@ export function macroFigure(value: number): string {
 }
 
 export function per100Line(food: CatalogFood): string {
-  const basis = food.nutrientBasis === "per_serving"
+  const basis = food.nutrientBasis === "unconfirmed"
+    ? (food.confirmedBasis === "ml" ? "per 100 ml, confirmed by you" : food.confirmedBasis === "g" ? "per 100 g, confirmed by you" : "as reported")
+    : food.nutrientBasis === "per_serving"
     ? `per ${food.servingLabel || "serving"}`
     : `per 100 ${food.basis === "ml" ? "ml" : "g"}`;
   return `${basis} · ${Math.round(food.kcalPer100)} kcal · P${macroFigure(food.proteinPer100)} F${macroFigure(food.fatPer100)} C${macroFigure(food.carbsPer100)}`;
@@ -192,5 +217,7 @@ export function per100Line(food: CatalogFood): string {
 
 export function defaultAmount(food: CatalogFood): { amount: string; unit: UnitChoice["unit"] } {
   if (food.nutrientBasis === "per_serving") return { amount: "1", unit: "serving" };
+  if (food.basis === "ml" || food.confirmedBasis === "ml") return { amount: "100", unit: "ml" };
+  if (food.nutrientBasis === "unconfirmed") return { amount: "100", unit: "g" };
   return { amount: "100", unit: "g" };
 }

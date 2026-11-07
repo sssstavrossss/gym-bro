@@ -7,6 +7,9 @@ public static class NutrientBases
 
     /// <summary>Values in the nutrient columns are for one serving, with no gram weight.</summary>
     public const string PerServing = "per_serving";
+
+    /// <summary>Kassalapp did not say whether the numbers are per 100 g or per 100 ml. Not loggable until that person confirms.</summary>
+    public const string Unconfirmed = "unconfirmed";
 }
 
 /// <summary>
@@ -48,8 +51,8 @@ public sealed class Food
     /// <summary>Folded <see cref="NameEn"/> used only for search.</summary>
     public string? SearchNameEn { get; set; }
 
-    /// <summary><c>g</c>, <c>ml</c>, or <c>serving</c>. See <see cref="NutrientBasis"/>.</summary>
-    public string Basis { get; set; } = "g";
+    /// <summary><c>g</c>, <c>ml</c>, or <c>serving</c>. Null when <see cref="NutrientBasis"/> is <see cref="NutrientBases.Unconfirmed"/>.</summary>
+    public string? Basis { get; set; } = "g";
 
     public string NutrientBasis { get; set; } = NutrientBases.Per100;
 

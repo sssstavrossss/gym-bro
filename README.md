@@ -207,6 +207,22 @@ Point the proxy at `http://127.0.0.1:8100`. Register the HTTPS origin it present
 
 Open Food Facts is not searched as you type. `GET /api/foods/search` reads the local table. `POST /api/foods/search/open-food-facts` calls Open Food Facts, at most 10 searches a minute from this server, and returns the local rows plus `ok`, `rate_limited`, or `unavailable`. The User-Agent is `OPENFOODFACTS_USER_AGENT`.
 
+Kassalapp products can be copied from an offline file. The app does not call `https://kassal.app` and does not store an API key. The public docs are at `https://kassal.app/api/docs`. The free personal key is described as 60 requests a minute for non-commercial use, with a suggested 6 hour cache. Those docs do not say whether keeping a catalogue is allowed or forbidden. This command does not call the API.
+
+The file may be one JSON document (`{"data":[...]}` from search, or `{"data":{"ean","products":[...]}}` from an EAN lookup) or JSONL with one product object per line. A minimal line is:
+
+```json
+{"ean":"007394376620799","name":"Havredrikk","brand":"Oatly","updated_at":"2026-11-07T08:00:00Z","nutrition":[{"code":"energi_kcal","unit":"kcal","amount":48},{"code":"protein","unit":"g","amount":1.1},{"code":"fett_totalt","unit":"g","amount":1.5},{"code":"karbohydrater","unit":"g","amount":7}]}
+```
+
+`ean` must be a string of digits so leading zeros stay. The store listing `id` is not the barcode and is not stored. Several store rows for one EAN keep the newest `updated_at` that has kcal, protein, fat, and carbs. Those four numbers come from that one row. Two rows with the same time and different numbers are skipped as `conflicting-nutrition` and are not mixed. A missing macro stays missing; it is not stored as zero. `energi_kj` is not converted into kilocalories. `weight` and `weight_unit` are the package, not the nutrition basis, so they are ignored. Images, prices, and price history are not stored.
+
+A kept row has `source` `kassalapp`, `source_id` and `barcode` equal to the EAN, and `nutrient_basis` `unconfirmed` with `basis` null. Search can find the name and brand. It cannot be logged until that signed-in person chooses per 100 g or per 100 ml. The choice is stored only for them and does not change the shared row or anyone else's log. If a later import changes the four numbers, that person has to choose again. Nothing is selected for them in advance. The detail shows the numbers as reported, with a note that Kassalapp did not say the basis. Existing Matvaretabellen foods stay loggable. A confirmed millilitre food is logged in millilitres and does not store a gram weight. A stopped file does not retire rows. To hide the import, set `retired_at` where `source` is `kassalapp`. Do not delete those rows, because `log_entries.food_id` is `ON DELETE SET NULL`.
+
+```bash
+dotnet run --project backend/GymBro.Api -- --import-kassalapp --file norway.jsonl
+```
+
 Matvaretabellen is imported from the official foods.json, not committed as a dump. The import also downloads the English file beside it (`/api/en/` when the configured URL contains `/api/nb/`) and stores that name on `foods.name_en`. Search matches the Norwegian name and the English name, so "kylling" and "chicken" find the same rows. Running the import again upserts by source id and does not insert a second copy. On the host:
 
 ```bash
