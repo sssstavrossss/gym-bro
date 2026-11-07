@@ -34,5 +34,6 @@ blob-report/
 
 # Local databases
 *.db
+off-norway-search.checkpoint.json
 *.db-wal
 *.db-shm

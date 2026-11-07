@@ -111,6 +111,39 @@ public sealed class OffNorwayDecisionTests
     }
 
     [Fact]
+    public void Search_records_keep_an_explicit_basis_and_label_kilocalories()
+    {
+        var millilitres = OffNorwayImporter.MapProduct("""
+            {"code":"7394376620706","product_name":"Oat Drink 0.5%","brands":"Oatly","brands_tags":["oatly"],"countries_tags":["en:norway"],"quantity":"1 L","nutrition_data_per":"100ml","last_modified_t":1705562637,"nutriments":{"energy-kcal_100g":37,"energy_100g":156,"proteins_100g":1,"fat_100g":0.5,"carbohydrates_100g":6.7}}
+            """);
+        var drink = OffNorwayImporter.Decide(millilitres.Fields);
+        Assert.Equal("ml", drink.Food!.Basis);
+        Assert.Equal(37m, drink.Food.Kcal);
+        Assert.True(drink.Food.Oatly);
+
+        var sameDrink = OffNorwayImporter.MapProduct("""
+            {"code":"7394376620805","product_name":"Oat drink 0,5% fat","brands":"Oatly","countries_tags":["en:norway"],"nutrition_data_per":"100ml","nutriments":{"energy-kcal_100g":37,"energy_100g":156,"proteins_100g":1,"fat_100g":0.5,"carbohydrates_100g":6.7}}
+            """);
+        Assert.Equal("ml", OffNorwayImporter.Decide(sameDrink.Fields).Food!.Basis);
+
+        var gramsOnAVolumePackage = OffNorwayImporter.Decide(OffNorwayImporter.MapProduct("""
+            {"code":"7394376619182","product_name":"Havredrik m. calcium","brands":"Oatly","countries_tags":["en:norway"],"quantity":"350 ml","nutrition_data_per":"100g","nutriments":{"energy-kcal_100g":46,"energy_100g":192,"proteins_100g":1,"fat_100g":1.5,"carbohydrates_100g":6.7}}
+            """).Fields);
+        Assert.Equal("g", gramsOnAVolumePackage.Food!.Basis);
+        Assert.Equal(46m, gramsOnAVolumePackage.Food.Kcal);
+
+        var serving = OffNorwayImporter.Decide(OffNorwayImporter.MapProduct("""
+            {"code":"0079763110011","product_name":"Peanøtt kjeks","brands":"X","countries_tags":["en:norway"],"quantity":"100 g","nutrition_data_per":"serving","nutriments":{"energy-kcal_100g":400,"proteins_100g":1,"fat_100g":1,"carbohydrates_100g":1}}
+            """).Fields);
+        Assert.Equal("unknown-basis", serving.Skip);
+
+        var onlyKilojoules = OffNorwayImporter.Decide(OffNorwayImporter.MapProduct("""
+            {"code":"000124","product_name":"No label","brands":"X","countries_tags":["en:norway"],"nutrition_data_per":"100ml","nutriments":{"energy_100g":156,"proteins_100g":1,"fat_100g":1,"carbohydrates_100g":1}}
+            """).Fields);
+        Assert.Equal("missing-kcal", onlyKilojoules.Skip);
+    }
+
+    [Fact]
     public void Sweden_is_not_norway_and_the_name_keeps_the_brand()
     {
         Assert.Equal("Oatly iKaffe", OffNorwayImporter.DisplayName("Oatly", "iKaffe"));
@@ -322,6 +355,64 @@ public sealed class OffNorwayImportTests(ApiFactory factory)
         db.LogEntries.Remove(detached);
         await db.SaveChangesAsync();
     }
+
+    [Fact]
+    public async Task A_short_search_page_does_not_retire_an_existing_food()
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var importer = scope.ServiceProvider.GetRequiredService<OffNorwayImporter>();
+        var drink = """
+            {"code":"7394376620706","product_name":"Oat Drink 0.5%","brands":"Oatly","brands_tags":["oatly"],"countries_tags":["en:norway"],"quantity":"1 L","nutrition_data_per":"100ml","last_modified_t":1705562637,"nutriments":{"energy-kcal_100g":37,"energy_100g":156,"proteins_100g":1,"fat_100g":0.5,"carbohydrates_100g":6.7}}
+            """;
+        var havre = """
+            {"code":"7394376619182","product_name":"Havredrik m. calcium","brands":"Oatly","brands_tags":["oatly"],"countries_tags":["en:norway"],"quantity":"350 ml","nutrition_data_per":"100g","nutriments":{"energy-kcal_100g":46,"energy_100g":192,"proteins_100g":1,"fat_100g":1.5,"carbohydrates_100g":6.7}}
+            """;
+        var first = await importer.ImportSearchDocumentsAsync(
+            [
+                SearchPage(2, 1, 1, drink),
+                SearchPage(2, 2, 1, havre),
+            ],
+            dryRun: false,
+            CancellationToken.None);
+        Assert.True(first.Complete);
+        Assert.Equal(1, first.BasisMillilitres);
+        Assert.Equal(1, first.BasisGrams);
+        var storedDrink = await db.Foods.SingleAsync(food => food.SourceId == "7394376620706");
+        Assert.Equal("ml", storedDrink.Basis);
+        Assert.Equal(37, storedDrink.KcalPer100);
+        var storedHavre = await db.Foods.SingleAsync(food => food.SourceId == "7394376619182");
+        Assert.Equal("g", storedHavre.Basis);
+
+        storedDrink.NameEn = "Oat drink";
+        storedDrink.ServingQuantity = 250;
+        storedDrink.ServingLabel = "glass";
+        await db.SaveChangesAsync();
+        var again = await importer.ImportSearchDocumentsAsync(
+            [SearchPage(2, 1, 1, drink), SearchPage(2, 2, 1, havre)],
+            dryRun: false,
+            CancellationToken.None);
+        Assert.Equal(2, again.Unchanged);
+        var kept = await db.Foods.SingleAsync(food => food.Id == storedDrink.Id);
+        Assert.Equal("Oat drink", kept.NameEn);
+        Assert.Equal(250, kept.ServingQuantity);
+        Assert.Equal("glass", kept.ServingLabel);
+
+        var truncated = await importer.ImportSearchDocumentsAsync(
+            [SearchPage(2, 1, 0)],
+            dryRun: false,
+            CancellationToken.None);
+        Assert.False(truncated.Complete);
+        Assert.Equal(0, truncated.Upserted);
+        Assert.Null((await db.Foods.SingleAsync(food => food.Id == storedDrink.Id)).RetiredAt);
+        Assert.Null((await db.Foods.SingleAsync(food => food.Id == storedHavre.Id)).RetiredAt);
+
+        db.Foods.RemoveRange(storedDrink, storedHavre);
+        await db.SaveChangesAsync();
+    }
+
+    private static string SearchPage(int count, int page, int pageCount, params string[] products) =>
+        $$"""{"count":{{count}},"page":{{page}},"page_size":1,"page_count":{{pageCount}},"products":[{{string.Join(',', products)}}]}""";
 
     [Fact]
     public async Task A_csv_without_the_basis_column_is_refused()

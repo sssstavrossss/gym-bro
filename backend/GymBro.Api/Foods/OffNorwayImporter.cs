@@ -48,18 +48,113 @@ public sealed class OffNorwayImporter(AppDbContext db, TimeProvider clock, ILogg
 {
     public const int BatchSize = 200;
 
-    public async Task<OffImportReport> ImportOfficialAsync(bool dryRun, CancellationToken cancellationToken)
+    /// <summary>The server rewrote a request for 1000 down to this size.</summary>
+    public const int SearchPageSize = 100;
+
+    /// <summary>Documented search limit is 10 requests a minute. This stays under that.</summary>
+    public static readonly TimeSpan SearchSpacing = TimeSpan.FromMilliseconds(6500);
+
+    public const string SearchRoot = "https://world.openfoodfacts.org/api/v2/search";
+
+    public static string NorwaySearchUrl(int page, int pageSize) =>
+        SearchRoot
+        + "?countries_tags_en=norway&sort_by=created_t&page="
+        + page.ToString(CultureInfo.InvariantCulture)
+        + "&page_size="
+        + pageSize.ToString(CultureInfo.InvariantCulture)
+        + "&fields=code,product_name,brands,brands_tags,countries_tags,nutrition_data_per,quantity,last_modified_t,nutriments";
+
+    public async Task<OffImportReport> ImportOfficialAsync(bool dryRun, string? checkpointPath, CancellationToken cancellationToken)
     {
-        var client = http.CreateClient("openfoodfacts-bulk");
-        using var response = await client.GetAsync(OpenFoodFacts.DumpUrl, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
-        if (!response.IsSuccessStatusCode)
+        var client = http.CreateClient("openfoodfacts-search");
+        var batch = new ImportBatch(this, db, clock, logger, dryRun, BatchSize, cancellationToken);
+        var pageSize = SearchPageSize;
+        var page = 1;
+        int? expectedCount = null;
+        if (!string.IsNullOrWhiteSpace(checkpointPath) && File.Exists(checkpointPath))
         {
-            throw new InvalidOperationException("Open Food Facts download failed (" + (int)response.StatusCode + ").");
+            var saved = JsonSerializer.Deserialize<SearchCheckpoint>(await File.ReadAllTextAsync(checkpointPath, cancellationToken));
+            if (saved is { Complete: false, Page: > 0, PageSize: > 0 })
+            {
+                page = saved.Page + 1;
+                pageSize = saved.PageSize;
+                expectedCount = saved.Count;
+            }
         }
 
-        await using var network = await response.Content.ReadAsStreamAsync(cancellationToken);
-        var counted = new CountingStream(network);
-        return await ImportJsonlGzipAsync(counted, dryRun, cancellationToken);
+        var retries = 0;
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            if (page > 1)
+            {
+                await Task.Delay(SearchSpacing, cancellationToken);
+            }
+
+            using var response = await client.GetAsync(NorwaySearchUrl(page, pageSize), cancellationToken);
+            if (response.StatusCode == System.Net.HttpStatusCode.TooManyRequests && retries < 2)
+            {
+                retries++;
+                await Task.Delay(TimeSpan.FromSeconds(60), cancellationToken);
+                continue;
+            }
+
+            if (!response.IsSuccessStatusCode)
+            {
+                batch.Complete = false;
+                Count(batch.Reasons, "http-" + (int)response.StatusCode);
+                break;
+            }
+
+            retries = 0;
+            await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+            using var document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
+            if (!TryReadSearchPage(document.RootElement, out var searchPage))
+            {
+                batch.Complete = false;
+                Count(batch.Reasons, "malformed-page");
+                break;
+            }
+
+            if (searchPage.PageSize > 0)
+            {
+                pageSize = searchPage.PageSize;
+            }
+
+            expectedCount ??= searchPage.Count;
+            var lastPage = pageSize <= 0 ? 1 : (expectedCount.Value + pageSize - 1) / pageSize;
+            if (lastPage == 0)
+            {
+                break;
+            }
+
+            var expectedOnPage = page < lastPage
+                ? pageSize
+                : expectedCount.Value - ((lastPage - 1) * pageSize);
+            if (searchPage.Page != page || searchPage.PageCount != expectedOnPage || searchPage.Products.Count != searchPage.PageCount)
+            {
+                batch.Complete = false;
+                Count(batch.Reasons, "truncated-page");
+                break;
+            }
+
+            await IngestProductsAsync(batch, searchPage.Products);
+            await batch.FlushDirtyAsync();
+            if (!string.IsNullOrWhiteSpace(checkpointPath))
+            {
+                var checkpoint = new SearchCheckpoint(page, pageSize, expectedCount.Value, page >= lastPage);
+                await File.WriteAllTextAsync(checkpointPath, JsonSerializer.Serialize(checkpoint), cancellationToken);
+            }
+
+            Console.WriteLine($"Open Food Facts Norway search: page={page}/{lastPage} norway={batch.Report.NorwayRows} accepted={batch.KeptCount}.");
+            if (page >= lastPage)
+            {
+                break;
+            }
+
+            page++;
+        }
+
+        return await batch.FinishAsync(compressedBytes: 0);
     }
 
     public async Task<OffImportReport> ImportJsonlGzipAsync(Stream gzip, bool dryRun, CancellationToken cancellationToken)
@@ -360,6 +455,104 @@ public sealed class OffNorwayImporter(AppDbContext db, TimeProvider clock, ILogg
         return null;
     }
 
+    public async Task<OffImportReport> ImportSearchDocumentsAsync(
+        IReadOnlyList<string> documents,
+        bool dryRun,
+        CancellationToken cancellationToken)
+    {
+        var batch = new ImportBatch(this, db, clock, logger, dryRun, BatchSize, cancellationToken);
+        var page = 0;
+        foreach (var documentText in documents)
+        {
+            page++;
+            using var document = JsonDocument.Parse(documentText);
+            if (!TryReadSearchPage(document.RootElement, out var searchPage))
+            {
+                batch.Complete = false;
+                Count(batch.Reasons, "malformed-page");
+                break;
+            }
+
+            var pageSize = searchPage.PageSize;
+            var lastPage = pageSize <= 0 ? 1 : (searchPage.Count + pageSize - 1) / pageSize;
+            var expectedOnPage = page < lastPage
+                ? pageSize
+                : searchPage.Count - ((lastPage - 1) * pageSize);
+            if (searchPage.Page != page || searchPage.PageCount != expectedOnPage || searchPage.Products.Count != searchPage.PageCount)
+            {
+                batch.Complete = false;
+                Count(batch.Reasons, "truncated-page");
+                break;
+            }
+
+            await IngestProductsAsync(batch, searchPage.Products);
+            await batch.FlushDirtyAsync();
+            if (page >= lastPage)
+            {
+                break;
+            }
+        }
+
+        return await batch.FinishAsync(compressedBytes: 0);
+    }
+
+    private static async Task IngestProductsAsync(ImportBatch batch, IReadOnlyList<JsonElement> products)
+    {
+        foreach (var product in products)
+        {
+            batch.Report.RowsRead++;
+            var mapped = MapProduct(product);
+            if (!mapped.Norway)
+            {
+                continue;
+            }
+
+            batch.Report.NorwayRows++;
+            await batch.AddAsync(mapped.Fields);
+        }
+    }
+
+    private static bool TryReadSearchPage(JsonElement root, out SearchPage page)
+    {
+        page = default;
+        if (!root.TryGetProperty("products", out var products) || products.ValueKind != JsonValueKind.Array)
+        {
+            return false;
+        }
+
+        if (!TryInt(root, "count", out var count)
+            || !TryInt(root, "page", out var pageNumber)
+            || !TryInt(root, "page_size", out var pageSize)
+            || !TryInt(root, "page_count", out var pageCount))
+        {
+            return false;
+        }
+
+        var rows = new List<JsonElement>();
+        foreach (var product in products.EnumerateArray())
+        {
+            rows.Add(product.Clone());
+        }
+
+        page = new SearchPage(count, pageNumber, pageSize, pageCount, rows);
+        return true;
+    }
+
+    private static bool TryInt(JsonElement element, string name, out int value)
+    {
+        value = 0;
+        if (!element.TryGetProperty(name, out var property) || property.ValueKind != JsonValueKind.Number)
+        {
+            return false;
+        }
+
+        return property.TryGetInt32(out value);
+    }
+
+    private sealed record SearchCheckpoint(int Page, int PageSize, int Count, bool Complete);
+
+    private readonly record struct SearchPage(int Count, int Page, int PageSize, int PageCount, IReadOnlyList<JsonElement> Products);
+
     public static MappedOffProduct MapProduct(JsonElement product)
     {
         var fields = new Dictionary<string, string>(StringComparer.Ordinal)
@@ -552,7 +745,25 @@ public sealed class OffNorwayImporter(AppDbContext db, TimeProvider clock, ILogg
 
         private readonly Dictionary<string, AcceptedOffFood> kept = new(StringComparer.Ordinal);
 
+        private readonly HashSet<string> dirty = new(StringComparer.Ordinal);
+
         private readonly DateTimeOffset now = clock.GetUtcNow();
+
+        private async Task WriteDirtyAsync()
+        {
+            if (dirty.Count == 0)
+            {
+                return;
+            }
+
+            var final = dirty.Select(barcode => kept[barcode]).ToList();
+            dirty.Clear();
+            for (var index = 0; index < final.Count; index += batchSize)
+            {
+                var slice = final.Skip(index).Take(batchSize).ToList();
+                await importer.FlushAsync(slice, dryRun, now, Report, cancellationToken);
+            }
+        }
 
         public Task AddAsync(IReadOnlyDictionary<string, string> row)
         {
@@ -570,19 +781,16 @@ public sealed class OffNorwayImporter(AppDbContext db, TimeProvider clock, ILogg
                 kept[food.Barcode] = food;
             }
 
+            dirty.Add(food.Barcode);
             return Task.CompletedTask;
         }
 
+        public Task FlushDirtyAsync() => WriteDirtyAsync();
+
         public async Task<OffImportReport> FinishAsync(long compressedBytes)
         {
-            // One write per barcode, the last copy in the file. Writing each batch as it arrives
-            // would store an earlier copy and then replace it, so a repeated run would not stay still.
-            var final = kept.Values.ToList();
-            for (var index = 0; index < final.Count; index += batchSize)
-            {
-                var slice = final.Skip(index).Take(batchSize).ToList();
-                await importer.FlushAsync(slice, dryRun, now, Report, cancellationToken);
-            }
+            // Within one pass, a repeated barcode keeps its last copy and is written once.
+            await WriteDirtyAsync();
 
             Report.Accepted = kept.Count;
             Report.BasisGrams = kept.Values.Count(item => item.Basis == "g");

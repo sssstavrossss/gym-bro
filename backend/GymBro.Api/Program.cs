@@ -45,6 +45,16 @@ builder.Services.AddHttpClient("openfoodfacts-bulk", (serviceProvider, client) =
     client.DefaultRequestHeaders.UserAgent.ParseAdd(agent);
     client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/gzip"));
 });
+builder.Services.AddHttpClient("openfoodfacts-search", (serviceProvider, client) =>
+{
+    var foods = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<FoodOptions>>().Value;
+    var agent = string.IsNullOrWhiteSpace(foods.OpenFoodFactsUserAgent)
+        ? "GymBro/1.0 (+https://github.com/sssstavrossss/gym-bro)"
+        : foods.OpenFoodFactsUserAgent;
+    client.Timeout = TimeSpan.FromSeconds(60);
+    client.DefaultRequestHeaders.UserAgent.ParseAdd(agent);
+    client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+});
 builder.Services.AddHttpClient("matvaretabellen", client =>
 {
     client.Timeout = TimeSpan.FromMinutes(2);
@@ -262,7 +272,11 @@ if (args.Contains("--import-open-food-facts-norway"))
         }
         else
         {
-            report = await importer.ImportOfficialAsync(dryRun, CancellationToken.None);
+            var checkpointFlag = Array.IndexOf(args, "--checkpoint");
+            var checkpoint = checkpointFlag >= 0 && checkpointFlag + 1 < args.Length
+                ? args[checkpointFlag + 1]
+                : "off-norway-search.checkpoint.json";
+            report = await importer.ImportOfficialAsync(dryRun, checkpoint, CancellationToken.None);
         }
 
         Console.WriteLine(OpenFoodFacts.Citation);
