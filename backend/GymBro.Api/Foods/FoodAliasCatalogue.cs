@@ -5,12 +5,12 @@ namespace GymBro.Api.Foods;
 
 public sealed record FoodAliasSeed(string SourceId, string ExpectedNameEn, IReadOnlyList<string> Phrases);
 
-public sealed record FoodAliasApplyResult(int Inserted, int AlreadyPresent, int Skipped);
+public sealed record FoodAliasApplyResult(int Inserted, int AlreadyPresent, int Skipped, int Considered);
 
 /// <summary>
-/// Curated search phrases for Matvaretabellen foods. The English names and ids
-/// were taken from the public foods.json files (Norwegian and English) and only
-/// where the official name supports the cut. This is not a complete synonym list.
+/// Curated search phrases for Matvaretabellen foods. The preserved seeds below
+/// stay in place. Lexicon v1 adds everyday synonyms and punctuation phrases for
+/// the rest of the catalogue. This is not every possible synonym.
 /// Chicken fillet in this catalogue is the breast: thigh, drumstick, and whole leg
 /// are different rows and are not given a breast phrase. A cooked fillet is not
 /// treated as the raw row; each official row keeps its own nutrients and only
@@ -76,67 +76,88 @@ public static class FoodAliasCatalogue
 
     public static async Task<FoodAliasApplyResult> ApplyAsync(AppDbContext db, CancellationToken cancellationToken)
     {
-        var sourceIds = Seeds.Select(seed => seed.SourceId).Distinct().ToArray();
         var foods = await db.Foods.AsNoTracking()
-            .Where(food => food.Source == Source && food.UserId == null && sourceIds.Contains(food.SourceId))
-            .Select(food => new { food.SourceId, food.NameEn })
+            .Where(food => food.Source == Source && food.UserId == null)
+            .Select(food => new { food.SourceId, food.Name, food.NameEn })
             .ToListAsync(cancellationToken);
-        var names = foods.ToDictionary(food => food.SourceId, food => food.NameEn, StringComparer.Ordinal);
-
-        var wanted = new List<(string SourceId, string Phrase, string Normalized, string ExpectedNameEn)>();
+        var existing = await db.FoodAliases
+            .Where(alias => alias.Source == Source)
+            .ToListAsync(cancellationToken);
+        var byKey = existing.ToDictionary(alias => (alias.SourceId, alias.Normalized));
+        var seenSeeds = new HashSet<string>(StringComparer.Ordinal);
+        var inserted = 0;
+        var already = 0;
         var skipped = 0;
-        foreach (var seed in Seeds)
+
+        foreach (var food in foods)
         {
-            if (!names.TryGetValue(seed.SourceId, out var nameEn) || nameEn != seed.ExpectedNameEn)
+            if (string.IsNullOrWhiteSpace(food.NameEn))
             {
-                skipped++;
                 continue;
             }
 
-            foreach (var phrase in seed.Phrases)
+            foreach (var seed in Seeds)
             {
-                var normalized = Normalize(phrase);
+                if (!string.Equals(seed.SourceId, food.SourceId, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                seenSeeds.Add(seed.SourceId);
+                if (food.NameEn != seed.ExpectedNameEn)
+                {
+                    skipped++;
+                }
+            }
+
+            foreach (var phrase in FoodAliasPlanner.PhrasesFor(food.SourceId, food.Name, food.NameEn))
+            {
+                var normalized = Normalize(phrase.Phrase);
                 if (normalized.Length < 2)
                 {
                     continue;
                 }
 
-                wanted.Add((seed.SourceId, phrase.Trim(), normalized, seed.ExpectedNameEn));
+                var key = (food.SourceId, normalized);
+                if (byKey.TryGetValue(key, out var row))
+                {
+                    if (row.ExpectedNameEn != food.NameEn)
+                    {
+                        row.ExpectedNameEn = food.NameEn;
+                    }
+
+                    already++;
+                    continue;
+                }
+
+                var created = new FoodAlias
+                {
+                    Id = Guid.NewGuid(),
+                    Source = Source,
+                    SourceId = food.SourceId,
+                    Phrase = phrase.Phrase,
+                    Normalized = normalized,
+                    ExpectedNameEn = food.NameEn,
+                };
+                db.FoodAliases.Add(created);
+                byKey[key] = created;
+                inserted++;
             }
         }
 
-        var existing = await db.FoodAliases
-            .Where(alias => alias.Source == Source && sourceIds.Contains(alias.SourceId))
-            .Select(alias => new { alias.SourceId, alias.Normalized })
-            .ToListAsync(cancellationToken);
-        var present = existing.Select(alias => (alias.SourceId, alias.Normalized)).ToHashSet();
-        var inserted = 0;
-        var already = 0;
-        foreach (var row in wanted.DistinctBy(item => (item.SourceId, item.Normalized)))
+        foreach (var seed in Seeds)
         {
-            if (!present.Add((row.SourceId, row.Normalized)))
+            if (seenSeeds.Add(seed.SourceId))
             {
-                already++;
-                continue;
+                skipped++;
             }
-
-            db.FoodAliases.Add(new FoodAlias
-            {
-                Id = Guid.NewGuid(),
-                Source = Source,
-                SourceId = row.SourceId,
-                Phrase = row.Phrase,
-                Normalized = row.Normalized,
-                ExpectedNameEn = row.ExpectedNameEn,
-            });
-            inserted++;
         }
 
-        if (inserted > 0)
+        if (db.ChangeTracker.HasChanges())
         {
             await db.SaveChangesAsync(cancellationToken);
         }
 
-        return new FoodAliasApplyResult(inserted, already, skipped);
+        return new FoodAliasApplyResult(inserted, already, skipped, foods.Count);
     }
 }

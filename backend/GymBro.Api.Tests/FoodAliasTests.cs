@@ -82,7 +82,11 @@ public sealed class FoodAliasTests(ApiFactory factory)
             Assert.Contains("03.330", await Search(client, "overlår"));
             Assert.Contains("03.511", await Search(client, "butter chicken"));
             Assert.Empty(await Search(client, "breast fillet"));
-            Assert.Empty(await Search(client, "raw chicken"));
+            var rawChicken = await Search(client, "raw chicken");
+            Assert.Contains("03.205", rawChicken);
+            Assert.Contains("03.330", rawChicken);
+            Assert.DoesNotContain("03.242", rawChicken);
+            Assert.DoesNotContain("03.511", rawChicken);
 
             var exact = await client.GetFromJsonAsync<JsonElement>("/api/foods/search?q=Chicken%20fillet%2C%20fried%20in%20fat");
             var exactRows = exact.GetProperty("foods").EnumerateArray().ToList();
@@ -140,8 +144,20 @@ public sealed class FoodAliasTests(ApiFactory factory)
                 var second = await FoodAliasCatalogue.ApplyAsync(db, CancellationToken.None);
                 Assert.Equal(0, second.Inserted);
                 Assert.True(second.AlreadyPresent > 0);
-                var aliasRows = await db.FoodAliases.CountAsync(alias => OwnedIds.Contains(alias.SourceId));
-                Assert.Equal(25, aliasRows);
+                var stored = await db.FoodAliases
+                    .Where(alias => OwnedIds.Contains(alias.SourceId))
+                    .Select(alias => new { alias.SourceId, alias.Normalized })
+                    .ToListAsync();
+                foreach (var seed in FoodAliasCatalogue.Seeds)
+                {
+                    foreach (var phrase in seed.Phrases)
+                    {
+                        var normalized = FoodAliasCatalogue.Normalize(phrase);
+                        Assert.Contains(stored, alias => alias.SourceId == seed.SourceId && alias.Normalized == normalized);
+                    }
+                }
+
+                Assert.True(stored.Count >= 25);
                 var copies = await db.Foods.CountAsync(food => food.Source == "mvt" && food.SourceId == "03.205");
                 Assert.Equal(1, copies);
                 var food = await db.Foods.SingleAsync(row => row.Source == "mvt" && row.SourceId == "03.205");

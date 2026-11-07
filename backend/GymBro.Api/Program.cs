@@ -230,7 +230,7 @@ if (args.Contains("--backfill-food-aliases"))
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     var aliases = await FoodAliasCatalogue.ApplyAsync(db, CancellationToken.None);
     Console.WriteLine(
-        $"Food aliases: {aliases.Inserted} added, {aliases.AlreadyPresent} already present, {aliases.Skipped} foods skipped.");
+        $"Food aliases lexicon v{FoodAliasLexicon.Current.Version}: {aliases.Inserted} added, {aliases.AlreadyPresent} already present, {aliases.Skipped} explicit seeds skipped, {aliases.Considered} catalogue foods checked.");
     return;
 }
 
