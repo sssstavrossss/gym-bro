@@ -134,6 +134,16 @@ The directory (tenant) id is `ENTRA_TENANT_ID`. The tenant subdomain is the labe
 
 After sign-in the app loads `/api/profile`. With no profile it stays on setup until a profile and a first weigh-in are saved. `oid` is the user key on every row. Name and email are stored when the token contains them (`name`, `email`, or an email-shaped `preferred_username`).
 
+### Reopening the app
+
+The API does not keep a cookie session. The SPA keeps the MSAL account in `localStorage` and sends the bearer access token. Entra keeps its own session cookie on `*.ciamlogin.com`. Those are different.
+
+On startup, a saved MSAL account is used as-is (`acquireTokenSilent`, then an interactive redirect only if that renewal needs a person). If the cache is empty, the person has not chosen Sign out, and this page load has not already been told that a prompt is required, the SPA starts one top-level `loginRedirect` with `prompt=none`. That still uses PKCE, state, and nonce. It does not show a password and it does not grant consent. If Entra returns `login_required`, `interaction_required`, `consent_required`, or `access_denied`, the error is consumed and the Sign in button stays. A second silent redirect is not started in the same page session.
+
+Sign out writes `gymbro-explicit-logout` in `localStorage` and then runs `logoutRedirect`, which ends the Entra session as well. The next open shows Sign in and does not call `prompt=none` until the person taps Sign in. Tapping Sign in clears that flag and uses the normal interactive redirect.
+
+This does not lengthen refresh tokens or the Data Protection key lifetime (that key ring is for the server, not for a user session). A shared browser signs in as whoever already has the Entra cookie, which is the same account the Sign in button would use. Cross-site cookie blocking can still stop `prompt=none`; the button remains. iOS can still drop the MSAL cache, and a refresh token can still expire (about a day is the previously observed iOS limit). Playwright does not complete a real CIAM redirect, and a desktop browser is not a home-screen iPhone.
+
 ## Configure
 
 ```bash

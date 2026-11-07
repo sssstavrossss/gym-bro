@@ -24,6 +24,7 @@ import {
   type UnitChoice,
 } from "../lib/foodAmount";
 import { kcalFromMacros, macroStatus } from "../lib/macros";
+import { nextQuickInput, nextQuickNumber } from "../lib/quickEntry";
 import { keyboardEntry } from "../lib/viewport";
 import { deviceTimeZone, profile } from "../state/profile";
 import { dayTotals, log, removeEntry, saveQuickAdd, updateFoodAmount, updateQuickAdd, type LogEntry } from "../state/log";
@@ -37,6 +38,7 @@ const sheetLabel = computed(() => (editing.value ? "Edit food" : "Add food"));
 
 type Field = "kcal" | "p" | "f" | "c";
 const qa = ref<Record<Field, string>>({ kcal: "", p: "", f: "", c: "" });
+const replace = ref<Record<Field, boolean>>({ kcal: true, p: true, f: true, c: true });
 const qName = ref("");
 const active = ref<Field>("kcal");
 const time = ref<string | null>(null);
@@ -86,15 +88,44 @@ function typeInto(current: string, key: string, maxInt: number, decimals = 1): s
   if (!current.includes(".") && current.replace(/^0/, "").length >= maxInt) return current;
   return current === "0" ? key : current + key;
 }
+function armQuick(field: Field) {
+  replace.value[field] = qa.value[field] !== "";
+}
+function onQuickFocus(field: Field) {
+  const typing = active.value === field && !replace.value[field];
+  active.value = field;
+  if (typing) return;
+  armQuick(field);
+  if (!replace.value[field]) return;
+  queueMicrotask(() => {
+    const input = document.activeElement;
+    if (input instanceof HTMLInputElement && input.getAttribute("aria-label") === fieldLabel(field)) input.select();
+  });
+}
+function onQuickBlur(field: Field) {
+  armQuick(field);
+}
+function onQuickTap(field: Field) {
+  if (active.value !== field) armQuick(active.value);
+  active.value = field;
+  armQuick(field);
+}
+function fieldLabel(field: Field): string {
+  return fields.find((item) => item.key === field)?.label ?? "";
+}
 function qKey(key: string) {
   const field = active.value;
-  qa.value[field] = typeInto(qa.value[field], key, field === "kcal" ? 5 : 4);
+  const armed = replace.value[field];
+  qa.value[field] = nextQuickNumber(qa.value[field], key, armed, field === "kcal" ? 5 : 4);
+  if (armed) replace.value[field] = false;
 }
 function qInput(key: Field, event: Event) {
   const input = event.target as HTMLInputElement;
-  const value = input.value.replace(",", ".").replace(/[^0-9.]/g, "").slice(0, key === "kcal" ? 6 : 6);
+  const armed = replace.value[key];
+  const value = nextQuickInput(qa.value[key], input.value, armed, 6);
   qa.value[key] = value;
   input.value = value;
+  if (armed) replace.value[key] = false;
 }
 function limitMessage(): string | null {
   const kcal = qa.value.kcal !== "" ? num("kcal") : qKcalAuto.value;
@@ -109,6 +140,7 @@ function fill(entry: LogEntry | null) {
   formError.value = "";
   saving.value = false;
   foodChanged.value = false;
+  replace.value = { kcal: true, p: true, f: true, c: true };
   if (entry && entry.source === "quick") {
     qName.value = entry.name === "Quick add" ? "" : entry.name;
     qa.value = {
@@ -601,13 +633,13 @@ async function deleteEdited() {
             <span class="base">
               <input :value="qa[field.key]" class="t-nm num qinput" inputmode="decimal" autocomplete="off" :aria-label="field.label"
                 :placeholder="field.key === 'kcal' && qKcalAuto ? String(qKcalAuto) : '0'"
-                @input="qInput(field.key, $event)" @focus="active = field.key" @keydown.enter.prevent="addQuick" />
+                @input="qInput(field.key, $event)" @focus="onQuickFocus(field.key)" @blur="onQuickBlur(field.key)" @keydown.enter.prevent="addQuick" />
               <span class="t-label c2">{{ field.unit }}</span>
             </span>
           </label>
         </template>
         <template v-else>
-          <button v-for="field in fields" :key="field.key" type="button" class="qf" :class="{ on: active === field.key }" :aria-label="field.label" @click="active = field.key">
+          <button v-for="field in fields" :key="field.key" type="button" class="qf" :class="{ on: active === field.key }" :aria-label="field.label" @click="onQuickTap(field.key)">
             <span class="t-capm c2">{{ field.label }}</span>
             <span class="base">
               <span v-if="field.key === 'kcal' && qa.kcal === '' && qKcalAuto" class="t-nm num c3" data-num>{{ qKcalAuto }}</span>
