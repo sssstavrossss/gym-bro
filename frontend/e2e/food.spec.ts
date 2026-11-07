@@ -106,6 +106,7 @@ async function openQuickAdd(page: Page, width: number) {
   }
   await expect(page.getByRole("dialog", { name: "Add", exact: true })).toBeHidden();
   await expect(page.getByRole("heading", { name: "Add food" })).toBeVisible();
+  await foodSheet(page).getByRole("radio", { name: "Quick Add" }).click();
   await expect(page.getByRole("radio", { name: "Quick Add" })).toBeChecked();
 }
 

@@ -3,7 +3,9 @@ import { todayIso } from "./lib/dates";
 
 export const ui = reactive({
   sheet: null as null | "weight" | "accuracy" | "chooser" | "food",
-  foodTab: "quick" as "search" | "quick",
+  foodTab: "search" as "search" | "quick",
+  /** Food open in the detail view. Null on the search list. */
+  detailFoodId: null as string | null,
   editEntryId: null as string | null,
   toast: null as null | { id: number; text: string; action?: { label: string; run: () => void } },
   weightDate: todayIso(),
@@ -12,6 +14,12 @@ export const ui = reactive({
 });
 
 let toastTimer = 0;
+
+export function runToastAction(): void {
+  const action = ui.toast?.action;
+  ui.toast = null;
+  action?.run();
+}
 
 export function toast(text: string, action?: { label: string; run: () => void }): void {
   const id = Date.now();
@@ -46,6 +54,7 @@ export function closeSheet(): void {
   ui.accReturn = null;
   ui.keepWeightDraft = false;
   ui.editEntryId = null;
+  ui.detailFoodId = null;
 }
 
 export function openAdd(): void {
@@ -53,8 +62,9 @@ export function openAdd(): void {
   ui.sheet = "chooser";
 }
 
-export function openFood(tab: "search" | "quick" = "quick"): void {
+export function openFood(tab: "search" | "quick" = "search"): void {
   ui.editEntryId = null;
+  ui.detailFoodId = null;
   ui.foodTab = tab;
   ui.sheet = "food";
 }

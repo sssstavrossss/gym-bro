@@ -74,6 +74,10 @@ function onKey(event: KeyboardEvent) {
   if (event.key === "Escape") {
     if (!ui.sheet) return;
     event.preventDefault();
+    if (ui.sheet === "food" && ui.detailFoodId && !ui.editEntryId) {
+      ui.detailFoodId = null;
+      return;
+    }
     closeSheet();
     return;
   }

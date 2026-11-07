@@ -21,6 +21,7 @@ public static class FoodCatalog
         return await Visible(db.Foods.AsNoTracking(), userId)
             .Where(food =>
                 EF.Functions.ILike(food.Name, pattern, "\\")
+                || EF.Functions.ILike(food.NameEn ?? "", pattern, "\\")
                 || (digits && food.Barcode == query))
             .OrderBy(food => food.Name)
             .ThenBy(food => food.Source)
