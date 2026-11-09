@@ -131,6 +131,37 @@ public static class FoodCatalog
         return orderedIds.Where(byId.ContainsKey).Select(id => byId[id]).ToList();
     }
 
+    /// <summary>How many distinct foods the food sheet lists under Recent. Matches the prototype.</summary>
+    public const int RecentLimit = 8;
+
+    /// <summary>
+    /// Latest non-deleted log of each food this person logged, newest first.
+    /// Another person's rows are not included. A soft-deleted entry is not a recent.
+    /// </summary>
+    public static async Task<List<Guid>> RecentEntryIdsAsync(
+        AppDbContext db,
+        string userId,
+        CancellationToken cancellationToken)
+    {
+        FormattableString sql = $"""
+            SELECT picked.id AS "Value"
+            FROM (
+                SELECT DISTINCT ON (le.food_id) le.id, le.logged_at
+                FROM log_entries AS le
+                INNER JOIN foods AS f ON f.id = le.food_id
+                WHERE le.user_id = {userId}
+                  AND le.deleted_at IS NULL
+                  AND le.food_id IS NOT NULL
+                  AND f.retired_at IS NULL
+                  AND (f.user_id IS NULL OR f.user_id = {userId})
+                ORDER BY le.food_id, le.logged_at DESC, le.id DESC
+            ) AS picked
+            ORDER BY picked.logged_at DESC, picked.id DESC
+            LIMIT {RecentLimit}
+            """;
+        return await db.Database.SqlQuery<Guid>(sql).ToListAsync(cancellationToken);
+    }
+
     public static async Task<IReadOnlyDictionary<string, Guid>> UpsertCatalogAsync(
         AppDbContext db,
         IReadOnlyList<ParsedFood> foods,

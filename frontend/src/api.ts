@@ -98,6 +98,7 @@ export interface ProfileStateResponse {
   weight: WeightResponse;
   targets: TargetsResponse | null;
   citation: string;
+  openFoodFacts: string;
 }
 
 export interface PreviewResponse {
@@ -188,6 +189,27 @@ export type FoodSearchRow = CatalogFood & { owned?: boolean; sourceId?: string; 
 export interface FoodSearchResponse {
   query: string;
   foods: FoodSearchRow[];
+}
+
+export interface RecentFood extends FoodSearchRow {
+  amount: number;
+  unit: string;
+}
+
+export interface RecentFoodsResponse {
+  foods: RecentFood[];
+}
+
+export type OffFoodRow = Omit<FoodSearchRow, "id"> & { id: string | null };
+
+export interface OffSearchResponse {
+  query: string;
+  local: FoodSearchRow[];
+  openFoodFacts: {
+    status: "ok" | "rate_limited" | "unavailable";
+    missingKcal: number;
+    results: OffFoodRow[];
+  };
 }
 
 export interface LogEntryResponse {
@@ -367,6 +389,18 @@ export async function decideFreshStart(accept: boolean): Promise<FreshStartDecis
 
 export async function searchFoods(query: string): Promise<FoodSearchResponse> {
   return jsonOrThrow(await request(`/api/foods/search?q=${encodeURIComponent(query)}`));
+}
+
+export async function listRecentFoods(): Promise<RecentFoodsResponse> {
+  return jsonOrThrow(await request("/api/foods/recents"));
+}
+
+export async function searchOpenFoodFacts(query: string): Promise<OffSearchResponse> {
+  return jsonOrThrow(await request("/api/foods/search/open-food-facts", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ query }),
+  }));
 }
 
 export async function getFood(id: string): Promise<FoodSearchRow> {

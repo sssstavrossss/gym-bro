@@ -129,6 +129,7 @@ export const profile = reactive({
   chart: null as WeightChartResponse | null,
   weighIns: [] as WeighInRow[],
   citation: "",
+  openFoodFacts: "",
   form: emptyForm(),
   saveGen: 0,
 });
@@ -270,6 +271,7 @@ function applyState(state: ProfileStateResponse): void {
   profile.weight = state.weight;
   profile.targets = state.targets;
   profile.citation = state.citation;
+  profile.openFoodFacts = state.openFoodFacts ?? "";
   profile.hasSaved = state.profile !== null;
   if (!isDirty()) profile.preview = null;
 }
@@ -311,6 +313,7 @@ export async function loadProfile(): Promise<void> {
     profile.weight = state.weight;
     profile.targets = state.targets;
     profile.citation = state.citation;
+    profile.openFoodFacts = state.openFoodFacts ?? "";
     const draft = readDraft();
     if (draft) {
       profile.form = { ...emptyForm(), ...draft.form };

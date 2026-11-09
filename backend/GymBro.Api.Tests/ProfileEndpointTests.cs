@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using GymBro.Api.Data;
+using GymBro.Api.Foods;
 using GymBro.Api.Hosting;
 using GymBro.Api.Nutrition;
 using Microsoft.EntityFrameworkCore;
@@ -31,6 +32,7 @@ public sealed class ProfileEndpointTests(ApiFactory factory)
         Assert.False(targets.GetProperty("floorApplied").GetBoolean());
         Assert.Equal(TargetReasons.ProfileChange, targets.GetProperty("reason").GetString());
         Assert.Equal("Matvaretabellen 2026. Mattilsynet. www.matvaretabellen.no", saved.GetProperty("citation").GetString());
+        Assert.Equal(OpenFoodFactsCredit.Citation, saved.GetProperty("openFoodFacts").GetString());
         Assert.Equal("trend", saved.GetProperty("weight").GetProperty("source").GetString());
         Assert.Equal(TrendWeight.LowAccuracy, saved.GetProperty("weight").GetProperty("trendState").GetString());
         Assert.Equal(83.60m, saved.GetProperty("weight").GetProperty("trendKg").GetDecimal());

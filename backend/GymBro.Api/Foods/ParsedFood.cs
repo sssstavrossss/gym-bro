@@ -22,9 +22,15 @@ public enum OffStatus
     Unavailable,
 }
 
-public sealed record OffSearchOutcome(OffStatus Status, IReadOnlyList<ParsedFood> Foods);
+public sealed record OffParse(IReadOnlyList<ParsedFood> Foods, int MissingKcal);
+
+public sealed record OffSearchOutcome(OffStatus Status, IReadOnlyList<ParsedFood> Foods, int MissingKcal = 0);
+
+public sealed record OffProductOutcome(OffStatus Status, ParsedFood? Food);
 
 public interface IOpenFoodFactsClient
 {
     Task<OffSearchOutcome> SearchAsync(string query, CancellationToken cancellationToken);
+
+    Task<OffProductOutcome> GetProductAsync(string code, CancellationToken cancellationToken);
 }

@@ -80,6 +80,8 @@ public sealed class FoodEndpointTests(ApiFactory factory)
 
         var about = await clientA.GetFromJsonAsync<JsonElement>("/api/about");
         Assert.Equal("Matvaretabellen 2026. Mattilsynet. www.matvaretabellen.no", about.GetProperty("matvaretabellen").GetString());
+        Assert.Equal(OpenFoodFactsCredit.Citation, about.GetProperty("openFoodFacts").GetString());
+        Assert.DoesNotContain("@", about.GetProperty("openFoodFacts").GetString(), StringComparison.Ordinal);
         Assert.True(about.GetProperty("foodCount").GetInt32() >= 1);
     }
 

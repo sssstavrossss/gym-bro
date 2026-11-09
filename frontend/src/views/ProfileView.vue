@@ -227,6 +227,7 @@ async function onSignOut() {
         </section>
 
         <p v-if="profile.citation" class="t-label c2">{{ profile.citation }}</p>
+        <p v-if="profile.openFoodFacts" class="t-label c2">{{ profile.openFoodFacts }}</p>
         <button v-if="boot.config" type="button" class="t-label c2 signout" @click="onSignOut">Sign out</button>
       </div>
     </div>
