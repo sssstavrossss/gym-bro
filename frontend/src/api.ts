@@ -1,5 +1,5 @@
 import { accessToken } from "./auth/session";
-import type { CatalogFood } from "./lib/foodAmount";
+import type { CatalogFood, OwnServing } from "./lib/foodAmount";
 import { kg as formatKg } from "./lib/format";
 import { e2eSession } from "./auth/e2e";
 import { loadPublicConfig, type PublicConfig } from "./auth/publicConfig";
@@ -464,6 +464,28 @@ export async function updateCustomFood(id: string, body: CustomFoodBody): Promis
 
 export async function deleteCustomFood(id: string): Promise<void> {
   const response = await request(`/api/foods/${id}`, { method: "DELETE" });
+  if (response.status === 204) return;
+  await jsonOrThrow(response);
+}
+
+export async function createServing(foodId: string, body: { name: string; grams: number }): Promise<OwnServing> {
+  return jsonOrThrow(await request(`/api/foods/${foodId}/servings`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  }));
+}
+
+export async function updateServing(foodId: string, servingId: string, body: { name: string; grams: number }): Promise<OwnServing> {
+  return jsonOrThrow(await request(`/api/foods/${foodId}/servings/${servingId}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  }));
+}
+
+export async function deleteServing(foodId: string, servingId: string): Promise<void> {
+  const response = await request(`/api/foods/${foodId}/servings/${servingId}`, { method: "DELETE" });
   if (response.status === 204) return;
   await jsonOrThrow(response);
 }

@@ -84,9 +84,30 @@ public static class LogEntryEndpoints
         var amount = draft.Amount;
         var unit = draft.Unit;
         decimal? grams = null;
+        var snapshotUnit = draft.Unit;
+        decimal? ownGrams = null;
+        if (food is not null && LogEntryRules.NormalizeUnit(draft.Unit) is null && draft.Unit.Length > 0)
+        {
+            var key = draft.Unit.ToLowerInvariant();
+            var serving = await db.UserServings.AsNoTracking().FirstOrDefaultAsync(
+                row => row.UserId == userId && row.FoodId == food.Id && row.NameKey == key,
+                cancellationToken);
+            if (serving is null)
+            {
+                return ApiResults.Error(LogEntryRules.MissingServing(draft.Unit));
+            }
+
+            snapshotUnit = serving.Name;
+            ownGrams = serving.Grams;
+        }
+        else if (food is null && LogEntryRules.NormalizeUnit(draft.Unit) is null && draft.Unit.Length > 0)
+        {
+            return ApiResults.Error(LogEntryRules.NeedUnit);
+        }
+
         if (food is not null)
         {
-            var snapshot = LogEntryRules.Snapshot(food, draft.Amount, draft.Unit);
+            var snapshot = LogEntryRules.Snapshot(food, draft.Amount, snapshotUnit, ownGrams);
             if (snapshot.Error is not null)
             {
                 return ApiResults.Error(snapshot.Error);
@@ -219,7 +240,7 @@ public static class LogEntryEndpoints
         }
 
         var amount = patch.Amount ?? entry.Amount;
-        var unit = patch.Unit ?? (LogEntryRules.NormalizeUnit(entry.Unit) ?? entry.Unit);
+        var unit = patch.Unit ?? (LogEntryRules.CanonicalUnit(entry.Unit) ?? entry.Unit);
         if (patch.Amount is not null || patch.Unit is not null)
         {
             if (string.IsNullOrEmpty(unit))
@@ -238,10 +259,11 @@ public static class LogEntryEndpoints
             || patch.Protein is not null
             || patch.Fat is not null
             || patch.Carbs is not null;
-        var oldUnit = LogEntryRules.NormalizeUnit(entry.Unit) ?? "";
-        var newUnit = string.IsNullOrEmpty(unit) ? "" : LogEntryRules.NormalizeUnit(unit) ?? unit;
+        var oldUnit = LogEntryRules.CanonicalUnit(entry.Unit) ?? "";
+        var newUnit = string.IsNullOrEmpty(unit) ? "" : LogEntryRules.CanonicalUnit(unit) ?? unit;
         var amountChanged = patch.Amount is not null && patch.Amount.Value != entry.Amount;
-        var unitChanged = (patch.Amount is not null || patch.Unit is not null) && newUnit != oldUnit;
+        var unitChanged = (patch.Amount is not null || patch.Unit is not null)
+            && !string.Equals(newUnit, oldUnit, StringComparison.OrdinalIgnoreCase);
         decimal kcal = patch.Kcal ?? entry.Kcal;
         decimal protein = patch.Protein ?? entry.Protein;
         decimal fat = patch.Fat ?? entry.Fat;
@@ -282,7 +304,13 @@ public static class LogEntryEndpoints
         entry.TimeZone = zoneId.Trim();
         entry.Name = patch.Name ?? entry.Name;
         entry.Amount = LogEntryRules.Round2(amount);
-        entry.Unit = string.IsNullOrEmpty(unit) ? "" : LogEntryRules.NormalizeUnit(unit) ?? unit;
+        var storedUnit = string.IsNullOrEmpty(unit) ? "" : LogEntryRules.CanonicalUnit(unit) ?? unit;
+        if (string.Equals(storedUnit, oldUnit, StringComparison.OrdinalIgnoreCase))
+        {
+            storedUnit = entry.Unit;
+        }
+
+        entry.Unit = storedUnit;
         entry.Kcal = LogEntryRules.Round2(kcal);
         entry.Protein = LogEntryRules.Round2(protein);
         entry.Fat = LogEntryRules.Round2(fat);
@@ -540,7 +568,15 @@ public static class LogEntryEndpoints
                 return (null, amountError ?? LogEntryRules.BadNumber);
             }
 
-            unit = LogEntryRules.NormalizeUnit(Text(json, "unit")) ?? "";
+            var rawUnit = Text(json, "unit");
+            var standard = LogEntryRules.NormalizeUnit(rawUnit);
+            var named = standard is null ? LogEntryRules.NormalizeServingName(rawUnit) : null;
+            if (standard is null && named is null)
+            {
+                return (null, LogEntryRules.NeedUnit);
+            }
+
+            unit = standard ?? named!;
             var limit = LogEntryRules.RejectAmount(parsedAmount.Value, unit);
             if (limit is not null)
             {
@@ -668,7 +704,7 @@ public static class LogEntryEndpoints
         string? unit = null;
         if (Has(json, "unit"))
         {
-            unit = LogEntryRules.NormalizeUnit(Text(json, "unit"));
+            unit = LogEntryRules.CanonicalUnit(Text(json, "unit"));
             if (unit is null)
             {
                 return (null, LogEntryRules.NeedUnit);

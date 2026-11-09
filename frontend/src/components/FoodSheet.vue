@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from "vue";
-import { ApiError, createCustomFood, getFood, listMyFoods, listRecentFoods, searchFoods, searchOpenFoodFacts, ServerUnreachable, type FoodSearchRow, type OffFoodRow, type RecentFood } from "../api";
+import { ApiError, createCustomFood, createServing, deleteServing, getFood, listMyFoods, listRecentFoods, searchFoods, searchOpenFoodFacts, ServerUnreachable, updateServing, type FoodSearchRow, type OffFoodRow, type RecentFood } from "../api";
 import BottomSheet from "./BottomSheet.vue";
 import FoodEditor from "./FoodEditor.vue";
 import Bar from "./Bar.vue";
@@ -14,14 +14,19 @@ import {
   amountError,
   amountLabel,
   defaultAmount,
+  gramText,
+  hasGramBasis,
   macrosForFood,
   normalizeUnit,
   parseAmount,
   macroFigure,
   per100Line,
   scaleStored,
+  servingDefinitionError,
+  servingName,
   unitsForEntry,
   unitsForFood,
+  type OwnServing,
   type UnitChoice,
 } from "../lib/foodAmount";
 import { acceptSearchResult, preparedSearch, searchDebounceMs } from "../lib/foodSearch";
@@ -238,7 +243,15 @@ const preview = computed(() => {
   if (shownFood.value) return macrosForFood(shownFood.value, amountNumber.value, unit.value);
   return { kcal: 0, protein: 0, fat: 0, carbs: 0, grams: null as number | null };
 });
-const isCount = computed(() => unit.value === "serving" || unit.value === "piece");
+const isCount = computed(() => unit.value !== "g" && unit.value !== "ml");
+const canAddServing = computed(() => Boolean(shownFood.value && hasGramBasis(shownFood.value) && !editingFood.value));
+const ownServings = computed(() => (shownFood.value?.servings ?? []).filter((row) => row.grams > 0 && servingName(row.name)));
+const svOpen = ref(false);
+const svName = ref("");
+const svGrams = ref("");
+const svEditId = ref<string | null>(null);
+const savingServing = ref(false);
+const servingDraftError = computed(() => servingDefinitionError(svName.value, parseAmount(svGrams.value)));
 const unitWord = computed(() => amountLabel(amountNumber.value || 0, unit.value).replace(/^[\d.]+ /, ""));
 const gramsEach = computed(() => units.value.find((item) => item.unit === unit.value)?.gramsEach ?? null);
 const quickAmounts = computed(() => (unit.value === "g" ? [100, 150, 200] : unit.value === "ml" ? [100, 250, 500] : [0.5, 1, 2, 3]));
@@ -282,6 +295,12 @@ function rowSub(food: FoodSearchRow): string {
 }
 const detailIsMine = computed(() => (shownFood.value ? isMyFood(shownFood.value) : false));
 
+function resetServingForm() {
+  svOpen.value = false;
+  svName.value = "";
+  svGrams.value = "";
+  svEditId.value = null;
+}
 function showFood(food: FoodSearchRow, preset?: { amount: number; unit: string }) {
   const start = preset ? amountForRecent(food, preset.amount, preset.unit) : defaultAmount(food);
   ui.detailFoodId = food.id;
@@ -293,6 +312,7 @@ function showFood(food: FoodSearchRow, preset?: { amount: number; unit: string }
   formError.value = "";
   saveError.value = false;
   idempotencyKey.value = "";
+  resetServingForm();
 }
 async function openFoodRow(food: FoodSearchRow, preset?: { amount: number; unit: string }) {
   const gen = ++detailGen;
@@ -616,7 +636,9 @@ function scheduleSearch(value: string) {
   searchTimer = window.setTimeout(() => { void runSearch(trimmed); }, searchDebounceMs);
 }
 async function prepareEdit(entry: LogEntry) {
-  const kind = normalizeUnit(entry.unit) ?? (entry.grams == null ? "serving" : "g");
+  const standard = normalizeUnit(entry.unit);
+  const named = standard ? null : servingName(entry.unit);
+  const kind = standard ?? (named ?? (entry.grams == null ? "serving" : "g"));
   unit.value = kind;
   amountText.value = String(entry.amount);
   fresh.value = true;
@@ -683,6 +705,7 @@ watch(open, (isOpen) => {
   off.value = idleOff();
   filter.value = "all";
   detailFood.value = null;
+  resetServingForm();
   if (!editingFood.value) ui.detailFoodId = null;
   fill(editing.value);
   if (editingFood.value) {
@@ -788,6 +811,110 @@ async function addQuick() {
   }
 }
 
+function toggleServingForm() {
+  svOpen.value = !svOpen.value;
+  svEditId.value = null;
+  svName.value = "";
+  svGrams.value = "";
+}
+function beginEditServing(row: OwnServing) {
+  svOpen.value = true;
+  svEditId.value = row.id;
+  svName.value = row.name;
+  svGrams.value = gramText(row.grams);
+}
+function applyServings(foodId: string, servings: OwnServing[]) {
+  const next = <T extends { id: string }>(food: T): T => food.id === foodId ? { ...food, servings } : food;
+  if (detailFood.value?.id === foodId) detailFood.value = next(detailFood.value);
+  recents.value = recents.value.map(next);
+  results.value = results.value.map(next);
+  mine.value = mine.value.map(next);
+  if (off.value.results.some((row) => row.id === foodId)) {
+    off.value = { ...off.value, results: off.value.results.map((row) => row.id === foodId ? { ...row, servings } : row) };
+  }
+}
+function servingsOf(foodId: string): OwnServing[] {
+  const found = detailFood.value?.id === foodId
+    ? detailFood.value
+    : recents.value.find((row) => row.id === foodId)
+      ?? results.value.find((row) => row.id === foodId)
+      ?? mine.value.find((row) => row.id === foodId);
+  return found?.servings ?? [];
+}
+function rememberServing(foodId: string, saved: OwnServing) {
+  const current = servingsOf(foodId);
+  const next = [
+    ...current.filter((row) => row.id !== saved.id && row.name.localeCompare(saved.name, undefined, { sensitivity: "accent" }) !== 0),
+    saved,
+  ].sort((a, b) => a.name.localeCompare(b.name));
+  applyServings(foodId, next);
+}
+async function saveServing() {
+  const food = detailFood.value;
+  if (!food || savingServing.value) return;
+  const grams = parseAmount(svGrams.value);
+  const error = servingDefinitionError(svName.value, grams);
+  if (error) {
+    formError.value = error;
+    return;
+  }
+  const name = servingName(svName.value);
+  if (!name) return;
+  const sameName = (food.servings ?? []).find((row) => row.name.localeCompare(name, undefined, { sensitivity: "accent" }) === 0);
+  const targetId = svEditId.value ?? sameName?.id ?? null;
+  savingServing.value = true;
+  formError.value = "";
+  try {
+    const saved = targetId
+      ? await updateServing(food.id, targetId, { name, grams })
+      : await createServing(food.id, { name, grams });
+    rememberServing(food.id, saved);
+    unit.value = saved.name;
+    amountText.value = "1";
+    fresh.value = true;
+    resetServingForm();
+    toast(`Saved 1 ${saved.name} = ${gramText(saved.grams)} g for ${food.name} · only you see it`);
+  } catch (error) {
+    if (error instanceof ServerUnreachable) saveError.value = true;
+    else formError.value = error instanceof ApiError ? error.message : "Couldn't save that serving.";
+  } finally {
+    savingServing.value = false;
+  }
+}
+async function restoreServing(foodId: string, name: string, grams: number) {
+  try {
+    const saved = await createServing(foodId, { name, grams });
+    rememberServing(foodId, saved);
+  } catch (error) {
+    formError.value = error instanceof ApiError ? error.message : "Couldn't restore that serving.";
+  }
+}
+async function dropServing(row: OwnServing) {
+  const food = detailFood.value;
+  if (!food || savingServing.value) return;
+  savingServing.value = true;
+  formError.value = "";
+  try {
+    await deleteServing(food.id, row.id);
+    applyServings(food.id, (food.servings ?? []).filter((item) => item.id !== row.id));
+    if (servingName(unit.value)?.localeCompare(row.name, undefined, { sensitivity: "accent" }) === 0) {
+      const total = Math.round(amountNumber.value * row.grams);
+      unit.value = "g";
+      amountText.value = String(total > 0 ? total : 100);
+      fresh.value = true;
+    }
+    if (svEditId.value === row.id) resetServingForm();
+    toast(`Removed serving “${row.name}”`, {
+      label: "Undo",
+      run: () => { void restoreServing(food.id, row.name, row.grams); },
+    });
+  } catch (error) {
+    if (error instanceof ServerUnreachable) saveError.value = true;
+    else formError.value = error instanceof ApiError ? error.message : "Couldn't remove that serving.";
+  } finally {
+    savingServing.value = false;
+  }
+}
 async function addDetail() {
   if (saving.value) return;
   if (!editingFood.value && needTime.value) {
@@ -919,10 +1046,29 @@ async function deleteEdited() {
           <span class="t-dl num" data-num>{{ amountText }}</span><span class="t-head c2">{{ unitWord }}</span>
         </div>
         <span v-if="isCount && preview.grams != null && gramsEach" class="t-label c2" aria-live="polite">= {{ int(preview.grams) }} g · 1 {{ unit }} = {{ gramsEach }} g</span>
-        <div class="row units" role="radiogroup" aria-label="Unit">
-          <button v-for="choice in units" :key="choice.unit" type="button" role="radio" class="uchip t-label" :class="{ on: choice.unit === unit }" :aria-checked="choice.unit === unit" @click="setUnit(choice)">
-            {{ choice.label }}<span v-if="choice.gramsEach && choice.unit !== 'g' && choice.unit !== 'ml'" class="ug"> · {{ choice.gramsEach }} g</span>
-          </button>
+        <div class="row units">
+          <div class="unit-radios" role="radiogroup" aria-label="Unit">
+            <button v-for="choice in units" :key="choice.unit" type="button" role="radio" class="uchip t-label" :class="{ on: choice.unit === unit }" :aria-checked="choice.unit === unit" @click="setUnit(choice)">
+              {{ choice.label }}<span v-if="choice.gramsEach && choice.unit !== 'g' && choice.unit !== 'ml' && !choice.named" class="ug"> · {{ choice.gramsEach }} g</span><span v-if="choice.named" class="sr-only"> your serving</span>
+            </button>
+          </div>
+          <button v-if="canAddServing" type="button" class="uchip add t-label" :aria-expanded="svOpen" @click="toggleServingForm"><Icon name="plus" :size="14" :sw="2.4" /> Serving</button>
+        </div>
+        <div v-if="svOpen" class="svform col">
+          <div class="row gap8 wrapc">
+            <span class="t-label">1</span>
+            <input v-model="svName" class="sinp t-body" type="text" maxlength="16" autocomplete="off" aria-label="Serving name" placeholder="slice" />
+            <span class="t-label">=</span>
+            <input v-model="svGrams" class="sinp t-body num" inputmode="decimal" autocomplete="off" aria-label="Grams in one serving" placeholder="35" @keydown.enter.prevent="saveServing" />
+            <span class="t-label c2">g</span>
+            <button type="button" class="chip on t-label" :disabled="Boolean(servingDraftError) || savingServing" @click="saveServing">Save</button>
+          </div>
+          <div class="row gap8 wrapc">
+            <span class="t-capn c2"><Icon name="lock" :size="10" :sw="2.4" /> Private — only you see your servings.</span>
+            <button v-for="row in ownServings" :key="'e' + row.id" type="button" class="linkbtn t-capn" @click="beginEditServing(row)">Edit “{{ row.name }}”</button>
+            <button v-for="row in ownServings" :key="'d' + row.id" type="button" class="linkbtn t-capn" :aria-label="`Remove serving ${row.name}`" @click="dropServing(row)">Remove “{{ row.name }}”</button>
+          </div>
+          <p v-if="servingDraftError && (svName.trim() || svGrams.trim())" class="t-capn errline" role="status">{{ servingDraftError }}</p>
         </div>
         <div class="row gap8 chips">
           <button v-for="amount in quickAmounts" :key="amount" type="button" class="chip t-label" @click="setAmount(amount)">{{ amountLabel(amount, unit) }}</button>
@@ -1170,9 +1316,17 @@ async function deleteEdited() {
 .dname { margin: 0; overflow-wrap: anywhere; }
 .preview { display: flex; justify-content: space-around; gap: 8px; padding: 14px 8px; border-radius: var(--radius-card); background: var(--color-surface-2); flex: none; }
 .units, .chips { gap: 8px; flex-wrap: wrap; justify-content: center; max-width: 100%; }
+.unit-radios { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; max-width: 100%; }
 .uchip { min-width: 44px; min-height: 44px; padding: 0 12px; border-radius: 22px; border: 1px solid var(--color-border); display: inline-flex; align-items: center; justify-content: center; gap: 2px; background: transparent; color: var(--text-primary); }
 .uchip.on { background: var(--color-action); color: var(--color-on-action); border-color: var(--color-action); }
+.uchip.add { border-style: dashed; color: var(--text-secondary); gap: 4px; }
 .ug { color: var(--text-secondary); }
+.svform { gap: 8px; padding: 10px 12px; border-radius: 12px; background: var(--color-surface-2); align-items: center; width: 100%; }
+.sinp { height: 44px; width: 110px; min-width: 0; padding: 0 10px; border-radius: 10px; border: 1px solid var(--color-border); background: var(--color-surface); color: var(--text-primary); }
+.sinp.num { width: 72px; }
+.sinp:focus { outline: none; border-color: var(--color-action); }
+.errline { margin: 0; color: var(--text-secondary); min-height: 1.2em; }
+.linkbtn { min-height: 44px; padding: 8px 2px; }
 .uchip.on .ug { color: var(--color-on-action); }
 .after { gap: 12px; padding: 16px; border-radius: var(--radius-card); border: 1px solid var(--color-border); }
 .arow { gap: 6px; }

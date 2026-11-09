@@ -4,6 +4,7 @@ import {
   macroFigure,
   macrosForFood,
   normalizeUnit,
+  servingName,
   unitsForFood,
   type CatalogFood,
 } from "./foodAmount";
@@ -88,12 +89,16 @@ export function recentAddBody(input: RecentAddInput): RecentAddResult {
   };
 }
 
-/** Last logged unit when the food still offers it. Otherwise the food's usual amount. */
-export function amountForRecent(food: CatalogFood, amount: number, unit: string): { amount: string; unit: "g" | "ml" | "serving" | "piece" } {
+/** Last logged unit when the food still offers it, including a serving this person added. Otherwise the food's usual amount. */
+export function amountForRecent(food: CatalogFood, amount: number, unit: string): { amount: string; unit: string } {
   const kind = normalizeUnit(unit);
-  if (kind && amount > 0 && unitsForFood(food).some((choice) => choice.unit === kind)) {
-    return { amount: String(amount), unit: kind };
-  }
+  const name = kind ? null : servingName(unit);
+  const match = kind
+    ? unitsForFood(food).find((choice) => choice.unit === kind)
+    : name
+      ? unitsForFood(food).find((choice) => choice.named && choice.unit.localeCompare(name, undefined, { sensitivity: "accent" }) === 0)
+      : undefined;
+  if (match && amount > 0) return { amount: String(amount), unit: match.unit };
   return defaultAmount(food);
 }
 

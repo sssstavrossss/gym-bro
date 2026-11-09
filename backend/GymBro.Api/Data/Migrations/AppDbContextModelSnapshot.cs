@@ -655,6 +655,59 @@ namespace GymBro.Api.Data.Migrations
                     b.ToTable("target_history", (string)null);
                 });
 
+            modelBuilder.Entity("GymBro.Api.Data.UserServing", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("FoodId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("food_id");
+
+                    b.Property<decimal>("Grams")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("grams");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("name");
+
+                    b.Property<string>("NameKey")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("name_key");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FoodId");
+
+                    b.HasIndex("UserId", "FoodId", "NameKey")
+                        .IsUnique();
+
+                    b.ToTable("user_servings", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_user_servings_grams", "grams > 0 AND grams <= 10000");
+
+                            t.HasCheckConstraint("ck_user_servings_name", "char_length(name) BETWEEN 1 AND 16");
+                        });
+                });
+
             modelBuilder.Entity("GymBro.Api.Data.WeighIn", b =>
                 {
                     b.Property<Guid>("Id")
@@ -764,6 +817,21 @@ namespace GymBro.Api.Data.Migrations
 
             modelBuilder.Entity("GymBro.Api.Data.TargetHistory", b =>
                 {
+                    b.HasOne("GymBro.Api.Data.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("GymBro.Api.Data.UserServing", b =>
+                {
+                    b.HasOne("GymBro.Api.Data.Food", null)
+                        .WithMany()
+                        .HasForeignKey("FoodId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
                     b.HasOne("GymBro.Api.Data.AppUser", null)
                         .WithMany()
                         .HasForeignKey("UserId")

@@ -1,11 +1,15 @@
 import { expect, it } from "vitest";
 import {
   amountError,
+  amountLabel,
+  hasGramBasis,
   macroFigure,
   macrosForFood,
   parseAmount,
   per100Line,
   scaleStored,
+  servingChipLabel,
+  servingDefinitionError,
   unitsForEntry,
   unitsForFood,
   type CatalogFood,
@@ -115,6 +119,39 @@ it("does not call an unconfirmed Kassalapp row per 100 g, and millilitres have n
   expect(unitsForFood({ ...chicken, basis: "ml", servingQuantity: null, pieceQuantity: null }).map((unit) => unit.unit)).toEqual(["ml"]);
 });
 
+it("offers a private serving with its gram equivalent and ignores one on a serving-only food", () => {
+  const bread: CatalogFood = {
+    ...chicken,
+    id: "bread",
+    name: "Fictional bread",
+    servingQuantity: null,
+    servingLabel: null,
+    pieceQuantity: null,
+    pieceLabel: null,
+    servings: [
+      { id: "a", name: "slice", grams: 35 },
+      { id: "b", name: "sandwich", grams: 80 },
+    ],
+  };
+  expect(hasGramBasis(bread)).toBe(true);
+  expect(unitsForFood(bread).map((unit) => unit.label)).toEqual(["g", "1 slice = 35 g", "1 sandwich = 80 g"]);
+  expect(servingChipLabel("slice", 35)).toBe("1 slice = 35 g");
+  expect(macrosForFood(bread, 2, "slice")).toEqual({ kcal: 140, protein: 21, fat: 2.8, carbs: 0, grams: 70 });
+  expect(amountLabel(2, "slice")).toBe("2 slices");
+  expect(amountLabel(1, "sandwich")).toBe("1 sandwich");
+  expect(amountError(51, "slice")).toBe("Enter an amount above 0 and at most 50 servings.");
+  expect(amountError(50, "slice")).toBeNull();
+  expect(servingDefinitionError("", 35)).toBe("Give the serving a name.");
+  expect(servingDefinitionError("grams", 35)).toBe("That name is already a unit. Try slice or sandwich.");
+  expect(servingDefinitionError("slice", 0)).toBe("Enter a weight above 0 and at most 10,000 g.");
+  expect(servingDefinitionError("slice", 10001)).toBe("Enter a weight above 0 and at most 10,000 g.");
+  expect(servingDefinitionError("slice", 35)).toBeNull();
+  expect(unitsForFood({ ...bar, servings: [{ id: "x", name: "slice", grams: 35 }] }).map((unit) => unit.unit)).toEqual(["serving"]);
+  expect(hasGramBasis(bar)).toBe(false);
+  expect(unitsForFood({ ...chicken, basis: "ml", servings: [{ id: "x", name: "glass", grams: 250 }] }).map((unit) => unit.unit))
+    .toEqual(["ml", "serving", "piece"]);
+});
+
 it("scales an edited entry from its stored grams, not a new piece size", () => {
   const logged = { amount: 2, unit: "piece", grams: 120, kcal: 240, protein: 36, fat: 4.8, carbs: 0 };
   expect(scaleStored(logged, 3, "piece")).toMatchObject({ grams: 180, kcal: 360, protein: 54 });
@@ -125,4 +162,9 @@ it("scales an edited entry from its stored grams, not a new piece size", () => {
   expect(scaleStored({ amount: 250, unit: "ml", grams: null, kcal: 92.5, protein: 2.5, fat: 1.25, carbs: 16.75 }, 500, "ml"))
     .toEqual({ kcal: 185, protein: 5, fat: 2.5, carbs: 33.5, grams: null });
   expect(unitsForEntry(logged).find((unit) => unit.unit === "piece")?.gramsEach).toBe(60);
+  const slice = { amount: 1, unit: "slice", grams: 35, kcal: 70, protein: 10.5, fat: 1.4, carbs: 0 };
+  expect(scaleStored(slice, 2, "slice")).toMatchObject({ grams: 70, kcal: 140, protein: 21 });
+  expect(scaleStored(slice, 70, "g")).toMatchObject({ grams: 70, kcal: 140 });
+  expect(unitsForEntry(slice).map((unit) => unit.label)).toEqual(["g", "1 slice = 35 g"]);
+  expect(unitsForEntry(slice).find((unit) => unit.unit === "slice")?.gramsEach).toBe(35);
 });
