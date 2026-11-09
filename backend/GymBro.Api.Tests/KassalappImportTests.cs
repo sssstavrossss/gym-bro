@@ -72,17 +72,13 @@ public sealed class KassalappImportTests(ApiFactory factory)
     }
 
     [Fact]
-    public async Task An_unconfirmed_food_cannot_be_logged_until_that_person_chooses()
+    public async Task An_unconfirmed_food_logs_in_grams_or_millilitres_without_a_basis_confirmation()
     {
         factory.Clock.UtcNow = new DateTimeOffset(2026, 10, 24, 8, 0, 0, TimeSpan.Zero);
         var user = TestData.NewUser("kassalapp-a");
-        var other = TestData.NewUser("kassalapp-b");
         using var client = factory.AsUser(user);
-        using var stranger = factory.AsUser(other);
         await TestData.PutWeighIn(client, "2026-10-24", """{"kg":80,"timeZone":"UTC"}""");
         await TestData.PutProfile(client, TestData.Profile(timeZone: "UTC"));
-        await TestData.PutWeighIn(stranger, "2026-10-24", """{"kg":80,"timeZone":"UTC"}""");
-        await TestData.PutProfile(stranger, TestData.Profile(timeZone: "UTC"));
 
         await using var scope = factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -90,31 +86,30 @@ public sealed class KassalappImportTests(ApiFactory factory)
         await importer.ImportFileAsync(Stream(Line("7394376620805", "Oat drink", "Oatly", "2026-11-07T08:00:00Z", 37, 1, 0.5m, 6.7m, "Meny")), CancellationToken.None);
         var food = await db.Foods.SingleAsync(row => row.SourceId == "7394376620805");
 
-        var blocked = await client.PostAsync("/api/log-entries", Json($$"""{"idempotencyKey":"k-block","localDate":"2026-10-24","timeZone":"UTC","foodId":"{{food.Id}}","amount":250,"unit":"ml"}"""));
-        Assert.Equal(HttpStatusCode.BadRequest, blocked.StatusCode);
-        Assert.Contains("per 100", await blocked.Content.ReadAsStringAsync(), StringComparison.Ordinal);
-
-        var blank = await client.PostAsync($"/api/foods/{food.Id}/basis", Json("""{"basis":""}"""));
-        Assert.Equal(HttpStatusCode.BadRequest, blank.StatusCode);
-
-        var chosen = await client.PostAsync($"/api/foods/{food.Id}/basis", Json("""{"basis":"ml"}"""));
-        Assert.Equal(HttpStatusCode.OK, chosen.StatusCode);
-        var body = await chosen.Content.ReadFromJsonAsync<JsonElement>();
-        Assert.Equal("ml", body.GetProperty("confirmedBasis").GetString());
-        Assert.Equal(JsonValueKind.Null, body.GetProperty("basis").ValueKind);
-
         var logged = await client.PostAsync("/api/log-entries", Json($$"""{"idempotencyKey":"k-ok","localDate":"2026-10-24","timeZone":"UTC","foodId":"{{food.Id}}","amount":250,"unit":"ml"}"""));
         Assert.Equal(HttpStatusCode.Created, logged.StatusCode);
         var entry = await logged.Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal(92.5m, entry.GetProperty("kcal").GetDecimal());
         Assert.Equal(JsonValueKind.Null, entry.GetProperty("grams").ValueKind);
         Assert.Equal("ml", entry.GetProperty("unit").GetString());
+        var entryId = entry.GetProperty("id").GetGuid();
 
-        var theirs = await stranger.PostAsync("/api/log-entries", Json($$"""{"idempotencyKey":"k-other","localDate":"2026-10-24","timeZone":"UTC","foodId":"{{food.Id}}","amount":100,"unit":"ml"}"""));
-        Assert.Equal(HttpStatusCode.BadRequest, theirs.StatusCode);
+        var edited = await client.PatchAsync($"/api/log-entries/{entryId}", Json("""{"amount":500,"unit":"ml"}"""));
+        Assert.Equal(HttpStatusCode.OK, edited.StatusCode);
+        var editedBody = await edited.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(185m, editedBody.GetProperty("kcal").GetDecimal());
+        Assert.Equal(JsonValueKind.Null, editedBody.GetProperty("grams").ValueKind);
 
         var grams = await client.PostAsync("/api/log-entries", Json($$"""{"idempotencyKey":"k-grams","localDate":"2026-10-24","timeZone":"UTC","foodId":"{{food.Id}}","amount":100,"unit":"g"}"""));
-        Assert.Equal(HttpStatusCode.BadRequest, grams.StatusCode);
+        Assert.Equal(HttpStatusCode.Created, grams.StatusCode);
+        var gramBody = await grams.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(37m, gramBody.GetProperty("kcal").GetDecimal());
+        Assert.Equal(100m, gramBody.GetProperty("grams").GetDecimal());
+        Assert.Equal("g", gramBody.GetProperty("unit").GetString());
+        var gramId = gramBody.GetProperty("id").GetGuid();
+
+        Assert.Equal(0, await db.FoodBasisConfirmations.CountAsync(row => row.FoodId == food.Id));
+        Assert.Null((await db.Foods.AsNoTracking().SingleAsync(row => row.Id == food.Id)).Basis);
 
         var mvt = new Food
         {
@@ -132,8 +127,10 @@ public sealed class KassalappImportTests(ApiFactory factory)
         var still = await client.PostAsync("/api/log-entries", Json($$"""{"idempotencyKey":"k-mvt","localDate":"2026-10-24","timeZone":"UTC","foodId":"{{mvt.Id}}","amount":100,"unit":"g"}"""));
         Assert.Equal(HttpStatusCode.Created, still.StatusCode);
         Assert.Equal(100, (await still.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("kcal").GetDecimal());
+        var mvtMl = await client.PostAsync("/api/log-entries", Json($$"""{"idempotencyKey":"k-mvt-ml","localDate":"2026-10-24","timeZone":"UTC","foodId":"{{mvt.Id}}","amount":100,"unit":"ml"}"""));
+        Assert.Equal(HttpStatusCode.BadRequest, mvtMl.StatusCode);
 
-        var kept = await db.LogEntries.SingleAsync(row => row.FoodId == food.Id);
+        var kept = await db.LogEntries.SingleAsync(row => row.Id == entryId);
         food.RetiredAt = DateTimeOffset.UnixEpoch;
         await db.SaveChangesAsync();
         Assert.Equal(food.Id, (await db.LogEntries.AsNoTracking().SingleAsync(row => row.Id == kept.Id)).FoodId);
@@ -142,9 +139,10 @@ public sealed class KassalappImportTests(ApiFactory factory)
         await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM foods WHERE id = {foodId}");
         var detached = await db.LogEntries.AsNoTracking().SingleAsync(row => row.Id == kept.Id);
         Assert.Null(detached.FoodId);
-        Assert.Equal(92.5m, detached.Kcal);
+        Assert.Equal(185m, detached.Kcal);
 
         db.LogEntries.Remove(await db.LogEntries.SingleAsync(row => row.Id == kept.Id));
+        db.LogEntries.Remove(await db.LogEntries.SingleAsync(row => row.Id == gramId));
         db.LogEntries.Remove(await db.LogEntries.SingleAsync(row => row.FoodId == mvt.Id));
         db.Foods.Remove(await db.Foods.SingleAsync(row => row.Id == mvt.Id));
         await db.SaveChangesAsync();

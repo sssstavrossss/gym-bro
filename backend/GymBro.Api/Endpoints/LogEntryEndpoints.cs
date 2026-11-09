@@ -1,7 +1,6 @@
 using System.Security.Claims;
 using System.Text.Json;
 using GymBro.Api.Data;
-using GymBro.Api.Foods;
 using GymBro.Api.Logging;
 using GymBro.Api.Users;
 using Microsoft.EntityFrameworkCore;
@@ -87,17 +86,7 @@ public static class LogEntryEndpoints
         decimal? grams = null;
         if (food is not null)
         {
-            string? confirmed = null;
-            if (food.NutrientBasis == NutrientBases.Unconfirmed)
-            {
-                var stamp = KassalappImporter.Stamp(food);
-                confirmed = await db.FoodBasisConfirmations.AsNoTracking()
-                    .Where(row => row.UserId == userId && row.FoodId == food.Id && row.NutritionStamp == stamp)
-                    .Select(row => row.Basis)
-                    .FirstOrDefaultAsync(cancellationToken);
-            }
-
-            var snapshot = LogEntryRules.Snapshot(food, draft.Amount, draft.Unit, confirmed);
+            var snapshot = LogEntryRules.Snapshot(food, draft.Amount, draft.Unit);
             if (snapshot.Error is not null)
             {
                 return ApiResults.Error(snapshot.Error);

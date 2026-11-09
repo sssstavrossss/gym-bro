@@ -104,10 +104,13 @@ it("does not call an unconfirmed Kassalapp row per 100 g, and millilitres have n
     pieceQuantity: null,
   };
   expect(per100Line(drink)).toBe("as reported · 48 kcal · P1.1 F1.5 C7");
-  expect(unitsForFood(drink)).toEqual([]);
-  expect(per100Line({ ...drink, confirmedBasis: "ml" })).toContain("per 100 ml, confirmed by you");
-  expect(macrosForFood({ ...drink, confirmedBasis: "ml" }, 250, "ml")).toEqual({
+  expect(per100Line({ ...drink, confirmedBasis: "g" })).toBe("as reported · 48 kcal · P1.1 F1.5 C7");
+  expect(unitsForFood(drink).map((unit) => unit.unit)).toEqual(["g", "ml"]);
+  expect(macrosForFood(drink, 250, "ml")).toEqual({
     kcal: 120, protein: 2.75, fat: 3.75, carbs: 17.5, grams: null,
+  });
+  expect(macrosForFood(drink, 100, "g")).toEqual({
+    kcal: 48, protein: 1.1, fat: 1.5, carbs: 7, grams: 100,
   });
   expect(unitsForFood({ ...chicken, basis: "ml", servingQuantity: null, pieceQuantity: null }).map((unit) => unit.unit)).toEqual(["ml"]);
 });
@@ -119,5 +122,7 @@ it("scales an edited entry from its stored grams, not a new piece size", () => {
     .toMatchObject({ grams: 300, kcal: 600 });
   expect(scaleStored({ amount: 1, unit: "serving", grams: null, kcal: 80, protein: 10, fat: 2, carbs: 3 }, 2, "serving"))
     .toEqual({ kcal: 160, protein: 20, fat: 4, carbs: 6, grams: null });
+  expect(scaleStored({ amount: 250, unit: "ml", grams: null, kcal: 92.5, protein: 2.5, fat: 1.25, carbs: 16.75 }, 500, "ml"))
+    .toEqual({ kcal: 185, protein: 5, fat: 2.5, carbs: 33.5, grams: null });
   expect(unitsForEntry(logged).find((unit) => unit.unit === "piece")?.gramsEach).toBe(60);
 });
