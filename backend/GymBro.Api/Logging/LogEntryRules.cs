@@ -58,6 +58,18 @@ public static class LogEntryRules
 
     public const string MeasuredInMillilitres = "This food is measured in millilitres.";
 
+    public const string NoGramBasis = "This food has no gram weight.";
+
+    public const string NeedServingName = "Give the serving a name.";
+
+    public const string ServingNameLength = "Use a shorter serving name.";
+
+    public const string ReservedServingName = "That name is already a unit. Try slice or sandwich.";
+
+    public const string ServingGramsLimit = "Enter a weight above 0 and at most 10,000 g.";
+
+    public const string DuplicateServing = "You already have a serving with that name.";
+
     public const string BadTime = "Use a time like 08:15.";
 
     public const int ZoneToleranceDays = 1;
@@ -69,6 +81,9 @@ public static class LogEntryRules
     public const decimal KcalMax = 10_000m;
 
     public const decimal MacroMax = 1_000m;
+
+    /// <summary>A serving name is stored as the log unit, which is 16 characters.</summary>
+    public const int ServingNameMax = 16;
 
     public static bool TryDate(string? text, out DateOnly date) =>
         DateOnly.TryParseExact(text, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out date);
@@ -171,26 +186,89 @@ public static class LogEntryRules
 
     public static string? RejectAmount(decimal amount, string unit)
     {
-        var kind = NormalizeUnit(unit);
+        var kind = CanonicalUnit(unit);
         if (kind is null)
         {
             return NeedUnit;
         }
 
-        var max = kind is "serving" or "piece" ? CountMax : AmountMax;
+        var standard = NormalizeUnit(kind);
+        var max = standard is null or "serving" or "piece" ? CountMax : AmountMax;
         if (amount <= 0 || amount > max)
         {
-            return kind switch
+            return standard switch
             {
                 "ml" => MillilitresLimit,
-                "serving" => ServingsLimit,
                 "piece" => PiecesLimit,
-                _ => GramsLimit,
+                "g" => GramsLimit,
+                _ => ServingsLimit,
             };
         }
 
         return null;
     }
+
+    /// <summary>
+    /// A standard unit, or a person's serving name ("slice"). Null when the text is not a unit.
+    /// </summary>
+    public static string? CanonicalUnit(string? unit) => NormalizeUnit(unit) ?? NormalizeServingName(unit);
+
+    /// <summary>
+    /// The serving name to store, or null when it is empty, too long, or already a unit (g, ml, serving, piece).
+    /// </summary>
+    public static string? NormalizeServingName(string? name)
+    {
+        var text = Collapse(name);
+        if (text.Length is < 1 or > ServingNameMax)
+        {
+            return null;
+        }
+
+        if (NormalizeUnit(text) is not null)
+        {
+            return null;
+        }
+
+        return text;
+    }
+
+    public static string Collapse(string? name)
+    {
+        var text = (name ?? "").Trim();
+        if (text.Length == 0)
+        {
+            return "";
+        }
+
+        return string.Join(' ', text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+    }
+
+    public static string MissingServing(string name) => $"No serving called “{name}”.";
+
+    /// <summary>Why a name cannot be saved, or null when <paramref name="cleanName"/> is ready to store.</summary>
+    public static string? RejectServingName(string? name, out string cleanName)
+    {
+        cleanName = Collapse(name);
+        if (cleanName.Length == 0)
+        {
+            return NeedServingName;
+        }
+
+        if (cleanName.Length > ServingNameMax)
+        {
+            return ServingNameLength;
+        }
+
+        if (NormalizeUnit(cleanName) is not null)
+        {
+            return ReservedServingName;
+        }
+
+        return null;
+    }
+
+    public static string? RejectServingGrams(decimal grams) =>
+        grams <= 0 || grams > AmountMax ? ServingGramsLimit : null;
 
     /// <summary><c>g</c>, <c>ml</c>, <c>serving</c>, <c>piece</c>, or null when the unit is unknown.</summary>
     public static string? NormalizeUnit(string? unit)
@@ -214,18 +292,59 @@ public static class LogEntryRules
     /// The caller stores these and does not keep the numbers the client sent.
     /// A per-serving food, a millilitre food, and an unconfirmed food logged in millilitres have no gram weight.
     /// </summary>
-    public static FoodSnapshot Snapshot(Food food, decimal amount, string? unit)
+    public static FoodSnapshot Snapshot(Food food, decimal amount, string? unit, decimal? ownGramsEach = null)
     {
-        var kind = NormalizeUnit(unit);
-        if (kind is null)
+        var standard = NormalizeUnit(unit);
+        var custom = standard is null ? NormalizeServingName(unit) : null;
+        if (standard is null && custom is null)
         {
             return FoodSnapshot.Fail(NeedUnit);
         }
 
+        var kind = standard ?? custom!;
         var limit = RejectAmount(amount, kind);
         if (limit is not null)
         {
             return FoodSnapshot.Fail(limit);
+        }
+
+        if (custom is not null)
+        {
+            if (food.NutrientBasis == NutrientBases.PerServing)
+            {
+                return FoodSnapshot.Fail(PerServingUnit);
+            }
+
+            if (food.Basis == "ml")
+            {
+                return FoodSnapshot.Fail(MeasuredInMillilitres);
+            }
+
+            if (food.NutrientBasis != NutrientBases.Per100 || food.Basis != "g")
+            {
+                return FoodSnapshot.Fail(NoGramBasis);
+            }
+
+            if (ownGramsEach is not > 0)
+            {
+                return FoodSnapshot.Fail(MissingServing(custom));
+            }
+
+            var ownGrams = Round2(amount * ownGramsEach.Value);
+            if (ownGrams is not > 0)
+            {
+                return FoodSnapshot.Fail(GramsLimit);
+            }
+
+            var ownFactor = ownGrams / 100m;
+            return new FoodSnapshot(
+                custom,
+                ownGrams,
+                Scale(food.KcalPer100, ownFactor),
+                Scale(food.ProteinPer100, ownFactor),
+                Scale(food.FatPer100, ownFactor),
+                Scale(food.CarbsPer100, ownFactor),
+                null);
         }
 
         // Kassalapp never stated grams or millilitres. The unit on this entry is the one to scale by.
@@ -322,7 +441,7 @@ public static class LogEntryRules
     /// </summary>
     public static StoredScale ScaleStored(LogEntry entry, decimal newAmount, string? newUnit)
     {
-        var kind = NormalizeUnit(newUnit);
+        var kind = CanonicalUnit(newUnit);
         if (kind is null)
         {
             return StoredScale.Fail(NeedUnit);
@@ -334,19 +453,20 @@ public static class LogEntryRules
             return StoredScale.Fail(limit);
         }
 
-        var oldKind = NormalizeUnit(entry.Unit);
+        var oldKind = CanonicalUnit(entry.Unit);
+        var standard = NormalizeUnit(kind);
         decimal factor;
         decimal? grams;
-        if (entry.Grams is > 0 && kind is "g" or "ml" && kind != oldKind)
+        if (entry.Grams is > 0 && standard is "g" or "ml" && !SameUnit(kind, oldKind))
         {
             grams = Round2(newAmount);
             factor = grams.Value / entry.Grams.Value;
         }
-        else if (entry.Grams is > 0 && kind is "serving" or "piece" && oldKind is "g" or "ml")
+        else if (entry.Grams is > 0 && IsCount(kind) && IsMeasure(oldKind))
         {
             return StoredScale.Fail(KeepLoggedUnit);
         }
-        else if (entry.Grams is > 0 && kind is "serving" or "piece" && oldKind is "serving" or "piece" && kind != oldKind)
+        else if (entry.Grams is > 0 && IsCount(kind) && IsCount(oldKind) && !SameUnit(kind, oldKind))
         {
             return StoredScale.Fail(KeepLoggedUnit);
         }
@@ -376,6 +496,14 @@ public static class LogEntryRules
     }
 
     private static decimal Scale(decimal per, decimal factor) => Round2(per * factor);
+
+    private static bool IsMeasure(string? unit) => unit is "g" or "ml";
+
+    private static bool IsCount(string? unit) =>
+        unit is "serving" or "piece" || (unit is not null && NormalizeUnit(unit) is null);
+
+    private static bool SameUnit(string? left, string? right) =>
+        string.Equals(left, right, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// Quick add has no gram weight (decision 29). A per-serving food doesn't either.

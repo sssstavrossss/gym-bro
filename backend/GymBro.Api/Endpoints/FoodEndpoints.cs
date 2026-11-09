@@ -59,6 +59,7 @@ public static class FoodEndpoints
         api.MapPost("/foods/{id:guid}/basis", ConfirmBasis);
         api.MapPut("/foods/{id:guid}", Update);
         api.MapDelete("/foods/{id:guid}", Delete);
+        api.MapServings();
         api.MapGet("/about", About);
         return api;
     }
@@ -84,7 +85,8 @@ public static class FoodEndpoints
         var userId = Caller.Id(principal);
         var foods = await FoodCatalog.SearchAsync(db, userId, query, cancellationToken);
         var confirmed = await ConfirmedBases(db, userId, foods, cancellationToken);
-        return Results.Ok(new { query, foods = foods.Select(food => ToResponse(food, confirmed.GetValueOrDefault(food.Id))).ToList() });
+        var servings = await ServingEndpoints.ForFoods(db, userId, foods.Select(food => food.Id), cancellationToken);
+        return Results.Ok(new { query, foods = foods.Select(food => ToResponse(food, confirmed.GetValueOrDefault(food.Id), servings.GetValueOrDefault(food.Id))).ToList() });
     }
 
     private static async Task<IResult> SearchOpenFoodFacts(
@@ -110,6 +112,7 @@ public static class FoodEndpoints
         var userId = Caller.Id(principal);
         var localBefore = await FoodCatalog.SearchAsync(db, userId, query, cancellationToken);
         var confirmed = await ConfirmedBases(db, userId, localBefore, cancellationToken);
+        var servings = await ServingEndpoints.ForFoods(db, userId, localBefore.Select(food => food.Id), cancellationToken);
         var outcome = await off.SearchAsync(query, cancellationToken);
         IReadOnlyDictionary<string, Guid> cachedIds = new Dictionary<string, Guid>();
         if (outcome.Status == OffStatus.Ok && outcome.Foods.Count > 0)
@@ -120,7 +123,7 @@ public static class FoodEndpoints
         return Results.Ok(new
         {
             query,
-            local = localBefore.Select(food => ToResponse(food, confirmed.GetValueOrDefault(food.Id))).ToList(),
+            local = localBefore.Select(food => ToResponse(food, confirmed.GetValueOrDefault(food.Id), servings.GetValueOrDefault(food.Id))).ToList(),
             openFoodFacts = new
             {
                 status = outcome.Status switch
@@ -162,6 +165,7 @@ public static class FoodEndpoints
             .Where(food => foodIds.Contains(food.Id))
             .ToListAsync(cancellationToken);
         var confirmed = await ConfirmedBases(db, userId, foods, cancellationToken);
+        var servings = await ServingEndpoints.ForFoods(db, userId, foods.Select(food => food.Id), cancellationToken);
         var entryById = entries.ToDictionary(row => row.Id);
         var foodById = foods.ToDictionary(food => food.Id);
         var rows = new List<object>();
@@ -177,7 +181,7 @@ public static class FoodEndpoints
                 continue;
             }
 
-            rows.Add(ToRecent(food, entry, confirmed.GetValueOrDefault(food.Id)));
+            rows.Add(ToRecent(food, entry, confirmed.GetValueOrDefault(food.Id), servings.GetValueOrDefault(food.Id)));
         }
 
         return Results.Ok(new { foods = rows });
@@ -193,8 +197,10 @@ public static class FoodEndpoints
             return denied;
         }
 
-        var foods = await FoodCatalog.MineAsync(db, Caller.Id(principal), cancellationToken);
-        return Results.Ok(new { foods = foods.Select(food => ToResponse(food)).ToList() });
+        var userId = Caller.Id(principal);
+        var foods = await FoodCatalog.MineAsync(db, userId, cancellationToken);
+        var servings = await ServingEndpoints.ForFoods(db, userId, foods.Select(food => food.Id), cancellationToken);
+        return Results.Ok(new { foods = foods.Select(food => ToResponse(food, servings: servings.GetValueOrDefault(food.Id))).ToList() });
     }
 
     private static async Task<IResult> Create(
@@ -268,7 +274,8 @@ public static class FoodEndpoints
         }
 
         var confirmed = await ConfirmedBases(db, userId, [food], cancellationToken);
-        return Results.Ok(ToResponse(food, confirmed.GetValueOrDefault(food.Id)));
+        var servings = await ServingEndpoints.ForFoods(db, userId, [food.Id], cancellationToken);
+        return Results.Ok(ToResponse(food, confirmed.GetValueOrDefault(food.Id), servings.GetValueOrDefault(food.Id)));
     }
 
     private static async Task<IResult> Update(
@@ -322,7 +329,8 @@ public static class FoodEndpoints
         Apply(food, normalized);
         food.UpdatedAt = clock.GetUtcNow();
         await db.SaveChangesAsync(cancellationToken);
-        return Results.Ok(ToResponse(food));
+        var servings = await ServingEndpoints.ForFoods(db, userId, [food.Id], cancellationToken);
+        return Results.Ok(ToResponse(food, servings: servings.GetValueOrDefault(food.Id)));
     }
 
     private static async Task<IResult> Delete(
@@ -594,7 +602,8 @@ public static class FoodEndpoints
         existing.NutritionStamp = stamp;
         existing.ConfirmedAt = clock.GetUtcNow();
         await db.SaveChangesAsync(cancellationToken);
-        return Results.Ok(ToResponse(food, basis));
+        var servings = await ServingEndpoints.ForFoods(db, userId, [food.Id], cancellationToken);
+        return Results.Ok(ToResponse(food, basis, servings.GetValueOrDefault(food.Id)));
     }
 
     private static async Task<Dictionary<Guid, string>> ConfirmedBases(
@@ -625,7 +634,7 @@ public static class FoodEndpoints
         return found;
     }
 
-    public static object ToResponse(Food food, string? confirmedBasis = null) => new
+    public static object ToResponse(Food food, string? confirmedBasis = null, IReadOnlyList<UserServing>? servings = null) => new
     {
         id = food.Id,
         source = food.Source,
@@ -646,9 +655,10 @@ public static class FoodEndpoints
         pieceQuantity = food.PieceQuantity,
         pieceLabel = food.PieceLabel,
         owned = food.UserId is not null,
+        servings = ServingEndpoints.ToJsonList(servings),
     };
 
-    private static object ToRecent(Food food, LogEntry entry, string? confirmedBasis) => new
+    private static object ToRecent(Food food, LogEntry entry, string? confirmedBasis, IReadOnlyList<UserServing>? servings) => new
     {
         id = food.Id,
         source = food.Source,
@@ -669,6 +679,7 @@ public static class FoodEndpoints
         pieceQuantity = food.PieceQuantity,
         pieceLabel = food.PieceLabel,
         owned = food.UserId is not null,
+        servings = ServingEndpoints.ToJsonList(servings),
         amount = entry.Amount,
         unit = entry.Unit,
         loggedAt = entry.LoggedAt,
@@ -692,5 +703,6 @@ public static class FoodEndpoints
         servingLabel = food.ServingLabel,
         pieceQuantity = food.PieceQuantity,
         pieceLabel = food.PieceLabel,
+        servings = Array.Empty<object>(),
     };
 }

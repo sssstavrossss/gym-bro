@@ -83,6 +83,15 @@ describe("recents", () => {
     expect(amountForRecent(oats, 180, "g")).toEqual({ amount: "180", unit: "g" });
     expect(recentSubtitle(oats, 180, "g")).toBe("180 g · 297 kcal · P23.4 F12.6 C25.2");
     expect(recentSubtitle(oats, 1, "serving")).toBe("1 serving (40 g) · 66 kcal · P5.2 F2.8 C5.6");
+    const sliced = {
+      ...oats,
+      servingQuantity: null,
+      servingLabel: null,
+      servings: [{ id: "slice", name: "slice", grams: 35 }],
+    };
+    expect(amountForRecent(sliced, 1, "slice")).toEqual({ amount: "1", unit: "slice" });
+    expect(recentSubtitle(sliced, 1, "slice")).toBe("1 slice (35 g) · 58 kcal · P4.6 F2.5 C4.9");
+    expect(amountForRecent({ ...sliced, servings: [] }, 1, "slice")).toEqual({ amount: "100", unit: "g" });
     expect(recentEmptyTitle).toBe("Nothing here yet");
     expect(recentEmptyDetail).toContain("last amount");
   });

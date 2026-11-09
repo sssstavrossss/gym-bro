@@ -19,6 +19,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
 
     public DbSet<FoodBasisConfirmation> FoodBasisConfirmations => Set<FoodBasisConfirmation>();
 
+    public DbSet<UserServing> UserServings => Set<UserServing>();
+
     public DbSet<LogEntry> LogEntries => Set<LogEntry>();
 
     public DbSet<EntryGroup> EntryGroups => Set<EntryGroup>();
@@ -165,6 +167,24 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         confirmation.HasIndex(c => new { c.UserId, c.FoodId }).IsUnique();
         confirmation.HasOne<AppUser>().WithMany().HasForeignKey(c => c.UserId).OnDelete(DeleteBehavior.Cascade);
         confirmation.HasOne<Food>().WithMany().HasForeignKey(c => c.FoodId).OnDelete(DeleteBehavior.Cascade);
+
+        var serving = modelBuilder.Entity<UserServing>();
+        serving.ToTable("user_servings", table =>
+        {
+            table.HasCheckConstraint("ck_user_servings_grams", "grams > 0 AND grams <= 10000");
+            table.HasCheckConstraint("ck_user_servings_name", "char_length(name) BETWEEN 1 AND 16");
+        });
+        serving.HasKey(s => s.Id);
+        serving.Property(s => s.Id).HasColumnName("id");
+        serving.Property(s => s.UserId).HasColumnName("user_id").HasMaxLength(64);
+        serving.Property(s => s.FoodId).HasColumnName("food_id");
+        serving.Property(s => s.Name).HasColumnName("name").HasMaxLength(16);
+        serving.Property(s => s.NameKey).HasColumnName("name_key").HasMaxLength(16);
+        serving.Property(s => s.Grams).HasColumnName("grams").HasPrecision(8, 2);
+        serving.Property(s => s.UpdatedAt).HasColumnName("updated_at");
+        serving.HasIndex(s => new { s.UserId, s.FoodId, s.NameKey }).IsUnique();
+        serving.HasOne<AppUser>().WithMany().HasForeignKey(s => s.UserId).OnDelete(DeleteBehavior.Cascade);
+        serving.HasOne<Food>().WithMany().HasForeignKey(s => s.FoodId).OnDelete(DeleteBehavior.Cascade);
 
         var entry = modelBuilder.Entity<LogEntry>();
         entry.ToTable("log_entries", table =>

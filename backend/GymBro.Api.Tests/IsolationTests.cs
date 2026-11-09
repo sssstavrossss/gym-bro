@@ -27,6 +27,9 @@ public sealed class IsolationTests(ApiFactory factory)
     [InlineData("GET", "/api/foods/11111111-1111-1111-1111-111111111111")]
     [InlineData("PUT", "/api/foods/11111111-1111-1111-1111-111111111111")]
     [InlineData("DELETE", "/api/foods/11111111-1111-1111-1111-111111111111")]
+    [InlineData("POST", "/api/foods/11111111-1111-1111-1111-111111111111/servings")]
+    [InlineData("PUT", "/api/foods/11111111-1111-1111-1111-111111111111/servings/11111111-1111-1111-1111-111111111111")]
+    [InlineData("DELETE", "/api/foods/11111111-1111-1111-1111-111111111111/servings/11111111-1111-1111-1111-111111111111")]
     [InlineData("GET", "/api/about")]
     public async Task Anonymous_calls_are_rejected(string method, string path)
     {
