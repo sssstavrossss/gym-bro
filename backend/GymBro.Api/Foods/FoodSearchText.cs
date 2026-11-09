@@ -41,6 +41,7 @@ public sealed class FoodSearchTextInterceptor : SaveChangesInterceptor
 
             entry.Property(food => food.SearchName).CurrentValue = FoodAliasCatalogue.Normalize(entry.Entity.Name);
             entry.Property(food => food.SearchNameEn).CurrentValue = FoodAliasCatalogue.Normalize(entry.Entity.NameEn);
+            entry.Property(food => food.SearchBrand).CurrentValue = FoodAliasCatalogue.Normalize(entry.Entity.Brand);
         }
     }
 

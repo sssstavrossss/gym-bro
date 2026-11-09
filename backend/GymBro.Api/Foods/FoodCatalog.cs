@@ -66,6 +66,7 @@ public static class FoodCatalog
         const string namePad = "(' ' || coalesce(f.search_name, '') || ' ') COLLATE \"C\"";
         const string enPad = "(' ' || coalesce(f.search_name_en, '') || ' ') COLLATE \"C\"";
         const string aliasPad = "(' ' || a.normalized || ' ') COLLATE \"C\"";
+        const string nameBrandPad = "(' ' || coalesce(f.search_name, '') || ' ' || coalesce(f.search_brand, '') || ' ') COLLATE \"C\"";
         string All(string pad) => string.Join(" AND ", matchParams.Select(param => pad + " LIKE " + param));
 
         var sql = $"""
@@ -76,6 +77,7 @@ public static class FoodCatalog
               AND (
                 ({digitParam} AND f.barcode = {queryParam})
                 OR ({All(namePad)})
+                OR ({All(nameBrandPad)})
                 OR ({All(enPad)})
                 OR EXISTS (
                   SELECT 1 FROM food_aliases AS a
@@ -89,6 +91,7 @@ public static class FoodCatalog
               WHEN ({digitParam} AND f.barcode = {queryParam})
                 OR f.search_name COLLATE "C" = {normalizedParam}
                 OR f.search_name_en COLLATE "C" = {normalizedParam}
+                OR f.search_brand COLLATE "C" = {normalizedParam}
                 OR EXISTS (
                   SELECT 1 FROM food_aliases AS a
                   WHERE a.source = f.source AND a.source_id = f.source_id AND a.expected_name_en = f.name_en
@@ -161,6 +164,18 @@ public static class FoodCatalog
             """;
         return await db.Database.SqlQuery<Guid>(sql).ToListAsync(cancellationToken);
     }
+
+    /// <summary>Private custom foods for one person. Retired rows stay out of the list; their log entries do not.</summary>
+    public const int MineLimit = 500;
+
+    public static Task<List<Food>> MineAsync(AppDbContext db, string userId, CancellationToken cancellationToken) =>
+        db.Foods.AsNoTracking()
+            .Where(food => food.UserId == userId && food.Source == "custom" && food.RetiredAt == null)
+            .OrderBy(food => food.Name)
+            .ThenBy(food => food.Brand)
+            .ThenBy(food => food.Id)
+            .Take(MineLimit)
+            .ToListAsync(cancellationToken);
 
     public static async Task<IReadOnlyDictionary<string, Guid>> UpsertCatalogAsync(
         AppDbContext db,

@@ -15,7 +15,7 @@ import { vp } from "./lib/viewport";
 import { boot } from "./state/boot";
 import { loadProfile, profile, retryLoad } from "./state/profile";
 import { loadToday, log, viewed } from "./state/log";
-import { closeSheet, openAdd, openFood, openWeight, ui } from "./ui";
+import { closeFoodLayer, closeSheet, openAdd, openFood, openWeight, ui } from "./ui";
 import SignInView from "./views/SignInView.vue";
 
 const route = useRoute();
@@ -74,10 +74,7 @@ function onKey(event: KeyboardEvent) {
   if (event.key === "Escape") {
     if (!ui.sheet) return;
     event.preventDefault();
-    if (ui.sheet === "food" && ui.detailFoodId && !ui.editEntryId) {
-      ui.detailFoodId = null;
-      return;
-    }
+    if (ui.sheet === "food" && closeFoodLayer()) return;
     closeSheet();
     return;
   }

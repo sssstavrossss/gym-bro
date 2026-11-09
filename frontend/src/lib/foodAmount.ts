@@ -17,6 +17,8 @@ export interface CatalogFood {
   servingLabel: string | null;
   pieceQuantity: number | null;
   pieceLabel: string | null;
+  brand?: string | null;
+  barcode?: string | null;
 }
 
 export interface UnitChoice {

@@ -165,6 +165,24 @@ export const missingKcalLead = "Not shown: missing calories →";
 export const missingKcalAction = "create my food";
 export const missingKcalNotice = `${missingKcalLead} ${missingKcalAction}`;
 
+export const myFoodsEmptyTitle = "No foods of your own yet";
+export const myFoodsEmptyDetail = "Create one for a home recipe or anything the database doesn't have. Only you see them.";
+
+export function isMyFood(food: { source: string; owned?: boolean }): boolean {
+  return food.owned === true || food.source === "custom";
+}
+
+export function withBrand(brand: string | null | undefined, detail: string): string {
+  const text = brand?.trim();
+  return text ? `${text} · ${detail}` : detail;
+}
+
+/** A skipped Open Food Facts product opens the editor with its name only. No calories are invented. */
+export function missingKcalEditorSeed(query: string): { name: string } | null {
+  const name = query.trim();
+  return name ? { name } : null;
+}
+
 export function offFailureCopy(_status: "rate_limited" | "unavailable"): { title: string; detail: string; retry: string; quickAdd: string } {
   return {
     title: "Can't reach the food database",

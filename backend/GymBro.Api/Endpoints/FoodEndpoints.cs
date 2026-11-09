@@ -15,6 +15,8 @@ public sealed class CustomFoodRequest
 {
     public string? Name { get; set; }
 
+    public string? Brand { get; set; }
+
     public decimal KcalPer100 { get; set; }
 
     public decimal ProteinPer100 { get; set; }
@@ -50,6 +52,7 @@ public static class FoodEndpoints
     {
         api.MapGet("/foods/search", Search);
         api.MapGet("/foods/recents", Recents);
+        api.MapGet("/foods/mine", Mine);
         api.MapPost("/foods/search/open-food-facts", SearchOpenFoodFacts);
         api.MapPost("/foods", Create);
         api.MapGet("/foods/{id:guid}", Get);
@@ -178,6 +181,20 @@ public static class FoodEndpoints
         }
 
         return Results.Ok(new { foods = rows });
+    }
+
+    private static async Task<IResult> Mine(
+        ClaimsPrincipal principal,
+        AppDbContext db,
+        CancellationToken cancellationToken)
+    {
+        if (Caller.MissingOid(principal) is { } denied)
+        {
+            return denied;
+        }
+
+        var foods = await FoodCatalog.MineAsync(db, Caller.Id(principal), cancellationToken);
+        return Results.Ok(new { foods = foods.Select(food => ToResponse(food)).ToList() });
     }
 
     private static async Task<IResult> Create(
@@ -372,6 +389,12 @@ public static class FoodEndpoints
             return "Give the food a name.";
         }
 
+        var brand = (request.Brand ?? "").Trim();
+        if (brand.Length > 80)
+        {
+            return "Brand should be 80 characters or fewer.";
+        }
+
         var nutrientBasis = (request.NutrientBasis ?? "").Trim().ToLowerInvariant();
         if (nutrientBasis.Length == 0)
         {
@@ -459,6 +482,7 @@ public static class FoodEndpoints
         normalized = new CustomFoodRequest
         {
             Name = name,
+            Brand = brand.Length == 0 ? null : brand,
             KcalPer100 = request.KcalPer100,
             ProteinPer100 = request.ProteinPer100,
             FatPer100 = request.FatPer100,
@@ -489,6 +513,7 @@ public static class FoodEndpoints
         return (null, new CustomFoodRequest
         {
             Name = request.Name,
+            Brand = request.Brand,
             KcalPer100 = Scale(request.KcalPer100, grams),
             ProteinPer100 = Scale(request.ProteinPer100, grams),
             FatPer100 = Scale(request.FatPer100, grams),
@@ -509,6 +534,7 @@ public static class FoodEndpoints
     private static void Apply(Food food, CustomFoodRequest request)
     {
         food.Name = request.Name ?? "";
+        food.Brand = string.IsNullOrWhiteSpace(request.Brand) ? null : request.Brand.Trim();
         food.KcalPer100 = request.KcalPer100;
         food.ProteinPer100 = request.ProteinPer100;
         food.FatPer100 = request.FatPer100;
@@ -605,6 +631,7 @@ public static class FoodEndpoints
         source = food.Source,
         sourceId = food.SourceId,
         barcode = food.Barcode,
+        brand = food.Brand,
         name = food.Name,
         nameEn = food.NameEn,
         basis = food.Basis,
@@ -627,6 +654,7 @@ public static class FoodEndpoints
         source = food.Source,
         sourceId = food.SourceId,
         barcode = food.Barcode,
+        brand = food.Brand,
         name = food.Name,
         nameEn = food.NameEn,
         basis = food.Basis,
@@ -652,6 +680,7 @@ public static class FoodEndpoints
         source = food.Source,
         sourceId = food.SourceId,
         barcode = food.Barcode,
+        brand = (string?)null,
         name = food.Name,
         basis = food.Basis,
         nutrientBasis = NutrientBases.Per100,
