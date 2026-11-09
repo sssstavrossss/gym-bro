@@ -8,7 +8,7 @@ public static class NutrientBases
     /// <summary>Values in the nutrient columns are for one serving, with no gram weight.</summary>
     public const string PerServing = "per_serving";
 
-    /// <summary>Kassalapp did not say whether the numbers are per 100 g or per 100 ml. Not loggable until that person confirms.</summary>
+    /// <summary>Kassalapp did not say whether the numbers are per 100 g or per 100 ml. A log uses the unit chosen for that entry.</summary>
     public const string Unconfirmed = "unconfirmed";
 }
 

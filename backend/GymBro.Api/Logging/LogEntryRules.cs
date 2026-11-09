@@ -56,8 +56,6 @@ public static class LogEntryRules
 
     public const string KeepLoggedUnit = "Keep the unit it was logged in, or change the amount in grams.";
 
-    public const string NeedBasis = "Check the label and confirm whether these numbers are per 100 g or per 100 ml.";
-
     public const string MeasuredInMillilitres = "This food is measured in millilitres.";
 
     public const string BadTime = "Use a time like 08:15.";
@@ -214,9 +212,9 @@ public static class LogEntryRules
     /// <summary>
     /// Nutrients and grams for a new log of <paramref name="food"/>.
     /// The caller stores these and does not keep the numbers the client sent.
-    /// A per-serving food has no gram weight. Anything else must produce grams.
+    /// A per-serving food, a millilitre food, and an unconfirmed food logged in millilitres have no gram weight.
     /// </summary>
-    public static FoodSnapshot Snapshot(Food food, decimal amount, string? unit, string? confirmedBasis = null)
+    public static FoodSnapshot Snapshot(Food food, decimal amount, string? unit)
     {
         var kind = NormalizeUnit(unit);
         if (kind is null)
@@ -230,12 +228,21 @@ public static class LogEntryRules
             return FoodSnapshot.Fail(limit);
         }
 
-        var basis = food.NutrientBasis == NutrientBases.Unconfirmed ? confirmedBasis : food.Basis;
-        if (food.NutrientBasis == NutrientBases.Unconfirmed && basis is not ("g" or "ml"))
+        // Kassalapp never stated grams or millilitres. The unit on this entry is the one to scale by.
+        if (food.NutrientBasis == NutrientBases.Unconfirmed && kind == "ml")
         {
-            return FoodSnapshot.Fail(NeedBasis);
+            var unconfirmedFactor = amount / 100m;
+            return new FoodSnapshot(
+                kind,
+                null,
+                Scale(food.KcalPer100, unconfirmedFactor),
+                Scale(food.ProteinPer100, unconfirmedFactor),
+                Scale(food.FatPer100, unconfirmedFactor),
+                Scale(food.CarbsPer100, unconfirmedFactor),
+                null);
         }
 
+        var basis = food.Basis;
         if (food.NutrientBasis == NutrientBases.PerServing)
         {
             if (kind != "serving")
