@@ -36,8 +36,13 @@ describe("day navigation", () => {
     expect(days.find((day) => day.date === "2026-11-02")?.disabled).toBe(true);
     expect(days.find((day) => day.date === "2026-11-03")?.logged).toBe(true);
     expect(days.filter((day) => day.date > "2026-11-04").every((day) => day.disabled && !day.logged)).toBe(true);
-    expect(days.find((day) => day.date === "2026-11-04")?.label).toContain("today");
-    expect(days.find((day) => day.date === "2026-11-04")?.disabled).toBe(false);
+    const wednesday = days.find((day) => day.date === "2026-11-04");
+    expect(wednesday?.disabled).toBe(false);
+    expect(wednesday?.label).toBe("W4, Wednesday 4, nothing logged, today, selected");
+    expect(days.find((day) => day.date === "2026-11-02")?.label).toBe("M2, Monday 2, before you set up");
+    expect(days.find((day) => day.date === "2026-11-03")?.label).toBe("T3, Tuesday 3, logged");
+    expect(days.find((day) => day.date === "2026-11-05")?.label).toBe("T5, Thursday 5, later");
+    expect(days.find((day) => day.date === "2026-11-06")?.label).toBe("F6, Friday 6, later");
   });
 });
 

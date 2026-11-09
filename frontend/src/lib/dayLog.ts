@@ -73,19 +73,23 @@ export function weekDays(
     const beforeSetup = Boolean(setupDate) && date < setupDate;
     const disabled = future || beforeSetup;
     const loggedDay = !disabled && logged.has(date);
+    const letter = weekday(date)[0];
+    const number = dayNum(date);
     let status = "nothing logged";
     if (future) status = "later";
     else if (beforeSetup) status = "before you set up";
     else if (loggedDay) status = "logged";
     if (date === today) status = future ? status : `${status}, today`;
     if (date === selected) status = `${status}, selected`;
+    // The letter and the number are separate elements, and axe joins their text
+    // with no space ("M" + "9" is "M9"). That string has to lead the name.
     return {
       date,
-      letter: weekday(date)[0],
-      number: dayNum(date),
+      letter,
+      number,
       disabled,
       logged: loggedDay,
-      label: `${weekday(date)} ${dayNum(date)}, ${status}`,
+      label: `${letter}${number}, ${weekday(date)} ${number}, ${status}`,
     };
   });
 }
