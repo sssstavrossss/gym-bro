@@ -7,6 +7,12 @@ export const ui = reactive({
   foodTab: "search" as "search" | "quick",
   /** Food open in the detail view. Null on the search list. */
   detailFoodId: null as string | null,
+  /** Custom food editor. A seed may carry a name and quick-add numbers, never invented nutrients. */
+  foodEditor: null as null | {
+    id?: string;
+    seed?: { name?: string; kcal?: number; protein?: number; fat?: number; carbs?: number };
+    ret: "list" | "detail";
+  },
   editEntryId: null as string | null,
   toast: null as null | { id: number; text: string; action?: { label: string; run: () => void } },
   weightDate: todayIso(),
@@ -52,12 +58,28 @@ export function closeAccuracy(): void {
   if (!back) ui.keepWeightDraft = false;
 }
 
+/** Step back inside the food sheet. True when a layer closed and the sheet stays open. */
+export function closeFoodLayer(): boolean {
+  if (ui.foodEditor) {
+    const ret = ui.foodEditor.ret;
+    ui.foodEditor = null;
+    if (ret !== "detail") ui.detailFoodId = null;
+    return true;
+  }
+  if (ui.sheet === "food" && ui.detailFoodId && !ui.editEntryId) {
+    ui.detailFoodId = null;
+    return true;
+  }
+  return false;
+}
+
 export function closeSheet(): void {
   ui.sheet = null;
   ui.accReturn = null;
   ui.keepWeightDraft = false;
   ui.editEntryId = null;
   ui.detailFoodId = null;
+  ui.foodEditor = null;
 }
 
 export function openAdd(): void {
@@ -69,6 +91,7 @@ export function openFood(tab: "search" | "quick" = "search", date?: string): voi
   const today = todayInZone(deviceTimeZone());
   ui.editEntryId = null;
   ui.detailFoodId = null;
+  ui.foodEditor = null;
   ui.foodTab = tab;
   ui.foodDate = date && date <= today ? date : today;
   ui.sheet = "food";

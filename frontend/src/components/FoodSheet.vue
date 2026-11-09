@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from "vue";
-import { ApiError, getFood, listRecentFoods, searchFoods, searchOpenFoodFacts, ServerUnreachable, type FoodSearchRow, type OffFoodRow, type RecentFood } from "../api";
+import { ApiError, createCustomFood, getFood, listMyFoods, listRecentFoods, searchFoods, searchOpenFoodFacts, ServerUnreachable, type FoodSearchRow, type OffFoodRow, type RecentFood } from "../api";
 import BottomSheet from "./BottomSheet.vue";
+import FoodEditor from "./FoodEditor.vue";
 import Bar from "./Bar.vue";
 import Icon from "./Icon.vue";
 import Keypad from "./Keypad.vue";
@@ -31,12 +32,17 @@ import {
   canAskOpenFoodFacts,
   finishOffRequest,
   idleOff,
+  isMyFood,
   logTimeForAdd,
   missingKcalAction,
+  missingKcalEditorSeed,
   missingKcalLead,
+  myFoodsEmptyDetail,
+  myFoodsEmptyTitle,
   offFailureCopy,
   packagedBesideLocal,
   quickAddName,
+  withBrand,
   recentAddBody,
   recentEmptyDetail,
   recentEmptyTitle,
@@ -46,12 +52,13 @@ import {
   sameAddTap,
   typeForLocalSearch,
 } from "../lib/foodSheet";
+import { quickAddFoodWrite } from "../lib/customFood";
 import { kcalFromMacros, macroStatus } from "../lib/macros";
 import { nextQuickInput, nextQuickNumber } from "../lib/quickEntry";
 import { keyboardEntry } from "../lib/viewport";
 import { deviceTimeZone, profile } from "../state/profile";
 import { findEntry, log, removeEntry, saveQuickAdd, totalsOf, updateFoodAmount, updateQuickAdd, viewed, type LogEntry } from "../state/log";
-import { closeSheet, toast, ui } from "../ui";
+import { closeFoodLayer, closeSheet, toast, ui } from "../ui";
 
 const open = computed(() => ui.sheet === "food");
 const editing = computed(() => findEntry(ui.editEntryId));
@@ -59,8 +66,12 @@ const foodToday = computed(() => viewed.today || todayInZone(deviceTimeZone()));
 const pastDay = computed(() => ui.foodDate !== foodToday.value);
 const needTime = computed(() => addNeedsTime(ui.foodDate, foodToday.value, time.value, Boolean(editing.value)));
 const editingFood = computed(() => (editing.value && editing.value.source !== "quick" ? editing.value : null));
+const showEditor = computed(() => ui.foodEditor != null);
 const showDetail = computed(() => Boolean(ui.detailFoodId || editingFood.value));
-const sheetLabel = computed(() => (editing.value ? "Edit food" : "Add food"));
+const sheetLabel = computed(() => {
+  if (ui.foodEditor) return ui.foodEditor.id ? "Edit my food" : "New food";
+  return editing.value ? "Edit food" : "Add food";
+});
 
 type Field = "kcal" | "p" | "f" | "c";
 const qa = ref<Record<Field, string>>({ kcal: "", p: "", f: "", c: "" });
@@ -80,6 +91,11 @@ const fields: { key: Field; label: string; unit: string }[] = [
 ];
 
 const q = ref("");
+const filter = ref<"all" | "mine">("all");
+const mine = ref<FoodSearchRow[]>([]);
+const qSave = ref(false);
+const savedFoodId = ref<string | null>(null);
+const savedFoodSig = ref("");
 const results = ref<FoodSearchRow[]>([]);
 const recents = ref<RecentFood[]>([]);
 const off = ref(idleOff<FoodSearchRow>());
@@ -182,11 +198,15 @@ function limitMessage(): string | null {
   if (num("c") < 0 || num("c") > 1000) return "Carbs should be from 0 to 1,000 g.";
   return null;
 }
+const qSaveNeedsName = computed(() => qSave.value && !qName.value.trim());
 function fill(entry: LogEntry | null) {
   saveError.value = false;
   formError.value = "";
   saving.value = false;
   foodChanged.value = false;
+  qSave.value = false;
+  savedFoodId.value = null;
+  savedFoodSig.value = "";
   replace.value = { kcal: true, p: true, f: true, c: true };
   if (entry && entry.source === "quick") {
     qName.value = entry.name === "Quick add" ? "" : entry.name;
@@ -258,8 +278,9 @@ function rowSub(food: FoodSearchRow): string {
   const english = food.nameEn && food.nameEn.localeCompare(food.name, undefined, { sensitivity: "accent" }) !== 0
     ? `${food.nameEn} · `
     : "";
-  return english + per100Line(food);
+  return withBrand(food.brand, english + per100Line(food));
 }
+const detailIsMine = computed(() => (shownFood.value ? isMyFood(shownFood.value) : false));
 
 function showFood(food: FoodSearchRow, preset?: { amount: number; unit: string }) {
   const start = preset ? amountForRecent(food, preset.amount, preset.unit) : defaultAmount(food);
@@ -287,6 +308,13 @@ async function openFoodRow(food: FoodSearchRow, preset?: { amount: number; unit:
   showFood(current, preset);
 }
 function back() {
+  const editor = ui.foodEditor;
+  if (editor) {
+    closeFoodLayer();
+    if (editor.ret !== "detail") detailFood.value = null;
+    formError.value = "";
+    return;
+  }
   if (editing.value) {
     closeSheet();
     return;
@@ -294,6 +322,28 @@ function back() {
   ui.detailFoodId = null;
   detailFood.value = null;
   formError.value = "";
+}
+function openNewFood(seedName?: string) {
+  ui.foodEditor = { seed: seedName ? { name: seedName } : undefined, ret: "list" };
+}
+function openMissingEditor() {
+  const seed = missingKcalEditorSeed(q.value);
+  ui.foodEditor = { seed: seed ?? undefined, ret: "list" };
+}
+function editMine(food: FoodSearchRow, from: "list" | "detail") {
+  ui.foodEditor = { id: food.id, ret: from };
+}
+function openSeedEditor() {
+  ui.foodEditor = {
+    seed: {
+      name: qName.value.trim(),
+      kcal: qKcal.value,
+      protein: num("p"),
+      fat: num("f"),
+      carbs: num("c"),
+    },
+    ret: "list",
+  };
 }
 function setUnit(next: UnitChoice) {
   if (next.unit === unit.value) return;
@@ -350,7 +400,14 @@ function amountInput(event: Event) {
   fresh.value = false;
 }
 const trimmedQuery = computed(() => q.value.trim());
-const listed = computed(() => (trimmedQuery.value ? results.value : recents.value));
+const mineListed = computed(() => {
+  const needle = trimmedQuery.value.toLowerCase();
+  return mine.value.filter((food) => !needle || `${food.name} ${food.brand ?? ""}`.toLowerCase().includes(needle));
+});
+const listed = computed(() => {
+  if (filter.value === "mine") return mineListed.value;
+  return trimmedQuery.value ? results.value : recents.value;
+});
 const offCopy = computed(() => (
   off.value.status === "rate_limited" || off.value.status === "unavailable" ? offFailureCopy(off.value.status) : null
 ));
@@ -383,8 +440,9 @@ function searchKey(event: KeyboardEvent) {
     event.preventDefault();
     const food = rows[Math.min(hi.value, count - 1)];
     if (!food) return;
-    if (event.shiftKey && isRecent(food)) {
-      void addRecent(food);
+    if (event.shiftKey && (isRecent(food) || filter.value === "mine")) {
+      if (isRecent(food)) void addRecent(food);
+      else addListed(food);
       return;
     }
     if (!event.shiftKey) {
@@ -394,6 +452,43 @@ function searchKey(event: KeyboardEvent) {
 }
 function knownOff(rows: OffFoodRow[]): FoodSearchRow[] {
   return rows.filter((row): row is FoodSearchRow => Boolean(row.id));
+}
+async function loadMine() {
+  try {
+    const body = await listMyFoods();
+    mine.value = body.foods;
+  } catch {
+    mine.value = [];
+  }
+}
+function listedPreset(food: FoodSearchRow) {
+  const recent = recents.value.find((row) => row.id === food.id);
+  return recent ? amountForRecent(food, recent.amount, recent.unit) : defaultAmount(food);
+}
+function addListed(food: FoodSearchRow) {
+  const picked = listedPreset(food);
+  void addRecent({ ...food, amount: Number(picked.amount), unit: picked.unit });
+}
+async function onFoodSaved(food: FoodSearchRow, created: boolean) {
+  const ret = ui.foodEditor?.ret;
+  ui.foodEditor = null;
+  await loadMine();
+  if (created) {
+    toast(`Saved ${food.name} to My foods`);
+    showFood(food);
+    return;
+  }
+  toast(`Updated ${food.name} · past entries unchanged`);
+  if (ret === "detail") showFood(food);
+  else if (trimmedQuery.value && filter.value === "all") void runSearch(trimmedQuery.value);
+}
+async function onFoodDeleted(food: FoodSearchRow) {
+  ui.foodEditor = null;
+  ui.detailFoodId = null;
+  detailFood.value = null;
+  await loadMine();
+  if (trimmedQuery.value && filter.value === "all") void runSearch(trimmedQuery.value);
+  toast(`Deleted ${food.name} · past entries kept`);
 }
 async function loadRecents() {
   const gen = ++recentGen;
@@ -542,7 +637,7 @@ async function prepareEdit(entry: LogEntry) {
   }
 }
 function focusFor() {
-  if (!keyboardEntry.value || ui.sheet !== "food") return;
+  if (!keyboardEntry.value || ui.sheet !== "food" || ui.foodEditor) return;
   void nextTick(() => {
     if (showDetail.value) {
       amountEl.value?.focus();
@@ -551,8 +646,27 @@ function focusFor() {
   });
 }
 watch(q, (value) => {
+  if (filter.value === "mine") {
+    window.clearTimeout(searchTimer);
+    searchGen += 1;
+    searching.value = false;
+    searchError.value = "";
+    hi.value = 0;
+    return;
+  }
   scheduleSearch(value);
   off.value = typeForLocalSearch(off.value, value);
+});
+watch(filter, (value) => {
+  hi.value = 0;
+  if (value === "mine") {
+    window.clearTimeout(searchTimer);
+    searchGen += 1;
+    searching.value = false;
+    return;
+  }
+  scheduleSearch(q.value);
+  off.value = typeForLocalSearch(off.value, q.value);
 });
 watch(results, (rows) => {
   if (!off.value.results.length) return;
@@ -567,6 +681,7 @@ watch(open, (isOpen) => {
   searching.value = false;
   session.value = [];
   off.value = idleOff();
+  filter.value = "all";
   detailFood.value = null;
   if (!editingFood.value) ui.detailFoodId = null;
   fill(editing.value);
@@ -575,6 +690,7 @@ watch(open, (isOpen) => {
     void prepareEdit(editingFood.value);
   } else {
     void loadRecents();
+    void loadMine();
   }
 });
 
@@ -621,20 +737,47 @@ async function addQuick() {
       closeSheet();
       return;
     }
+    if (qSave.value) {
+      const built = quickAddFoodWrite(values);
+      if (!built.ok) {
+        formError.value = built.message;
+        return;
+      }
+      const signature = `${values.name}|${values.kcal}|${values.protein}|${values.fat}|${values.carbs}`;
+      if (savedFoodSig.value !== signature) {
+        savedFoodId.value = null;
+        savedFoodSig.value = signature;
+      }
+      if (!savedFoodId.value) {
+        try {
+          const food = await createCustomFood(built.payload);
+          savedFoodId.value = food.id;
+        } catch (error) {
+          if (error instanceof ServerUnreachable) saveError.value = true;
+          else formError.value = error instanceof ApiError ? error.message : "Couldn't save that food.";
+          return;
+        }
+      }
+    }
     if (!idempotencyKey.value) idempotencyKey.value = crypto.randomUUID();
     const result = await saveQuickAdd({
       idempotencyKey: idempotencyKey.value,
       localDate: ui.foodDate,
       timeZone: deviceTimeZone(),
       ...values,
+      ...(qSave.value && savedFoodId.value ? { foodId: savedFoodId.value, amount: 1, unit: "serving" } : {}),
     });
     if (!result.ok) {
       saveError.value = result.unreachable === true;
       formError.value = result.unreachable ? "" : (result.message ?? "");
       return;
     }
-    toast(`Added ${result.entry.name} · ${int(result.entry.kcal)} kcal`);
+    const savedMine = qSave.value;
+    toast(savedMine
+      ? `Added ${result.entry.name} · ${int(result.entry.kcal)} kcal · saved to My foods`
+      : `Added ${result.entry.name} · ${int(result.entry.kcal)} kcal`);
     session.value.push({ name: result.entry.name, kcal: result.entry.kcal });
+    if (savedMine) void loadMine();
     const held = pastDay.value ? time.value : null;
     fill(null);
     if (held) time.value = held;
@@ -734,27 +877,36 @@ async function deleteEdited() {
     <template #header>
       <div class="toast-pad">
       <div class="row hdr">
-        <button v-if="showDetail" type="button" class="cbtn" style="--s: 44px" aria-label="Back" @click="back">
+        <button v-if="showDetail || showEditor" type="button" class="cbtn" style="--s: 44px" aria-label="Back" @click="back">
           <Icon name="left" :size="18" />
         </button>
         <h2 v-else class="t-head">{{ editing ? "Edit food" : "Add food" }}</h2>
         <span class="grow" />
-        <TimeChip v-model="time" :date="ui.foodDate" :today="foodToday" :allow-now="!pastDay && !editing" />
+        <TimeChip v-if="!showEditor" v-model="time" :date="ui.foodDate" :today="foodToday" :allow-now="!pastDay && !editing" />
         <button type="button" class="cbtn" style="--s: 44px" aria-label="Close" @click="closeSheet">
           <Icon name="x" :size="18" />
         </button>
       </div>
-      <p v-if="needTime" class="needt t-label" role="status">
+      <p v-if="needTime && !showEditor" class="needt t-label" role="status">
         <Icon name="clock" :size="14" :sw="2.2" /> Logging to {{ dayMonth(ui.foodDate) }} — pick the time you ate it.
       </p>
-      <Segmented v-if="!showDetail && !editing" v-model="ui.foodTab" label="Add food" :options="[{ value: 'search', label: 'Search' }, { value: 'quick', label: 'Quick Add' }]" />
+      <Segmented v-if="!showDetail && !editing && !showEditor" v-model="ui.foodTab" label="Add food" :options="[{ value: 'search', label: 'Search' }, { value: 'quick', label: 'Quick Add' }]" />
       </div>
     </template>
 
-    <div v-if="showDetail" class="body">
+    <div v-if="showEditor && ui.foodEditor" class="list">
+      <FoodEditor :key="ui.foodEditor.id ?? 'new'" :edit-id="ui.foodEditor.id" :seed="ui.foodEditor.seed" :namesakes="mine" @saved="onFoodSaved" @deleted="onFoodDeleted" @cancel="back" />
+    </div>
+
+    <div v-else-if="showDetail" class="body">
       <div class="col center gap2">
         <h3 class="t-head dname">{{ detailTitle }}</h3>
-        <span class="t-label c2">{{ per100 }}</span>
+        <span class="row gap6 t-label c2 wrapc">
+          <span v-if="detailIsMine" class="mine t-capn"><Icon name="lock" :size="10" :sw="2.4" /> my food</span>
+          <span v-if="detailFood?.brand">{{ detailFood.brand }} ·</span>
+          <span>{{ per100 }}</span>
+          <button v-if="detailIsMine && !editing" type="button" class="linkbtn t-label" @click="detailFood && editMine(detailFood, 'detail')">Edit</button>
+        </span>
         <span v-if="editingFood && foodChanged" class="t-capn c2">Using the values it was logged with — this food has changed since.</span>
       </div>
       <div class="col center gap8">
@@ -817,11 +969,34 @@ async function deleteEdited() {
     <template v-else-if="!editing && ui.foodTab === 'search'">
       <label class="field row">
         <Icon name="search" :size="18" class="c2" />
-        <input ref="searchEl" v-model="q" class="t-body grow" type="search" placeholder="Search foods" aria-label="Search foods" autocomplete="off" enterkeyhint="search" @keydown="searchKey" />
+        <input ref="searchEl" v-model="q" class="t-body grow" type="search" :placeholder="filter === 'mine' ? 'Search my foods' : 'Search foods'" aria-label="Search foods" autocomplete="off" enterkeyhint="search" @keydown="searchKey" />
         <button v-if="q" type="button" class="clr c2" aria-label="Clear search" @click="q = ''"><Icon name="x" :size="16" /></button>
       </label>
+      <div class="row fchips" role="group" aria-label="Show">
+        <button type="button" class="chip t-label" :class="{ on: filter === 'all' }" :aria-pressed="filter === 'all'" @click="filter = 'all'">All foods</button>
+        <button type="button" class="chip t-label" :class="{ on: filter === 'mine' }" :aria-pressed="filter === 'mine'" @click="filter = 'mine'">My foods · {{ mine.length }}</button>
+        <button type="button" class="chip t-label" @click="openNewFood(filter === 'all' ? trimmedQuery || undefined : undefined)"><Icon name="plus" :size="14" :sw="2.4" /> New food</button>
+      </div>
       <div class="list">
-        <template v-if="!trimmedQuery">
+        <template v-if="filter === 'mine'">
+          <div v-if="!mine.length" class="col emptyc">
+            <span class="t-bodys">{{ myFoodsEmptyTitle }}</span>
+            <span class="t-label c2">{{ myFoodsEmptyDetail }}</span>
+            <button type="button" class="chip on t-label" @click="openNewFood()"><Icon name="plus" :size="14" :sw="2.4" /> Create a food</button>
+          </div>
+          <div v-for="(food, index) in mineListed" :key="food.id" class="rrow row" :class="{ hl: keyboardEntry && index === hi }" @mouseenter="hi = index">
+            <button type="button" class="col grow rtext" @click="openFoodRow(food)">
+              <span class="t-body ell">{{ food.name }}</span>
+              <span class="t-label c2 ell">{{ rowSub(food) }}</span>
+            </button>
+            <button type="button" class="cbtn" style="--s: 44px" :aria-label="`Edit ${food.name}`" @click="editMine(food, 'list')"><Icon name="edit" :size="17" /></button>
+            <button type="button" class="cbtn filled" style="--s: 44px" :aria-label="needTime ? `Pick a time to add ${food.name}` : `Add ${amountLabel(Number(listedPreset(food).amount), listedPreset(food).unit)} ${food.name}`" :disabled="saving || needTime" @click="addListed(food)">
+              <Icon :name="justAdded === food.id ? 'check' : 'plus'" :size="18" :sw="2.4" />
+            </button>
+          </div>
+          <p v-if="mine.length && !mineListed.length" class="t-label c2 empty">No match in my foods.</p>
+        </template>
+        <template v-else-if="!trimmedQuery">
           <div class="row lhead">
             <span class="t-cap c2">Recent</span>
             <span class="grow" />
@@ -829,8 +1004,8 @@ async function deleteEdited() {
           </div>
           <div v-for="(food, index) in recents" :key="food.id" class="rrow row" :class="{ hl: keyboardEntry && index === hi }" @mouseenter="hi = index">
             <button type="button" class="col grow rtext" @click="openFoodRow(food, { amount: food.amount, unit: food.unit })">
-              <span class="t-body ell">{{ food.name }}</span>
-              <span class="t-label c2 ell">{{ recentSubtitle(food, food.amount, food.unit) }}</span>
+              <span class="row gap6 nm"><span class="t-body ell">{{ food.name }}</span><span v-if="isMyFood(food)" class="mine t-capn">my food</span></span>
+              <span class="t-label c2 ell">{{ withBrand(food.brand, recentSubtitle(food, food.amount, food.unit)) }}</span>
             </button>
             <button type="button" class="cbtn filled" style="--s: 44px" :aria-label="needTime ? `Pick a time to add ${food.name}` : `Add ${amountLabel(food.amount, food.unit)} ${food.name}`" :disabled="saving || needTime" @click="addRecent(food)">
               <Icon :name="justAdded === food.id ? 'check' : 'plus'" :size="18" :sw="2.4" />
@@ -850,7 +1025,7 @@ async function deleteEdited() {
           <div v-if="results.length" class="row lhead"><span class="t-cap c2">Results</span></div>
           <button v-for="(food, index) in results" :key="food.id" type="button" class="rrow row" :class="{ hl: keyboardEntry && index === hi }" @click="openFoodRow(food)" @mouseenter="hi = index">
             <span class="col grow rtext">
-              <span class="t-body ell">{{ food.name }}</span>
+              <span class="row gap6 nm"><span class="t-body ell">{{ food.name }}</span><span v-if="isMyFood(food)" class="mine t-capn">my food</span></span>
               <span class="t-label c2 ell">{{ rowSub(food) }}</span>
             </span>
           </button>
@@ -872,11 +1047,14 @@ async function deleteEdited() {
           </div>
           <p v-if="off.status === 'ok' && off.missingKcal > 0" class="t-label c2 miss">
             {{ missingKcalLead }}
-            <button type="button" class="linkbtn" @click="useQuickAdd">{{ missingKcalAction }}</button>
+            <button type="button" class="linkbtn" @click="openMissingEditor">{{ missingKcalAction }}</button>
           </p>
           <div v-if="showNoMatch" class="col emptyc">
             <span class="t-label c2">No match for “{{ trimmedQuery }}”.</span>
-            <button type="button" class="chip t-label" @click="useQuickAdd">Quick Add</button>
+            <div class="row gap8 wrapc">
+              <button type="button" class="chip t-label" @click="openNewFood(trimmedQuery)"><Icon name="plus" :size="14" :sw="2.4" /> Create “{{ trimmedQuery }}”</button>
+              <button type="button" class="chip t-label" @click="useQuickAdd">Quick Add</button>
+            </div>
           </div>
           <button v-if="showOffButton" type="button" class="chip t-label offask" @click="askOff">Search Open Food Facts</button>
         </template>
@@ -894,7 +1072,7 @@ async function deleteEdited() {
     <div v-else class="body">
       <label class="field row">
         <input v-model="qName" class="t-body grow" type="text" placeholder="Protein bar" aria-label="Name (optional)" autocomplete="off" enterkeyhint="done" @keydown.enter.prevent="keyboardEntry && addQuick()" />
-        <span class="t-capn c2">name · optional</span>
+        <span class="t-capn" :class="qSaveNeedsName ? '' : 'c2'">{{ qSave ? "name · needed" : "name · optional" }}</span>
       </label>
       <div class="qgrid">
         <template v-if="keyboardEntry">
@@ -921,6 +1099,11 @@ async function deleteEdited() {
         </template>
       </div>
       <p class="t-capn c2 note">Leave kcal empty and it is worked out from P · F · C (4 · 9 · 4 kcal/g).</p>
+      <label v-if="!editing" class="qsave row">
+        <input v-model="qSave" type="checkbox" />
+        <span class="col"><span class="t-label">Also save as my food</span><span class="t-capn" :class="qSaveNeedsName ? '' : 'c2'">{{ qSaveNeedsName ? "! Add a name above to save it" : "One tap next time · saved per serving · private" }}</span></span>
+      </label>
+      <button v-else type="button" class="linkbtn t-label save-link" @click="openSeedEditor">Save as my food…</button>
       <div class="grow" />
       <p v-if="formError" class="err t-label" role="alert">{{ formError }}</p>
       <div v-if="saveError" class="err row" role="alert">
@@ -937,7 +1120,7 @@ async function deleteEdited() {
         <button v-if="editing" type="button" class="del-btn t-bodys" aria-label="Delete" :disabled="saving" @click="deleteEdited">
           <Icon name="trash" :size="16" /><span>Delete</span>
         </button>
-        <button type="button" class="primary-btn t-bodys grow" :disabled="saving || (!editing && needTime) || !qKcal" @click="addQuick">
+        <button type="button" class="primary-btn t-bodys grow" :disabled="saving || (!editing && needTime) || !qKcal || qSaveNeedsName" @click="addQuick">
           {{ saveError ? "Try again" : addVerb }}<template v-if="!needTime"> · {{ int(qKcal) }} kcal</template>
         </button>
       </div>
@@ -999,4 +1182,13 @@ async function deleteEdited() {
 .dt-l .uchip { min-height: 44px; }
 .dt-xl .preview { display: grid; grid-template-columns: 1fr 1fr; row-gap: 12px; }
 .dt-xl .qgrid { grid-template-columns: 1fr; }
+.fchips { gap: 8px; flex-wrap: wrap; flex: none; }
+.mine { display: inline-flex; align-items: center; gap: 3px; padding: 1px 6px; border-radius: 6px; border: 1px solid var(--color-border); color: var(--text-secondary); white-space: nowrap; flex: none; }
+.nm { min-width: 0; max-width: 100%; }
+.gap6 { gap: 6px; }
+.wrapc { flex-wrap: wrap; justify-content: center; }
+.qsave { gap: 12px; align-items: flex-start; padding: 10px 12px; border-radius: 12px; background: var(--color-surface-2); cursor: pointer; flex: none; }
+.qsave input { width: 22px; height: 22px; margin-top: 2px; accent-color: var(--color-action); flex: none; }
+.save-link { align-self: flex-start; padding: 8px 0; }
+.empty { margin: 0; padding: 8px 0; }
 </style>

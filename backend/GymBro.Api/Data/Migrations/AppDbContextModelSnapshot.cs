@@ -128,6 +128,11 @@ namespace GymBro.Api.Data.Migrations
                         .HasColumnType("character varying(8)")
                         .HasColumnName("basis");
 
+                    b.Property<string>("Brand")
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("brand");
+
                     b.Property<decimal>("CarbsPer100")
                         .HasPrecision(8, 2)
                         .HasColumnType("numeric(8,2)")
@@ -186,6 +191,11 @@ namespace GymBro.Api.Data.Migrations
                     b.Property<DateTimeOffset?>("RetiredAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("retired_at");
+
+                    b.Property<string>("SearchBrand")
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("search_brand");
 
                     b.Property<string>("SearchName")
                         .HasMaxLength(300)

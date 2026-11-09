@@ -21,6 +21,7 @@ public sealed class IsolationTests(ApiFactory factory)
     [InlineData("GET", "/api/weight/chart")]
     [InlineData("POST", "/api/weight/fresh-start")]
     [InlineData("GET", "/api/foods/search?q=oat")]
+    [InlineData("GET", "/api/foods/mine")]
     [InlineData("POST", "/api/foods/search/open-food-facts")]
     [InlineData("POST", "/api/foods")]
     [InlineData("GET", "/api/foods/11111111-1111-1111-1111-111111111111")]

@@ -428,6 +428,46 @@ export async function getFood(id: string): Promise<FoodSearchRow> {
   return jsonOrThrow(await request(`/api/foods/${id}`));
 }
 
+export interface CustomFoodBody {
+  name: string;
+  brand: string | null;
+  barcode: string | null;
+  basis: "g" | "serving";
+  nutrientBasis: "per_100" | "per_serving";
+  kcalPer100: number;
+  proteinPer100: number;
+  fatPer100: number;
+  carbsPer100: number;
+  servingQuantity: number | null;
+  servingLabel: string | null;
+}
+
+export async function listMyFoods(): Promise<{ foods: FoodSearchRow[] }> {
+  return jsonOrThrow(await request("/api/foods/mine"));
+}
+
+export async function createCustomFood(body: CustomFoodBody): Promise<FoodSearchRow> {
+  return jsonOrThrow(await request("/api/foods", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  }));
+}
+
+export async function updateCustomFood(id: string, body: CustomFoodBody): Promise<FoodSearchRow> {
+  return jsonOrThrow(await request(`/api/foods/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  }));
+}
+
+export async function deleteCustomFood(id: string): Promise<void> {
+  const response = await request(`/api/foods/${id}`, { method: "DELETE" });
+  if (response.status === 204) return;
+  await jsonOrThrow(response);
+}
+
 export async function confirmFoodBasis(id: string, basis: "g" | "ml"): Promise<FoodSearchRow> {
   return jsonOrThrow(await request(`/api/foods/${id}/basis`, {
     method: "POST",

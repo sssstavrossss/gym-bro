@@ -40,6 +40,9 @@ public sealed class Food
 
     public string? Barcode { get; set; }
 
+    /// <summary>Optional label on a custom food so two foods with the same name can be told apart. Null on catalogue rows.</summary>
+    public string? Brand { get; set; }
+
     public string Name { get; set; } = "";
 
     /// <summary>English name from Matvaretabellen. Null when the source has no English name. Search matches this as well as <see cref="Name"/>.</summary>
@@ -50,6 +53,9 @@ public sealed class Food
 
     /// <summary>Folded <see cref="NameEn"/> used only for search.</summary>
     public string? SearchNameEn { get; set; }
+
+    /// <summary>Folded <see cref="Brand"/> used only for search. Empty when the food has no brand.</summary>
+    public string? SearchBrand { get; set; }
 
     /// <summary><c>g</c>, <c>ml</c>, or <c>serving</c>. Null when <see cref="NutrientBasis"/> is <see cref="NutrientBases.Unconfirmed"/>.</summary>
     public string? Basis { get; set; } = "g";

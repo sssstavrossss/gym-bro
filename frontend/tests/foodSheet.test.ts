@@ -6,8 +6,13 @@ import {
   canAskOpenFoodFacts,
   finishOffRequest,
   idleOff,
+  isMyFood,
+  missingKcalEditorSeed,
   missingKcalNotice,
+  myFoodsEmptyDetail,
+  myFoodsEmptyTitle,
   offFailureCopy,
+  withBrand,
   packagedBesideLocal,
   quickAddName,
   recentAddBody,
@@ -148,5 +153,19 @@ describe("Open Food Facts on demand", () => {
     expect(missingKcalNotice).toBe("Not shown: missing calories → create my food");
     expect(quickAddName("", "bar")).toBe("bar");
     expect(quickAddName("Already named", "bar")).toBe("Already named");
+    expect(missingKcalEditorSeed("  skyr bar  ")).toEqual({ name: "skyr bar" });
+    expect(Object.keys(missingKcalEditorSeed("skyr bar") ?? {})).toEqual(["name"]);
+    expect(missingKcalEditorSeed("   ")).toBeNull();
+  });
+});
+
+describe("my foods", () => {
+  it("marks an owned food and keeps the brand beside the detail", () => {
+    expect(isMyFood({ source: "custom", owned: true })).toBe(true);
+    expect(isMyFood({ source: "mvt" })).toBe(false);
+    expect(withBrand("Northbar", "per serving · 180 kcal · P20 F4 C8")).toBe("Northbar · per serving · 180 kcal · P20 F4 C8");
+    expect(withBrand(null, "per 100 g · 100 kcal · P1 F1 C1")).toBe("per 100 g · 100 kcal · P1 F1 C1");
+    expect(myFoodsEmptyTitle).toBe("No foods of your own yet");
+    expect(myFoodsEmptyDetail).toContain("Only you see them");
   });
 });

@@ -115,10 +115,12 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         food.Property(f => f.Source).HasColumnName("source").HasMaxLength(16);
         food.Property(f => f.SourceId).HasColumnName("source_id").HasMaxLength(64);
         food.Property(f => f.Barcode).HasColumnName("barcode").HasMaxLength(32);
+        food.Property(f => f.Brand).HasColumnName("brand").HasMaxLength(80);
         food.Property(f => f.Name).HasColumnName("name").HasMaxLength(300);
         food.Property(f => f.NameEn).HasColumnName("name_en").HasMaxLength(300);
         food.Property(f => f.SearchName).HasColumnName("search_name").HasMaxLength(300);
         food.Property(f => f.SearchNameEn).HasColumnName("search_name_en").HasMaxLength(300);
+        food.Property(f => f.SearchBrand).HasColumnName("search_brand").HasMaxLength(80);
         food.Property(f => f.Basis).HasColumnName("basis").HasMaxLength(8).IsRequired(false);
         food.Property(f => f.NutrientBasis).HasColumnName("nutrient_basis").HasMaxLength(16);
         food.Property(f => f.KcalPer100).HasColumnName("kcal_per_100").HasPrecision(8, 2);
