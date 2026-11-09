@@ -14,6 +14,22 @@ export function iso(d: Date): string {
 export function todayIso(): string {
   return iso(new Date());
 }
+
+/** The civil date in an IANA zone. Falls back to the browser's local date. */
+export function todayInZone(timeZone: string): string {
+  try {
+    const format = new Intl.DateTimeFormat("en-CA", {
+      timeZone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    });
+    const date = format.format(new Date());
+    return /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : todayIso();
+  } catch {
+    return todayIso();
+  }
+}
 export function addDays(isoDate: string, n: number): string {
   const d = parse(isoDate);
   d.setDate(d.getDate() + n);

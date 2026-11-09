@@ -1,13 +1,21 @@
 <script setup lang="ts">
+import { useRoute } from "vue-router";
 import Icon from "./Icon.vue";
+import { viewed } from "../state/log";
 import { closeSheet, openFood, openWeight, ui } from "../ui";
+
+const route = useRoute();
+function addFood() {
+  const onDay = route.path.startsWith("/log") || route.path.startsWith("/today");
+  openFood("search", onDay && viewed.date ? viewed.date : undefined);
+}
 </script>
 
 <template>
   <Transition name="fade" :duration="250">
     <div v-if="ui.sheet === 'chooser'" class="chooser-root" role="dialog" aria-modal="true" aria-label="Add" @click.self="closeSheet">
       <div class="chooser">
-        <button type="button" class="tile" @click="openFood()">
+        <button type="button" class="tile" @click="addFood()">
           <span class="ic"><Icon name="food" :size="20" :sw="2.2" /></span>
           <span class="grow" />
           <span class="t-head">Food</span>

@@ -1,5 +1,6 @@
 import { reactive } from "vue";
-import { todayIso } from "./lib/dates";
+import { todayInZone, todayIso } from "./lib/dates";
+import { deviceTimeZone } from "./state/profile";
 
 export const ui = reactive({
   sheet: null as null | "weight" | "accuracy" | "chooser" | "food",
@@ -9,6 +10,8 @@ export const ui = reactive({
   editEntryId: null as string | null,
   toast: null as null | { id: number; text: string; action?: { label: string; run: () => void } },
   weightDate: todayIso(),
+  /** Local date the open food sheet will log to. Today unless a past day asked. */
+  foodDate: todayIso(),
   accReturn: null as null | "weight",
   keepWeightDraft: false,
 });
@@ -62,15 +65,19 @@ export function openAdd(): void {
   ui.sheet = "chooser";
 }
 
-export function openFood(tab: "search" | "quick" = "search"): void {
+export function openFood(tab: "search" | "quick" = "search", date?: string): void {
+  const today = todayInZone(deviceTimeZone());
   ui.editEntryId = null;
   ui.detailFoodId = null;
   ui.foodTab = tab;
+  ui.foodDate = date && date <= today ? date : today;
   ui.sheet = "food";
 }
 
-export function openEdit(id: string): void {
+export function openEdit(id: string, date?: string): void {
+  const today = todayInZone(deviceTimeZone());
   ui.editEntryId = id;
+  ui.foodDate = date && date <= today ? date : ui.foodDate || today;
   ui.foodTab = "quick";
   ui.sheet = "food";
 }

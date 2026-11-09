@@ -55,6 +55,17 @@ export function logTimeForAdd(date: string, today: string, picked: string | null
   return { ok: false, needTime: true };
 }
 
+/** Past days keep Add disabled until a time is picked. Today can still mean now. Editing already has a time. */
+export function addNeedsTime(date: string, today: string, picked: string | null, editing: boolean): boolean {
+  if (editing || date === today) return false;
+  return !picked;
+}
+
+/** A second tap inside the window is the same add. The idempotency key stays until that add finishes. */
+export function sameAddTap(lastAt: number, now: number, windowMs = 600): boolean {
+  return lastAt > 0 && now - lastAt < windowMs;
+}
+
 export function recentAddBody(input: RecentAddInput): RecentAddResult {
   const time = logTimeForAdd(input.date, input.today, input.pickedTime);
   if (!time.ok) return time;

@@ -55,7 +55,7 @@ public static class LogEntryEndpoints
             return Results.Ok(ToResponse(existing));
         }
 
-        var window = await WindowAsync(principal, draft.TimeZone, db, clock, cancellationToken);
+        var window = await LogWindow.OpenAsync(userId, draft.TimeZone, db, clock, cancellationToken);
         if (window.Error is not null)
         {
             return ApiResults.Error(window.Error);
@@ -205,7 +205,7 @@ public static class LogEntryEndpoints
         }
 
         var zoneId = patch.TimeZone ?? entry.TimeZone;
-        var window = await WindowAsync(principal, zoneId, db, clock, cancellationToken);
+        var window = await LogWindow.OpenAsync(userId, zoneId, db, clock, cancellationToken);
         if (window.Error is not null)
         {
             return ApiResults.Error(window.Error);
@@ -349,32 +349,6 @@ public static class LogEntryEndpoints
         entry.DeletedAt = null;
         await db.SaveChangesAsync(cancellationToken);
         return Results.Ok(ToResponse(entry));
-    }
-
-    private static async Task<(string? Error, DateOnly SetupDate, DateOnly ClientToday, DateOnly ServerToday, TimeZoneInfo Zone)> WindowAsync(
-        ClaimsPrincipal principal,
-        string timeZoneId,
-        AppDbContext db,
-        TimeProvider clock,
-        CancellationToken cancellationToken)
-    {
-        var zoneError = LogEntryRules.RejectZone(timeZoneId, clock, out var zone, out var clientToday, out var serverToday);
-        if (zoneError is not null)
-        {
-            return (zoneError, default, default, default, TimeZoneInfo.Utc);
-        }
-
-        var userId = Caller.Id(principal);
-        var created = await db.Profiles.AsNoTracking()
-            .Where(row => row.UserId == userId)
-            .Select(row => (DateTimeOffset?)row.CreatedAt)
-            .FirstOrDefaultAsync(cancellationToken);
-        if (created is null)
-        {
-            return (LogEntryRules.NeedProfile, default, clientToday, serverToday, zone);
-        }
-
-        return (null, LogEntryRules.SetupDate(created.Value, zone), clientToday, serverToday, zone);
     }
 
     private static async Task<(string? Error, Food? Food, Guid? GroupId)> OwnFoodAndGroup(

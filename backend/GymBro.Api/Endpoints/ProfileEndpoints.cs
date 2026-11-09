@@ -172,7 +172,8 @@ public static class ProfileEndpoints
             : DateOnly.FromDateTime(clock.GetUtcNow().UtcDateTime);
         var asOf = date ?? today;
         var targets = await TargetBook.InEffectAsync(db, userId, asOf, cancellationToken);
-        return Results.Ok(new { date = asOf, targets = ToTargets(targets) });
+        var firstTargetDate = await TargetBook.FirstDateAsync(db, userId, cancellationToken);
+        return Results.Ok(new { date = asOf, firstTargetDate, targets = ToTargets(targets) });
     }
 
     public static ProfileResponse? ToResponse(Profile? profile) => profile is null

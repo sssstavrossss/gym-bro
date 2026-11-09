@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted } from "vue";
+import { computed, ref, watch } from "vue";
 import AccuracyDot from "../components/AccuracyDot.vue";
 import FreshStart from "../components/FreshStart.vue";
 import GoalReached from "../components/GoalReached.vue";
@@ -8,16 +8,17 @@ import InfoTip from "../components/InfoTip.vue";
 import MacroBars from "../components/MacroBars.vue";
 import Sparkline from "../components/Sparkline.vue";
 import Timeline from "../components/Timeline.vue";
+import WeekStrip from "../components/WeekStrip.vue";
 import WeightChart from "../components/WeightChart.vue";
-import { longDate, shortDate, todayIso } from "../lib/dates";
+import { addDays, longDate, shortDate, todayInZone, weekday } from "../lib/dates";
 import { int, kg } from "../lib/format";
 import { macroStatus } from "../lib/macros";
 import { freshDismissed, goalDismissed, promptState } from "../lib/prompts";
 import { vp } from "../lib/viewport";
 import { isFreshStart, isLowAccuracy, trendChange, weightSubtitle } from "../lib/weightDisplay";
 import { boot } from "../state/boot";
-import { dayTotals, hasLog, loadToday, log } from "../state/log";
-import { profile } from "../state/profile";
+import { loadDay, pendingFor, totalsOf, viewed } from "../state/log";
+import { deviceTimeZone, profile } from "../state/profile";
 import { openFood, openWeight } from "../ui";
 
 const weight = computed(() => profile.weight);
@@ -44,31 +45,46 @@ const showGoal = computed(() => {
   return !goalDismissed(boot.accountId, latest, String(goal));
 });
 const tip = "The trend smooths out day-to-day swings from water, salt and food. Each weigh-in moves it 10% of the way, so one high or low reading barely changes it. Your targets use the trend, not single weigh-ins.";
-const today = computed(() => profile.weight?.asOf || todayIso());
-const eaten = computed(() => dayTotals());
-const goal = computed(() => profile.targets);
+const today = computed(() => viewed.today || todayInZone(deviceTimeZone()));
+const selected = ref(today.value);
+watch(today, (value) => {
+  if (selected.value > value) selected.value = value;
+});
+watch(selected, (value) => { void loadDay(value); }, { immediate: true });
+const ready = computed(() => viewed.loaded && viewed.date === selected.value && !viewed.loading);
+const entries = computed(() => (ready.value ? viewed.entries : []));
+const pending = computed(() => pendingFor(selected.value));
+const eaten = computed(() => totalsOf(entries.value));
+const goal = computed(() => (ready.value ? viewed.target : null));
+const hasDay = computed(() => entries.value.length > 0 || pending.value.length > 0);
 const left = computed(() => (goal.value ? goal.value.kcal - eaten.value.kcal : 0));
-const kcalStatus = computed(() => (goal.value && hasLog() ? macroStatus("kcal", eaten.value.kcal, goal.value.kcal) : "under"));
+const kcalStatus = computed(() => (goal.value && hasDay.value ? macroStatus("kcal", eaten.value.kcal, goal.value.kcal) : "under"));
+const title = computed(() => (
+  selected.value === today.value ? "Today" : selected.value === addDays(today.value, -1) ? "Yesterday" : weekday(selected.value)
+));
 const kcalLabel = computed(() => {
   if (!goal.value) return `${int(eaten.value.kcal)} kcal eaten, no target on this day`;
   const side = left.value >= 0 ? `${int(left.value)} left` : `${int(-left.value)} over`;
   const status = kcalStatus.value === "hit" ? ", on target" : kcalStatus.value === "over" ? ", over target" : "";
-  return `Today: ${int(eaten.value.kcal)} of ${int(goal.value.kcal)} kcal, ${side}${status}`;
+  return `${title.value}: ${int(eaten.value.kcal)} of ${int(goal.value.kcal)} kcal, ${side}${status}`;
 });
-onMounted(() => { void loadToday(); });
+function pick(day: string) {
+  selected.value = day;
+}
 </script>
 
 <template>
   <main class="screen today">
     <header class="col gap2">
-      <span class="t-cap c2">{{ weight?.asOf ? longDate(weight.asOf) : "Today" }}</span>
-      <h1 class="t-title">Today</h1>
+      <span class="t-cap c2">{{ longDate(selected) }}</span>
+      <h1 class="t-title">{{ title }}</h1>
     </header>
+    <WeekStrip :anchor="today" :selected="selected" :today="today" :setup-date="viewed.setupDate" :logged-dates="viewed.loggedDates" @select="pick" />
 
-    <FreshStart v-if="showFresh" />
-    <GoalReached v-if="showGoal" />
+    <FreshStart v-if="showFresh && selected === today" />
+    <GoalReached v-if="showGoal && selected === today" />
 
-    <section v-if="log.loading && !log.loaded" class="card kcal" aria-busy="true" aria-label="Loading today">
+    <section v-if="!ready" class="card kcal" aria-busy="true" aria-label="Loading today">
       <span class="sk tall" />
       <span class="sk" />
     </section>
@@ -90,22 +106,22 @@ onMounted(() => { void loadToday(); });
           <span class="grow" />
           <div class="col right gap8">
             <div class="col right"><span class="t-ns" data-num>{{ int(eaten.kcal) }}</span><span class="t-capn c3">eaten</span></div>
-            <div class="col right"><span class="t-ns" data-num>{{ int(goal.kcal) }}</span><span class="t-capn c2">{{ today === todayIso() ? "target" : "that day's target" }}</span></div>
+            <div class="col right"><span class="t-ns" data-num>{{ int(goal.kcal) }}</span><span class="t-capn c2">{{ selected === today ? "target" : "that day's target" }}</span></div>
           </div>
         </div>
       </section>
-      <MacroBars v-if="log.loaded" />
-      <button v-if="!vp.tablet && !hasLog()" type="button" class="card prompt row" @click="openFood()">
+      <MacroBars v-if="ready" :target="goal" :totals="eaten" :label="selected === today ? 'Today\'s macros' : 'That day\'s macros'" />
+      <button v-if="!vp.tablet && !hasDay" type="button" class="card prompt row" @click="openFood('search', selected)">
         <span class="pic"><Icon name="plus" :size="18" :sw="2.6" /></span>
         <span class="col grow">
-          <span class="t-bodys">Log your first food today</span>
+          <span class="t-bodys">{{ selected === today ? "Log your first food today" : "Nothing logged this day" }}</span>
           <span class="t-capn c2">Search, pick a recent food or add a saved group</span>
         </span>
         <Icon name="right" :size="16" class="c3" />
       </button>
-      <section v-if="!vp.tablet && hasLog()" class="card logc">
-        <span class="t-cap c3">Log · {{ shortDate(today) }}</span>
-        <Timeline compact />
+      <section v-if="!vp.tablet && hasDay" class="card logc">
+        <span class="t-cap c3">Log · {{ shortDate(selected) }}</span>
+        <Timeline compact :date="selected" :today="today" :entries="entries" :pending="pending" />
       </section>
     </template>
 
@@ -154,9 +170,9 @@ onMounted(() => { void loadToday(); });
       <p class="t-capn c2 m0">{{ tip }}</p>
     </div>
 
-    <section v-if="vp.tablet && log.loaded" class="card logc">
-      <span class="t-cap c3">Log · {{ shortDate(today) }}</span>
-      <Timeline compact show-empty />
+    <section v-if="vp.tablet && ready" class="card logc">
+      <span class="t-cap c3">Log · {{ shortDate(selected) }}</span>
+      <Timeline compact show-empty :date="selected" :today="today" :entries="entries" :pending="pending" />
     </section>
   </main>
 </template>

@@ -7,7 +7,7 @@ import Icon from "./Icon.vue";
 import Keypad from "./Keypad.vue";
 import Segmented from "./Segmented.vue";
 import TimeChip from "./TimeChip.vue";
-import { todayIso } from "../lib/dates";
+import { dayMonth, todayInZone } from "../lib/dates";
 import { int } from "../lib/format";
 import {
   amountError,
@@ -25,6 +25,7 @@ import {
 } from "../lib/foodAmount";
 import { acceptSearchResult, preparedSearch, searchDebounceMs } from "../lib/foodSearch";
 import {
+  addNeedsTime,
   amountForRecent,
   beginOffRequest,
   canAskOpenFoodFacts,
@@ -42,17 +43,21 @@ import {
   recentHintKeys,
   recentHintTouch,
   recentSubtitle,
+  sameAddTap,
   typeForLocalSearch,
 } from "../lib/foodSheet";
 import { kcalFromMacros, macroStatus } from "../lib/macros";
 import { nextQuickInput, nextQuickNumber } from "../lib/quickEntry";
 import { keyboardEntry } from "../lib/viewport";
 import { deviceTimeZone, profile } from "../state/profile";
-import { dayTotals, log, removeEntry, saveQuickAdd, updateFoodAmount, updateQuickAdd, type LogEntry } from "../state/log";
+import { findEntry, log, removeEntry, saveQuickAdd, totalsOf, updateFoodAmount, updateQuickAdd, viewed, type LogEntry } from "../state/log";
 import { closeSheet, toast, ui } from "../ui";
 
 const open = computed(() => ui.sheet === "food");
-const editing = computed(() => log.entries.find((entry) => entry.id === ui.editEntryId) ?? null);
+const editing = computed(() => findEntry(ui.editEntryId));
+const foodToday = computed(() => viewed.today || todayInZone(deviceTimeZone()));
+const pastDay = computed(() => ui.foodDate !== foodToday.value);
+const needTime = computed(() => addNeedsTime(ui.foodDate, foodToday.value, time.value, Boolean(editing.value)));
 const editingFood = computed(() => (editing.value && editing.value.source !== "quick" ? editing.value : null));
 const showDetail = computed(() => Boolean(ui.detailFoodId || editingFood.value));
 const sheetLabel = computed(() => (editing.value ? "Edit food" : "Add food"));
@@ -99,7 +104,20 @@ let searchGen = 0;
 let searchTimer = 0;
 
 const sessionKcal = computed(() => session.value.reduce((sum, row) => sum + row.kcal, 0));
-const todayKcal = computed(() => dayTotals().kcal);
+const foodEntries = computed(() => {
+  if (viewed.date === ui.foodDate) return viewed.entries;
+  if (ui.foodDate === foodToday.value) return log.entries;
+  return [];
+});
+const foodTotals = computed(() => totalsOf(foodEntries.value));
+const foodTarget = computed(() => (viewed.date === ui.foodDate ? viewed.target : null));
+const addVerb = computed(() => {
+  if (editing.value) return "Save";
+  if (needTime.value) return "Pick a time to add";
+  if (pastDay.value && time.value) return `Add to ${dayMonth(ui.foodDate)} at ${time.value}`;
+  if (time.value) return `Add at ${time.value}`;
+  return "Add";
+});
 
 function num(key: Field): number {
   const raw = qa.value[key].trim().replace(",", ".");
@@ -223,9 +241,9 @@ const previewItems = computed(() => [
   { label: "CARBS", value: preview.value.carbs },
 ]);
 const after = computed(() => {
-  const goal = profile.targets;
+  const goal = foodTarget.value ?? (ui.foodDate === foodToday.value ? profile.targets : null);
   if (!goal || !keyboardEntry.value) return null;
-  const totals = dayTotals();
+  const totals = foodTotals.value;
   const old = editing.value ?? { kcal: 0, protein: 0, fat: 0, carbs: 0 };
   const next = preview.value;
   return [
@@ -409,9 +427,13 @@ function useQuickAdd() {
   ui.foodTab = "quick";
 }
 async function addRecent(food: RecentFood) {
-  const now = performance.now();
   if (saving.value) return;
-  if (lastTap.id === food.id && now - lastTap.at < 600) return;
+  if (needTime.value) {
+    formError.value = "Pick a time to add";
+    return;
+  }
+  const now = performance.now();
+  if (lastTap.id === food.id && sameAddTap(lastTap.at, now)) return;
   lastTap = { id: food.id, at: now };
   const picked = amountForRecent(food, food.amount, food.unit);
   const amount = Number(picked.amount);
@@ -430,8 +452,8 @@ async function addRecent(food: RecentFood) {
     protein: macros.protein,
     fat: macros.fat,
     carbs: macros.carbs,
-    date: todayIso(),
-    today: todayIso(),
+    date: ui.foodDate,
+    today: foodToday.value,
     timeZone: deviceTimeZone(),
     pickedTime: time.value,
     idempotencyKey: key,
@@ -558,6 +580,11 @@ watch(open, (isOpen) => {
 
 async function addQuick() {
   if (saving.value) return;
+  if (!editing.value && needTime.value) {
+    formError.value = "Pick a time to add";
+    saveError.value = false;
+    return;
+  }
   const limit = limitMessage();
   if (limit) {
     formError.value = limit;
@@ -565,7 +592,7 @@ async function addQuick() {
     return;
   }
   if (!qKcal.value) return;
-  const when = logTimeForAdd(todayIso(), todayIso(), time.value);
+  const when = logTimeForAdd(ui.foodDate, foodToday.value, time.value);
   if (!when.ok) {
     formError.value = "Pick a time to add";
     saveError.value = false;
@@ -597,7 +624,7 @@ async function addQuick() {
     if (!idempotencyKey.value) idempotencyKey.value = crypto.randomUUID();
     const result = await saveQuickAdd({
       idempotencyKey: idempotencyKey.value,
-      localDate: todayIso(),
+      localDate: ui.foodDate,
       timeZone: deviceTimeZone(),
       ...values,
     });
@@ -608,7 +635,9 @@ async function addQuick() {
     }
     toast(`Added ${result.entry.name} · ${int(result.entry.kcal)} kcal`);
     session.value.push({ name: result.entry.name, kcal: result.entry.kcal });
+    const held = pastDay.value ? time.value : null;
     fill(null);
+    if (held) time.value = held;
     saveError.value = false;
     ui.foodTab = "search";
   } finally {
@@ -618,6 +647,11 @@ async function addQuick() {
 
 async function addDetail() {
   if (saving.value) return;
+  if (!editingFood.value && needTime.value) {
+    formError.value = "Pick a time to add";
+    saveError.value = false;
+    return;
+  }
   const limit = amountError(amountNumber.value, unit.value);
   if (limit) {
     formError.value = limit;
@@ -625,6 +659,12 @@ async function addDetail() {
     return;
   }
   formError.value = "";
+  const when = editingFood.value ? null : logTimeForAdd(ui.foodDate, foodToday.value, time.value);
+  if (when && !when.ok) {
+    formError.value = "Pick a time to add";
+    saveError.value = false;
+    return;
+  }
   saving.value = true;
   const previewNow = preview.value;
   try {
@@ -644,16 +684,11 @@ async function addDetail() {
       return;
     }
     const food = detailFood.value;
-    if (!food) return;
-    const when = logTimeForAdd(todayIso(), todayIso(), time.value);
-    if (!when.ok) {
-      formError.value = "Pick a time to add";
-      return;
-    }
+    if (!food || !when || !when.ok) return;
     if (!idempotencyKey.value) idempotencyKey.value = crypto.randomUUID();
     const result = await saveQuickAdd({
       idempotencyKey: idempotencyKey.value,
-      localDate: todayIso(),
+      localDate: ui.foodDate,
       timeZone: deviceTimeZone(),
       time: when.time,
       name: food.name,
@@ -704,11 +739,14 @@ async function deleteEdited() {
         </button>
         <h2 v-else class="t-head">{{ editing ? "Edit food" : "Add food" }}</h2>
         <span class="grow" />
-        <TimeChip v-model="time" :date="todayIso()" :allow-now="!editing" />
+        <TimeChip v-model="time" :date="ui.foodDate" :today="foodToday" :allow-now="!pastDay && !editing" />
         <button type="button" class="cbtn" style="--s: 44px" aria-label="Close" @click="closeSheet">
           <Icon name="x" :size="18" />
         </button>
       </div>
+      <p v-if="needTime" class="needt t-label" role="status">
+        <Icon name="clock" :size="14" :sw="2.2" /> Logging to {{ dayMonth(ui.foodDate) }} — pick the time you ate it.
+      </p>
       <Segmented v-if="!showDetail && !editing" v-model="ui.foodTab" label="Add food" :options="[{ value: 'search', label: 'Search' }, { value: 'quick', label: 'Quick Add' }]" />
       </div>
     </template>
@@ -745,7 +783,7 @@ async function deleteEdited() {
       </div>
       <div v-if="after" class="after col">
         <div class="row">
-          <span class="t-cap c3">Today after {{ editing ? "saving" : "adding" }}</span>
+          <span class="t-cap c3">{{ ui.foodDate === foodToday ? "Today" : "That day" }} after {{ editing ? "saving" : "adding" }}</span>
           <span class="grow" />
           <span class="t-capn c3">{{ after[0].v <= after[0].tgt ? `${int(after[0].tgt - after[0].v)} kcal left` : `${int(after[0].v - after[0].tgt)} kcal over` }}</span>
         </div>
@@ -770,8 +808,8 @@ async function deleteEdited() {
         <button v-if="editing" type="button" class="del-btn t-bodys" aria-label="Delete" :disabled="saving" @click="deleteEdited">
           <Icon name="trash" :size="16" /><span>Delete</span>
         </button>
-        <button type="button" class="primary-btn t-bodys grow" :disabled="saving" @click="addDetail">
-          {{ saveError ? "Try again" : editing ? "Save" : "Add" }} · {{ int(preview.kcal) }} kcal
+        <button type="button" class="primary-btn t-bodys grow" :disabled="saving || (!editing && needTime)" @click="addDetail">
+          {{ saveError ? "Try again" : addVerb }}<template v-if="!needTime"> · {{ int(preview.kcal) }} kcal</template>
         </button>
       </div>
     </div>
@@ -794,7 +832,7 @@ async function deleteEdited() {
               <span class="t-body ell">{{ food.name }}</span>
               <span class="t-label c2 ell">{{ recentSubtitle(food, food.amount, food.unit) }}</span>
             </button>
-            <button type="button" class="cbtn filled" style="--s: 44px" :aria-label="`Add ${amountLabel(food.amount, food.unit)} ${food.name}`" :disabled="saving" @click="addRecent(food)">
+            <button type="button" class="cbtn filled" style="--s: 44px" :aria-label="needTime ? `Pick a time to add ${food.name}` : `Add ${amountLabel(food.amount, food.unit)} ${food.name}`" :disabled="saving || needTime" @click="addRecent(food)">
               <Icon :name="justAdded === food.id ? 'check' : 'plus'" :size="18" :sw="2.4" />
             </button>
           </div>
@@ -847,7 +885,7 @@ async function deleteEdited() {
       <div v-if="session.length" class="session" role="status">
         <span class="col stext">
           <span class="t-bodys">{{ session.length }} added · {{ int(sessionKcal) }} kcal</span>
-          <span class="t-capn c2">Today · {{ int(todayKcal) }} kcal</span>
+          <span class="t-capn c2">{{ pastDay ? dayMonth(ui.foodDate) : "Today" }} · {{ int(foodTotals.kcal) }} kcal</span>
         </span>
         <button type="button" class="chip on" @click="closeSheet">Done</button>
       </div>
@@ -899,8 +937,8 @@ async function deleteEdited() {
         <button v-if="editing" type="button" class="del-btn t-bodys" aria-label="Delete" :disabled="saving" @click="deleteEdited">
           <Icon name="trash" :size="16" /><span>Delete</span>
         </button>
-        <button type="button" class="primary-btn t-bodys grow" :disabled="saving || !qKcal" @click="addQuick">
-          {{ saveError ? "Try again" : editing ? "Save" : "Add" }} · {{ int(qKcal) }} kcal
+        <button type="button" class="primary-btn t-bodys grow" :disabled="saving || (!editing && needTime) || !qKcal" @click="addQuick">
+          {{ saveError ? "Try again" : addVerb }}<template v-if="!needTime"> · {{ int(qKcal) }} kcal</template>
         </button>
       </div>
     </div>
@@ -909,6 +947,7 @@ async function deleteEdited() {
 
 <style scoped>
 .hdr { gap: 8px; min-width: 0; flex-wrap: wrap; }
+.needt { margin: 0; display: flex; align-items: center; gap: 6px; color: var(--text-secondary); }
 .toast-pad { display: flex; flex-direction: column; gap: 12px; padding-top: var(--food-toast-space, 0px); }
 .gap2 { gap: 2px; }
 .gap8 { gap: 8px; }
