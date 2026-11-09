@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import AddChooser from "./components/AddChooser.vue";
 import CopySheet from "./components/CopySheet.vue";
+import GroupSheet from "./components/GroupSheet.vue";
 import FoodSheet from "./components/FoodSheet.vue";
 import SelectBar from "./components/SelectBar.vue";
 import SideNav from "./components/SideNav.vue";
@@ -17,7 +18,7 @@ import { vp } from "./lib/viewport";
 import { boot } from "./state/boot";
 import { loadProfile, profile, retryLoad } from "./state/profile";
 import { loadToday, log, viewed } from "./state/log";
-import { closeCopy, closeFoodLayer, closeSheet, endSelect, openAdd, openFood, openWeight, ui } from "./ui";
+import { closeCopy, closeFoodLayer, closeGroupSheet, closeSheet, endSelect, openAdd, openFood, openWeight, ui } from "./ui";
 import SignInView from "./views/SignInView.vue";
 
 const route = useRoute();
@@ -87,6 +88,11 @@ function onKey(event: KeyboardEvent) {
       closeCopy();
       return;
     }
+    if (ui.sheet === "group") {
+      event.preventDefault();
+      closeGroupSheet();
+      return;
+    }
     if (!ui.sheet && ui.selecting) {
       event.preventDefault();
       endSelect();
@@ -128,6 +134,7 @@ function onKey(event: KeyboardEvent) {
     <TabBar v-if="showNav && !vp.desktop && !ui.selecting" />
     <SelectBar v-if="showNav && ui.selecting" />
     <CopySheet />
+    <GroupSheet />
     <WeightSheet />
     <AccuracySheet />
     <AddChooser />

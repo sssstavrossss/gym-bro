@@ -25,6 +25,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
 
     public DbSet<EntryGroup> EntryGroups => Set<EntryGroup>();
 
+    public DbSet<EntryGroupItem> EntryGroupItems => Set<EntryGroupItem>();
+
     public DbSet<DayStatus> DayStatuses => Set<DayStatus>();
 
     public DbSet<FoodSourceCredit> FoodSourceCredits => Set<FoodSourceCredit>();
@@ -245,6 +247,42 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         group.HasIndex(g => g.UserId);
         group.HasAlternateKey(g => new { g.UserId, g.Id }).HasName("ux_entry_groups_user_id");
         group.HasOne<AppUser>().WithMany().HasForeignKey(g => g.UserId).OnDelete(DeleteBehavior.Cascade);
+
+        var item = modelBuilder.Entity<EntryGroupItem>();
+        item.ToTable("entry_group_items", table =>
+        {
+            table.HasCheckConstraint(
+                "ck_entry_group_items_food_owner",
+                "food_owner_key = '' OR food_owner_key = user_id");
+        });
+        item.HasKey(i => i.Id);
+        item.Property(i => i.Id).HasColumnName("id");
+        item.Property(i => i.UserId).HasColumnName("user_id").HasMaxLength(64);
+        item.Property(i => i.GroupId).HasColumnName("group_id");
+        item.Property(i => i.Position).HasColumnName("position");
+        item.Property(i => i.FoodId).HasColumnName("food_id");
+        item.Property(i => i.FoodOwnerKey).HasColumnName("food_owner_key").HasMaxLength(64);
+        item.Property(i => i.Name).HasColumnName("name").HasMaxLength(300);
+        item.Property(i => i.Amount).HasColumnName("amount").HasPrecision(8, 2);
+        item.Property(i => i.Unit).HasColumnName("unit").HasMaxLength(16);
+        item.Property(i => i.Grams).HasColumnName("grams").HasPrecision(8, 2);
+        item.Property(i => i.Kcal).HasColumnName("kcal").HasPrecision(8, 2);
+        item.Property(i => i.Protein).HasColumnName("protein").HasPrecision(8, 2);
+        item.Property(i => i.Fat).HasColumnName("fat").HasPrecision(8, 2);
+        item.Property(i => i.Carbs).HasColumnName("carbs").HasPrecision(8, 2);
+        item.HasIndex(i => new { i.GroupId, i.Position }).IsUnique();
+        item.HasOne<EntryGroup>()
+            .WithMany()
+            .HasForeignKey(i => new { i.UserId, i.GroupId })
+            .HasPrincipalKey(g => new { g.UserId, g.Id })
+            .OnDelete(DeleteBehavior.Cascade)
+            .HasConstraintName("fk_entry_group_items_group_owner");
+        item.HasOne<Food>()
+            .WithMany()
+            .HasForeignKey(i => new { i.FoodOwnerKey, i.FoodId })
+            .HasPrincipalKey(f => new { f.OwnerKey, f.Id })
+            .OnDelete(DeleteBehavior.NoAction)
+            .HasConstraintName("fk_entry_group_items_food_owner");
 
         var day = modelBuilder.Entity<DayStatus>();
         day.ToTable("day_status");

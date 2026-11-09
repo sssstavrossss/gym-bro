@@ -36,6 +36,7 @@ export interface LogEntry {
   carbs: number;
   source: string;
   foodId: string | null;
+  groupId: string | null;
   idempotencyKey: string;
 }
 
@@ -136,8 +137,16 @@ function fromResponse(row: LogEntryResponse): LogEntry {
     carbs: row.carbs,
     source: row.source,
     foodId: row.foodId,
+    groupId: row.groupId,
     idempotencyKey: row.idempotencyKey,
   };
+}
+
+/** Puts log rows from a group re-add onto the open day. Does not touch day complete. */
+export function rememberEntries(rows: LogEntryResponse[]): LogEntry[] {
+  const entries = rows.filter((row) => !row.deletedAt).map(fromResponse);
+  for (const entry of entries) place(entry);
+  return entries;
 }
 
 function sortInto(list: LogEntry[], entry: LogEntry, acceptNew: boolean): void {

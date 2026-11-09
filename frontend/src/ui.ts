@@ -3,7 +3,7 @@ import { todayInZone, todayIso } from "./lib/dates";
 import { deviceTimeZone } from "./state/profile";
 
 export const ui = reactive({
-  sheet: null as null | "weight" | "accuracy" | "chooser" | "food" | "copy",
+  sheet: null as null | "weight" | "accuracy" | "chooser" | "food" | "copy" | "group",
   foodTab: "search" as "search" | "quick",
   /** Food open in the detail view. Null on the search list. */
   detailFoodId: null as string | null,
@@ -20,13 +20,19 @@ export const ui = reactive({
   foodDate: todayIso(),
   accReturn: null as null | "weight",
   keepWeightDraft: false,
-  /** Log multi-select. The bar offers Copy to… and Delete. */
+  /** Log multi-select. The bar offers Copy to…, Save as group, and Delete. */
   selecting: false,
   selected: [] as string[],
   /** Last row clicked, so Shift can extend a range. */
   anchor: null as string | null,
   /** Opened from one row, so closing Copy to… also leaves select mode. */
   copySingle: false,
+  /** Entries the group sheet will save. */
+  groupEntryIds: [] as string[],
+  /** Food sheet to reopen after naming a group. Null returns to the log. */
+  groupReturn: null as null | "food",
+  /** The food sheet was only covered by Save as group, so keep its session. */
+  resumeFood: false,
 });
 
 let toastTimer = 0;
@@ -120,6 +126,31 @@ export function endSelect(): void {
 export function openCopy(single = false): void {
   ui.copySingle = single;
   ui.sheet = "copy";
+}
+
+export function openGroupSheet(ids: string[], returnTo: "food" | null): void {
+  ui.groupEntryIds = ids.slice();
+  ui.groupReturn = returnTo;
+  ui.sheet = "group";
+}
+
+export function closeGroupSheet(): void {
+  const back = ui.groupReturn;
+  ui.groupReturn = null;
+  ui.groupEntryIds = [];
+  if (back === "food") {
+    ui.resumeFood = true;
+    ui.sheet = "food";
+    return;
+  }
+  ui.sheet = null;
+}
+
+/** Saved from Select mode leaves the selection. Saved from the food sheet returns there. */
+export function finishGroupSave(): void {
+  const back = ui.groupReturn;
+  closeGroupSheet();
+  if (back !== "food") endSelect();
 }
 
 export function closeCopy(): void {
