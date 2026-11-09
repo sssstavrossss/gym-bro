@@ -49,6 +49,7 @@ public static class FoodEndpoints
     public static RouteGroupBuilder MapFoods(this RouteGroupBuilder api)
     {
         api.MapGet("/foods/search", Search);
+        api.MapGet("/foods/recents", Recents);
         api.MapPost("/foods/search/open-food-facts", SearchOpenFoodFacts);
         api.MapPost("/foods", Create);
         api.MapGet("/foods/{id:guid}", Get);
@@ -125,11 +126,58 @@ public static class FoodEndpoints
                     OffStatus.RateLimited => "rate_limited",
                     _ => "unavailable",
                 },
+                missingKcal = outcome.MissingKcal,
                 results = outcome.Foods.Select(food => ToParsedResponse(
                     food,
                     cachedIds.TryGetValue(food.SourceId, out var id) ? id : null)).ToList(),
             },
         });
+    }
+
+    private static async Task<IResult> Recents(
+        ClaimsPrincipal principal,
+        AppDbContext db,
+        CancellationToken cancellationToken)
+    {
+        if (Caller.MissingOid(principal) is { } denied)
+        {
+            return denied;
+        }
+
+        var userId = Caller.Id(principal);
+        var ids = await FoodCatalog.RecentEntryIdsAsync(db, userId, cancellationToken);
+        if (ids.Count == 0)
+        {
+            return Results.Ok(new { foods = Array.Empty<object>() });
+        }
+
+        var entries = await db.LogEntries.AsNoTracking()
+            .Where(row => ids.Contains(row.Id) && row.UserId == userId && row.DeletedAt == null && row.FoodId != null)
+            .ToListAsync(cancellationToken);
+        var foodIds = entries.Select(row => row.FoodId!.Value).Distinct().ToArray();
+        var foods = await FoodCatalog.Visible(db.Foods.AsNoTracking(), userId)
+            .Where(food => foodIds.Contains(food.Id))
+            .ToListAsync(cancellationToken);
+        var confirmed = await ConfirmedBases(db, userId, foods, cancellationToken);
+        var entryById = entries.ToDictionary(row => row.Id);
+        var foodById = foods.ToDictionary(food => food.Id);
+        var rows = new List<object>();
+        foreach (var id in ids)
+        {
+            if (!entryById.TryGetValue(id, out var entry) || entry.FoodId is not Guid foodId)
+            {
+                continue;
+            }
+
+            if (!foodById.TryGetValue(foodId, out var food))
+            {
+                continue;
+            }
+
+            rows.Add(ToRecent(food, entry, confirmed.GetValueOrDefault(food.Id)));
+        }
+
+        return Results.Ok(new { foods = rows });
     }
 
     private static async Task<IResult> Create(
@@ -172,6 +220,8 @@ public static class FoodEndpoints
         ClaimsPrincipal principal,
         Guid id,
         AppDbContext db,
+        IOpenFoodFactsClient off,
+        TimeProvider clock,
         CancellationToken cancellationToken)
     {
         if (Caller.MissingOid(principal) is { } denied)
@@ -184,6 +234,20 @@ public static class FoodEndpoints
         if (food is null)
         {
             return ApiResults.Error("No food with that id.", StatusCodes.Status404NotFound);
+        }
+
+        if (food.Source == "off"
+            && !string.IsNullOrWhiteSpace(food.SourceId)
+            && OpenFoodFactsCredit.NeedsRefresh(food.UpdatedAt, clock.GetUtcNow()))
+        {
+            var outcome = await off.GetProductAsync(food.SourceId, cancellationToken);
+            if (outcome.Status == OffStatus.Ok
+                && outcome.Food is { } fresh
+                && string.Equals(fresh.SourceId, food.SourceId, StringComparison.Ordinal))
+            {
+                await FoodCatalog.UpsertCatalogAsync(db, [fresh], clock, cancellationToken);
+                food = await FindVisible(db, userId, id, cancellationToken) ?? food;
+            }
         }
 
         var confirmed = await ConfirmedBases(db, userId, [food], cancellationToken);
@@ -283,6 +347,7 @@ public static class FoodEndpoints
         return Results.Ok(new
         {
             matvaretabellen = Matvaretabellen.Citation,
+            openFoodFacts = OpenFoodFactsCredit.Citation,
             importedAt = credit?.ImportedAt,
             foodCount = credit?.FoodCount ?? 0,
         });
@@ -554,6 +619,31 @@ public static class FoodEndpoints
         pieceQuantity = food.PieceQuantity,
         pieceLabel = food.PieceLabel,
         owned = food.UserId is not null,
+    };
+
+    private static object ToRecent(Food food, LogEntry entry, string? confirmedBasis) => new
+    {
+        id = food.Id,
+        source = food.Source,
+        sourceId = food.SourceId,
+        barcode = food.Barcode,
+        name = food.Name,
+        nameEn = food.NameEn,
+        basis = food.Basis,
+        confirmedBasis,
+        nutrientBasis = food.NutrientBasis,
+        kcalPer100 = food.KcalPer100,
+        proteinPer100 = food.ProteinPer100,
+        fatPer100 = food.FatPer100,
+        carbsPer100 = food.CarbsPer100,
+        servingQuantity = food.ServingQuantity,
+        servingLabel = food.ServingLabel,
+        pieceQuantity = food.PieceQuantity,
+        pieceLabel = food.PieceLabel,
+        owned = food.UserId is not null,
+        amount = entry.Amount,
+        unit = entry.Unit,
+        loggedAt = entry.LoggedAt,
     };
 
     private static object ToParsedResponse(ParsedFood food, Guid? id) => new

@@ -83,9 +83,10 @@ Sign-in settings are not baked into the JavaScript bundle. The API reads them fr
 | `GET` | `/api/weight/chart?date=&days=` | bearer | Daily series ending on that day. `days` defaults to 30 (1–366). Real weigh-ins are flagged; other days are estimated. `gap: true` and `trendKg: null` mark a fresh-start break (no line across a gap over 28 days). |
 | `POST` | `/api/weight/fresh-start` | bearer | `{ "accept": true }` upserts today's `target_history` row and appends `fresh_start` to its `reasons`. `{ "accept": false }` writes nothing. |
 | `GET` | `/api/foods/search?q=` | bearer | Local foods only. This never calls Open Food Facts. |
-| `POST` | `/api/foods/search/open-food-facts` | bearer | On-demand Open Food Facts search, throttled to 10 a minute. Local matches are always returned. |
+| `GET` | `/api/foods/recents` | bearer | Foods this person logged, newest first, with the last amount and unit. Soft-deleted entries are left out. Another person's logs are not included. |
+| `POST` | `/api/foods/search/open-food-facts` | bearer | On-demand Open Food Facts search, throttled to 10 a minute. Local matches are always returned. Products with no label kcal are counted in `missingKcal` and not stored. |
 | `POST` `/GET` `/PUT` `/DELETE` | `/api/foods` | bearer | Custom foods. Private to the owner. Nutrients are per 100 g/ml, or per serving with no gram weight. Labels over 80 characters are 400. |
-| `GET` | `/api/about` | bearer | Food-data credits, including the Matvaretabellen citation. |
+| `GET` | `/api/about` | bearer | Food-data credits: the Matvaretabellen citation and “Data from Open Food Facts.” |
 | `GET` | `/config.json` | anonymous | Runtime Entra settings for the SPA. `Cache-Control: no-store`. |
 | other `/api/*` | | same as `/api/me` | Unknown routes are not anonymous. |
 
@@ -205,7 +206,7 @@ Point the proxy at `http://127.0.0.1:8100`. Register the HTTPS origin it present
 
 ## Food data
 
-Open Food Facts is not searched as you type. `GET /api/foods/search` reads the local table. `POST /api/foods/search/open-food-facts` calls Open Food Facts, at most 10 searches a minute from this server, and returns the local rows plus `ok`, `rate_limited`, or `unavailable`. The User-Agent is `OPENFOODFACTS_USER_AGENT`.
+Open Food Facts is not searched as you type. `GET /api/foods/search` reads the local table. `POST /api/foods/search/open-food-facts` calls Open Food Facts, at most 10 requests a minute from this server (a product refresh uses the same budget), and returns the local rows plus `ok`, `rate_limited`, or `unavailable`. `missingKcal` counts named products that had no label kilocalories; those are not stored and are not estimated from 4/9/4. Opening a cached product older than 30 days fetches it again and updates that food row. Log entries already saved keep the snapshot they were written with. The User-Agent is `OPENFOODFACTS_USER_AGENT`. The contact address, if you set one, stays in that local value and is not written into About.
 
 Kassalapp products can be copied from an offline file. The app does not call `https://kassal.app` and does not store an API key. The public docs are at `https://kassal.app/api/docs`. The free personal key is described as 60 requests a minute for non-commercial use, with a suggested 6 hour cache. Those docs do not say whether keeping a catalogue is allowed or forbidden. This command does not call the API.
 
@@ -350,4 +351,4 @@ dotnet tool run dotnet-ef -- migrations add <Name> --project backend/GymBro.Api 
 
 ## Later pull requests
 
-Search and food detail are in the app. A Matvaretabellen or custom food opens with an amount, live calories and macros, quick amount chips, and grams, millilitres, a serving, or a piece when that food has one. Adding from the detail keeps the sheet open, confirms the add, clears the search, and shows today's calorie total; closing is the Close or Done button. Editing an amount scales the entry's stored snapshot. Recents, Open Food Facts inside the sheet, past days, creating a food from search, your own serving sizes, copy, and saved groups are still later. Workouts are out of scope. There is no meal field on a log entry. When the server can't be reached at all (for example, the host machine is asleep), Safari shows its own error page instead of the app's banner. A local search was not timed on an iPhone over Tailscale.
+Search and food detail are in the app. A Matvaretabellen or custom food opens with an amount, live calories and macros, quick amount chips, and grams, millilitres, a serving, or a piece when that food has one. Adding from the detail keeps the sheet open, confirms the add, clears the search, and shows today's calorie total; closing is the Close or Done button. Editing an amount scales the entry's stored snapshot. The empty search lists this person's recent foods with the last amount and unit; one tap logs that amount now and leaves the sheet open. Open Food Facts is a separate request from the sheet, not search-as-you-type. A cached product older than 30 days is refreshed when opened; the log that was already saved keeps its snapshot. Past days, creating a food from search, your own serving sizes, copy, and saved groups are still later. Workouts are out of scope. There is no meal field on a log entry. When the server can't be reached at all (for example, the host machine is asleep), Safari shows its own error page instead of the app's banner. A local search was not timed on an iPhone over Tailscale.

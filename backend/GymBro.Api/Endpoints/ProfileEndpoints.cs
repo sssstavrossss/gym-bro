@@ -36,7 +36,7 @@ public static class ProfileEndpoints
         var today = LocalDates.TryToday(zone, clock, out var local) ? local : DateOnly.FromDateTime(clock.GetUtcNow().UtcDateTime);
         var weight = await WeightReader.ReadAsync(db, userId, today, cancellationToken);
         var targets = profile is null ? null : await TargetBook.InEffectAsync(db, userId, today, cancellationToken);
-        return Results.Ok(new ProfileStateResponse(ToResponse(profile), ToWeight(weight), ToTargets(targets), Matvaretabellen.Citation));
+        return Results.Ok(new ProfileStateResponse(ToResponse(profile), ToWeight(weight), ToTargets(targets), Matvaretabellen.Citation, OpenFoodFactsCredit.Citation));
     }
 
     private static async Task<IResult> Put(
@@ -89,7 +89,7 @@ public static class ProfileEndpoints
         if (profile is not null && ProfileRules.Matches(profile, normalized))
         {
             var current = await TargetBook.InEffectAsync(db, userId, today, cancellationToken);
-            return Results.Ok(new ProfileStateResponse(ToResponse(profile), ToWeight(weight), ToTargets(current), Matvaretabellen.Citation));
+            return Results.Ok(new ProfileStateResponse(ToResponse(profile), ToWeight(weight), ToTargets(current), Matvaretabellen.Citation, OpenFoodFactsCredit.Citation));
         }
 
         var reasons = ProfileRules.ReasonFor(profile, normalized);
@@ -106,7 +106,7 @@ public static class ProfileEndpoints
         await db.SaveChangesAsync(cancellationToken);
 
         var saved = await TargetBook.InEffectAsync(db, userId, today, cancellationToken);
-        return Results.Ok(new ProfileStateResponse(ToResponse(profile), ToWeight(weight), ToTargets(saved), Matvaretabellen.Citation));
+        return Results.Ok(new ProfileStateResponse(ToResponse(profile), ToWeight(weight), ToTargets(saved), Matvaretabellen.Citation, OpenFoodFactsCredit.Citation));
     }
 
     private static async Task<IResult> Preview(
@@ -315,7 +315,8 @@ public sealed record ProfileStateResponse(
     ProfileResponse? Profile,
     WeightResponse Weight,
     TargetsResponse? Targets,
-    string Citation);
+    string Citation,
+    string OpenFoodFacts);
 
 public sealed record PreviewResponse(
     int Age,

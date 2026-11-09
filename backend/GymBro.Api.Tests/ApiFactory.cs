@@ -94,25 +94,47 @@ public sealed class StubOpenFoodFacts : IOpenFoodFactsClient
 {
     public int Calls { get; set; }
 
+    public int ProductCalls { get; set; }
+
     public string? LastQuery { get; set; }
+
+    public string? LastCode { get; set; }
 
     public OffStatus Status { get; set; } = OffStatus.Ok;
 
+    public OffStatus ProductStatus { get; set; } = OffStatus.Ok;
+
+    public int MissingKcal { get; set; }
+
     public IReadOnlyList<ParsedFood> Foods { get; set; } = [];
+
+    public ParsedFood? Product { get; set; }
 
     public Task<OffSearchOutcome> SearchAsync(string query, CancellationToken cancellationToken)
     {
         Calls++;
         LastQuery = query;
-        return Task.FromResult(new OffSearchOutcome(Status, Foods));
+        return Task.FromResult(new OffSearchOutcome(Status, Foods, MissingKcal));
+    }
+
+    public Task<OffProductOutcome> GetProductAsync(string code, CancellationToken cancellationToken)
+    {
+        ProductCalls++;
+        LastCode = code;
+        return Task.FromResult(new OffProductOutcome(ProductStatus, ProductStatus == OffStatus.Ok ? Product : null));
     }
 
     public void Reset()
     {
         Calls = 0;
+        ProductCalls = 0;
         LastQuery = null;
+        LastCode = null;
         Status = OffStatus.Ok;
+        ProductStatus = OffStatus.Ok;
+        MissingKcal = 0;
         Foods = [];
+        Product = null;
     }
 }
 

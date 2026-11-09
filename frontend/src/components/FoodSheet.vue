@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from "vue";
-import { ApiError, getFood, searchFoods, ServerUnreachable, type FoodSearchRow } from "../api";
+import { ApiError, getFood, listRecentFoods, searchFoods, searchOpenFoodFacts, ServerUnreachable, type FoodSearchRow, type OffFoodRow, type RecentFood } from "../api";
 import BottomSheet from "./BottomSheet.vue";
 import Bar from "./Bar.vue";
 import Icon from "./Icon.vue";
@@ -24,6 +24,26 @@ import {
   type UnitChoice,
 } from "../lib/foodAmount";
 import { acceptSearchResult, preparedSearch, searchDebounceMs } from "../lib/foodSearch";
+import {
+  amountForRecent,
+  beginOffRequest,
+  canAskOpenFoodFacts,
+  finishOffRequest,
+  idleOff,
+  logTimeForAdd,
+  missingKcalAction,
+  missingKcalLead,
+  offFailureCopy,
+  packagedBesideLocal,
+  quickAddName,
+  recentAddBody,
+  recentEmptyDetail,
+  recentEmptyTitle,
+  recentHintKeys,
+  recentHintTouch,
+  recentSubtitle,
+  typeForLocalSearch,
+} from "../lib/foodSheet";
 import { kcalFromMacros, macroStatus } from "../lib/macros";
 import { nextQuickInput, nextQuickNumber } from "../lib/quickEntry";
 import { keyboardEntry } from "../lib/viewport";
@@ -56,9 +76,17 @@ const fields: { key: Field; label: string; unit: string }[] = [
 
 const q = ref("");
 const results = ref<FoodSearchRow[]>([]);
+const recents = ref<RecentFood[]>([]);
+const off = ref(idleOff<FoodSearchRow>());
 const searching = ref(false);
 const searchError = ref("");
 const hi = ref(0);
+const justAdded = ref<string | null>(null);
+const recentKeys = new Map<string, string>();
+let lastTap = { id: "", at: 0 };
+let justTimer = 0;
+let recentGen = 0;
+let detailGen = 0;
 const searchEl = ref<HTMLInputElement | null>(null);
 const amountEl = ref<HTMLInputElement | null>(null);
 const detailFood = ref<FoodSearchRow | null>(null);
@@ -215,8 +243,8 @@ function rowSub(food: FoodSearchRow): string {
   return english + per100Line(food);
 }
 
-function openDetail(food: FoodSearchRow) {
-  const start = defaultAmount(food);
+function showFood(food: FoodSearchRow, preset?: { amount: number; unit: string }) {
+  const start = preset ? amountForRecent(food, preset.amount, preset.unit) : defaultAmount(food);
   ui.detailFoodId = food.id;
   detailFood.value = food;
   unit.value = start.unit;
@@ -226,6 +254,19 @@ function openDetail(food: FoodSearchRow) {
   formError.value = "";
   saveError.value = false;
   idempotencyKey.value = "";
+}
+async function openFoodRow(food: FoodSearchRow, preset?: { amount: number; unit: string }) {
+  const gen = ++detailGen;
+  let current = food;
+  if (food.source === "off") {
+    try {
+      current = { ...food, ...(await getFood(food.id)) };
+    } catch {
+      current = food;
+    }
+  }
+  if (gen !== detailGen) return;
+  showFood(current, preset);
 }
 function back() {
   if (editing.value) {
@@ -290,8 +331,29 @@ function amountInput(event: Event) {
   input.value = value;
   fresh.value = false;
 }
+const trimmedQuery = computed(() => q.value.trim());
+const listed = computed(() => (trimmedQuery.value ? results.value : recents.value));
+const offCopy = computed(() => (
+  off.value.status === "rate_limited" || off.value.status === "unavailable" ? offFailureCopy(off.value.status) : null
+));
+const showNoMatch = computed(() => Boolean(
+  trimmedQuery.value
+  && !searching.value
+  && !searchError.value
+  && !results.value.length
+  && !off.value.results.length
+  && off.value.status !== "loading"
+  && !offCopy.value
+  && off.value.missingKcal === 0,
+));
+const showOffButton = computed(() => canAskOpenFoodFacts(q.value) && off.value.status === "idle" && !searchError.value);
+
+function isRecent(food: FoodSearchRow): food is RecentFood {
+  return typeof (food as RecentFood).amount === "number" && typeof (food as RecentFood).unit === "string" && !trimmedQuery.value;
+}
 function searchKey(event: KeyboardEvent) {
-  const count = results.value.length;
+  const rows = listed.value;
+  const count = rows.length;
   if (!count || !keyboardEntry.value) return;
   if (event.key === "ArrowDown") {
     event.preventDefault();
@@ -299,10 +361,108 @@ function searchKey(event: KeyboardEvent) {
   } else if (event.key === "ArrowUp") {
     event.preventDefault();
     hi.value = (hi.value - 1 + count) % count;
-  } else if (event.key === "Enter" && !event.shiftKey) {
+  } else if (event.key === "Enter") {
     event.preventDefault();
-    const food = results.value[Math.min(hi.value, count - 1)];
-    if (food) openDetail(food);
+    const food = rows[Math.min(hi.value, count - 1)];
+    if (!food) return;
+    if (event.shiftKey && isRecent(food)) {
+      void addRecent(food);
+      return;
+    }
+    if (!event.shiftKey) {
+      void openFoodRow(food, isRecent(food) ? { amount: food.amount, unit: food.unit } : undefined);
+    }
+  }
+}
+function knownOff(rows: OffFoodRow[]): FoodSearchRow[] {
+  return rows.filter((row): row is FoodSearchRow => Boolean(row.id));
+}
+async function loadRecents() {
+  const gen = ++recentGen;
+  try {
+    const body = await listRecentFoods();
+    if (gen !== recentGen) return;
+    recents.value = body.foods;
+  } catch {
+    if (gen === recentGen) recents.value = [];
+  }
+}
+async function askOff() {
+  const next = beginOffRequest({ ...off.value, query: q.value });
+  if (!next) return;
+  off.value = next;
+  const asked = q.value.trim();
+  try {
+    const body = await searchOpenFoodFacts(asked);
+    off.value = finishOffRequest(off.value, {
+      query: asked,
+      status: body.openFoodFacts.status,
+      missingKcal: body.openFoodFacts.missingKcal,
+      results: packagedBesideLocal(results.value, knownOff(body.openFoodFacts.results)),
+    });
+  } catch {
+    off.value = finishOffRequest(off.value, { query: asked, status: "unavailable", missingKcal: 0, results: [] });
+  }
+}
+function useQuickAdd() {
+  qName.value = quickAddName(qName.value, q.value);
+  ui.foodTab = "quick";
+}
+async function addRecent(food: RecentFood) {
+  const now = performance.now();
+  if (saving.value) return;
+  if (lastTap.id === food.id && now - lastTap.at < 600) return;
+  lastTap = { id: food.id, at: now };
+  const picked = amountForRecent(food, food.amount, food.unit);
+  const amount = Number(picked.amount);
+  const macros = macrosForFood(food, amount, picked.unit);
+  let key = recentKeys.get(food.id);
+  if (!key) {
+    key = crypto.randomUUID();
+    recentKeys.set(food.id, key);
+  }
+  const built = recentAddBody({
+    foodId: food.id,
+    name: food.name,
+    amount,
+    unit: picked.unit,
+    kcal: macros.kcal,
+    protein: macros.protein,
+    fat: macros.fat,
+    carbs: macros.carbs,
+    date: todayIso(),
+    today: todayIso(),
+    timeZone: deviceTimeZone(),
+    pickedTime: time.value,
+    idempotencyKey: key,
+  });
+  if (!built.ok) {
+    formError.value = "Pick a time to add";
+    lastTap = { id: "", at: 0 };
+    return;
+  }
+  saving.value = true;
+  formError.value = "";
+  try {
+    const result = await saveQuickAdd(built.body);
+    if (!result.ok) {
+      lastTap = { id: "", at: 0 };
+      saveError.value = result.unreachable === true;
+      formError.value = result.unreachable ? "" : (result.message ?? "");
+      return;
+    }
+    recentKeys.delete(food.id);
+    toast(`Added ${amountLabel(result.entry.amount, result.entry.unit || picked.unit)} ${result.entry.name} · ${int(result.entry.kcal)} kcal`);
+    session.value.push({ name: result.entry.name, kcal: result.entry.kcal });
+    justAdded.value = food.id;
+    window.clearTimeout(justTimer);
+    justTimer = window.setTimeout(() => {
+      if (justAdded.value === food.id) justAdded.value = null;
+    }, 1200);
+    saveError.value = false;
+    void loadRecents();
+  } finally {
+    saving.value = false;
   }
 }
 async function runSearch(trimmed: string) {
@@ -368,7 +528,14 @@ function focusFor() {
     } else if (ui.foodTab === "search") searchEl.value?.focus();
   });
 }
-watch(q, scheduleSearch);
+watch(q, (value) => {
+  scheduleSearch(value);
+  off.value = typeForLocalSearch(off.value, value);
+});
+watch(results, (rows) => {
+  if (!off.value.results.length) return;
+  off.value = { ...off.value, results: packagedBesideLocal(rows, off.value.results) };
+});
 watch(() => [ui.sheet, ui.detailFoodId, ui.foodTab, showDetail.value], focusFor);
 watch(open, (isOpen) => {
   if (!isOpen) return;
@@ -377,12 +544,15 @@ watch(open, (isOpen) => {
   searchError.value = "";
   searching.value = false;
   session.value = [];
+  off.value = idleOff();
   detailFood.value = null;
   if (!editingFood.value) ui.detailFoodId = null;
   fill(editing.value);
   if (editingFood.value) {
     ui.detailFoodId = editingFood.value.foodId;
     void prepareEdit(editingFood.value);
+  } else {
+    void loadRecents();
   }
 });
 
@@ -395,6 +565,12 @@ async function addQuick() {
     return;
   }
   if (!qKcal.value) return;
+  const when = logTimeForAdd(todayIso(), todayIso(), time.value);
+  if (!when.ok) {
+    formError.value = "Pick a time to add";
+    saveError.value = false;
+    return;
+  }
   formError.value = "";
   saving.value = true;
   const name = qName.value.trim() || "Quick add";
@@ -404,7 +580,7 @@ async function addQuick() {
     protein: num("p"),
     fat: num("f"),
     carbs: num("c"),
-    time: time.value,
+    time: when.time,
   };
   try {
     if (editing.value) {
@@ -469,12 +645,17 @@ async function addDetail() {
     }
     const food = detailFood.value;
     if (!food) return;
+    const when = logTimeForAdd(todayIso(), todayIso(), time.value);
+    if (!when.ok) {
+      formError.value = "Pick a time to add";
+      return;
+    }
     if (!idempotencyKey.value) idempotencyKey.value = crypto.randomUUID();
     const result = await saveQuickAdd({
       idempotencyKey: idempotencyKey.value,
       localDate: todayIso(),
       timeZone: deviceTimeZone(),
-      time: time.value,
+      time: when.time,
       name: food.name,
       kcal: previewNow.kcal,
       protein: previewNow.protein,
@@ -495,6 +676,7 @@ async function addDetail() {
     detailFood.value = null;
     q.value = "";
     idempotencyKey.value = "";
+    void loadRecents();
     saveError.value = false;
     formError.value = "";
   } finally {
@@ -601,25 +783,66 @@ async function deleteEdited() {
         <button v-if="q" type="button" class="clr c2" aria-label="Clear search" @click="q = ''"><Icon name="x" :size="16" /></button>
       </label>
       <div class="list">
-        <p v-if="searching" class="t-label c2" role="status">Searching…</p>
-        <div v-else-if="searchError" class="err col" role="alert">
-          <span class="t-label">{{ searchError }}</span>
-          <button v-if="q.trim().length >= 2" type="button" class="chip" @click="runSearch(q.trim())">Try again</button>
-        </div>
-        <button v-for="(food, index) in results" :key="food.id" type="button" class="rrow row" :class="{ hl: keyboardEntry && index === hi }" @click="openDetail(food)" @mouseenter="hi = index">
-          <span class="col grow rtext">
-            <span class="t-body ell">{{ food.name }}</span>
-            <span class="t-label c2 ell">{{ rowSub(food) }}</span>
-          </span>
-        </button>
-        <div v-if="!searching && !searchError && q.trim() && !results.length" class="col emptyc">
-          <span class="t-label c2">No match for “{{ q.trim() }}”.</span>
-          <button type="button" class="chip t-label" @click="ui.foodTab = 'quick'">Quick Add</button>
-        </div>
-        <div v-else-if="!searching && !q.trim()" class="col emptyc">
-          <span class="t-bodys">Nothing here yet</span>
-          <span class="t-label c2">Search for a food above.</span>
-        </div>
+        <template v-if="!trimmedQuery">
+          <div class="row lhead">
+            <span class="t-cap c2">Recent</span>
+            <span class="grow" />
+            <span class="t-capn c2">{{ keyboardEntry ? recentHintKeys : recentHintTouch }}</span>
+          </div>
+          <div v-for="(food, index) in recents" :key="food.id" class="rrow row" :class="{ hl: keyboardEntry && index === hi }" @mouseenter="hi = index">
+            <button type="button" class="col grow rtext" @click="openFoodRow(food, { amount: food.amount, unit: food.unit })">
+              <span class="t-body ell">{{ food.name }}</span>
+              <span class="t-label c2 ell">{{ recentSubtitle(food, food.amount, food.unit) }}</span>
+            </button>
+            <button type="button" class="cbtn filled" style="--s: 44px" :aria-label="`Add ${amountLabel(food.amount, food.unit)} ${food.name}`" :disabled="saving" @click="addRecent(food)">
+              <Icon :name="justAdded === food.id ? 'check' : 'plus'" :size="18" :sw="2.4" />
+            </button>
+          </div>
+          <div v-if="!recents.length" class="col emptyc">
+            <span class="t-bodys">{{ recentEmptyTitle }}</span>
+            <span class="t-label c2">{{ recentEmptyDetail }}</span>
+          </div>
+        </template>
+        <template v-else>
+          <p v-if="searching" class="t-label c2" role="status">Searching…</p>
+          <div v-if="searchError" class="err col" role="alert">
+            <span class="t-label">{{ searchError }}</span>
+            <button v-if="trimmedQuery.length >= 2" type="button" class="chip" @click="runSearch(trimmedQuery)">Try again</button>
+          </div>
+          <div v-if="results.length" class="row lhead"><span class="t-cap c2">Results</span></div>
+          <button v-for="(food, index) in results" :key="food.id" type="button" class="rrow row" :class="{ hl: keyboardEntry && index === hi }" @click="openFoodRow(food)" @mouseenter="hi = index">
+            <span class="col grow rtext">
+              <span class="t-body ell">{{ food.name }}</span>
+              <span class="t-label c2 ell">{{ rowSub(food) }}</span>
+            </span>
+          </button>
+          <div v-if="off.results.length" class="row lhead"><span class="t-cap c2">Open Food Facts</span></div>
+          <button v-for="food in off.results" :key="food.id" type="button" class="rrow row" @click="openFoodRow(food)">
+            <span class="col grow rtext">
+              <span class="t-body ell">{{ food.name }}</span>
+              <span class="t-label c2 ell">{{ rowSub(food) }}</span>
+            </span>
+          </button>
+          <p v-if="off.status === 'loading'" class="t-capn c2 skl" role="status">Searching Open Food Facts…</p>
+          <div v-else-if="offCopy" class="err col" role="alert">
+            <div class="row gap8"><Icon name="alert" :size="18" class="c2" /><span class="t-bodys">{{ offCopy.title }}</span></div>
+            <span class="t-label c2">{{ offCopy.detail }}</span>
+            <div class="row offacts">
+              <button type="button" class="chip on" @click="askOff"><Icon name="refresh" :size="14" />&nbsp;{{ offCopy.retry }}</button>
+              <button type="button" class="chip" @click="useQuickAdd">{{ offCopy.quickAdd }}</button>
+            </div>
+          </div>
+          <p v-if="off.status === 'ok' && off.missingKcal > 0" class="t-label c2 miss">
+            {{ missingKcalLead }}
+            <button type="button" class="linkbtn" @click="useQuickAdd">{{ missingKcalAction }}</button>
+          </p>
+          <div v-if="showNoMatch" class="col emptyc">
+            <span class="t-label c2">No match for “{{ trimmedQuery }}”.</span>
+            <button type="button" class="chip t-label" @click="useQuickAdd">Quick Add</button>
+          </div>
+          <button v-if="showOffButton" type="button" class="chip t-label offask" @click="askOff">Search Open Food Facts</button>
+        </template>
+        <p v-if="formError" class="err t-label" role="alert">{{ formError }}</p>
       </div>
       <div v-if="session.length" class="session" role="status">
         <span class="col stext">
@@ -711,6 +934,13 @@ async function deleteEdited() {
 .err { gap: 12px; padding: 14px; border-radius: var(--radius-card); border: 1px dashed var(--text-tertiary); flex: none; min-width: 0; }
 .err.t-label { margin: 0; }
 .emptyc { gap: 8px; padding: 12px 0 20px; }
+.lhead { padding: 10px 0 2px; }
+.rtext { min-height: 44px; justify-content: center; }
+.linkbtn { text-decoration: underline; text-underline-offset: 3px; }
+.miss { margin: 8px 0; }
+.offacts { gap: 8px; flex-wrap: wrap; }
+.offask { align-self: flex-start; margin: 8px 0; }
+.skl { padding: 12px 0; }
 .actions { flex: none; flex-wrap: wrap; }
 .actions .primary-btn { width: auto; flex: 1 1 160px; min-width: 0; }
 .del-btn { min-height: 52px; min-width: 44px; padding: 0 18px; border-radius: 26px; background: var(--color-surface-2); display: inline-flex; align-items: center; justify-content: center; gap: 8px; flex: none; }

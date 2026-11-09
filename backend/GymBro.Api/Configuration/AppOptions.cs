@@ -77,6 +77,8 @@ public sealed class FoodOptions
 
     public const string DefaultSearchUrl = "https://world.openfoodfacts.org/cgi/search.pl";
 
+    public const string DefaultProductUrl = "https://world.openfoodfacts.org/api/v2/product/";
+
     public const string DefaultMatvaretabellenUrl = "https://www.matvaretabellen.no/api/nb/foods.json";
 
     public const string DefaultUserAgent = "GymBro/1.0 (self-hosted nutrition tracker)";
@@ -84,6 +86,8 @@ public sealed class FoodOptions
     public string OpenFoodFactsUserAgent { get; set; } = DefaultUserAgent;
 
     public string OpenFoodFactsSearchUrl { get; set; } = DefaultSearchUrl;
+
+    public string OpenFoodFactsProductUrl { get; set; } = DefaultProductUrl;
 
     public string MatvaretabellenUrl { get; set; } = DefaultMatvaretabellenUrl;
 }

@@ -10,11 +10,6 @@ public sealed class OpenFoodFactsClient(HttpClient http, OpenFoodFactsGate gate,
 {
     public async Task<OffSearchOutcome> SearchAsync(string query, CancellationToken cancellationToken)
     {
-        if (!gate.TryEnter())
-        {
-            return new OffSearchOutcome(OffStatus.RateLimited, []);
-        }
-
         var endpoint = string.IsNullOrWhiteSpace(options.Value.OpenFoodFactsSearchUrl)
             ? FoodOptions.DefaultSearchUrl
             : options.Value.OpenFoodFactsSearchUrl;
@@ -22,6 +17,52 @@ public sealed class OpenFoodFactsClient(HttpClient http, OpenFoodFactsGate gate,
             + "?search_terms=" + Uri.EscapeDataString(query)
             + "&search_simple=1&action=process&json=1&page_size=10"
             + "&fields=code,product_name,product_name_en,nutriments,serving_quantity,serving_size,nutrition_data_per";
+        var fetched = await FetchJson(address, cancellationToken);
+        if (fetched.Status != OffStatus.Ok || fetched.Json is null)
+        {
+            return new OffSearchOutcome(fetched.Status, []);
+        }
+
+        using (fetched.Json)
+        {
+            var report = OpenFoodFactsParser.ReadReport(fetched.Json.RootElement);
+            return new OffSearchOutcome(OffStatus.Ok, report.Foods, report.MissingKcal);
+        }
+    }
+
+    public async Task<OffProductOutcome> GetProductAsync(string code, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(code))
+        {
+            return new OffProductOutcome(OffStatus.Unavailable, null);
+        }
+
+        var root = string.IsNullOrWhiteSpace(options.Value.OpenFoodFactsProductUrl)
+            ? FoodOptions.DefaultProductUrl
+            : options.Value.OpenFoodFactsProductUrl;
+        var address = root.TrimEnd('/')
+            + "/"
+            + Uri.EscapeDataString(code.Trim())
+            + ".json?fields=code,product_name,product_name_en,nutriments,serving_quantity,serving_size,nutrition_data_per";
+        var fetched = await FetchJson(address, cancellationToken);
+        if (fetched.Status != OffStatus.Ok || fetched.Json is null)
+        {
+            return new OffProductOutcome(fetched.Status, null);
+        }
+
+        using (fetched.Json)
+        {
+            var report = OpenFoodFactsParser.ReadProductDocument(fetched.Json.RootElement);
+            return new OffProductOutcome(OffStatus.Ok, report.Foods.Count == 0 ? null : report.Foods[0]);
+        }
+    }
+
+    private async Task<(OffStatus Status, JsonDocument? Json)> FetchJson(string address, CancellationToken cancellationToken)
+    {
+        if (!gate.TryEnter())
+        {
+            return (OffStatus.RateLimited, null);
+        }
 
         try
         {
@@ -30,32 +71,32 @@ public sealed class OpenFoodFactsClient(HttpClient http, OpenFoodFactsGate gate,
             var code = (int)response.StatusCode;
             if (code is >= 300 and < 400)
             {
-                return new OffSearchOutcome(OffStatus.Unavailable, []);
+                return (OffStatus.Unavailable, null);
             }
 
             if (response.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
             {
-                return new OffSearchOutcome(OffStatus.RateLimited, []);
+                return (OffStatus.RateLimited, null);
             }
 
             if (!response.IsSuccessStatusCode)
             {
-                return new OffSearchOutcome(OffStatus.Unavailable, []);
+                return (OffStatus.Unavailable, null);
             }
 
             if (response.Content.Headers.ContentLength is long advertised && advertised > MaxResponseBytes)
             {
-                return new OffSearchOutcome(OffStatus.Unavailable, []);
+                return (OffStatus.Unavailable, null);
             }
 
             await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
             await using var capped = new CappedReadStream(stream, MaxResponseBytes);
-            var foods = OpenFoodFactsParser.Read(capped);
-            return new OffSearchOutcome(OffStatus.Ok, foods);
+            var document = await JsonDocument.ParseAsync(capped, cancellationToken: cancellationToken);
+            return (OffStatus.Ok, document);
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException or IOException)
         {
-            return new OffSearchOutcome(OffStatus.Unavailable, []);
+            return (OffStatus.Unavailable, null);
         }
     }
 
@@ -145,28 +186,38 @@ public sealed class OpenFoodFactsClient(HttpClient http, OpenFoodFactsGate gate,
 
 public static class OpenFoodFactsParser
 {
-    public static IReadOnlyList<ParsedFood> Read(Stream json)
+    public static IReadOnlyList<ParsedFood> Read(Stream json) => ReadReport(json).Foods;
+
+    public static IReadOnlyList<ParsedFood> Read(string json) => ReadReport(json).Foods;
+
+    public static OffParse ReadReport(Stream json)
     {
         using var document = JsonDocument.Parse(json);
-        return Read(document.RootElement);
+        return ReadReport(document.RootElement);
     }
 
-    public static IReadOnlyList<ParsedFood> Read(string json)
+    public static OffParse ReadReport(string json)
     {
         using var document = JsonDocument.Parse(json);
-        return Read(document.RootElement);
+        return ReadReport(document.RootElement);
     }
 
-    private static IReadOnlyList<ParsedFood> Read(JsonElement root)
+    public static OffParse ReadReport(JsonElement root)
     {
         if (!root.TryGetProperty("products", out var products) || products.ValueKind != JsonValueKind.Array)
         {
-            return [];
+            return new OffParse([], 0);
         }
 
         var foods = new List<ParsedFood>();
+        var missing = 0;
         foreach (var product in products.EnumerateArray())
         {
+            if (MissingLabelKcal(product))
+            {
+                missing++;
+            }
+
             var parsed = ReadProduct(product);
             if (parsed is not null)
             {
@@ -174,7 +225,45 @@ public static class OpenFoodFactsParser
             }
         }
 
-        return foods;
+        return new OffParse(foods, missing);
+    }
+
+    public static OffParse ReadProductDocument(JsonElement root)
+    {
+        if (!root.TryGetProperty("product", out var product) || product.ValueKind != JsonValueKind.Object)
+        {
+            return new OffParse([], 0);
+        }
+
+        var parsed = ReadProduct(product);
+        var missing = parsed is null && MissingLabelKcal(product) ? 1 : 0;
+        return new OffParse(parsed is null ? [] : [parsed], missing);
+    }
+
+    /// <summary>
+    /// A named product with no label kilocalories. Those stay out of the catalogue.
+    /// Calories are never filled in from protein, fat, and carbs.
+    /// </summary>
+    private static bool MissingLabelKcal(JsonElement product)
+    {
+        var code = Text(product, "code");
+        var name = Text(product, "product_name");
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            name = Text(product, "product_name_en");
+        }
+
+        if (string.IsNullOrWhiteSpace(code) || string.IsNullOrWhiteSpace(name))
+        {
+            return false;
+        }
+
+        if (!product.TryGetProperty("nutriments", out var nutriments) || nutriments.ValueKind != JsonValueKind.Object)
+        {
+            return true;
+        }
+
+        return !TryDecimal(nutriments, "energy-kcal_100g", out _);
     }
 
     private static ParsedFood? ReadProduct(JsonElement product)

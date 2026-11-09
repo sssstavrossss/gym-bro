@@ -42,6 +42,25 @@ public sealed class OpenFoodFactsTests
         Assert.Equal(100, food.KcalPer100);
         Assert.NotEqual(170, food.KcalPer100);
         Assert.Equal(40, food.ServingQuantity);
+
+        var report = OpenFoodFactsParser.ReadReport("""
+            {
+              "products": [
+                {
+                  "code": "0000000000017",
+                  "product_name": "Fictional crunch bar",
+                  "nutriments": { "energy-kcal_100g": 100, "proteins_100g": 10, "fat_100g": 10, "carbohydrates_100g": 10 }
+                },
+                {
+                  "code": "0000000000024",
+                  "product_name": "Fictional no label",
+                  "nutriments": { "proteins_100g": 10, "fat_100g": 10, "carbohydrates_100g": 10 }
+                }
+              ]
+            }
+            """);
+        Assert.Equal(1, report.MissingKcal);
+        Assert.Equal(100, Assert.Single(report.Foods).KcalPer100);
     }
 
     [Fact]
