@@ -2,6 +2,7 @@ import { reactive } from "vue";
 import {
   addLogEntry,
   ApiError,
+  copyLogEntries,
   deleteLogEntry,
   getDayStatus,
   getTargets,
@@ -376,32 +377,88 @@ export async function updateQuickAdd(id: string, values: QuickValues): Promise<S
 }
 
 export async function removeEntry(entry: LogEntry): Promise<boolean> {
+  return removeEntries([entry]);
+}
+
+/** Soft-deletes every row. Undo restores the same ids. A failure restores any that already went. */
+export async function removeEntries(entries: LogEntry[], options?: { announce?: boolean }): Promise<boolean> {
+  if (!entries.length) return false;
+  const announce = options?.announce !== false;
+  const removed: LogEntry[] = [];
   try {
-    await deleteLogEntry(entry.id);
+    for (const entry of entries) {
+      await deleteLogEntry(entry.id);
+      removed.push(entry);
+    }
   } catch (error) {
+    for (const entry of removed) {
+      try {
+        place(fromResponse(await restoreLogEntry(entry.id)));
+      } catch {
+        // The next undo toast can still restore whatever the server kept.
+      }
+    }
     if (error instanceof ServerUnreachable) log.unreachable = true;
-    toast(error instanceof ApiError ? error.message : "Couldn't delete that entry. It's still here.");
+    const fallback = entries.length > 1
+      ? "Couldn't delete those entries. They're still here."
+      : "Couldn't delete that entry. It's still here.";
+    toast(error instanceof ApiError ? error.message : fallback);
     return false;
   }
-  const date = entry.localDate;
-  log.entries = log.entries.filter((row) => row.id !== entry.id);
-  viewed.entries = viewed.entries.filter((row) => row.id !== entry.id);
-  noteIfEmpty(date);
-  toast(`Deleted ${entry.name}`, {
-    label: "Undo",
-    run: () => { void undoDelete(entry); },
-  });
+  for (const entry of removed) {
+    log.entries = log.entries.filter((row) => row.id !== entry.id);
+    viewed.entries = viewed.entries.filter((row) => row.id !== entry.id);
+    noteIfEmpty(entry.localDate);
+  }
+  if (announce) {
+    toast(removed.length === 1 ? `Deleted ${removed[0].name}` : `Deleted ${removed.length} items`, {
+      label: "Undo",
+      run: () => { void undoDeletes(removed); },
+    });
+  }
   return true;
 }
 
-async function undoDelete(entry: LogEntry): Promise<void> {
-  try {
-    const saved = await restoreLogEntry(entry.id);
-    place(fromResponse(saved));
-  } catch {
-    toast(`Deleted ${entry.name}`, {
-      label: "Undo",
-      run: () => { void undoDelete(entry); },
-    });
+async function undoDeletes(entries: LogEntry[]): Promise<void> {
+  const pending: LogEntry[] = [];
+  for (const entry of entries) {
+    try {
+      place(fromResponse(await restoreLogEntry(entry.id)));
+    } catch {
+      pending.push(entry);
+    }
   }
+  if (!pending.length) return;
+  toast(pending.length === 1 ? `Deleted ${pending[0].name}` : `Deleted ${pending.length} items`, {
+    label: "Undo",
+    run: () => { void undoDeletes(pending); },
+  });
+}
+
+export async function copySelected(
+  entries: LogEntry[],
+  localDate: string,
+  keys: Record<string, string>,
+): Promise<{ ok: true; copies: LogEntry[] } | { ok: false; message: string }> {
+  try {
+    const saved = await copyLogEntries({
+      localDate,
+      timeZone: deviceTimeZone(),
+      items: entries.map((entry) => ({ id: entry.id, idempotencyKey: keys[entry.id] ?? crypto.randomUUID() })),
+    });
+    const copies = saved.entries.filter((row) => !row.deletedAt).map(fromResponse);
+    for (const entry of copies) place(entry);
+    return { ok: true, copies };
+  } catch (error) {
+    if (error instanceof ServerUnreachable) {
+      log.unreachable = true;
+      return { ok: false, message: "Server unreachable, try again." };
+    }
+    return { ok: false, message: error instanceof ApiError ? error.message : "Couldn't copy those entries." };
+  }
+}
+
+/** Undo a copy by soft-deleting the new rows. The originals stay. */
+export async function discardCopies(entries: LogEntry[]): Promise<void> {
+  await removeEntries(entries, { announce: false });
 }

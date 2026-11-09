@@ -3,7 +3,7 @@ import { todayInZone, todayIso } from "./lib/dates";
 import { deviceTimeZone } from "./state/profile";
 
 export const ui = reactive({
-  sheet: null as null | "weight" | "accuracy" | "chooser" | "food",
+  sheet: null as null | "weight" | "accuracy" | "chooser" | "food" | "copy",
   foodTab: "search" as "search" | "quick",
   /** Food open in the detail view. Null on the search list. */
   detailFoodId: null as string | null,
@@ -20,6 +20,13 @@ export const ui = reactive({
   foodDate: todayIso(),
   accReturn: null as null | "weight",
   keepWeightDraft: false,
+  /** Log multi-select. The bar offers Copy to… and Delete. */
+  selecting: false,
+  selected: [] as string[],
+  /** Last row clicked, so Shift can extend a range. */
+  anchor: null as string | null,
+  /** Opened from one row, so closing Copy to… also leaves select mode. */
+  copySingle: false,
 });
 
 let toastTimer = 0;
@@ -95,6 +102,31 @@ export function openFood(tab: "search" | "quick" = "search", date?: string): voi
   ui.foodTab = tab;
   ui.foodDate = date && date <= today ? date : today;
   ui.sheet = "food";
+}
+
+export function startSelect(id?: string): void {
+  ui.selecting = true;
+  ui.selected = id ? [id] : [];
+  ui.anchor = id ?? null;
+}
+
+export function endSelect(): void {
+  ui.selecting = false;
+  ui.selected = [];
+  ui.anchor = null;
+}
+
+/** single: opened from one row's Copy to…, so closing it also leaves select mode. */
+export function openCopy(single = false): void {
+  ui.copySingle = single;
+  ui.sheet = "copy";
+}
+
+export function closeCopy(): void {
+  const single = ui.copySingle;
+  ui.copySingle = false;
+  closeSheet();
+  if (single) endSelect();
 }
 
 export function openEdit(id: string, date?: string): void {

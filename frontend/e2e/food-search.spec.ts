@@ -210,7 +210,7 @@ test("search, detail, multi-add, and stored-snapshot edit", async ({ page }) => 
   await expect(sheet(page)).toBeHidden();
   await expect(page.getByRole("button", { name: "Retry" })).toBeVisible();
   await page.getByRole("button", { name: "Retry" }).click();
-  await expect(page.getByRole("button", { name: /Fictional oat brick/ })).toBeVisible();
+  await expect(page.locator("button.frow").filter({ hasText: "Fictional oat brick" })).toBeVisible();
 
   const listed = await page.request.get(`/api/log-entries?date=${when.today}`, { headers: headers(oid) });
   const body = await listed.json();
@@ -220,7 +220,7 @@ test("search, detail, multi-add, and stored-snapshot edit", async ({ page }) => 
   expect(body.entries.find((entry: { name: string }) => entry.name === "Fictional chicken breast").kcal).toBe(300);
   expect(body.entries.find((entry: { name: string }) => entry.name === "Fictional chicken breast").source).toBe("custom");
 
-  await page.getByRole("button", { name: /Fictional chicken breast/ }).click();
+  await page.locator("button.frow").filter({ hasText: "Fictional chicken breast" }).click();
   await expect(sheet(page).getByRole("heading", { name: "Fictional chicken breast" })).toBeVisible();
   const changed = await page.request.put(`/api/foods/${body.entries.find((entry: { name: string; foodId: string }) => entry.name === "Fictional chicken breast").foodId}`, {
     headers: headers(oid),
@@ -237,7 +237,7 @@ test("search, detail, multi-add, and stored-snapshot edit", async ({ page }) => 
   });
   expect(changed.ok(), await changed.text()).toBeTruthy();
   await page.reload();
-  await page.getByRole("button", { name: /Fictional chicken breast/ }).click();
+  await page.locator("button.frow").filter({ hasText: "Fictional chicken breast" }).click();
   await expect(sheet(page).getByText("Using the values it was logged with — this food has changed since.")).toBeVisible();
   await sheet(page).getByLabel("Amount in g").fill("300");
   await expect(sheet(page).getByRole("button", { name: /Save · 600 kcal/ })).toBeVisible();

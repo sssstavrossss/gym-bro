@@ -5,6 +5,7 @@ import { runToastAction, ui } from "../ui";
 
 /** Phone and tablet: while the food sheet is open, pin the toast to the top. Desktop stays at the bottom. */
 const parked = computed(() => ui.sheet === "food" && !vp.desktop);
+const lift = computed(() => ui.selecting && !parked.value);
 
 function place() {
   const el = document.querySelector(".toast.top");
@@ -20,8 +21,8 @@ watch([() => ui.toast?.id ?? 0, parked], () => {
 </script>
 
 <template>
-  <Transition name="toast">
-    <div v-if="ui.toast" :key="ui.toast.id" class="toast" :class="{ top: parked }" role="status">
+  <Transition name="toast" mode="out-in">
+    <div v-if="ui.toast" :key="ui.toast.id" class="toast" :class="{ top: parked, lift }" role="status">
       <span class="t-label grow msg">{{ ui.toast.text }}</span>
       <button v-if="ui.toast.action" type="button" class="t-bodys undo" @click="runToastAction">{{ ui.toast.action.label }}</button>
     </div>
@@ -42,6 +43,8 @@ watch([() => ui.toast?.id ?? 0, parked], () => {
 .is-tablet .toast { left: 50%; right: auto; width: 440px; margin-left: -220px; }
 .is-tablet .toast.top { left: 16px; right: 16px; width: auto; margin-left: 0; }
 .is-desktop .toast { left: 264px; right: auto; bottom: 24px; width: 420px; }
+.toast.lift { bottom: calc(140px + max(var(--sab), 12px)); }
+.is-desktop .toast.lift { bottom: 140px; }
 .undo { color: #fff; min-height: 44px; min-width: 44px; padding: 2px 4px; }
 .toast-enter-active, .toast-leave-active { transition: opacity .2s, transform .2s; }
 .toast-enter-from { opacity: 1; transform: translateY(8px); }

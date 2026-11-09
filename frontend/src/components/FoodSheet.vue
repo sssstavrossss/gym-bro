@@ -63,7 +63,7 @@ import { nextQuickInput, nextQuickNumber } from "../lib/quickEntry";
 import { keyboardEntry } from "../lib/viewport";
 import { deviceTimeZone, profile } from "../state/profile";
 import { findEntry, log, removeEntry, saveQuickAdd, totalsOf, updateFoodAmount, updateQuickAdd, viewed, type LogEntry } from "../state/log";
-import { closeFoodLayer, closeSheet, toast, ui } from "../ui";
+import { closeFoodLayer, closeSheet, openCopy, toast, ui } from "../ui";
 
 const open = computed(() => ui.sheet === "food");
 const editing = computed(() => findEntry(ui.editEntryId));
@@ -989,6 +989,14 @@ async function addDetail() {
   }
 }
 
+function copyEdited() {
+  const entry = editing.value;
+  if (!entry || saving.value) return;
+  ui.selected = [entry.id];
+  ui.anchor = entry.id;
+  openCopy(true);
+}
+
 async function deleteEdited() {
   const entry = editing.value;
   if (!entry || saving.value) return;
@@ -1103,6 +1111,9 @@ async function deleteEdited() {
       <Keypad v-if="!keyboardEntry" @key="amountKey" />
       <p v-else class="t-capn c3 khint"><kbd>Enter</kbd> {{ editing ? "save" : "add" }} · <kbd>Esc</kbd> {{ editing ? "close" : "back to search" }}</p>
       <div class="row gap8 actions">
+        <button v-if="editing" type="button" class="del-btn t-bodys" aria-label="Copy to another day" :disabled="saving" @click="copyEdited">
+          <Icon name="copy" :size="16" /><span>Copy to…</span>
+        </button>
         <button v-if="editing" type="button" class="del-btn t-bodys" aria-label="Delete" :disabled="saving" @click="deleteEdited">
           <Icon name="trash" :size="16" /><span>Delete</span>
         </button>
@@ -1263,6 +1274,9 @@ async function deleteEdited() {
       <Keypad v-if="!keyboardEntry" @key="qKey" />
       <p v-else class="t-capn c3 khint"><kbd>Tab</kbd> next field · <kbd>Enter</kbd> {{ editing ? "save" : "add" }} · <kbd>Esc</kbd> close</p>
       <div class="row gap8 actions">
+        <button v-if="editing" type="button" class="del-btn t-bodys" aria-label="Copy to another day" :disabled="saving" @click="copyEdited">
+          <Icon name="copy" :size="16" /><span>Copy to…</span>
+        </button>
         <button v-if="editing" type="button" class="del-btn t-bodys" aria-label="Delete" :disabled="saving" @click="deleteEdited">
           <Icon name="trash" :size="16" /><span>Delete</span>
         </button>

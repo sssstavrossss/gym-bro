@@ -276,6 +276,16 @@ export interface LogCreateBody {
   groupId?: string | null;
 }
 
+export interface LogCopyItem {
+  id: string;
+  idempotencyKey: string;
+}
+
+export interface LogCopyResponse {
+  localDate: string;
+  entries: LogEntryResponse[];
+}
+
 export interface LogPatchBody {
   name?: string;
   time?: string;
@@ -535,6 +545,14 @@ export async function addLogEntry(body: LogCreateBody): Promise<LogEntryResponse
 export async function patchLogEntry(id: string, body: LogPatchBody): Promise<LogEntryResponse> {
   return jsonOrThrow(await request(`/api/log-entries/${id}`, {
     method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  }));
+}
+
+export async function copyLogEntries(body: { localDate: string; timeZone: string; items: LogCopyItem[] }): Promise<LogCopyResponse> {
+  return jsonOrThrow(await request("/api/log-entries/copy", {
+    method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   }));

@@ -15,9 +15,18 @@ public static class LogEntryEndpoints
 
     public const string MissingGroup = "No group with that id.";
 
+    public const string NeedCopy = "Choose an entry to copy.";
+
+    public const string DuplicateKey = "Use a different idempotency key for each copy.";
+
+    public const string CopyLimit = "Copy up to 100 entries at a time.";
+
+    public const int CopyMax = 100;
+
     public static RouteGroupBuilder MapLogEntries(this RouteGroupBuilder api)
     {
         api.MapPost("/log-entries", Add);
+        api.MapPost("/log-entries/copy", Copy);
         api.MapGet("/log-entries", List);
         api.MapPatch("/log-entries/{id:guid}", Edit);
         api.MapDelete("/log-entries/{id:guid}", Delete);
@@ -379,6 +388,142 @@ public static class LogEntryEndpoints
         return Results.Ok(ToResponse(entry));
     }
 
+    /// <summary>
+    /// Copies stored rows onto <c>localDate</c>. Each copy is a new id and key,
+    /// with no group link. Times of day stay. Day complete is not touched.
+    /// A missing, deleted, or someone else's row is 404 and nothing new is written.
+    /// </summary>
+    private static async Task<IResult> Copy(
+        ClaimsPrincipal principal,
+        HttpRequest http,
+        AppDbContext db,
+        UserDirectory users,
+        TimeProvider clock,
+        CancellationToken cancellationToken)
+    {
+        if (Caller.MissingOid(principal) is { } denied)
+        {
+            return denied;
+        }
+
+        var body = await ReadCopy(http, cancellationToken);
+        if (body.Missing)
+        {
+            return ApiResults.Error(body.Error ?? MissingEntry, StatusCodes.Status404NotFound);
+        }
+
+        if (body.Error is not null)
+        {
+            return ApiResults.Error(body.Error);
+        }
+
+        var draft = body.Draft!;
+        await users.UpsertAsync(principal, cancellationToken);
+        var userId = Caller.Id(principal);
+        var window = await LogWindow.OpenAsync(userId, draft.TimeZone, db, clock, cancellationToken);
+        if (window.Error is not null)
+        {
+            return ApiResults.Error(window.Error);
+        }
+
+        var dateError = LogEntryRules.RejectDate(draft.LocalDate, window.SetupDate, window.ClientToday, window.ServerToday);
+        if (dateError is not null)
+        {
+            return ApiResults.Error(dateError);
+        }
+
+        var keys = draft.Items.Select(item => item.IdempotencyKey).ToList();
+        var existing = await db.LogEntries.AsNoTracking()
+            .Where(row => row.UserId == userId && keys.Contains(row.IdempotencyKey))
+            .ToListAsync(cancellationToken);
+        var byKey = existing.ToDictionary(row => row.IdempotencyKey);
+        var needed = draft.Items.Where(item => !byKey.ContainsKey(item.IdempotencyKey)).ToList();
+        var sourceIds = needed.Select(item => item.Id).Distinct().ToList();
+        var sources = sourceIds.Count == 0
+            ? new List<LogEntry>()
+            : await db.LogEntries.AsNoTracking()
+                .Where(row => row.UserId == userId && sourceIds.Contains(row.Id) && row.DeletedAt == null)
+                .ToListAsync(cancellationToken);
+        if (sources.Count != sourceIds.Count)
+        {
+            return ApiResults.Error(MissingEntry, StatusCodes.Status404NotFound);
+        }
+
+        var byId = sources.ToDictionary(row => row.Id);
+        var created = new List<LogEntry>();
+        foreach (var item in needed)
+        {
+            var source = byId[item.Id];
+            var copy = Clone(source, userId, draft.LocalDate, draft.TimeZone, item.IdempotencyKey);
+            db.LogEntries.Add(copy);
+            created.Add(copy);
+            byKey[copy.IdempotencyKey] = copy;
+        }
+
+        var createdAny = created.Count > 0;
+        if (createdAny)
+        {
+            try
+            {
+                await db.SaveChangesAsync(cancellationToken);
+            }
+            catch (DbUpdateException)
+            {
+                db.ChangeTracker.Clear();
+                var raced = await db.LogEntries.AsNoTracking()
+                    .Where(row => row.UserId == userId && keys.Contains(row.IdempotencyKey))
+                    .ToListAsync(cancellationToken);
+                if (raced.Count != keys.Distinct().Count())
+                {
+                    throw;
+                }
+
+                byKey = raced.ToDictionary(row => row.IdempotencyKey);
+                createdAny = false;
+            }
+        }
+
+        var ordered = draft.Items.Select(item => byKey[item.IdempotencyKey]).ToList();
+        var payload = new
+        {
+            localDate = draft.LocalDate,
+            entries = ordered.Select(ToResponse).ToList(),
+        };
+        return createdAny
+            ? Results.Json(payload, statusCode: StatusCodes.Status201Created)
+            : Results.Ok(payload);
+    }
+
+    /// <summary>
+    /// Exact stored values, a new id, and no group. The clock time is unchanged; the date is the one asked for.
+    /// </summary>
+    private static LogEntry Clone(LogEntry source, string userId, DateOnly localDate, string timeZone, string idempotencyKey)
+    {
+        var time = TimeOnly.FromDateTime(source.LoggedAt);
+        return new LogEntry
+        {
+            Id = Guid.NewGuid(),
+            UserId = userId,
+            LocalDate = localDate,
+            LoggedAt = LogEntryRules.LocalTimestamp(localDate, time),
+            TimeZone = timeZone.Trim(),
+            GroupId = null,
+            FoodId = source.FoodId,
+            FoodOwnerKey = source.FoodOwnerKey,
+            Source = source.Source,
+            SourceId = source.SourceId,
+            Grams = source.Grams,
+            Name = source.Name,
+            Amount = source.Amount,
+            Unit = source.Unit,
+            Kcal = source.Kcal,
+            Protein = source.Protein,
+            Fat = source.Fat,
+            Carbs = source.Carbs,
+            IdempotencyKey = idempotencyKey,
+        };
+    }
+
     private static async Task<(string? Error, Food? Food, Guid? GroupId)> OwnFoodAndGroup(
         AppDbContext db,
         string userId,
@@ -470,6 +615,22 @@ public static class LogEntryEndpoints
         public Guid? FoodId { get; init; }
 
         public Guid? GroupId { get; init; }
+    }
+
+    private sealed class CopyItem
+    {
+        public Guid Id { get; init; }
+
+        public string IdempotencyKey { get; init; } = "";
+    }
+
+    private sealed class CopyDraft
+    {
+        public DateOnly LocalDate { get; init; }
+
+        public string TimeZone { get; init; } = "";
+
+        public List<CopyItem> Items { get; init; } = [];
     }
 
     private sealed class PatchDraft
@@ -623,6 +784,69 @@ public static class LogEntryEndpoints
             FoodId = foodId,
             GroupId = groupId,
         }, null);
+    }
+
+    private static async Task<(CopyDraft? Draft, string? Error, bool Missing)> ReadCopy(HttpRequest http, CancellationToken cancellationToken)
+    {
+        var root = await ReadRoot(http, cancellationToken);
+        if (root.Error is not null)
+        {
+            return (null, root.Error, false);
+        }
+
+        var json = root.Json!.RootElement;
+        if (!LogEntryRules.TryDate(Text(json, "localDate"), out var localDate))
+        {
+            return (null, LogEntryRules.BadDate, false);
+        }
+
+        var zone = Text(json, "timeZone");
+        if (string.IsNullOrWhiteSpace(zone))
+        {
+            return (null, LogEntryRules.UnknownZone, false);
+        }
+
+        if (!json.TryGetProperty("items", out var items) || items.ValueKind != JsonValueKind.Array || items.GetArrayLength() == 0)
+        {
+            return (null, NeedCopy, false);
+        }
+
+        if (items.GetArrayLength() > CopyMax)
+        {
+            return (null, CopyLimit, false);
+        }
+
+        var list = new List<CopyItem>();
+        var seenKeys = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var item in items.EnumerateArray())
+        {
+            if (item.ValueKind != JsonValueKind.Object)
+            {
+                return (null, NeedCopy, false);
+            }
+
+            var key = Text(item, "idempotencyKey");
+            if (string.IsNullOrWhiteSpace(key) || key.Trim().Length > 64)
+            {
+                return (null, LogEntryRules.NeedKey, false);
+            }
+
+            key = key.Trim();
+            if (!seenKeys.Add(key))
+            {
+                return (null, DuplicateKey, false);
+            }
+
+            var idText = Text(item, "id");
+            if (idText is null || !Guid.TryParse(idText, out var id))
+            {
+                return (null, MissingEntry, true);
+            }
+
+            list.Add(new CopyItem { Id = id, IdempotencyKey = key });
+        }
+
+        return (new CopyDraft { LocalDate = localDate, TimeZone = zone.Trim(), Items = list }, null, false);
     }
 
     private static async Task<(PatchDraft? Patch, string? Error)> ReadPatch(HttpRequest http, CancellationToken cancellationToken)

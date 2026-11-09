@@ -174,15 +174,15 @@ test("today empty, quick add, on target, edit, undo, and no sideways scroll", as
   await expect(page.getByText("On target ±5 %")).toBeVisible();
   await expect(page.getByText("kcal left").or(page.getByText("kcal over"))).toBeVisible();
   await expect(page.getByRole("img", { name: /Calories/ })).toBeVisible();
-  await expect(page.getByRole("button", { name: /Fictional bar/ })).toBeVisible();
+  await expect(page.locator("button.frow").filter({ hasText: "Fictional bar" })).toBeVisible();
   await expectNoSideScroll(page);
   await expectClean(page);
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(page.locator(".wbig")).toHaveCount(0);
-  await expect(page.getByRole("button", { name: /Fictional bar/ })).toBeVisible();
+  await expect(page.locator("button.frow").filter({ hasText: "Fictional bar" })).toBeVisible();
   await expectClean(page);
 
-  await page.getByRole("button", { name: /Fictional bar/ }).click();
+  await page.locator("button.frow").filter({ hasText: "Fictional bar" }).click();
   await expect(page.getByRole("heading", { name: "Edit food" })).toBeVisible();
   const deleteButton = page.getByRole("button", { name: "Delete", exact: true });
   await expectTouchTarget(deleteButton);
@@ -191,12 +191,12 @@ test("today empty, quick add, on target, edit, undo, and no sideways scroll", as
   await expect(page.getByText("Over target")).toBeVisible();
   await expect(page.getByText(/over/).first()).toBeVisible();
 
-  await page.getByRole("button", { name: /Fictional bar/ }).click();
+  await page.locator("button.frow").filter({ hasText: "Fictional bar" }).click();
   await deleteButton.click();
   const undo = page.getByRole("button", { name: "Undo" });
   await expect(undo).toBeVisible();
   await undo.click();
-  await expect(page.getByRole("button", { name: /Fictional bar/ })).toBeVisible();
+  await expect(page.locator("button.frow").filter({ hasText: "Fictional bar" })).toBeVisible();
 
   for (const width of widths) {
     await page.setViewportSize({ width, height: width >= 1024 ? 900 : 844 });
@@ -235,7 +235,7 @@ test("a failed add stays pending and retry uses the same key", async ({ page }) 
 
   await page.unroute("**/api/log-entries");
   await retry.click();
-  await expect(page.getByRole("button", { name: /Fictional shake/ })).toBeVisible();
+  await expect(page.locator("button.frow").filter({ hasText: "Fictional shake" })).toBeVisible();
   const listed = await page.request.get(`/api/log-entries?date=${when.today}`, { headers: headers(oid) });
   expect(listed.ok()).toBeTruthy();
   const body = await listed.json();
@@ -265,5 +265,5 @@ test("kcal and macro numbers stay whole at the largest text size", async ({ page
   await expect(page.getByText("kcal left").or(page.getByText("kcal over"))).toBeVisible();
   await expectNumbersWhole(page);
   await expectNoSideScroll(page);
-  await expectTouchTarget(page.getByRole("button", { name: /Quick add/ }));
+  await expectTouchTarget(page.locator("button.frow").filter({ hasText: "Quick add" }));
 });

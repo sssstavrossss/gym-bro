@@ -2,7 +2,9 @@
 import { computed, onBeforeUnmount, onMounted, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import AddChooser from "./components/AddChooser.vue";
+import CopySheet from "./components/CopySheet.vue";
 import FoodSheet from "./components/FoodSheet.vue";
+import SelectBar from "./components/SelectBar.vue";
 import SideNav from "./components/SideNav.vue";
 import TabBar from "./components/TabBar.vue";
 import Toast from "./components/Toast.vue";
@@ -15,7 +17,7 @@ import { vp } from "./lib/viewport";
 import { boot } from "./state/boot";
 import { loadProfile, profile, retryLoad } from "./state/profile";
 import { loadToday, log, viewed } from "./state/log";
-import { closeFoodLayer, closeSheet, openAdd, openFood, openWeight, ui } from "./ui";
+import { closeCopy, closeFoodLayer, closeSheet, endSelect, openAdd, openFood, openWeight, ui } from "./ui";
 import SignInView from "./views/SignInView.vue";
 
 const route = useRoute();
@@ -56,6 +58,14 @@ onMounted(async () => {
   boot.ready = true;
 });
 
+watch(() => route.fullPath, () => {
+  if (ui.sheet !== "copy") endSelect();
+});
+
+watch(() => viewed.date, () => {
+  if (ui.sheet !== "copy") endSelect();
+});
+
 watch(
   () => [boot.ready, boot.signedIn, profile.hasSaved, route.path] as const,
   () => {
@@ -72,6 +82,16 @@ function onKey(event: KeyboardEvent) {
   const target = event.target as HTMLElement | null;
   const typing = target?.closest("input, textarea, select, [contenteditable='true']") != null;
   if (event.key === "Escape") {
+    if (ui.sheet === "copy") {
+      event.preventDefault();
+      closeCopy();
+      return;
+    }
+    if (!ui.sheet && ui.selecting) {
+      event.preventDefault();
+      endSelect();
+      return;
+    }
     if (!ui.sheet) return;
     event.preventDefault();
     if (ui.sheet === "food" && closeFoodLayer()) return;
@@ -100,12 +120,14 @@ function onKey(event: KeyboardEvent) {
     <p class="t-body c2">Loading…</p>
   </div>
   <SignInView v-else-if="!boot.signedIn" />
-  <div v-else class="app" :class="{ 'is-tablet': vp.tablet && !vp.desktop, 'is-desktop': vp.desktop, 'is-wide': vp.wide, 'can-hover': vp.hover, 'has-nav': showNav, 'no-nav': !showNav }">
+  <div v-else class="app" :class="{ 'is-tablet': vp.tablet && !vp.desktop, 'is-desktop': vp.desktop, 'is-wide': vp.wide, 'can-hover': vp.hover, 'has-nav': showNav, 'no-nav': !showNav, selecting: ui.selecting }">
     <SideNav v-if="showNav && vp.desktop" />
     <div class="scroller">
       <RouterView />
     </div>
-    <TabBar v-if="showNav && !vp.desktop" />
+    <TabBar v-if="showNav && !vp.desktop && !ui.selecting" />
+    <SelectBar v-if="showNav && ui.selecting" />
+    <CopySheet />
     <WeightSheet />
     <AccuracySheet />
     <AddChooser />
@@ -126,4 +148,6 @@ function onKey(event: KeyboardEvent) {
 .scroller { position: absolute; inset: 0; overflow-y: auto; overflow-x: hidden; }
 .is-desktop.has-nav .scroller { left: 240px; }
 .no-nav { --tabbar-h: 0px; }
+.app.selecting { --tabbar-h: calc(128px + max(var(--sab), 12px)); }
+.app.selecting.is-desktop .screen { padding-bottom: 160px; }
 </style>
