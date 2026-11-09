@@ -14,7 +14,7 @@ import { currentAccount } from "./auth/session";
 import { vp } from "./lib/viewport";
 import { boot } from "./state/boot";
 import { loadProfile, profile, retryLoad } from "./state/profile";
-import { loadToday, log } from "./state/log";
+import { loadToday, log, viewed } from "./state/log";
 import { closeSheet, openAdd, openFood, openWeight, ui } from "./ui";
 import SignInView from "./views/SignInView.vue";
 
@@ -83,12 +83,14 @@ function onKey(event: KeyboardEvent) {
   }
   if (typing || ui.sheet || !showNav.value) return;
   const key = event.key.toLowerCase();
+  const onDay = route.path.startsWith("/log") || route.path.startsWith("/today");
+  const day = onDay && viewed.date ? viewed.date : undefined;
   if (key === "n" || key === "/") {
     event.preventDefault();
-    openFood();
+    openFood("search", day);
   } else if (key === "q") {
     event.preventDefault();
-    openFood("quick");
+    openFood("quick", day);
   } else if (key === "w") {
     event.preventDefault();
     openWeight();

@@ -1,13 +1,19 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import Icon from "./Icon.vue";
-import { todayIso } from "../lib/dates";
+import { dayMonth, todayIso } from "../lib/dates";
 
-const props = defineProps<{ modelValue: string | null; date: string; allowNow?: boolean }>();
+const props = withDefaults(defineProps<{ modelValue: string | null; date: string; today?: string; allowNow?: boolean }>(), {
+  allowNow: true,
+});
 const emit = defineEmits<{ "update:modelValue": [string | null] }>();
 const el = ref<HTMLInputElement | null>(null);
-const past = computed(() => props.date !== todayIso());
-const label = computed(() => props.modelValue ?? (props.allowNow !== false ? "Now" : "Pick a time"));
+const past = computed(() => props.date !== (props.today || todayIso()));
+const needed = computed(() => past.value && !props.modelValue);
+const label = computed(() => {
+  const time = props.modelValue ?? (past.value || props.allowNow === false ? "Pick a time" : "Now");
+  return past.value ? `${dayMonth(props.date)} · ${time}` : time;
+});
 
 function prime() {
   const input = el.value;
@@ -29,18 +35,19 @@ function change(event: Event) {
 
 <template>
   <span class="tchip-wrap">
-    <span class="tchip t-label" :class="{ set: modelValue }">
+    <span class="tchip t-label" :class="{ set: modelValue, need: needed }">
       <Icon name="clock" :size="14" :sw="2.2" />
       <span>{{ label }}</span>
       <input ref="el" class="tinput" type="time" :aria-label="`Time: ${label}. Change time`" :value="modelValue ?? ''" @pointerdown="prime" @click="pick" @change="change" />
     </span>
-    <button v-if="modelValue && allowNow !== false" type="button" class="now t-capn c2" @click="emit('update:modelValue', null)">Now</button>
+    <button v-if="modelValue && !past && allowNow" type="button" class="now t-capn c2" @click="emit('update:modelValue', null)">Now</button>
   </span>
 </template>
 
 <style scoped>
 .tchip-wrap { position: relative; display: inline-flex; align-items: center; gap: 6px; max-width: 100%; }
 .tchip { position: relative; min-height: 44px; padding: 0 12px; border-radius: 22px; display: inline-flex; align-items: center; gap: 6px; background: var(--color-surface-2); color: var(--text-primary); }
+.tchip.need { box-shadow: none; outline: 1.5px dashed var(--text-primary); outline-offset: -1.5px; background: transparent; }
 .tchip.set { box-shadow: inset 0 0 0 1.5px var(--text-secondary); }
 .tinput { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; border: 0; padding: 0; margin: 0; cursor: pointer; font-size: 16px; }
 .tchip:focus-within { outline: 2px solid var(--color-action); outline-offset: 2px; }

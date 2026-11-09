@@ -3,14 +3,21 @@ import {
   addLogEntry,
   ApiError,
   deleteLogEntry,
+  getDayStatus,
+  getTargets,
+  listLogDays,
   listLogEntries,
   patchLogEntry,
+  putDayStatus,
   restoreLogEntry,
   ServerUnreachable,
   type LogEntryResponse,
+  type TargetsResponse,
 } from "../api";
-import { todayIso } from "../lib/dates";
+import { byTime } from "../lib/dayLog";
+import { addDays, todayInZone, todayIso, weekStart } from "../lib/dates";
 import { boot } from "./boot";
+import { deviceTimeZone } from "./profile";
 import { toast } from "../ui";
 
 export interface LogEntry {
@@ -62,6 +69,21 @@ export const log = reactive({
   loading: false,
   loaded: false,
   unreachable: false,
+});
+
+/** The day open on Today or Log. Today's own list stays in `log` for the side column. */
+export const viewed = reactive({
+  date: "",
+  entries: [] as LogEntry[],
+  target: null as TargetsResponse | null,
+  firstTargetDate: null as string | null,
+  complete: false,
+  fasting: false,
+  setupDate: "",
+  today: "",
+  loggedDates: [] as string[],
+  loading: false,
+  loaded: false,
 });
 
 export interface DayTotals {
@@ -117,11 +139,50 @@ function fromResponse(row: LogEntryResponse): LogEntry {
   };
 }
 
-function upsert(entry: LogEntry): void {
-  const index = log.entries.findIndex((row) => row.id === entry.id);
-  if (index >= 0) log.entries.splice(index, 1, entry);
-  else log.entries.push(entry);
-  log.entries.sort((a, b) => a.time.localeCompare(b.time) || a.id.localeCompare(b.id));
+function sortInto(list: LogEntry[], entry: LogEntry, acceptNew: boolean): void {
+  const index = list.findIndex((row) => row.id === entry.id);
+  if (index >= 0) {
+    if (!acceptNew) list.splice(index, 1);
+    else list.splice(index, 1, entry);
+  } else if (acceptNew) {
+    list.push(entry);
+  }
+  const ordered = byTime(list);
+  list.splice(0, list.length, ...ordered);
+}
+
+function noteLogged(date: string): void {
+  if (!viewed.loggedDates.includes(date)) viewed.loggedDates.push(date);
+}
+
+function noteIfEmpty(date: string): void {
+  const count = viewed.date === date ? viewed.entries.length : log.date === date ? log.entries.length : null;
+  if (count === 0) viewed.loggedDates = viewed.loggedDates.filter((day) => day !== date);
+}
+
+/** Puts the entry on today's list and on the open day. Does not touch day complete. */
+function place(entry: LogEntry): void {
+  sortInto(log.entries, entry, log.date === entry.localDate);
+  sortInto(viewed.entries, entry, viewed.date === entry.localDate);
+  noteLogged(entry.localDate);
+}
+
+export function findEntry(id: string | null): LogEntry | null {
+  if (!id) return null;
+  return viewed.entries.find((row) => row.id === id) ?? log.entries.find((row) => row.id === id) ?? null;
+}
+
+export function totalsOf(entries: readonly Pick<LogEntry, "kcal" | "protein" | "fat" | "carbs">[]): DayTotals {
+  return entries.reduce((sum, row) => ({
+    kcal: sum.kcal + row.kcal,
+    p: sum.p + row.protein,
+    f: sum.f + row.fat,
+    c: sum.c + row.carbs,
+  }), { kcal: 0, p: 0, f: 0, c: 0 });
+}
+
+export function pendingFor(date: string): PendingAdd[] {
+  return log.pending.filter((row) => row.localDate === date);
 }
 
 function dropPending(key: string): void {
@@ -130,12 +191,7 @@ function dropPending(key: string): void {
 }
 
 export function dayTotals(): DayTotals {
-  return log.entries.reduce((sum, row) => ({
-    kcal: sum.kcal + row.kcal,
-    p: sum.p + row.protein,
-    f: sum.f + row.fat,
-    c: sum.c + row.carbs,
-  }), { kcal: 0, p: 0, f: 0, c: 0 });
+  return totalsOf(log.entries);
 }
 
 export function hasLog(): boolean {
@@ -161,6 +217,66 @@ export async function loadToday(): Promise<void> {
     if (error instanceof ServerUnreachable) log.unreachable = true;
   } finally {
     if (gen === generation) log.loading = false;
+  }
+}
+
+let viewGeneration = 0;
+
+export async function loadDay(date: string): Promise<void> {
+  const gen = ++viewGeneration;
+  const zone = deviceTimeZone();
+  const clientToday = todayInZone(zone);
+  const asked = date > clientToday ? clientToday : date;
+  viewed.loading = true;
+  try {
+    const days = await listLogDays(weekStart(asked), addDays(weekStart(asked), 6), zone);
+    if (gen !== viewGeneration) return;
+    const today = days.today || clientToday;
+    const day = asked > today ? today : days.setupDate && asked < days.setupDate ? days.setupDate : asked;
+    const [list, targets, status] = await Promise.all([
+      listLogEntries(day),
+      getTargets(day),
+      getDayStatus(day, zone),
+    ]);
+    if (gen !== viewGeneration) return;
+    const entries = list.entries.map(fromResponse);
+    viewed.date = list.localDate;
+    viewed.entries = entries;
+    viewed.target = targets.targets;
+    viewed.firstTargetDate = targets.firstTargetDate;
+    viewed.complete = status.complete;
+    viewed.fasting = status.fasting;
+    viewed.setupDate = days.setupDate;
+    viewed.today = today;
+    viewed.loggedDates = days.loggedDates;
+    viewed.loaded = true;
+    if (list.localDate === today) {
+      log.date = list.localDate;
+      log.entries = entries.map((row) => ({ ...row }));
+      log.loaded = true;
+    }
+  } catch (error) {
+    if (gen !== viewGeneration) return;
+    viewed.loaded = true;
+    if (error instanceof ServerUnreachable) log.unreachable = true;
+    else if (error instanceof ApiError) toast(error.message);
+  } finally {
+    if (gen === viewGeneration) viewed.loading = false;
+  }
+}
+
+export async function setDayComplete(date: string, complete: boolean, fasting: boolean): Promise<boolean> {
+  try {
+    const saved = await putDayStatus(date, { complete, fasting, timeZone: deviceTimeZone() });
+    if (viewed.date === saved.localDate) {
+      viewed.complete = saved.complete;
+      viewed.fasting = saved.fasting;
+    }
+    return true;
+  } catch (error) {
+    if (error instanceof ServerUnreachable) log.unreachable = true;
+    toast(error instanceof ApiError ? error.message : "Couldn't update that day.");
+    return false;
   }
 }
 
@@ -196,7 +312,7 @@ export async function saveQuickAdd(pending: PendingAdd): Promise<SaveResult> {
     }
     dropPending(pending.idempotencyKey);
     const entry = fromResponse(saved);
-    upsert(entry);
+    place(entry);
     return { ok: true, entry };
   } catch (error) {
     if (error instanceof ServerUnreachable || (error instanceof ApiError && error.status >= 500)) {
@@ -223,7 +339,7 @@ export async function updateFoodAmount(id: string, values: { amount: number; uni
   try {
     const saved = await patchLogEntry(id, body);
     const entry = fromResponse(saved);
-    upsert(entry);
+    place(entry);
     return { ok: true, entry };
   } catch (error) {
     if (error instanceof ServerUnreachable || (error instanceof ApiError && error.status >= 500)) {
@@ -247,7 +363,7 @@ export async function updateQuickAdd(id: string, values: QuickValues): Promise<S
   try {
     const saved = await patchLogEntry(id, body);
     const entry = fromResponse(saved);
-    upsert(entry);
+    place(entry);
     return { ok: true, entry };
   } catch (error) {
     if (error instanceof ServerUnreachable || (error instanceof ApiError && error.status >= 500)) {
@@ -267,7 +383,10 @@ export async function removeEntry(entry: LogEntry): Promise<boolean> {
     toast(error instanceof ApiError ? error.message : "Couldn't delete that entry. It's still here.");
     return false;
   }
+  const date = entry.localDate;
   log.entries = log.entries.filter((row) => row.id !== entry.id);
+  viewed.entries = viewed.entries.filter((row) => row.id !== entry.id);
+  noteIfEmpty(date);
   toast(`Deleted ${entry.name}`, {
     label: "Undo",
     run: () => { void undoDelete(entry); },
@@ -278,7 +397,7 @@ export async function removeEntry(entry: LogEntry): Promise<boolean> {
 async function undoDelete(entry: LogEntry): Promise<void> {
   try {
     const saved = await restoreLogEntry(entry.id);
-    upsert(fromResponse(saved));
+    place(fromResponse(saved));
   } catch {
     toast(`Deleted ${entry.name}`, {
       label: "Undo",

@@ -4,7 +4,7 @@ import { useRoute } from "vue-router";
 import AccuracyDot from "./AccuracyDot.vue";
 import Icon from "./Icon.vue";
 import { int } from "../lib/format";
-import { dayTotals } from "../state/log";
+import { dayTotals, viewed } from "../state/log";
 import { profile, weightCaption } from "../state/profile";
 import { openFood, openWeight } from "../ui";
 
@@ -31,7 +31,7 @@ const eaten = computed(() => {
       <span class="t-head">Gym Bro</span>
     </div>
 
-    <button type="button" class="add row" @click="openFood()">
+    <button type="button" class="add row" @click="openFood('search', route.path.startsWith('/log') || route.path.startsWith('/today') ? viewed.date || undefined : undefined)">
       <Icon name="plus" :size="18" :sw="2.6" /><span class="t-bodys grow">Add food</span><kbd>N</kbd>
     </button>
     <button type="button" class="add2 row" @click="openWeight">

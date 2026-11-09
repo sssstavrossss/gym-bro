@@ -1,0 +1,99 @@
+import { describe, expect, it } from "vitest";
+import {
+  byTime,
+  clampLogDate,
+  dayCompleteHint,
+  dayTotalText,
+  fastingChoice,
+  fastingQuestion,
+  planDayComplete,
+  shiftLogDate,
+  summaryCells,
+  targetLine,
+  weekDays,
+} from "../src/lib/dayLog";
+import { addNeedsTime, sameAddTap } from "../src/lib/foodSheet";
+
+const target = {
+  kcal: 2151,
+  protein: 160,
+  fat: 60,
+  carbs: 200,
+  effectiveDate: "2026-10-22",
+  reason: "profile_change",
+};
+
+describe("day navigation", () => {
+  it("offers no future day and stops at the setup date", () => {
+    expect(clampLogDate("2026-11-02", "2026-11-01", "2026-10-20")).toBe("2026-11-01");
+    expect(clampLogDate("nope", "2026-11-01", "2026-10-20")).toBe("2026-11-01");
+    expect(clampLogDate("2026-10-01", "2026-11-01", "2026-10-20")).toBe("2026-10-20");
+    expect(shiftLogDate("2026-11-01", 1, "2026-11-01", "2026-10-20")).toBeNull();
+    expect(shiftLogDate("2026-10-20", -1, "2026-11-01", "2026-10-20")).toBeNull();
+    expect(shiftLogDate("2026-10-21", -1, "2026-11-01", "2026-10-20")).toBe("2026-10-20");
+
+    const days = weekDays("2026-11-04", "2026-11-04", "2026-11-04", "2026-11-03", ["2026-11-03", "2026-11-05"]);
+    expect(days.find((day) => day.date === "2026-11-02")?.disabled).toBe(true);
+    expect(days.find((day) => day.date === "2026-11-03")?.logged).toBe(true);
+    expect(days.filter((day) => day.date > "2026-11-04").every((day) => day.disabled && !day.logged)).toBe(true);
+    expect(days.find((day) => day.date === "2026-11-04")?.label).toContain("today");
+    expect(days.find((day) => day.date === "2026-11-04")?.disabled).toBe(false);
+  });
+});
+
+describe("past-day add", () => {
+  it("stays disabled until a time is picked, and today still defaults to now", () => {
+    expect(addNeedsTime("2026-11-08", "2026-11-09", null, false)).toBe(true);
+    expect(addNeedsTime("2026-11-08", "2026-11-09", "08:15", false)).toBe(false);
+    expect(addNeedsTime("2026-11-09", "2026-11-09", null, false)).toBe(false);
+    expect(addNeedsTime("2026-11-08", "2026-11-09", null, true)).toBe(false);
+    expect(sameAddTap(1_000, 1_400)).toBe(true);
+    expect(sameAddTap(1_000, 1_700)).toBe(false);
+  });
+});
+
+describe("day complete", () => {
+  it("asks before marking an empty day fasting, and saves nothing if declined", () => {
+    expect(planDayComplete(true, 0)).toEqual({ kind: "ask" });
+    expect(fastingQuestion).toBe("Mark as a fasting day (0 kcal)?");
+    expect(fastingChoice(false)).toEqual({ save: false });
+    expect(fastingChoice(true)).toEqual({ save: true, complete: true, fasting: true });
+  });
+
+  it("saves complete only when the day already has food", () => {
+    expect(planDayComplete(true, 1)).toEqual({ kind: "save" });
+    expect(planDayComplete(true, 3)).toEqual({ kind: "save" });
+  });
+
+  it("unticking clears the day and fasting is not its own action", () => {
+    expect(planDayComplete(false, 0)).toEqual({ kind: "clear" });
+    expect(planDayComplete(false, 2)).toEqual({ kind: "clear" });
+    expect(dayCompleteHint).toContain("never as zero");
+    const yes = fastingChoice(true);
+    expect(yes.save && yes.fasting).toBe(true);
+    expect(Object.keys(planDayComplete(true, 1))).not.toContain("fasting");
+  });
+});
+
+describe("timeline and targets", () => {
+  it("orders entries by time and does not judge a day before the first target", () => {
+    const rows = byTime([
+      { id: "c", time: "18:00" },
+      { id: "a", time: "07:30" },
+      { id: "b", time: "12:00" },
+      { id: "d", time: "07:30" },
+    ]);
+    expect(rows.map((row) => row.id)).toEqual(["a", "d", "b", "c"]);
+    const bare = summaryCells({ kcal: 400, p: 10, f: 5, c: 40 }, null);
+    expect(bare.every((cell) => !cell.over)).toBe(true);
+    expect(bare[0].caption).toBe("kcal");
+    expect(targetLine(null, "2026-10-22")).toBe("No target on this day · targets start 22 Oct");
+    expect(targetLine(null, null)).toBe("No target on this day");
+    const judged = summaryCells({ kcal: 3000, p: 10, f: 5, c: 40 }, target);
+    expect(judged[0].over).toBe(true);
+    expect(judged[0].caption).toBe("/ 2,151 kcal");
+    expect(targetLine(target, "2026-10-22")).toBe("Target 2,151 kcal · since 22 Oct · Profile change");
+    expect(dayTotalText(1240, 3)).toBe("1,240 kcal · 3 items");
+    expect(dayTotalText(40, 1)).toBe("40 kcal · 1 item");
+  });
+});

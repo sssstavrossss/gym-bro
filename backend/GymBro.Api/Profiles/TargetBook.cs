@@ -6,6 +6,18 @@ namespace GymBro.Api.Profiles;
 
 public static class TargetBook
 {
+    public static async Task<DateOnly?> FirstDateAsync(
+        AppDbContext db,
+        string userId,
+        CancellationToken cancellationToken)
+    {
+        return await db.TargetHistories.AsNoTracking()
+            .Where(row => row.UserId == userId)
+            .OrderBy(row => row.EffectiveDate)
+            .Select(row => (DateOnly?)row.EffectiveDate)
+            .FirstOrDefaultAsync(cancellationToken);
+    }
+
     public static async Task<TargetHistory?> InEffectAsync(
         AppDbContext db,
         string userId,

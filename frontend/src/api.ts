@@ -239,6 +239,27 @@ export interface LogListResponse {
   entries: LogEntryResponse[];
 }
 
+export interface TargetsDayResponse {
+  date: string;
+  firstTargetDate: string | null;
+  targets: TargetsResponse | null;
+}
+
+export interface DayStatusResponse {
+  localDate: string;
+  complete: boolean;
+  fasting: boolean;
+}
+
+export interface LogDaysResponse {
+  from: string;
+  to: string;
+  setupDate: string;
+  today: string;
+  firstTargetDate: string | null;
+  loggedDates: string[];
+}
+
 export interface LogCreateBody {
   idempotencyKey: string;
   localDate: string;
@@ -413,6 +434,28 @@ export async function confirmFoodBasis(id: string, basis: "g" | "ml"): Promise<F
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ basis }),
   }));
+}
+
+export async function getTargets(date: string): Promise<TargetsDayResponse> {
+  return jsonOrThrow(await request(`/api/targets?date=${encodeURIComponent(date)}`));
+}
+
+export async function getDayStatus(date: string, timeZone: string): Promise<DayStatusResponse> {
+  const query = new URLSearchParams({ date, timeZone });
+  return jsonOrThrow(await request(`/api/day-status?${query}`));
+}
+
+export async function putDayStatus(date: string, body: { complete: boolean; fasting: boolean; timeZone: string }): Promise<DayStatusResponse> {
+  return jsonOrThrow(await request(`/api/day-status/${date}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  }));
+}
+
+export async function listLogDays(from: string, to: string, timeZone: string): Promise<LogDaysResponse> {
+  const query = new URLSearchParams({ from, to, timeZone });
+  return jsonOrThrow(await request(`/api/log-days?${query}`));
 }
 
 export async function listLogEntries(date: string): Promise<LogListResponse> {

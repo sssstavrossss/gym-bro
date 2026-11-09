@@ -4,11 +4,13 @@ import Bar from "./Bar.vue";
 import Icon from "./Icon.vue";
 import { int } from "../lib/format";
 import { macroStatus, type MacroKind } from "../lib/macros";
-import { dayTotals } from "../state/log";
+import { dayTotals, type DayTotals } from "../state/log";
 import { profile } from "../state/profile";
+import type { TargetsResponse } from "../api";
 
-const target = computed(() => profile.targets);
-const totals = computed(() => dayTotals());
+const props = defineProps<{ target?: TargetsResponse | null; totals?: DayTotals | null; label?: string }>();
+const target = computed(() => (props.target === undefined ? profile.targets : props.target));
+const totals = computed(() => props.totals ?? dayTotals());
 const macros = computed(() => {
   const goal = target.value;
   const eaten = totals.value;
@@ -34,7 +36,7 @@ const macros = computed(() => {
       <span class="t-bodys" data-num>{{ int(totals.c) }}</span><span class="t-capn c2">C</span>
     </div>
   </section>
-  <section v-else class="card macros" aria-label="Today's macros">
+  <section v-else class="card macros" :aria-label="label || 'Today\'s macros'">
     <div v-for="m in macros" :key="m.label" class="col gap6">
       <div class="row mrow">
         <span class="t-label" :class="m.st === 'under' ? 'c2' : ''">{{ m.label }}<span v-if="m.min" class="c3 t-capn"> · min</span></span>
