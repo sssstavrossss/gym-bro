@@ -52,7 +52,7 @@ public sealed class DayStatusEndpointTests(ApiFactory factory)
         var saved = await client.PutAsync("/api/day-status/2026-10-24", Json(Complete(true, true)));
         Assert.Equal(HttpStatusCode.OK, saved.StatusCode);
         var body = await saved.Content.ReadFromJsonAsync<JsonElement>();
-        Assert.True(body.GetProperty("complete").GetBoolean());
+        Assert.False(body.GetProperty("complete").GetBoolean());
         Assert.True(body.GetProperty("fasting").GetBoolean());
 
         var separate = await client.PutAsync("/api/fasting/2026-10-24", Json(Complete(true, true)));
@@ -71,8 +71,8 @@ public sealed class DayStatusEndpointTests(ApiFactory factory)
         var saved = await client.PutAsync("/api/day-status/2026-10-24", Json(Complete(true, true)));
         Assert.Equal(HttpStatusCode.OK, saved.StatusCode);
         var body = await saved.Content.ReadFromJsonAsync<JsonElement>();
-        Assert.True(body.GetProperty("complete").GetBoolean());
-        Assert.False(body.GetProperty("fasting").GetBoolean());
+        Assert.False(body.GetProperty("complete").GetBoolean());
+        Assert.True(body.GetProperty("fasting").GetBoolean());
     }
 
     [Fact]
@@ -92,7 +92,9 @@ public sealed class DayStatusEndpointTests(ApiFactory factory)
 
         await using var scope = factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        Assert.False(await db.DayStatuses.AnyAsync(row => row.UserId == user));
+        var kept = await db.DayStatuses.SingleAsync(row => row.UserId == user);
+        Assert.False(kept.Complete);
+        Assert.False(kept.Fasting);
     }
 
     [Fact]
@@ -103,15 +105,15 @@ public sealed class DayStatusEndpointTests(ApiFactory factory)
         await Setup(client, "2026-10-24");
         var first = await client.PostAsync("/api/log-entries", Json(Quick("stay-1", "2026-10-24", "100", "\"time\":\"08:00\"")));
         var firstId = (await first.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
-        Assert.Equal(HttpStatusCode.OK, (await client.PutAsync("/api/day-status/2026-10-24", Json(Complete(true)))).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.PutAsync("/api/day-status/2026-10-24", Json(Complete(true, true)))).StatusCode);
 
         var second = await client.PostAsync("/api/log-entries", Json(Quick("stay-2", "2026-10-24", "50", "\"time\":\"13:00\"")));
         Assert.Equal(HttpStatusCode.Created, second.StatusCode);
         Assert.Equal(HttpStatusCode.NoContent, (await client.DeleteAsync($"/api/log-entries/{firstId}")).StatusCode);
 
         var status = await client.GetFromJsonAsync<JsonElement>("/api/day-status?date=2026-10-24&timeZone=UTC");
-        Assert.True(status.GetProperty("complete").GetBoolean());
-        Assert.False(status.GetProperty("fasting").GetBoolean());
+        Assert.False(status.GetProperty("complete").GetBoolean());
+        Assert.True(status.GetProperty("fasting").GetBoolean());
         var list = await client.GetFromJsonAsync<JsonElement>("/api/log-entries?date=2026-10-24");
         Assert.Equal(1, list.GetProperty("entries").GetArrayLength());
         Assert.Equal(50, list.GetProperty("totals").GetProperty("kcal").GetDecimal());
@@ -129,7 +131,7 @@ public sealed class DayStatusEndpointTests(ApiFactory factory)
         Assert.Equal(HttpStatusCode.Created, created.StatusCode);
 
         var status = await client.GetFromJsonAsync<JsonElement>("/api/day-status?date=2026-10-24&timeZone=UTC");
-        Assert.True(status.GetProperty("complete").GetBoolean());
+        Assert.False(status.GetProperty("complete").GetBoolean());
         Assert.True(status.GetProperty("fasting").GetBoolean());
         var list = await client.GetFromJsonAsync<JsonElement>("/api/log-entries?date=2026-10-24");
         Assert.Equal(40, list.GetProperty("totals").GetProperty("kcal").GetDecimal());
@@ -146,7 +148,7 @@ public sealed class DayStatusEndpointTests(ApiFactory factory)
         await Setup(client, "2026-10-24");
         await Setup(stranger, "2026-10-24");
         Assert.Equal(HttpStatusCode.Created, (await client.PostAsync("/api/log-entries", Json(Quick("own-day", "2026-10-24", "80", "\"time\":\"09:00\"")))).StatusCode);
-        Assert.Equal(HttpStatusCode.OK, (await client.PutAsync("/api/day-status/2026-10-24", Json(Complete(true)))).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.PutAsync("/api/day-status/2026-10-24", Json(Complete(true, true)))).StatusCode);
 
         var hidden = await stranger.GetFromJsonAsync<JsonElement>("/api/day-status?date=2026-10-24&timeZone=UTC");
         Assert.False(hidden.GetProperty("complete").GetBoolean());
@@ -154,7 +156,7 @@ public sealed class DayStatusEndpointTests(ApiFactory factory)
 
         Assert.Equal(HttpStatusCode.OK, (await stranger.PutAsync("/api/day-status/2026-10-24", Json(Complete(false)))).StatusCode);
         var still = await client.GetFromJsonAsync<JsonElement>("/api/day-status?date=2026-10-24&timeZone=UTC");
-        Assert.True(still.GetProperty("complete").GetBoolean());
+        Assert.True(still.GetProperty("fasting").GetBoolean());
 
         var days = await stranger.GetFromJsonAsync<JsonElement>("/api/log-days?from=2026-10-20&to=2026-10-24&timeZone=UTC");
         Assert.Equal(0, days.GetProperty("loggedDates").GetArrayLength());

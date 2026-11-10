@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import AccuracyDot from "../components/AccuracyDot.vue";
 import Bar from "../components/Bar.vue";
 import FreshStart from "../components/FreshStart.vue";
@@ -25,7 +25,16 @@ import { boot } from "../state/boot";
 import { loadDay, pendingFor, totalsOf, viewed } from "../state/log";
 import { deviceTimeZone, profile } from "../state/profile";
 import { loadWeekDays, weekCache } from "../state/week";
-import { openFood, openWeight } from "../ui";
+import { useRoute } from "vue-router";
+import { openFood, openRecalculate, openWeight } from "../ui";
+
+const route = useRoute();
+onMounted(() => {
+  if (route.query.recalculate === "1") openRecalculate();
+});
+watch(() => route.query.recalculate, (value) => {
+  if (value === "1") openRecalculate();
+});
 
 const weight = computed(() => profile.weight);
 const low = computed(() => isLowAccuracy(weight.value));
@@ -139,6 +148,7 @@ const weekRows = computed(() => {
       <header class="col gap2">
         <span class="t-cap c2">{{ longDate(selected) }}</span>
         <h1 class="t-title">{{ title }}</h1>
+        <button type="button" class="chip t-label recalc" @click="openRecalculate">Recalculate</button>
       </header>
       <WeekStrip :anchor="today" :selected="selected" :today="today" :setup-date="viewed.setupDate" :logged-dates="viewed.loggedDates" @select="pick" />
     </div>
@@ -308,6 +318,7 @@ const weekRows = computed(() => {
 .wk { width: 3.4rem; text-align: right; flex: none; }
 .barw { position: relative; min-width: 0; height: 10px; display: flex; align-items: center; }
 .tgt { position: absolute; left: calc(100% / 1.2); top: -3px; bottom: -3px; width: 1px; background: var(--text-tertiary); }
+.recalc { align-self: flex-start; }
 .gap2 { gap: 2px; }
 .gap6 { gap: 6px; }
 .gap8 { gap: 8px; }

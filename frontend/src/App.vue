@@ -11,6 +11,7 @@ import SideNav from "./components/SideNav.vue";
 import TabBar from "./components/TabBar.vue";
 import Toast from "./components/Toast.vue";
 import AccuracySheet from "./components/AccuracySheet.vue";
+import RecalculateSheet from "./components/RecalculateSheet.vue";
 import WeightSheet from "./components/WeightSheet.vue";
 import { e2eSession } from "./auth/e2e";
 import { isConfigured, loadPublicConfig } from "./auth/publicConfig";
@@ -129,6 +130,7 @@ function onKey(event: KeyboardEvent) {
     <GroupSheet />
     <RecipeSheet />
     <WeightSheet />
+    <RecalculateSheet />
     <AccuracySheet />
     <AddChooser />
     <FoodSheet />

@@ -33,6 +33,10 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
 
     public DbSet<DayStatus> DayStatuses => Set<DayStatus>();
 
+    public DbSet<PushSubscription> PushSubscriptions => Set<PushSubscription>();
+
+    public DbSet<ReminderSend> ReminderSends => Set<ReminderSend>();
+
     public DbSet<FoodSourceCredit> FoodSourceCredits => Set<FoodSourceCredit>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -62,6 +66,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         profile.Property(p => p.FatSetting).HasColumnName("fat_setting").HasMaxLength(8);
         profile.Property(p => p.FatPercent).HasColumnName("fat_percent").HasPrecision(4, 1);
         profile.Property(p => p.TimeZone).HasColumnName("time_zone").HasMaxLength(64);
+        profile.Property(p => p.RemindersEnabled).HasColumnName("reminders_enabled").HasDefaultValue(false);
         profile.Property(p => p.CreatedAt).HasColumnName("created_at");
         profile.Property(p => p.UpdatedAt).HasColumnName("updated_at");
         profile.HasOne<AppUser>().WithMany().HasForeignKey(p => p.UserId).OnDelete(DeleteBehavior.Cascade);
@@ -358,6 +363,28 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         day.Property(d => d.Complete).HasColumnName("complete");
         day.Property(d => d.Fasting).HasColumnName("fasting").HasDefaultValue(false);
         day.HasOne<AppUser>().WithMany().HasForeignKey(d => d.UserId).OnDelete(DeleteBehavior.Cascade);
+
+        var push = modelBuilder.Entity<PushSubscription>();
+        push.ToTable("push_subscriptions");
+        push.HasKey(p => p.Id);
+        push.Property(p => p.Id).HasColumnName("id");
+        push.Property(p => p.UserId).HasColumnName("user_id").HasMaxLength(64);
+        push.Property(p => p.Endpoint).HasColumnName("endpoint").HasMaxLength(2000);
+        push.Property(p => p.P256dh).HasColumnName("p256dh").HasMaxLength(200);
+        push.Property(p => p.Auth).HasColumnName("auth").HasMaxLength(200);
+        push.Property(p => p.CreatedAt).HasColumnName("created_at");
+        push.HasIndex(p => p.Endpoint).IsUnique();
+        push.HasIndex(p => p.UserId);
+        push.HasOne<AppUser>().WithMany().HasForeignKey(p => p.UserId).OnDelete(DeleteBehavior.Cascade);
+
+        var sent = modelBuilder.Entity<ReminderSend>();
+        sent.ToTable("reminder_sends");
+        sent.HasKey(s => new { s.UserId, s.LocalDate, s.Kind });
+        sent.Property(s => s.UserId).HasColumnName("user_id").HasMaxLength(64);
+        sent.Property(s => s.LocalDate).HasColumnName("local_date");
+        sent.Property(s => s.Kind).HasColumnName("kind").HasMaxLength(40);
+        sent.Property(s => s.SentAt).HasColumnName("sent_at");
+        sent.HasOne<AppUser>().WithMany().HasForeignKey(s => s.UserId).OnDelete(DeleteBehavior.Cascade);
 
         var credit = modelBuilder.Entity<FoodSourceCredit>();
         credit.ToTable("food_source_credits");

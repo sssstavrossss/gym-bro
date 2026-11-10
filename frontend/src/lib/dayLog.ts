@@ -39,11 +39,12 @@ const REASON: Record<string, string> = {
   macro_balance_change: "Macro balance change",
   weekly_recalculation: "Weekly update",
   fresh_start: "Fresh start",
+  recalculation_adaptive: "Recalculated from your logs",
+  recalculation_formula: "Recalculated from the formula",
 };
 
-export const dayCompleteLabel = "Day complete";
-export const dayCompleteHint = "Everything eaten is logged. Unmarked days count as missing, never as zero.";
-export const fastingQuestion = "Mark as a fasting day (0 kcal)?";
+export const fastingLabel = "Fasting day";
+export const fastingHint = "Counts as 0 kcal. Logging food does not clear this.";
 
 /** A date the screens may show. Future days and days before setup are not offered. */
 export function clampLogDate(date: string, today: string, setupDate: string): string {
@@ -130,20 +131,7 @@ export function byTime<T extends { time: string; id: string }>(rows: readonly T[
   return [...rows].sort((a, b) => a.time.localeCompare(b.time) || a.id.localeCompare(b.id));
 }
 
-export type CompletePlan =
-  | { kind: "clear" }
-  | { kind: "save" }
-  | { kind: "ask" };
-
-/** Ticking an empty day asks the fasting question. A day with food saves complete only. */
-export function planDayComplete(turnOn: boolean, entryCount: number): CompletePlan {
-  if (!turnOn) return { kind: "clear" };
-  if (entryCount <= 0) return { kind: "ask" };
-  return { kind: "save" };
-}
-
-/** Declining the fasting question saves nothing. Yes stores complete and fasting. */
-export function fastingChoice(yes: boolean): { save: false } | { save: true; complete: true; fasting: true } {
-  if (!yes) return { save: false };
-  return { save: true, complete: true, fasting: true };
+/** The fasting mark is its own switch. It is never cleared because food was logged. */
+export function nextFasting(turnOn: boolean): boolean {
+  return turnOn;
 }

@@ -158,7 +158,7 @@ test("layouts stay in one column of scrolling from 375 to 1,920", async ({ page 
     const total = (await page.locator(".summary").innerText()).replace(/\s+/g, " ").trim();
     if (!dayTotal) dayTotal = total;
     else expect(total).toBe(dayTotal);
-    await expect(page.getByRole("checkbox", { name: /Day complete/ })).toBeVisible();
+    await expect(page.getByRole("checkbox", { name: /Fasting day/ })).toBeVisible();
 
     await page.goto("/progress");
     await expect(page.getByRole("heading", { name: "Progress", exact: true })).toBeVisible();

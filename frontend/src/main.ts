@@ -18,4 +18,8 @@ function dynamicType() {
 dynamicType();
 window.addEventListener("resize", dynamicType);
 
+if ("serviceWorker" in navigator) {
+  void navigator.serviceWorker.register("/sw.js").catch(() => undefined);
+}
+
 createApp(App).directive("autofocus", vAutofocus).use(router).mount("#app");

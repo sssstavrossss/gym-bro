@@ -2,11 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   byTime,
   clampLogDate,
-  dayCompleteHint,
   dayTotalText,
-  fastingChoice,
-  fastingQuestion,
-  planDayComplete,
+  fastingHint,
+  nextFasting,
   shiftLogDate,
   summaryCells,
   targetLine,
@@ -57,26 +55,11 @@ describe("past-day add", () => {
   });
 });
 
-describe("day complete", () => {
-  it("asks before marking an empty day fasting, and saves nothing if declined", () => {
-    expect(planDayComplete(true, 0)).toEqual({ kind: "ask" });
-    expect(fastingQuestion).toBe("Mark as a fasting day (0 kcal)?");
-    expect(fastingChoice(false)).toEqual({ save: false });
-    expect(fastingChoice(true)).toEqual({ save: true, complete: true, fasting: true });
-  });
-
-  it("saves complete only when the day already has food", () => {
-    expect(planDayComplete(true, 1)).toEqual({ kind: "save" });
-    expect(planDayComplete(true, 3)).toEqual({ kind: "save" });
-  });
-
-  it("unticking clears the day and fasting is not its own action", () => {
-    expect(planDayComplete(false, 0)).toEqual({ kind: "clear" });
-    expect(planDayComplete(false, 2)).toEqual({ kind: "clear" });
-    expect(dayCompleteHint).toContain("never as zero");
-    const yes = fastingChoice(true);
-    expect(yes.save && yes.fasting).toBe(true);
-    expect(Object.keys(planDayComplete(true, 1))).not.toContain("fasting");
+describe("fasting day", () => {
+  it("is its own switch and is not cleared by having food", () => {
+    expect(nextFasting(true)).toBe(true);
+    expect(nextFasting(false)).toBe(false);
+    expect(fastingHint).toContain("does not clear");
   });
 });
 

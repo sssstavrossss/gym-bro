@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import AccuracyDot from "../components/AccuracyDot.vue";
 import Icon from "../components/Icon.vue";
 import Segmented from "../components/Segmented.vue";
@@ -8,9 +8,30 @@ import { parseDecimal } from "../lib/numbers";
 import { boot } from "../state/boot";
 import { clearAllDrafts, commitProfile, profile, shownTargets, weightCaption } from "../state/profile";
 import { signOut } from "../auth/session";
-import { openWeight } from "../ui";
+import { disableReminders, enableReminders, getNotifications, notificationHint } from "../lib/notifications";
+import type { NotificationSettings } from "../api";
+import { openRecalculate, openWeight } from "../ui";
 import { vp } from "../lib/viewport";
 
+const notes = ref<NotificationSettings | null>(null);
+const noteError = ref("");
+const noteBusy = ref(false);
+const hint = notificationHint();
+onMounted(() => {
+  void getNotifications().then((value) => { notes.value = value; }).catch(() => { noteError.value = "Couldn't load notification settings."; });
+});
+async function onReminders() {
+  if (!notes.value || noteBusy.value) return;
+  noteBusy.value = true;
+  noteError.value = "";
+  try {
+    notes.value = notes.value.enabled ? await disableReminders() : await enableReminders(notes.value);
+  } catch (error) {
+    noteError.value = error instanceof Error ? error.message : "Couldn't update reminders.";
+  } finally {
+    noteBusy.value = false;
+  }
+}
 const actOpen = ref(false);
 const customOpen = ref(false);
 const year = new Date().getFullYear();
@@ -185,6 +206,20 @@ async function onSignOut() {
             <div><span class="t-label c2">Carbs</span><span class="t-ns" data-field="carbs">{{ shown.carbs }}</span><span class="t-label c2">g</span></div>
           </div>
           <p v-if="shown.floorApplied" class="t-body" data-floor="true">Raised to your BMR so the target does not go below it.</p>
+          <button type="button" class="chip t-label recalc" @click="openRecalculate">Recalculate</button>
+        </section>
+
+        <section class="card notes" aria-labelledby="remind-heading">
+          <h2 id="remind-heading" class="t-label c2">Monday reminder</h2>
+          <p v-if="notes && !notes.configured" class="t-body">Notifications are not set up.</p>
+          <template v-else>
+            <p class="t-body">A Monday morning note: time to recalculate your target.</p>
+            <p v-if="hint" class="t-label c2">{{ hint }}</p>
+            <button type="button" class="chip t-label" :disabled="noteBusy || !notes" @click="onReminders">
+              {{ notes?.enabled ? "Turn reminders off" : "Enable notifications" }}
+            </button>
+          </template>
+          <p v-if="noteError" class="t-body" role="alert">{{ noteError }}</p>
         </section>
 
         <section class="card">
@@ -245,7 +280,10 @@ async function onSignOut() {
 .fval .ninput { margin-left: 0; }
 .ninput { width: 88px; margin-left: auto; text-align: right; background: transparent; border: 0; min-height: 44px; }
 .tz { margin-left: auto; width: 180px; text-align: right; background: transparent; border: 0; min-height: 44px; }
-.acts, .custom { display: flex; flex-direction: column; gap: 8px; }
+.recalc { align-self: flex-start; }
+.notes { gap: var(--space-gap); }
+.notes p { margin: 0; }
+.acts, .custom { display: flex; flex-direction: column; gap: var(--space-gap); }
 .act { min-height: 44px; display: flex; align-items: center; gap: 10px; text-align: left; border-radius: 10px; padding: 0 8px; }
 .act.on { background: var(--color-surface-2); }
 .rate { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }

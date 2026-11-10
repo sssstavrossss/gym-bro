@@ -10,8 +10,6 @@ namespace GymBro.Api.Endpoints;
 
 public static class DayStatusEndpoints
 {
-    public const string NeedComplete = "Say whether the day is complete.";
-
     public const string NeedFasting = "Say whether the day is a fasting day.";
 
     public const string RangeOrder = "The end date is before the start.";
@@ -104,35 +102,15 @@ public static class DayStatusEndpoints
         var row = await db.DayStatuses
             .FirstOrDefaultAsync(item => item.UserId == userId && item.LocalDate == localDate, cancellationToken);
 
-        // Unticking marks the day incomplete. Fasting is not a status of its own,
-        // so the row goes away and the day is unmarked again.
-        if (!body.Complete)
-        {
-            if (row is not null)
-            {
-                db.DayStatuses.Remove(row);
-                await db.SaveChangesAsync(cancellationToken);
-            }
-
-            return Results.Ok(ToResponse(localDate, null));
-        }
-
-        var eaten = await db.LogEntries.CountAsync(
-            entry => entry.UserId == userId && entry.LocalDate == localDate && entry.DeletedAt == null,
-            cancellationToken);
-
-        // A day with food is complete only. Fasting stays false. An empty day
-        // stores the answer to the fasting question. Later edits to the day's
-        // entries do not come through here and do not change this row.
-        var fasting = eaten == 0 && body.Fasting;
+        // Fasting is set and cleared on its own. The complete column is not written.
+        // Adding food later does not come through here and does not clear the mark.
         if (row is null)
         {
-            row = new DayStatus { UserId = userId, LocalDate = localDate };
+            row = new DayStatus { UserId = userId, LocalDate = localDate, Complete = false };
             db.DayStatuses.Add(row);
         }
 
-        row.Complete = true;
-        row.Fasting = fasting;
+        row.Fasting = body.Fasting;
         await db.SaveChangesAsync(cancellationToken);
         return Results.Ok(ToResponse(localDate, row));
     }
@@ -217,31 +195,20 @@ public static class DayStatusEndpoints
             using var json = await JsonDocument.ParseAsync(http.Body, cancellationToken: cancellationToken);
             var root = json.RootElement;
             if (root.ValueKind != JsonValueKind.Object
-                || !root.TryGetProperty("complete", out var complete)
-                || complete.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
+                || !root.TryGetProperty("fasting", out var fastingElement)
+                || fastingElement.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
             {
-                return new Body(false, false, "", NeedComplete);
-            }
-
-            var fasting = false;
-            if (root.TryGetProperty("fasting", out var fastingElement) && fastingElement.ValueKind != JsonValueKind.Null)
-            {
-                if (fastingElement.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
-                {
-                    return new Body(false, false, "", NeedFasting);
-                }
-
-                fasting = fastingElement.GetBoolean();
+                return new Body(false, false, "", NeedFasting);
             }
 
             var zone = root.TryGetProperty("timeZone", out var zoneElement) && zoneElement.ValueKind == JsonValueKind.String
                 ? zoneElement.GetString() ?? ""
                 : "";
-            return new Body(complete.GetBoolean(), fasting, zone, null);
+            return new Body(false, fastingElement.GetBoolean(), zone, null);
         }
         catch (JsonException)
         {
-            return new Body(false, false, "", NeedComplete);
+            return new Body(false, false, "", NeedFasting);
         }
     }
 }

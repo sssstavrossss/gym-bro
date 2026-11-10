@@ -1,10 +1,9 @@
 namespace GymBro.Api.Data;
 
 /// <summary>
-/// Whether the person marked the local day complete. An unmarked day is missing,
-/// not a zero. No row means unmarked. Unticking deletes the row.
-/// Fasting is only stored with a complete empty day. It is not a separate control,
-/// and changing that day's entries does not clear either flag.
+/// A local day the person has marked. <see cref="Complete"/> is kept in the
+/// database and is no longer written. <see cref="Fasting"/> is its own mark:
+/// the person sets and clears it, and logging food does not clear it.
 /// </summary>
 public sealed class DayStatus
 {
@@ -12,11 +11,9 @@ public sealed class DayStatus
 
     public DateOnly LocalDate { get; set; }
 
+    /// <summary>Retired. Left in place so old rows are not destroyed.</summary>
     public bool Complete { get; set; }
 
-    /// <summary>
-    /// A fasting day is a complete day the person confirmed as 0 kcal.
-    /// Entries added afterwards are kept and do not clear this flag.
-    /// </summary>
+    /// <summary>The person marked this day as fasting. Counts as 0 kcal in a recalculation.</summary>
     public bool Fasting { get; set; }
 }
