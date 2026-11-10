@@ -245,8 +245,8 @@ async function onSignOut() {
 
         <section class="card notes" aria-labelledby="remind-heading">
           <div class="row head">
-            <h2 id="remind-heading" class="t-label c2 grow">Notifications</h2>
-            <span v-if="sectionUnread" class="bullet" aria-label="Unread" />
+            <h2 id="remind-heading" class="t-label c2 grow">Notifications<span v-if="sectionUnread" class="sr-only"> Unread</span></h2>
+            <span v-if="sectionUnread" class="bullet" aria-hidden="true" />
             <button v-if="sectionUnread" type="button" class="t-label markall" :disabled="noteBusy" @click="onReadAll">Mark all read</button>
           </div>
           <p v-if="items.length === 0" class="t-body">No notifications yet.</p>
@@ -254,6 +254,7 @@ async function onSignOut() {
             <li v-for="item in items" :key="item.id">
               <button type="button" class="note row" @click="openItem(item)">
                 <span v-if="!item.readAt" class="bullet" aria-hidden="true" />
+                <span v-if="!item.readAt" class="sr-only">Unread</span>
                 <span class="col grow">
                   <span class="t-bodys">{{ item.title }}</span>
                   <span class="t-label c2 wrap">{{ item.body }}</span>

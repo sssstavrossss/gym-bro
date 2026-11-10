@@ -41,7 +41,7 @@ const eaten = computed(() => {
 
     <nav class="nav col" aria-label="Main">
       <RouterLink v-for="i in items" :key="i.to" :to="i.to" class="item row" :class="{ on: active(i.to) }" :aria-current="active(i.to) ? 'page' : undefined">
-        <span class="ic"><Icon :name="i.icon" :size="20" /><span v-if="i.to === '/profile' && inbox.unread > 0" class="bullet" aria-label="Unread" /></span><span class="t-bodys">{{ i.label }}</span>
+        <span class="ic"><Icon :name="i.icon" :size="20" /><span v-if="i.to === '/profile' && inbox.unread > 0" class="bullet" aria-hidden="true" /></span><span class="t-bodys">{{ i.label }}</span><span v-if="i.to === '/profile' && inbox.unread > 0" class="sr-only">Unread</span>
       </RouterLink>
     </nav>
 

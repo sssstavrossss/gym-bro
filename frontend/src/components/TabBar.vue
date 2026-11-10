@@ -24,9 +24,10 @@ const active = (to: string) => route.path === to || route.path.startsWith(to + "
       <RouterLink v-else :to="t.to" class="tab" :class="{ on: active(t.to) }" :aria-current="active(t.to) ? 'page' : undefined">
         <span class="ic">
           <Icon :name="t.icon" :size="24" />
-          <span v-if="t.to === '/profile' && inbox.unread > 0" class="bullet" aria-label="Unread" />
+          <span v-if="t.to === '/profile' && inbox.unread > 0" class="bullet" aria-hidden="true" />
         </span>
         <span class="t-capn">{{ t.label }}</span>
+        <span v-if="t.to === '/profile' && inbox.unread > 0" class="sr-only">Unread</span>
       </RouterLink>
     </template>
   </nav>

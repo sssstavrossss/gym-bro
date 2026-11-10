@@ -30,14 +30,14 @@ test("the weekly reminder shows on Today and Profile until it is dismissed", asy
   await page.goto("/today");
   const banner = page.getByRole("status").filter({ hasText: "Time to recalculate your target" });
   await expect(banner).toBeVisible();
-  await expect(page.getByRole("link", { name: "Profile" }).getByLabel("Unread")).toBeVisible();
+  await expect(page.getByRole("link", { name: /Profile\s+Unread/ })).toBeVisible();
   if (test.info().project.name === "chromium") {
     await page.screenshot({ path: "/opt/cursor/artifacts/banner-phone.png" });
   }
 
   await page.setViewportSize({ width: 1440, height: 900 });
   await expect(banner).toBeVisible();
-  await expect(page.getByRole("link", { name: "Profile" }).getByLabel("Unread")).toBeVisible();
+  await expect(page.getByRole("link", { name: /Profile\s+Unread/ })).toBeVisible();
   if (test.info().project.name === "chromium") {
     await page.screenshot({ path: "/opt/cursor/artifacts/banner-desktop.png" });
   }
@@ -46,7 +46,7 @@ test("the weekly reminder shows on Today and Profile until it is dismissed", asy
   await page.getByRole("link", { name: "Profile" }).click();
   const section = page.getByRole("region", { name: "Notifications" });
   await expect(section.getByText("Time to recalculate your target").first()).toBeVisible();
-  await expect(section.getByLabel("Unread")).toBeVisible();
+  await expect(section.getByRole("heading", { name: /Notifications\s+Unread/ })).toBeVisible();
   await expect(section.getByText("Notifications are not set up.")).toBeVisible();
   await section.scrollIntoViewIfNeeded();
   if (test.info().project.name === "chromium") {
@@ -54,8 +54,8 @@ test("the weekly reminder shows on Today and Profile until it is dismissed", asy
   }
 
   await page.setViewportSize({ width: 1440, height: 900 });
-  await expect(page.locator("aside.side").getByLabel("Unread")).toBeVisible();
-  await expect(section.getByLabel("Unread")).toBeVisible();
+  await expect(page.locator("aside.side").getByRole("link", { name: /Profile\s+Unread/ })).toBeVisible();
+  await expect(section.getByRole("heading", { name: /Notifications\s+Unread/ })).toBeVisible();
   if (test.info().project.name === "chromium") {
     await page.screenshot({ path: "/opt/cursor/artifacts/inbox-desktop.png" });
   }
@@ -63,7 +63,7 @@ test("the weekly reminder shows on Today and Profile until it is dismissed", asy
   await page.goto("/today");
   await page.getByRole("button", { name: "Dismiss reminder" }).click();
   await expect(banner).toHaveCount(0);
-  await expect(page.getByRole("link", { name: "Profile" }).getByLabel("Unread")).toHaveCount(0);
+  await expect(page.getByRole("link", { name: /Unread/ })).toHaveCount(0);
 
   await page.getByRole("link", { name: "Profile" }).click();
   await section.getByRole("button", { name: /Time to recalculate/ }).click();
