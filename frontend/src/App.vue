@@ -4,6 +4,7 @@ import { useRoute, useRouter } from "vue-router";
 import AddChooser from "./components/AddChooser.vue";
 import CopySheet from "./components/CopySheet.vue";
 import GroupSheet from "./components/GroupSheet.vue";
+import RecipeSheet from "./components/RecipeSheet.vue";
 import FoodSheet from "./components/FoodSheet.vue";
 import SelectBar from "./components/SelectBar.vue";
 import SideNav from "./components/SideNav.vue";
@@ -19,7 +20,7 @@ import { vp } from "./lib/viewport";
 import { boot } from "./state/boot";
 import { loadProfile, profile, retryLoad } from "./state/profile";
 import { loadToday, log, viewed } from "./state/log";
-import { closeCopy, closeFoodLayer, closeGroupSheet, closeSheet, endSelect, openFood, openWeight, ui } from "./ui";
+import { closeCopy, closeFoodLayer, closeGroupSheet, closeRecipeSheet, closeSheet, endSelect, openFood, openWeight, ui } from "./ui";
 import SignInView from "./views/SignInView.vue";
 
 const route = useRoute();
@@ -102,6 +103,7 @@ function onKey(event: KeyboardEvent) {
   else if (effect.action === "weight") openWeight();
   else if (effect.action === "close-copy") closeCopy();
   else if (effect.action === "close-group") closeGroupSheet();
+  else if (effect.action === "close-recipe") closeRecipeSheet();
   else if (effect.action === "end-select") endSelect();
   else if (ui.sheet === "food" && closeFoodLayer()) return;
   else closeSheet();
@@ -122,6 +124,7 @@ function onKey(event: KeyboardEvent) {
     <SelectBar v-if="showNav && ui.selecting" :inert="sheetOpen" />
     <CopySheet />
     <GroupSheet />
+    <RecipeSheet />
     <WeightSheet />
     <AccuracySheet />
     <AddChooser />

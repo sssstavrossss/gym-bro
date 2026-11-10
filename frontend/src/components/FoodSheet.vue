@@ -64,9 +64,12 @@ import { keyboardEntry } from "../lib/viewport";
 import { deviceTimeZone, profile } from "../state/profile";
 import { findEntry, log, removeEntries, removeEntry, saveQuickAdd, totalsOf, updateFoodAmount, updateQuickAdd, viewed, type LogEntry } from "../state/log";
 import SavedGroups from "./SavedGroups.vue";
+import RecipeList from "./RecipeList.vue";
 import { canSaveGroup, groupTimeNote, matchingGroups, readdToast } from "../lib/groups";
+import { canSaveRecipe, matchingRecipes, recipeFoodEntries } from "../lib/recipes";
 import { deleteSavedGroup, loadGroups, readdSavedGroup, savedGroups } from "../state/groups";
-import { closeFoodLayer, closeSheet, openCopy, openGroupSheet, toast, ui } from "../ui";
+import { loadRecipes, retireRecipe, savedRecipes } from "../state/recipes";
+import { closeFoodLayer, closeSheet, openCopy, openGroupSheet, openRecipeCreate, openRecipeEdit, openRecipeFromEntries, openRecipeLog, toast, ui } from "../ui";
 
 const open = computed(() => ui.sheet === "food");
 const editing = computed(() => findEntry(ui.editEntryId));
@@ -99,7 +102,7 @@ const fields: { key: Field; label: string; unit: string }[] = [
 ];
 
 const q = ref("");
-const filter = ref<"all" | "mine">("all");
+const filter = ref<"all" | "mine" | "recipes">("all");
 const mine = ref<FoodSearchRow[]>([]);
 const qSave = ref(false);
 const savedFoodId = ref<string | null>(null);
@@ -131,6 +134,8 @@ let searchTimer = 0;
 
 const sessionKcal = computed(() => session.value.reduce((sum, row) => sum + row.kcal, 0));
 const visibleGroups = computed(() => matchingGroups(savedGroups.list, q.value));
+const visibleRecipes = computed(() => matchingRecipes(savedRecipes.list, q.value));
+const sessionRecipeCount = computed(() => recipeFoodEntries(session.value.map((row) => findEntry(row.id)).filter((entry) => entry !== null)).length);
 const groupNote = computed(() => groupTimeNote(needTime.value, pastDay.value, time.value));
 const foodEntries = computed(() => {
   if (viewed.date === ui.foodDate) return viewed.entries;
@@ -241,6 +246,10 @@ function fill(entry: LogEntry | null) {
 
 const shownFood = computed(() => detailFood.value);
 const units = computed(() => {
+  const entry = editing.value;
+  if (entry?.source === "recipe" && (entry.grams == null || entry.grams <= 0)) {
+    return [{ unit: "portion", label: "portion", gramsEach: null }];
+  }
   if (editingFood.value) return unitsForEntry(editingFood.value);
   return shownFood.value ? unitsForFood(shownFood.value) : [];
 });
@@ -267,6 +276,10 @@ const per100 = computed(() => {
   if (shownFood.value && !editingFood.value) return per100Line(shownFood.value);
   const entry = editingFood.value;
   if (!entry) return "";
+  if (entry.source === "recipe" && entry.unit === "portion") {
+    const each = entry.amount || 1;
+    return `per portion · ${int(entry.kcal / each)} kcal · P${macroFigure(entry.protein / each)} F${macroFigure(entry.fat / each)} C${macroFigure(entry.carbs / each)}`;
+  }
   if (entry.grams && entry.grams > 0) {
     const factor = 100 / entry.grams;
     return `per 100 ${entry.unit === "ml" ? "ml" : "g"} · ${int(entry.kcal * factor)} kcal · P${macroFigure(entry.protein * factor)} F${macroFigure(entry.fat * factor)} C${macroFigure(entry.carbs * factor)}`;
@@ -443,6 +456,7 @@ const showNoMatch = computed(() => Boolean(
   && !searching.value
   && !searchError.value
   && !results.value.length
+  && !visibleRecipes.value.length
   && !off.value.results.length
   && off.value.status !== "loading"
   && !offCopy.value
@@ -454,6 +468,22 @@ function isRecent(food: FoodSearchRow): food is RecentFood {
   return typeof (food as RecentFood).amount === "number" && typeof (food as RecentFood).unit === "string" && !trimmedQuery.value;
 }
 function searchKey(event: KeyboardEvent) {
+  if (filter.value === "recipes") {
+    const rows = visibleRecipes.value;
+    if (!rows.length || !keyboardEntry.value) return;
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      hi.value = (hi.value + 1) % rows.length;
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault();
+      hi.value = (hi.value - 1 + rows.length) % rows.length;
+    } else if (event.key === "Enter") {
+      event.preventDefault();
+      const recipe = rows[Math.min(hi.value, rows.length - 1)];
+      if (recipe) openRecipeLog(recipe.id);
+    }
+    return;
+  }
   const rows = listed.value;
   const count = rows.length;
   if (!count || !keyboardEntry.value) return;
@@ -652,7 +682,7 @@ async function prepareEdit(entry: LogEntry) {
   foodChanged.value = false;
   detailFood.value = null;
   if (!entry.foodId) {
-    foodChanged.value = true;
+    foodChanged.value = entry.source !== "recipe";
     return;
   }
   try {
@@ -675,7 +705,7 @@ function focusFor() {
   });
 }
 watch(q, (value) => {
-  if (filter.value === "mine") {
+  if (filter.value === "mine" || filter.value === "recipes") {
     window.clearTimeout(searchTimer);
     searchGen += 1;
     searching.value = false;
@@ -688,7 +718,7 @@ watch(q, (value) => {
 });
 watch(filter, (value) => {
   hi.value = 0;
-  if (value === "mine") {
+  if (value === "mine" || value === "recipes") {
     window.clearTimeout(searchTimer);
     searchGen += 1;
     searching.value = false;
@@ -707,6 +737,7 @@ watch(open, (isOpen) => {
   if (ui.resumeFood) {
     ui.resumeFood = false;
     void loadGroups();
+    void loadRecipes();
     return;
   }
   q.value = "";
@@ -727,6 +758,7 @@ watch(open, (isOpen) => {
     void loadRecents();
     void loadMine();
     void loadGroups();
+    void loadRecipes();
   }
 });
 
@@ -736,6 +768,18 @@ function noteSession(entry: { id: string; name: string; kcal: number }) {
 function saveSessionGroup() {
   if (!canSaveGroup(session.value.length)) return;
   openGroupSheet(session.value.map((row) => row.id), "food");
+}
+function saveSessionRecipe() {
+  if (!canSaveRecipe(sessionRecipeCount.value)) return;
+  openRecipeFromEntries(session.value.map((row) => row.id), "food");
+}
+async function removeRecipe(recipe: { id: string; name: string }) {
+  if (saving.value) return;
+  saving.value = true;
+  const removed = await retireRecipe(recipe.id);
+  saving.value = false;
+  if (removed) toast(`Deleted ${recipe.name} · past logs kept`);
+  else toast("Couldn't delete that recipe.");
 }
 async function addGroup(group: SavedGroup) {
   if (saving.value) return;
@@ -1196,17 +1240,30 @@ async function deleteEdited() {
     <template v-else-if="!editing && ui.foodTab === 'search'">
       <label class="field row">
         <Icon name="search" :size="18" class="c2" />
-        <input ref="searchEl" v-model="q" class="t-body grow" type="search" :placeholder="filter === 'mine' ? 'Search my foods' : 'Search foods'" aria-label="Search foods" autocomplete="off" enterkeyhint="search" @keydown="searchKey" />
+        <input ref="searchEl" v-model="q" class="t-body grow" type="search" :placeholder="filter === 'mine' ? 'Search my foods' : filter === 'recipes' ? 'Search recipes' : 'Search foods'" :aria-label="filter === 'recipes' ? 'Search recipes' : 'Search foods'" autocomplete="off" enterkeyhint="search" @keydown="searchKey" />
         <button v-if="q" type="button" class="clr c2" aria-label="Clear search" @click="q = ''"><Icon name="x" :size="16" /></button>
       </label>
       <div class="row fchips" role="group" aria-label="Show">
         <button type="button" class="chip t-label" :class="{ on: filter === 'all' }" :aria-pressed="filter === 'all'" @click="filter = 'all'">All foods</button>
         <button type="button" class="chip t-label" :class="{ on: filter === 'mine' }" :aria-pressed="filter === 'mine'" @click="filter = 'mine'">My foods · {{ mine.length }}</button>
-        <button type="button" class="chip t-label" @click="openNewFood(filter === 'all' ? trimmedQuery || undefined : undefined)"><Icon name="plus" :size="14" :sw="2.4" /> New food</button>
+        <button type="button" class="chip t-label" :class="{ on: filter === 'recipes' }" :aria-pressed="filter === 'recipes'" @click="filter = 'recipes'">Recipes · {{ savedRecipes.list.length }}</button>
+        <button v-if="filter !== 'recipes'" type="button" class="chip t-label" @click="openNewFood(filter === 'all' ? trimmedQuery || undefined : undefined)"><Icon name="plus" :size="14" :sw="2.4" /> New food</button>
+        <button v-else type="button" class="chip t-label" @click="openRecipeCreate('food')"><Icon name="plus" :size="14" :sw="2.4" /> New recipe</button>
       </div>
       <div class="list">
+        <RecipeList
+          v-if="filter === 'recipes'"
+          :recipes="visibleRecipes"
+          heading="Recipes"
+          :active-index="keyboardEntry ? hi : -1"
+          :saving="saving"
+          @add="(recipe) => openRecipeLog(recipe.id)"
+          @edit="(recipe) => openRecipeEdit(recipe.id)"
+          @remove="removeRecipe"
+          @create="openRecipeCreate('food')"
+        />
+        <template v-if="filter !== 'mine' && filter !== 'recipes'">
         <SavedGroups
-          v-if="filter !== 'mine'"
           :groups="visibleGroups"
           :note="groupNote"
           :saving="saving"
@@ -1215,7 +1272,17 @@ async function deleteEdited() {
           @add="addGroup"
           @remove="removeGroup"
         />
-        <template v-if="filter === 'mine'">
+        <RecipeList
+          :recipes="visibleRecipes"
+          :saving="saving"
+          @add="(recipe) => openRecipeLog(recipe.id)"
+          @edit="(recipe) => openRecipeEdit(recipe.id)"
+          @remove="removeRecipe"
+          @create="openRecipeCreate('food')"
+        />
+        </template>
+        <template v-if="filter === 'recipes'" />
+        <template v-else-if="filter === 'mine'">
           <div v-if="!mine.length" class="col emptyc">
             <span class="t-bodys">{{ myFoodsEmptyTitle }}</span>
             <span class="t-label c2">{{ myFoodsEmptyDetail }}</span>
@@ -1305,6 +1372,9 @@ async function deleteEdited() {
         <span class="row sbtns">
           <button v-if="canSaveGroup(session.length)" type="button" class="chip" @click="saveSessionGroup">
             <Icon name="layers" :size="14" /> Save as group
+          </button>
+          <button v-if="canSaveRecipe(sessionRecipeCount)" type="button" class="chip" @click="saveSessionRecipe">
+            <Icon name="food" :size="14" /> Save as recipe
           </button>
           <button type="button" class="chip on" @click="closeSheet">Done</button>
         </span>

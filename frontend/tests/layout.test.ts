@@ -65,6 +65,7 @@ describe("shortcuts", () => {
     expect(shortcutEffect({ ...base, key: "Escape", sheet: "weight" })).toEqual({ effect: "prevent", action: "close-sheet" });
     expect(shortcutEffect({ ...base, key: "Escape", sheet: "copy" })).toEqual({ effect: "prevent", action: "close-copy" });
     expect(shortcutEffect({ ...base, key: "Escape", sheet: "group" })).toEqual({ effect: "prevent", action: "close-group" });
+    expect(shortcutEffect({ ...base, key: "Escape", sheet: "recipe" })).toEqual({ effect: "prevent", action: "close-recipe" });
     expect(shortcutEffect({ ...base, key: "Escape", selecting: true })).toEqual({ effect: "prevent", action: "end-select" });
     expect(shortcutEffect({ ...base, key: "Escape" })).toEqual({ effect: "none" });
     expect(shortcutEffect({ ...base, key: "Escape", typing: true })).toEqual({ effect: "none" });

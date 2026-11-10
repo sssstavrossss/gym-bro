@@ -3,7 +3,7 @@ import { todayInZone, todayIso } from "./lib/dates";
 import { deviceTimeZone } from "./state/profile";
 
 export const ui = reactive({
-  sheet: null as null | "weight" | "accuracy" | "chooser" | "food" | "copy" | "group",
+  sheet: null as null | "weight" | "accuracy" | "chooser" | "food" | "copy" | "group" | "recipe",
   foodTab: "search" as "search" | "quick",
   /** Food open in the detail view. Null on the search list. */
   detailFoodId: null as string | null,
@@ -31,8 +31,14 @@ export const ui = reactive({
   groupEntryIds: [] as string[],
   /** Food sheet to reopen after naming a group. Null returns to the log. */
   groupReturn: null as null | "food",
-  /** The food sheet was only covered by Save as group, so keep its session. */
+  /** The food sheet was only covered by Save as group or a recipe, so keep its session. */
   resumeFood: false,
+  /** Recipe sheet. create with entry ids is Save as recipe. */
+  recipeMode: null as null | "create" | "edit" | "log",
+  recipeId: null as string | null,
+  recipeEntryIds: [] as string[],
+  /** Food sheet or select mode to restore when the recipe sheet closes. */
+  recipeReturn: null as null | "food" | "select",
 });
 
 let toastTimer = 0;
@@ -132,6 +138,63 @@ export function openGroupSheet(ids: string[], returnTo: "food" | null): void {
   ui.groupEntryIds = ids.slice();
   ui.groupReturn = returnTo;
   ui.sheet = "group";
+}
+
+function clearRecipe(): void {
+  ui.recipeMode = null;
+  ui.recipeId = null;
+  ui.recipeEntryIds = [];
+  ui.recipeReturn = null;
+}
+
+export function openRecipeCreate(returnTo: "food" | null): void {
+  ui.recipeMode = "create";
+  ui.recipeId = null;
+  ui.recipeEntryIds = [];
+  ui.recipeReturn = returnTo;
+  ui.sheet = "recipe";
+}
+
+export function openRecipeEdit(id: string): void {
+  ui.recipeMode = "edit";
+  ui.recipeId = id;
+  ui.recipeEntryIds = [];
+  ui.recipeReturn = "food";
+  ui.sheet = "recipe";
+}
+
+export function openRecipeLog(id: string): void {
+  ui.recipeMode = "log";
+  ui.recipeId = id;
+  ui.recipeEntryIds = [];
+  ui.recipeReturn = "food";
+  ui.sheet = "recipe";
+}
+
+export function openRecipeFromEntries(ids: string[], returnTo: "food" | "select"): void {
+  ui.recipeMode = "create";
+  ui.recipeId = null;
+  ui.recipeEntryIds = ids.slice();
+  ui.recipeReturn = returnTo;
+  ui.sheet = "recipe";
+}
+
+export function closeRecipeSheet(): void {
+  const back = ui.recipeReturn;
+  clearRecipe();
+  if (back === "food") {
+    ui.resumeFood = true;
+    ui.sheet = "food";
+    return;
+  }
+  ui.sheet = null;
+}
+
+/** Saved from Select mode leaves the selection. Saved from the food sheet returns there. */
+export function finishRecipeSave(): void {
+  const back = ui.recipeReturn;
+  closeRecipeSheet();
+  if (back === "select") endSelect();
 }
 
 export function closeGroupSheet(): void {

@@ -673,6 +673,172 @@ namespace GymBro.Api.Data.Migrations
                     b.ToTable("profiles", (string)null);
                 });
 
+            modelBuilder.Entity("GymBro.Api.Data.Recipe", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<decimal>("Carbs")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("carbs");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<decimal>("Fat")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("fat");
+
+                    b.Property<decimal?>("FinishedGrams")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("finished_grams");
+
+                    b.Property<decimal>("Kcal")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("kcal");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("name");
+
+                    b.Property<decimal>("Portions")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("portions");
+
+                    b.Property<decimal>("Protein")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("protein");
+
+                    b.Property<DateTimeOffset?>("RetiredAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("retired_at");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("UserId", "Id")
+                        .HasName("ux_recipes_user_id");
+
+                    b.HasIndex("UserId", "RetiredAt");
+
+                    b.ToTable("recipes", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_recipes_finished_grams", "finished_grams IS NULL OR (finished_grams > 0 AND finished_grams <= 100000)");
+
+                            t.HasCheckConstraint("ck_recipes_portions", "portions > 0 AND portions <= 1000");
+                        });
+                });
+
+            modelBuilder.Entity("GymBro.Api.Data.RecipeIngredient", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("amount");
+
+                    b.Property<decimal>("Carbs")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("carbs");
+
+                    b.Property<decimal>("Fat")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("fat");
+
+                    b.Property<Guid>("FoodId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("food_id");
+
+                    b.Property<string>("FoodOwnerKey")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("food_owner_key");
+
+                    b.Property<decimal?>("Grams")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("grams");
+
+                    b.Property<decimal>("Kcal")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("kcal");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("name");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("integer")
+                        .HasColumnName("position");
+
+                    b.Property<decimal>("Protein")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("protein");
+
+                    b.Property<Guid>("RecipeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("recipe_id");
+
+                    b.Property<string>("Unit")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("unit");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FoodOwnerKey", "FoodId");
+
+                    b.HasIndex("RecipeId", "Position")
+                        .IsUnique();
+
+                    b.HasIndex("UserId", "RecipeId");
+
+                    b.ToTable("recipe_ingredients", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_recipe_ingredients_amount", "amount > 0 AND amount <= 10000");
+
+                            t.HasCheckConstraint("ck_recipe_ingredients_food_owner", "food_owner_key = '' OR food_owner_key = user_id");
+                        });
+                });
+
             modelBuilder.Entity("GymBro.Api.Data.TargetHistory", b =>
                 {
                     b.Property<long>("Id")
@@ -919,6 +1085,34 @@ namespace GymBro.Api.Data.Migrations
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("GymBro.Api.Data.Recipe", b =>
+                {
+                    b.HasOne("GymBro.Api.Data.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("GymBro.Api.Data.RecipeIngredient", b =>
+                {
+                    b.HasOne("GymBro.Api.Data.Food", null)
+                        .WithMany()
+                        .HasForeignKey("FoodOwnerKey", "FoodId")
+                        .HasPrincipalKey("OwnerKey", "Id")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired()
+                        .HasConstraintName("fk_recipe_ingredients_food_owner");
+
+                    b.HasOne("GymBro.Api.Data.Recipe", null)
+                        .WithMany()
+                        .HasForeignKey("UserId", "RecipeId")
+                        .HasPrincipalKey("UserId", "Id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_recipe_ingredients_recipe_owner");
                 });
 
             modelBuilder.Entity("GymBro.Api.Data.TargetHistory", b =>
