@@ -167,6 +167,18 @@ public sealed class AdaptiveTargetTests
         Assert.Empty(review.Days);
     }
 
+    [Fact]
+    public void The_banner_week_runs_Monday_to_Sunday()
+    {
+        Assert.Equal(new DateOnly(2026, 11, 9), RecalculateBanner.WeekStart(new DateOnly(2026, 11, 9)));
+        Assert.Equal(new DateOnly(2026, 11, 9), RecalculateBanner.WeekStart(new DateOnly(2026, 11, 10)));
+        Assert.Equal(new DateOnly(2026, 11, 9), RecalculateBanner.WeekStart(new DateOnly(2026, 11, 15)));
+        Assert.Equal(new DateOnly(2026, 11, 16), RecalculateBanner.WeekStart(new DateOnly(2026, 11, 16)));
+        Assert.True(RecalculateBanner.Visible(false, false));
+        Assert.False(RecalculateBanner.Visible(true, false));
+        Assert.False(RecalculateBanner.Visible(false, true));
+    }
+
     private static IEnumerable<decimal> ClosedAverage(AdaptiveReview review) =>
         review.Days.Where(day => day.Included).Select(day => (decimal)day.Kcal);
 }

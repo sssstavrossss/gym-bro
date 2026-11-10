@@ -1,5 +1,6 @@
 using GymBro.Api.Configuration;
 using GymBro.Api.Data;
+using GymBro.Api.Notifications;
 using GymBro.Api.Nutrition;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -39,15 +40,21 @@ public sealed class MondayReminder(
 
     public async Task<int> RunAsync(CancellationToken cancellationToken)
     {
+        var everyone = await db.Profiles.ToListAsync(cancellationToken);
+        foreach (var person in everyone)
+        {
+            await NotificationBook.EnsureCurrentWeekAsync(db, person, clock, cancellationToken);
+        }
+
+        await db.SaveChangesAsync(cancellationToken);
+
         var push = options.Value;
         if (!push.IsConfigured)
         {
             return 0;
         }
 
-        var profiles = await db.Profiles
-            .Where(profile => profile.RemindersEnabled)
-            .ToListAsync(cancellationToken);
+        var profiles = everyone.Where(profile => profile.RemindersEnabled).ToList();
         var client = new WebPushClient();
         var vapid = new VapidDetails(push.Subject, push.PublicKey, push.PrivateKey);
         var sent = 0;

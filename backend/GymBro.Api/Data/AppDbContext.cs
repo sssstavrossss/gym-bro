@@ -37,6 +37,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
 
     public DbSet<ReminderSend> ReminderSends => Set<ReminderSend>();
 
+    public DbSet<UserNotification> UserNotifications => Set<UserNotification>();
+
     public DbSet<FoodSourceCredit> FoodSourceCredits => Set<FoodSourceCredit>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -385,6 +387,22 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         sent.Property(s => s.Kind).HasColumnName("kind").HasMaxLength(40);
         sent.Property(s => s.SentAt).HasColumnName("sent_at");
         sent.HasOne<AppUser>().WithMany().HasForeignKey(s => s.UserId).OnDelete(DeleteBehavior.Cascade);
+
+        var note = modelBuilder.Entity<UserNotification>();
+        note.ToTable("notifications");
+        note.HasKey(n => n.Id);
+        note.Property(n => n.Id).HasColumnName("id");
+        note.Property(n => n.UserId).HasColumnName("user_id").HasMaxLength(64);
+        note.Property(n => n.Type).HasColumnName("type").HasMaxLength(40);
+        note.Property(n => n.Title).HasColumnName("title").HasMaxLength(200);
+        note.Property(n => n.Body).HasColumnName("body").HasMaxLength(500);
+        note.Property(n => n.Link).HasColumnName("link").HasMaxLength(200);
+        note.Property(n => n.WeekStart).HasColumnName("week_start");
+        note.Property(n => n.CreatedAt).HasColumnName("created_at");
+        note.Property(n => n.ReadAt).HasColumnName("read_at");
+        note.HasIndex(n => new { n.UserId, n.Type, n.WeekStart }).IsUnique();
+        note.HasIndex(n => new { n.UserId, n.CreatedAt });
+        note.HasOne<AppUser>().WithMany().HasForeignKey(n => n.UserId).OnDelete(DeleteBehavior.Cascade);
 
         var credit = modelBuilder.Entity<FoodSourceCredit>();
         credit.ToTable("food_source_credits");

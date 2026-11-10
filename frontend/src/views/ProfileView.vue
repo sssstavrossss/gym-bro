@@ -9,17 +9,51 @@ import { boot } from "../state/boot";
 import { clearAllDrafts, commitProfile, profile, shownTargets, weightCaption } from "../state/profile";
 import { signOut } from "../auth/session";
 import { disableReminders, enableReminders, getNotifications, notificationHint } from "../lib/notifications";
-import type { NotificationSettings } from "../api";
+import { getInbox, markAllNotificationsRead, markNotificationRead, type InboxItem, type NotificationSettings } from "../api";
+import { unreadCount } from "../lib/recalculate";
+import { inbox, refreshInbox } from "../state/inbox";
 import { openRecalculate, openWeight } from "../ui";
 import { vp } from "../lib/viewport";
 
 const notes = ref<NotificationSettings | null>(null);
 const noteError = ref("");
 const noteBusy = ref(false);
+const items = ref<InboxItem[]>([]);
 const hint = notificationHint();
+const sectionUnread = computed(() => unreadCount(items.value) > 0 || inbox.unread > 0);
 onMounted(() => {
   void getNotifications().then((value) => { notes.value = value; }).catch(() => { noteError.value = "Couldn't load notification settings."; });
+  void loadInbox();
 });
+async function loadInbox() {
+  try {
+    const body = await getInbox();
+    items.value = body.items;
+    inbox.unread = body.unread;
+  } catch {
+    noteError.value = "Couldn't load notifications.";
+  }
+}
+async function openItem(item: InboxItem) {
+  if (!item.readAt) {
+    await markNotificationRead(item.id);
+    item.readAt = new Date().toISOString();
+    await refreshInbox();
+  }
+  if (item.type === "recalculate" || item.link.includes("recalculate")) openRecalculate();
+}
+async function onReadAll() {
+  noteBusy.value = true;
+  try {
+    await markAllNotificationsRead();
+    items.value = items.value.map((item) => ({ ...item, readAt: item.readAt ?? new Date().toISOString() }));
+    inbox.unread = 0;
+  } catch (error) {
+    noteError.value = error instanceof Error ? error.message : "Couldn't mark them read.";
+  } finally {
+    noteBusy.value = false;
+  }
+}
 async function onReminders() {
   if (!notes.value || noteBusy.value) return;
   noteBusy.value = true;
@@ -210,10 +244,25 @@ async function onSignOut() {
         </section>
 
         <section class="card notes" aria-labelledby="remind-heading">
-          <h2 id="remind-heading" class="t-label c2">Monday reminder</h2>
+          <div class="row head">
+            <h2 id="remind-heading" class="t-label c2 grow">Notifications</h2>
+            <span v-if="sectionUnread" class="bullet" aria-label="Unread" />
+            <button v-if="sectionUnread" type="button" class="t-label markall" :disabled="noteBusy" @click="onReadAll">Mark all read</button>
+          </div>
+          <p v-if="items.length === 0" class="t-body">No notifications yet.</p>
+          <ul v-else class="feed">
+            <li v-for="item in items" :key="item.id">
+              <button type="button" class="note row" @click="openItem(item)">
+                <span v-if="!item.readAt" class="bullet" aria-hidden="true" />
+                <span class="col grow">
+                  <span class="t-bodys">{{ item.title }}</span>
+                  <span class="t-label c2 wrap">{{ item.body }}</span>
+                </span>
+              </button>
+            </li>
+          </ul>
           <p v-if="notes && !notes.configured" class="t-body">Notifications are not set up.</p>
           <template v-else>
-            <p class="t-body">A Monday morning note: time to recalculate your target.</p>
             <p v-if="hint" class="t-label c2">{{ hint }}</p>
             <button type="button" class="chip t-label" :disabled="noteBusy || !notes" @click="onReminders">
               {{ notes?.enabled ? "Turn reminders off" : "Enable notifications" }}
@@ -282,7 +331,13 @@ async function onSignOut() {
 .tz { margin-left: auto; width: 180px; text-align: right; background: transparent; border: 0; min-height: 44px; }
 .recalc { align-self: flex-start; }
 .notes { gap: var(--space-gap); }
-.notes p { margin: 0; }
+.notes p { margin: 0; overflow-wrap: anywhere; }
+.head { gap: var(--space-gap); align-items: center; min-height: var(--control-hit); }
+.feed { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: calc(var(--space-gap) / 2); }
+.note { width: 100%; min-height: var(--control-hit); gap: var(--space-gap); text-align: left; align-items: flex-start; }
+.wrap { overflow-wrap: anywhere; }
+.markall { min-height: var(--control-hit); padding: 0 var(--space-gap); }
+.bullet { width: 8px; height: 8px; border-radius: 50%; background: var(--text-primary); flex: none; }
 .acts, .custom { display: flex; flex-direction: column; gap: var(--space-gap); }
 .act { min-height: 44px; display: flex; align-items: center; gap: 10px; text-align: left; border-radius: 10px; padding: 0 8px; }
 .act.on { background: var(--color-surface-2); }

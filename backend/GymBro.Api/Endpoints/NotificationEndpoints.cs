@@ -2,6 +2,7 @@ using System.Security.Claims;
 using System.Text.Json;
 using GymBro.Api.Data;
 using GymBro.Api.Hosting;
+using GymBro.Api.Notifications;
 using GymBro.Api.Users;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -20,6 +21,10 @@ public static class NotificationEndpoints
     {
         api.MapGet("/notifications", Get);
         api.MapPut("/notifications", Put);
+        api.MapGet("/notifications/inbox/unread", Unread);
+        api.MapGet("/notifications/inbox", Inbox);
+        api.MapPost("/notifications/inbox/read", ReadAll);
+        api.MapPost("/notifications/inbox/{id:long}/read", ReadOne);
         api.MapPost("/notifications/subscription", Subscribe);
         api.MapDelete("/notifications/subscription", Unsubscribe);
         return api;
@@ -49,6 +54,126 @@ public static class NotificationEndpoints
             publicKey = push.IsConfigured ? push.PublicKey : "",
         });
     }
+
+    private static async Task<IResult> Inbox(
+        ClaimsPrincipal principal,
+        AppDbContext db,
+        TimeProvider clock,
+        CancellationToken cancellationToken)
+    {
+        if (Caller.MissingOid(principal) is { } denied)
+        {
+            return denied;
+        }
+
+        var userId = Caller.Id(principal);
+        var profile = await db.Profiles.FirstOrDefaultAsync(row => row.UserId == userId, cancellationToken);
+        if (profile is not null)
+        {
+            await NotificationBook.EnsureCurrentWeekAsync(db, profile, clock, cancellationToken);
+            await db.SaveChangesAsync(cancellationToken);
+        }
+
+        var items = await db.UserNotifications.AsNoTracking()
+            .Where(row => row.UserId == userId)
+            .OrderByDescending(row => row.CreatedAt)
+            .ThenByDescending(row => row.Id)
+            .ToListAsync(cancellationToken);
+        return Results.Ok(new
+        {
+            unread = items.Count(row => row.ReadAt is null),
+            items = items.Select(ToItem),
+        });
+    }
+
+    private static async Task<IResult> Unread(
+        ClaimsPrincipal principal,
+        AppDbContext db,
+        TimeProvider clock,
+        CancellationToken cancellationToken)
+    {
+        if (Caller.MissingOid(principal) is { } denied)
+        {
+            return denied;
+        }
+
+        var userId = Caller.Id(principal);
+        var profile = await db.Profiles.FirstOrDefaultAsync(row => row.UserId == userId, cancellationToken);
+        if (profile is not null)
+        {
+            await NotificationBook.EnsureCurrentWeekAsync(db, profile, clock, cancellationToken);
+            await db.SaveChangesAsync(cancellationToken);
+        }
+
+        var count = await db.UserNotifications.CountAsync(
+            row => row.UserId == userId && row.ReadAt == null,
+            cancellationToken);
+        return Results.Ok(new { count });
+    }
+
+    private static async Task<IResult> ReadOne(
+        ClaimsPrincipal principal,
+        long id,
+        AppDbContext db,
+        TimeProvider clock,
+        CancellationToken cancellationToken)
+    {
+        if (Caller.MissingOid(principal) is { } denied)
+        {
+            return denied;
+        }
+
+        var userId = Caller.Id(principal);
+        var row = await db.UserNotifications.FirstOrDefaultAsync(item => item.Id == id && item.UserId == userId, cancellationToken);
+        if (row is null)
+        {
+            return Results.NotFound();
+        }
+
+        if (row.ReadAt is null)
+        {
+            row.ReadAt = clock.GetUtcNow();
+            await db.SaveChangesAsync(cancellationToken);
+        }
+
+        return Results.Ok(ToItem(row));
+    }
+
+    private static async Task<IResult> ReadAll(
+        ClaimsPrincipal principal,
+        AppDbContext db,
+        TimeProvider clock,
+        CancellationToken cancellationToken)
+    {
+        if (Caller.MissingOid(principal) is { } denied)
+        {
+            return denied;
+        }
+
+        var userId = Caller.Id(principal);
+        var unread = await db.UserNotifications
+            .Where(row => row.UserId == userId && row.ReadAt == null)
+            .ToListAsync(cancellationToken);
+        var now = clock.GetUtcNow();
+        foreach (var row in unread)
+        {
+            row.ReadAt = now;
+        }
+
+        await db.SaveChangesAsync(cancellationToken);
+        return Results.NoContent();
+    }
+
+    private static object ToItem(UserNotification row) => new
+    {
+        id = row.Id,
+        type = row.Type,
+        title = row.Title,
+        body = row.Body,
+        link = row.Link,
+        createdAt = row.CreatedAt,
+        readAt = row.ReadAt,
+    };
 
     private static async Task<IResult> Put(
         ClaimsPrincipal principal,

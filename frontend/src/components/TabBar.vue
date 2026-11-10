@@ -2,6 +2,7 @@
 import { useRoute } from "vue-router";
 import Icon from "./Icon.vue";
 import { primeKeyboard } from "../lib/focusField";
+import { inbox } from "../state/inbox";
 import { openAdd } from "../ui";
 
 const route = useRoute();
@@ -22,7 +23,10 @@ const active = (to: string) => route.path === to || route.path.startsWith(to + "
         <Icon name="plus" :size="26" :sw="2.4" />
       </button>
       <RouterLink v-else :to="t.to" class="tab" :class="{ on: active(t.to) }" :aria-current="active(t.to) ? 'page' : undefined" @click="t.to === '/profile' && route.path !== '/profile' ? primeKeyboard() : undefined">
-        <Icon :name="t.icon" :size="24" />
+        <span class="ic">
+          <Icon :name="t.icon" :size="24" />
+          <span v-if="t.to === '/profile' && inbox.unread > 0" class="bullet" aria-label="Unread" />
+        </span>
         <span class="t-capn">{{ t.label }}</span>
       </RouterLink>
     </template>
@@ -36,7 +40,9 @@ const active = (to: string) => route.path === to || route.path.startsWith(to + "
   display: flex; justify-content: space-between; align-items: flex-start;
   background: var(--color-bg); border-top: 1px solid var(--color-border);
 }
-.tab { min-width: 64px; min-height: 44px; padding-top: 4px; display: flex; flex-direction: column; align-items: center; gap: 4px; color: var(--text-secondary); text-decoration: none; }
+.tab { position: relative; min-width: 64px; min-height: 44px; padding-top: 4px; display: flex; flex-direction: column; align-items: center; gap: 4px; color: var(--text-secondary); text-decoration: none; }
+.ic { position: relative; display: inline-flex; }
+.bullet { position: absolute; top: -2px; right: -6px; width: 8px; height: 8px; border-radius: 50%; background: var(--text-primary); }
 /* Tab captions stay at the default size. Dynamic Type must not enlarge them into each other. */
 .tab .t-capn { font-size: 11px; line-height: 14px; white-space: nowrap; }
 .tab.on { color: var(--text-primary); }

@@ -12,6 +12,24 @@ public static class RecalculationReasons
         reason is TargetReasons.WeeklyRecalculation or Adaptive or Formula;
 }
 
+/// <summary>
+/// In-app reminder for the Monday–Sunday week in the person's time zone.
+/// It stays up after Monday until they recalculate or dismiss it. Push is unrelated.
+/// </summary>
+public static class RecalculateBanner
+{
+    public const string DismissKind = "recalculate_dismiss";
+
+    public static DateOnly WeekStart(DateOnly today)
+    {
+        var back = ((int)today.DayOfWeek - (int)DayOfWeek.Monday + 7) % 7;
+        return today.AddDays(-back);
+    }
+
+    public static bool Visible(bool recalculatedThisWeek, bool dismissedThisWeek) =>
+        !recalculatedThisWeek && !dismissedThisWeek;
+}
+
 /// <summary>One day inside a recalculation window. Logged kcal is what was stored, never guessed.</summary>
 public sealed record DayFact(DateOnly Date, decimal LoggedKcal, bool HasLog, bool Fasting, int? TargetKcal);
 

@@ -21,6 +21,7 @@ import { isTypingTarget, screenLayoutFromFlags, shortcutEffect } from "./lib/lay
 import { vp } from "./lib/viewport";
 import { boot } from "./state/boot";
 import { loadProfile, profile, retryLoad } from "./state/profile";
+import { refreshInbox } from "./state/inbox";
 import { loadToday, log, viewed } from "./state/log";
 import { closeCopy, closeFoodLayer, closeGroupSheet, closeRecipeSheet, closeSheet, endSelect, openFood, openWeight, ui } from "./ui";
 import SignInView from "./views/SignInView.vue";
@@ -62,7 +63,10 @@ onMounted(async () => {
 
   if (boot.signedIn) {
     await loadProfile();
-    if (profile.hasSaved) await loadToday();
+    if (profile.hasSaved) {
+      await loadToday();
+      await refreshInbox();
+    }
   }
   boot.ready = true;
 });

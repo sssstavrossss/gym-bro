@@ -65,4 +65,41 @@ public sealed class RecalculateEndpointTests(ApiFactory factory)
         Assert.Equal(HttpStatusCode.BadRequest, (await client.PostAsJsonAsync("/api/notifications/subscription", body)).StatusCode);
         Assert.Equal(HttpStatusCode.BadRequest, (await stranger.DeleteAsync("/api/notifications/subscription")).StatusCode);
     }
+
+    [Fact]
+    public async Task The_weekly_reminder_is_private_and_reading_it_hides_the_banner()
+    {
+        factory.Clock.UtcNow = new DateTimeOffset(2026, 11, 10, 8, 0, 0, TimeSpan.Zero);
+        var owner = TestData.NewUser("inbox-owner");
+        var other = TestData.NewUser("inbox-other");
+        using var client = factory.AsUser(owner);
+        using var stranger = factory.AsUser(other);
+        await TestData.PutWeighIn(client, "2026-11-10", """{"kg":83.6,"timeZone":"UTC"}""");
+        await TestData.PutProfile(client, TestData.Profile());
+        await TestData.PutWeighIn(stranger, "2026-11-10", """{"kg":83.6,"timeZone":"UTC"}""");
+        await TestData.PutProfile(stranger, TestData.Profile());
+
+        var banner = await client.GetFromJsonAsync<JsonElement>("/api/recalculate/banner");
+        Assert.True(banner.GetProperty("show").GetBoolean());
+        Assert.Equal("2026-11-09", banner.GetProperty("weekStart").GetString());
+
+        var inbox = await client.GetFromJsonAsync<JsonElement>("/api/notifications/inbox");
+        Assert.Equal(1, inbox.GetProperty("unread").GetInt32());
+        var item = inbox.GetProperty("items")[0];
+        Assert.Equal("recalculate", item.GetProperty("type").GetString());
+        Assert.Equal("Time to recalculate your target", item.GetProperty("title").GetString());
+        var id = item.GetProperty("id").GetInt64();
+
+        var theirs = await stranger.GetFromJsonAsync<JsonElement>("/api/notifications/inbox");
+        Assert.DoesNotContain(theirs.GetProperty("items").EnumerateArray(), row => row.GetProperty("id").GetInt64() == id);
+        Assert.Equal(HttpStatusCode.NotFound, (await stranger.PostAsync($"/api/notifications/inbox/{id}/read", null)).StatusCode);
+
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsync("/api/recalculate/banner/dismiss", null)).StatusCode);
+        var hidden = await client.GetFromJsonAsync<JsonElement>("/api/recalculate/banner");
+        Assert.False(hidden.GetProperty("show").GetBoolean());
+        var unread = await client.GetFromJsonAsync<JsonElement>("/api/notifications/inbox/unread");
+        Assert.Equal(0, unread.GetProperty("count").GetInt32());
+        var still = await stranger.GetFromJsonAsync<JsonElement>("/api/notifications/inbox/unread");
+        Assert.Equal(1, still.GetProperty("count").GetInt32());
+    }
 }

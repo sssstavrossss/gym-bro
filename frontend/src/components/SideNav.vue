@@ -7,6 +7,7 @@ import { int } from "../lib/format";
 import { dayTotals, viewed } from "../state/log";
 import { profile, weightCaption } from "../state/profile";
 import { primeKeyboard } from "../lib/focusField";
+import { inbox } from "../state/inbox";
 import { openFood, openWeight } from "../ui";
 
 const route = useRoute();
@@ -41,7 +42,7 @@ const eaten = computed(() => {
 
     <nav class="nav col" aria-label="Main">
       <RouterLink v-for="i in items" :key="i.to" :to="i.to" class="item row" :class="{ on: active(i.to) }" :aria-current="active(i.to) ? 'page' : undefined" @click="i.to === '/profile' && route.path !== '/profile' ? primeKeyboard() : undefined">
-        <Icon :name="i.icon" :size="20" /><span class="t-bodys">{{ i.label }}</span>
+        <span class="ic"><Icon :name="i.icon" :size="20" /><span v-if="i.to === '/profile' && inbox.unread > 0" class="bullet" aria-label="Unread" /></span><span class="t-bodys">{{ i.label }}</span>
       </RouterLink>
     </nav>
 
@@ -74,6 +75,8 @@ const eaten = computed(() => {
 kbd { font: 600 11px/1 Inter, sans-serif; padding: 3px 6px; border-radius: 5px; border: 1px solid currentColor; color: inherit; }
 .nav { gap: 2px; margin-top: 16px; }
 .item { height: 44px; padding: 0 12px; gap: 12px; border-radius: 12px; color: var(--text-secondary); text-decoration: none; }
+.ic { position: relative; display: inline-flex; }
+.bullet { position: absolute; top: -2px; right: -6px; width: 8px; height: 8px; border-radius: 50%; background: var(--text-primary); }
 .item.on { background: var(--color-surface); color: var(--text-primary); }
 .glance { gap: calc(var(--space-gap) / 2); padding: var(--space-gap); border-radius: 12px; background: var(--color-surface); }
 .gap { gap: calc(var(--space-gap) / 2); }

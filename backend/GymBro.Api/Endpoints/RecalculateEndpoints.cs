@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using System.Text.Json;
 using GymBro.Api.Data;
+using GymBro.Api.Notifications;
 using GymBro.Api.Nutrition;
 using GymBro.Api.Profiles;
 using GymBro.Api.Users;
@@ -19,9 +20,70 @@ public static class RecalculateEndpoints
     public static RouteGroupBuilder MapRecalculate(this RouteGroupBuilder api)
     {
         api.MapGet("/recalculate", Get);
+        api.MapGet("/recalculate/banner", Banner);
+        api.MapPost("/recalculate/banner/dismiss", DismissBanner);
         api.MapPost("/recalculate/preview", Preview);
         api.MapPost("/recalculate", Save);
         return api;
+    }
+
+    private static async Task<IResult> Banner(
+        ClaimsPrincipal principal,
+        AppDbContext db,
+        TimeProvider clock,
+        CancellationToken cancellationToken)
+    {
+        if (Caller.MissingOid(principal) is { } denied)
+        {
+            return denied;
+        }
+
+        var state = await BannerState(Caller.Id(principal), db, clock, cancellationToken);
+        return Results.Ok(new { show = state.Show, weekStart = state.WeekStart });
+    }
+
+    private static async Task<IResult> DismissBanner(
+        ClaimsPrincipal principal,
+        AppDbContext db,
+        TimeProvider clock,
+        CancellationToken cancellationToken)
+    {
+        if (Caller.MissingOid(principal) is { } denied)
+        {
+            return denied;
+        }
+
+        var userId = Caller.Id(principal);
+        var profile = await db.Profiles.FirstOrDefaultAsync(row => row.UserId == userId, cancellationToken);
+        if (profile is null)
+        {
+            return ApiResults.Error(NeedProfile);
+        }
+
+        await NotificationBook.MarkCurrentWeekReadAsync(db, userId, clock, cancellationToken);
+        await db.SaveChangesAsync(cancellationToken);
+        return Results.NoContent();
+    }
+
+    private readonly record struct BannerView(bool Show, DateOnly? WeekStart);
+
+    private static async Task<BannerView> BannerState(
+        string userId,
+        AppDbContext db,
+        TimeProvider clock,
+        CancellationToken cancellationToken)
+    {
+        var profile = await db.Profiles.FirstOrDefaultAsync(row => row.UserId == userId, cancellationToken);
+        if (profile is null || !LocalDates.TryToday(profile.TimeZone, clock, out var today))
+        {
+            return new BannerView(false, null);
+        }
+
+        var week = RecalculateBanner.WeekStart(today);
+        var row = await NotificationBook.EnsureCurrentWeekAsync(db, profile, clock, cancellationToken);
+        await db.SaveChangesAsync(cancellationToken);
+        var show = row is not null && row.ReadAt is null;
+        return new BannerView(show, week);
     }
 
     private static async Task<IResult> Get(
@@ -121,6 +183,7 @@ public static class RecalculateEndpoints
             [reason],
             clock.GetUtcNow(),
             cancellationToken);
+        await NotificationBook.MarkCurrentWeekReadAsync(db, userId, clock, cancellationToken);
         await db.SaveChangesAsync(cancellationToken);
         var saved = await BuildAsync(userId, body.Exclude, db, clock, cancellationToken);
         return Results.Ok(ToResponse(saved.Review!));

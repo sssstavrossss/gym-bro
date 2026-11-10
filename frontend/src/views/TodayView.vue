@@ -12,29 +12,54 @@ import Sparkline from "../components/Sparkline.vue";
 import Timeline from "../components/Timeline.vue";
 import WeekStrip from "../components/WeekStrip.vue";
 import WeightChart from "../components/WeightChart.vue";
+import { dismissRecalculateBanner, getRecalculateBanner } from "../api";
 import { addDays, dayNum, longDate, shortDate, todayInZone, weekday, weekdayShort, weekStart } from "../lib/dates";
 import { int, kg } from "../lib/format";
 import { screenLayoutFromFlags } from "../lib/layout";
 import { macroStatus } from "../lib/macros";
 import { freshDismissed, goalDismissed, promptState } from "../lib/prompts";
 import { isManualTarget } from "../lib/manualTarget";
+import { recalculateBannerText } from "../lib/recalculate";
 import { judgeWeekDay } from "../lib/weekCard";
 import { vp } from "../lib/viewport";
 import { isFreshStart, isLowAccuracy, trendChange, weightSubtitle } from "../lib/weightDisplay";
 import { boot } from "../state/boot";
+import { refreshInbox } from "../state/inbox";
 import { loadDay, pendingFor, totalsOf, viewed } from "../state/log";
 import { deviceTimeZone, profile } from "../state/profile";
 import { loadWeekDays, weekCache } from "../state/week";
 import { useRoute } from "vue-router";
-import { openFood, openRecalculate, openWeight } from "../ui";
+import { openFood, openRecalculate, openWeight, ui } from "../ui";
 
 const route = useRoute();
+const showBanner = ref(false);
 onMounted(() => {
   if (route.query.recalculate === "1") openRecalculate();
+  void refreshBanner();
 });
 watch(() => route.query.recalculate, (value) => {
   if (value === "1") openRecalculate();
 });
+watch(() => ui.sheet, (next, prev) => {
+  if (prev === "recalculate" && next !== "recalculate") void refreshBanner();
+});
+async function refreshBanner() {
+  try {
+    showBanner.value = (await getRecalculateBanner()).show;
+  } catch {
+    showBanner.value = false;
+  }
+  await refreshInbox();
+}
+async function dismissBanner() {
+  showBanner.value = false;
+  try {
+    await dismissRecalculateBanner();
+  } catch {
+    await refreshBanner();
+  }
+  await refreshInbox();
+}
 
 const weight = computed(() => profile.weight);
 const low = computed(() => isLowAccuracy(weight.value));
@@ -152,6 +177,12 @@ const weekRows = computed(() => {
       </header>
       <WeekStrip :anchor="today" :selected="selected" :today="today" :setup-date="viewed.setupDate" :logged-dates="viewed.loggedDates" @select="pick" />
     </div>
+
+    <section v-if="showBanner" class="card remind" role="status">
+      <p class="t-body grow msg">{{ recalculateBannerText }}</p>
+      <button type="button" class="chip t-label" @click="openRecalculate">Recalculate</button>
+      <button type="button" class="cbtn" aria-label="Dismiss reminder" @click="dismissBanner">×</button>
+    </section>
 
     <div class="grid">
       <div class="stack c-a">
@@ -319,6 +350,8 @@ const weekRows = computed(() => {
 .barw { position: relative; min-width: 0; height: 10px; display: flex; align-items: center; }
 .tgt { position: absolute; left: calc(100% / 1.2); top: -3px; bottom: -3px; width: 1px; background: var(--text-tertiary); }
 .recalc { align-self: flex-start; }
+.remind { flex-direction: row; flex-wrap: wrap; align-items: center; gap: var(--space-gap); }
+.msg { margin: 0; min-width: 10rem; overflow-wrap: anywhere; }
 .gap2 { gap: 2px; }
 .gap6 { gap: 6px; }
 .gap8 { gap: 8px; }

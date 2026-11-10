@@ -101,7 +101,10 @@ Sign-in settings are not baked into the JavaScript bundle. The API reads them fr
 | `GET` | `/api/recalculate` | bearer | Review since the last recalculation. Days under 90% of that day's target can be excluded. Nothing is saved. |
 | `POST` | `/api/recalculate/preview` | bearer | The same review with `exclude` dates left out of the average. |
 | `POST` | `/api/recalculate` | bearer | Confirms today's target. `mode` is `adaptive` or `formula`. |
-| `GET` `/PUT` | `/api/notifications` | bearer | Monday reminders. Missing VAPID keys leave `configured` false and the app still runs. |
+| `GET` `/PUT` | `/api/notifications` | bearer | Push reminder setting. Missing VAPID keys leave `configured` false and the app still runs. |
+| `GET` | `/api/notifications/inbox` | bearer | This person's in-app notifications, newest first. The weekly reminder is created for the current Monday–Sunday week even when push is off. |
+| `GET` | `/api/notifications/inbox/unread` | bearer | Unread count for the Profile dot. |
+| `POST` | `/api/notifications/inbox/{id}/read` and `/api/notifications/inbox/read` | bearer | Marks one, or all, of this person's notifications read. Another person's id is 404. |
 | `POST` `/DELETE` | `/api/notifications/subscription` | bearer | Stores or removes this person's push subscription. `endpoint` is unique. |
 | `GET` | `/api/about` | bearer | Food-data credits: the Matvaretabellen citation and “Data from Open Food Facts.” |
 | `GET` | `/config.json` | anonymous | Runtime Entra settings for the SPA. `Cache-Control: no-store`. |

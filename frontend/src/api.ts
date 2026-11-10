@@ -768,6 +768,16 @@ export interface RecalculateReview {
   formula: RecalculateNumbers;
 }
 
+export async function getRecalculateBanner(): Promise<{ show: boolean; weekStart: string | null }> {
+  return jsonOrThrow(await request("/api/recalculate/banner"));
+}
+
+export async function dismissRecalculateBanner(): Promise<void> {
+  const response = await request("/api/recalculate/banner/dismiss", { method: "POST" });
+  if (response.status === 204) return;
+  await jsonOrThrow(response);
+}
+
 export async function getRecalculate(): Promise<RecalculateReview> {
   return jsonOrThrow(await request("/api/recalculate"));
 }
@@ -792,6 +802,39 @@ export interface NotificationSettings {
   configured: boolean;
   enabled: boolean;
   publicKey: string;
+}
+
+export interface InboxItem {
+  id: number;
+  type: string;
+  title: string;
+  body: string;
+  link: string;
+  createdAt: string;
+  readAt: string | null;
+}
+
+export interface InboxResponse {
+  unread: number;
+  items: InboxItem[];
+}
+
+export async function getInbox(): Promise<InboxResponse> {
+  return jsonOrThrow(await request("/api/notifications/inbox"));
+}
+
+export async function getUnreadCount(): Promise<{ count: number }> {
+  return jsonOrThrow(await request("/api/notifications/inbox/unread"));
+}
+
+export async function markNotificationRead(id: number): Promise<InboxItem> {
+  return jsonOrThrow(await request(`/api/notifications/inbox/${id}/read`, { method: "POST" }));
+}
+
+export async function markAllNotificationsRead(): Promise<void> {
+  const response = await request("/api/notifications/inbox/read", { method: "POST" });
+  if (response.status === 204) return;
+  await jsonOrThrow(response);
 }
 
 export async function getNotifications(): Promise<NotificationSettings> {
