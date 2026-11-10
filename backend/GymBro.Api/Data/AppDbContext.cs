@@ -27,6 +27,10 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
 
     public DbSet<EntryGroupItem> EntryGroupItems => Set<EntryGroupItem>();
 
+    public DbSet<Recipe> Recipes => Set<Recipe>();
+
+    public DbSet<RecipeIngredient> RecipeIngredients => Set<RecipeIngredient>();
+
     public DbSet<DayStatus> DayStatuses => Set<DayStatus>();
 
     public DbSet<FoodSourceCredit> FoodSourceCredits => Set<FoodSourceCredit>();
@@ -283,6 +287,68 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             .HasPrincipalKey(f => new { f.OwnerKey, f.Id })
             .OnDelete(DeleteBehavior.NoAction)
             .HasConstraintName("fk_entry_group_items_food_owner");
+
+        var recipe = modelBuilder.Entity<Recipe>();
+        recipe.ToTable("recipes", table =>
+        {
+            table.HasCheckConstraint("ck_recipes_portions", "portions > 0 AND portions <= 1000");
+            table.HasCheckConstraint(
+                "ck_recipes_finished_grams",
+                "finished_grams IS NULL OR (finished_grams > 0 AND finished_grams <= 100000)");
+        });
+        recipe.HasKey(r => r.Id);
+        recipe.Property(r => r.Id).HasColumnName("id");
+        recipe.Property(r => r.UserId).HasColumnName("user_id").HasMaxLength(64);
+        recipe.Property(r => r.Name).HasColumnName("name").HasMaxLength(120);
+        recipe.Property(r => r.Portions).HasColumnName("portions").HasPrecision(8, 2);
+        recipe.Property(r => r.FinishedGrams).HasColumnName("finished_grams").HasPrecision(8, 2);
+        recipe.Property(r => r.Kcal).HasColumnName("kcal").HasPrecision(8, 2);
+        recipe.Property(r => r.Protein).HasColumnName("protein").HasPrecision(8, 2);
+        recipe.Property(r => r.Fat).HasColumnName("fat").HasPrecision(8, 2);
+        recipe.Property(r => r.Carbs).HasColumnName("carbs").HasPrecision(8, 2);
+        recipe.Property(r => r.CreatedAt).HasColumnName("created_at");
+        recipe.Property(r => r.UpdatedAt).HasColumnName("updated_at");
+        recipe.Property(r => r.RetiredAt).HasColumnName("retired_at");
+        recipe.HasIndex(r => new { r.UserId, r.RetiredAt });
+        recipe.HasAlternateKey(r => new { r.UserId, r.Id }).HasName("ux_recipes_user_id");
+        recipe.HasOne<AppUser>().WithMany().HasForeignKey(r => r.UserId).OnDelete(DeleteBehavior.Cascade);
+
+        var ingredient = modelBuilder.Entity<RecipeIngredient>();
+        ingredient.ToTable("recipe_ingredients", table =>
+        {
+            table.HasCheckConstraint(
+                "ck_recipe_ingredients_food_owner",
+                "food_owner_key = '' OR food_owner_key = user_id");
+            table.HasCheckConstraint("ck_recipe_ingredients_amount", "amount > 0 AND amount <= 10000");
+        });
+        ingredient.HasKey(i => i.Id);
+        ingredient.Property(i => i.Id).HasColumnName("id");
+        ingredient.Property(i => i.UserId).HasColumnName("user_id").HasMaxLength(64);
+        ingredient.Property(i => i.RecipeId).HasColumnName("recipe_id");
+        ingredient.Property(i => i.Position).HasColumnName("position");
+        ingredient.Property(i => i.FoodId).HasColumnName("food_id");
+        ingredient.Property(i => i.FoodOwnerKey).HasColumnName("food_owner_key").HasMaxLength(64);
+        ingredient.Property(i => i.Name).HasColumnName("name").HasMaxLength(300);
+        ingredient.Property(i => i.Amount).HasColumnName("amount").HasPrecision(8, 2);
+        ingredient.Property(i => i.Unit).HasColumnName("unit").HasMaxLength(16);
+        ingredient.Property(i => i.Grams).HasColumnName("grams").HasPrecision(8, 2);
+        ingredient.Property(i => i.Kcal).HasColumnName("kcal").HasPrecision(8, 2);
+        ingredient.Property(i => i.Protein).HasColumnName("protein").HasPrecision(8, 2);
+        ingredient.Property(i => i.Fat).HasColumnName("fat").HasPrecision(8, 2);
+        ingredient.Property(i => i.Carbs).HasColumnName("carbs").HasPrecision(8, 2);
+        ingredient.HasIndex(i => new { i.RecipeId, i.Position }).IsUnique();
+        ingredient.HasOne<Recipe>()
+            .WithMany()
+            .HasForeignKey(i => new { i.UserId, i.RecipeId })
+            .HasPrincipalKey(r => new { r.UserId, r.Id })
+            .OnDelete(DeleteBehavior.Cascade)
+            .HasConstraintName("fk_recipe_ingredients_recipe_owner");
+        ingredient.HasOne<Food>()
+            .WithMany()
+            .HasForeignKey(i => new { i.FoodOwnerKey, i.FoodId })
+            .HasPrincipalKey(f => new { f.OwnerKey, f.Id })
+            .OnDelete(DeleteBehavior.NoAction)
+            .HasConstraintName("fk_recipe_ingredients_food_owner");
 
         var day = modelBuilder.Entity<DayStatus>();
         day.ToTable("day_status");

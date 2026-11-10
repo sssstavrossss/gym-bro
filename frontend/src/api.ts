@@ -599,6 +599,89 @@ export async function deleteGroup(id: string): Promise<void> {
   await jsonOrThrow(response);
 }
 
+export interface RecipeIngredient {
+  id: string;
+  foodId: string;
+  name: string;
+  amount: number;
+  unit: string;
+  grams: number | null;
+  kcal: number;
+  protein: number;
+  fat: number;
+  carbs: number;
+  available: boolean;
+}
+
+export interface RecipeMacros {
+  kcal: number;
+  protein: number;
+  fat: number;
+  carbs: number;
+}
+
+export interface Recipe {
+  id: string;
+  name: string;
+  portions: number;
+  finishedGrams: number | null;
+  kcal: number;
+  protein: number;
+  fat: number;
+  carbs: number;
+  perPortion: RecipeMacros;
+  perGram: RecipeMacros | null;
+  notice: string;
+  createdAt: string;
+  updatedAt: string;
+  ingredients: RecipeIngredient[];
+}
+
+export interface RecipeWrite {
+  name: string;
+  portions: number;
+  finishedGrams: number | null;
+  ingredients: { foodId: string; amount: number; unit: string }[];
+}
+
+export async function listRecipes(): Promise<{ recipes: Recipe[] }> {
+  return jsonOrThrow(await request("/api/recipes"));
+}
+
+export async function getRecipe(id: string): Promise<Recipe> {
+  return jsonOrThrow(await request(`/api/recipes/${id}`));
+}
+
+export async function createRecipe(body: RecipeWrite): Promise<Recipe> {
+  return jsonOrThrow(await request("/api/recipes", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  }));
+}
+
+export async function updateRecipe(id: string, body: RecipeWrite): Promise<Recipe> {
+  return jsonOrThrow(await request(`/api/recipes/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  }));
+}
+
+export async function deleteRecipe(id: string): Promise<void> {
+  const response = await request(`/api/recipes/${id}`, { method: "DELETE" });
+  if (response.status === 204) return;
+  await jsonOrThrow(response);
+}
+
+export async function logRecipe(id: string, body: { localDate: string; timeZone: string; time: string | null; idempotencyKey: string; amount: number; unit: "portion" | "g" }): Promise<LogEntryResponse> {
+  return jsonOrThrow(await request(`/api/recipes/${id}/log`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  }));
+}
+
 export async function logGroup(id: string, body: { localDate: string; timeZone: string; time: string | null; idempotencyKey: string }): Promise<GroupLogResponse> {
   return jsonOrThrow(await request(`/api/groups/${id}/log`, {
     method: "POST",

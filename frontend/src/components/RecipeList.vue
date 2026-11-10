@@ -1,0 +1,60 @@
+<script setup lang="ts">
+import Icon from "./Icon.vue";
+import { recipeFigure } from "../lib/recipes";
+import type { Recipe } from "../api";
+
+defineProps<{
+  recipes: Recipe[];
+  saving: boolean;
+  heading?: string;
+  activeIndex?: number;
+}>();
+const emit = defineEmits<{ add: [recipe: Recipe]; edit: [recipe: Recipe]; remove: [recipe: Recipe]; create: [] }>();
+</script>
+
+<template>
+  <div v-if="recipes.length || heading" class="recipes col">
+    <div class="row lhead">
+      <span class="t-cap c3">{{ heading || "Recipes" }}</span>
+      <span class="grow" />
+      <button type="button" class="chip t-label" @click="emit('create')">
+        <Icon name="plus" :size="14" :sw="2.4" /> New recipe
+      </button>
+    </div>
+    <div v-for="(recipe, index) in recipes" :key="recipe.id" class="rrow row" :class="{ hl: activeIndex === index }">
+      <button type="button" class="col grow rtext" @click="emit('add', recipe)">
+        <span class="row gap6 nm">
+          <span class="t-body ell">{{ recipe.name }}</span>
+          <span class="mark t-capn">recipe</span>
+        </span>
+        <span class="t-label c2 ell">
+          {{ recipe.ingredients.length }} foods · {{ recipeFigure(recipe.perPortion.kcal) }} kcal per portion
+          <template v-if="recipe.finishedGrams"> · {{ recipeFigure(recipe.finishedGrams) }} g finished</template>
+        </span>
+      </button>
+      <button type="button" class="cbtn" style="--s: 44px" :aria-label="`Edit recipe ${recipe.name}`" :disabled="saving" @click="emit('edit', recipe)">
+        <Icon name="edit" :size="16" />
+      </button>
+      <button type="button" class="cbtn" style="--s: 44px" :aria-label="`Delete recipe ${recipe.name}`" :disabled="saving" @click="emit('remove', recipe)">
+        <Icon name="trash" :size="16" />
+      </button>
+      <button type="button" class="cbtn filled" style="--s: 44px" :aria-label="`Log recipe ${recipe.name}`" :disabled="saving" @click="emit('add', recipe)">
+        <Icon name="plus" :size="18" :sw="2.4" />
+      </button>
+    </div>
+    <p v-if="heading && !recipes.length" class="t-label c2 empty">No recipes yet.</p>
+  </div>
+</template>
+
+<style scoped>
+.recipes { gap: 0; }
+.lhead { padding: 10px 0 2px; gap: 8px; }
+.rrow { min-height: 56px; gap: 4px; padding: 6px 0; border-bottom: 1px solid var(--color-border); }
+.rrow.hl { background: var(--color-surface-2); border-radius: 12px; }
+.rtext { gap: 2px; min-width: 0; min-height: 44px; align-items: flex-start; justify-content: center; text-align: left; }
+.ell { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+.nm { min-width: 0; max-width: 100%; }
+.gap6 { gap: 6px; }
+.mark { display: inline-flex; align-items: center; padding: 1px 6px; border-radius: 6px; border: 1px solid var(--color-border); color: var(--text-secondary); white-space: nowrap; flex: none; }
+.empty { margin: 0; padding: 8px 0 12px; }
+</style>

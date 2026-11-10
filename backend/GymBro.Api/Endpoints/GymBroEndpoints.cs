@@ -33,6 +33,7 @@ public static class GymBroEndpoints
         api.MapFoods();
         api.MapLogEntries();
         api.MapGroups();
+        api.MapRecipes();
         api.MapDayStatus();
         api.MapFallback(() => Results.Json(new { error = "Not found" }, statusCode: StatusCodes.Status404NotFound));
 
