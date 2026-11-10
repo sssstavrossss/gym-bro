@@ -1,4 +1,5 @@
 import { nextTick, onBeforeUnmount, watch, type Ref } from "vue";
+import { focusField, focusProxy, keyboardHolding, primaryField, takeOpener } from "./focusField";
 
 const FOCUSABLE = "a[href], button:not([disabled]), input:not([disabled]):not([type='hidden']), select:not([disabled]), textarea:not([disabled]), [tabindex]";
 
@@ -19,6 +20,10 @@ export function focusableElements(root: ParentNode): HTMLElement[] {
     if (style.display === "none" || style.visibility === "hidden") return false;
     return el.getClientRects().length > 0;
   });
+}
+
+function isTextField(el: EventTarget | null): el is HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement {
+  return el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement;
 }
 
 function cycle(dialog: HTMLElement): HTMLElement[] {
@@ -50,9 +55,14 @@ export function useDialogFocus(open: () => boolean, root: Ref<HTMLElement | null
 
   watch(open, (isOpen, wasOpen) => {
     if (!isOpen || wasOpen) return;
+    const primed = takeOpener();
+    if (primed) {
+      previous = primed;
+      return;
+    }
     const active = document.activeElement;
     if (!(active instanceof HTMLElement)) return;
-    if (active === document.body || active === document.documentElement) return;
+    if (active === document.body || active === document.documentElement || active === focusProxy()) return;
     if (active.closest("[role='dialog']")) return;
     previous = active;
   }, { flush: "sync" });
@@ -63,7 +73,14 @@ export function useDialogFocus(open: () => boolean, root: Ref<HTMLElement | null
       const dialog = root.value;
       if (!dialog) return;
       const active = document.activeElement;
-      if (!(active instanceof Node) || !dialog.contains(active)) dialog.focus({ preventScroll: true });
+      const alreadyInside = active instanceof Node && dialog.contains(active) && active !== dialog;
+      if (!alreadyInside) {
+        const primary = primaryField(dialog);
+        if (primary) focusField(primary);
+        else if (!keyboardHolding()) dialog.focus({ preventScroll: true });
+      } else if (isTextField(active)) {
+        focusField(active);
+      }
       window.addEventListener("keydown", onKey, true);
       return;
     }

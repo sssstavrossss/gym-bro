@@ -150,11 +150,11 @@ function onMenu(event: Event) {
         <span class="grow" />
         <button type="button" class="chip t-label" @click="startSelect()">Select</button>
       </div>
-      <div v-for="item in pending" :key="item.idempotencyKey" class="pending row">
+      <div v-for="item in pending" :key="item.idempotencyKey" class="pending">
         <span class="time t-label c2">{{ item.time || "Now" }}</span>
-        <span class="col grow two">
+        <span class="col two">
           <span class="t-body name">{{ item.name }}</span>
-          <span class="t-capn c2">Pending · {{ macros(item) }}</span>
+          <span class="t-capn c2 sub">Pending · {{ macros(item) }}</span>
         </span>
         <button type="button" class="retry t-bodys" @click="retry(item)">Retry</button>
         <span class="t-bodys kc" data-num>{{ int(item.kcal) }}</span>
@@ -190,11 +190,11 @@ function onMenu(event: Event) {
           >
             <span class="dot" /><Icon name="check" :size="12" :sw="3.4" class="tick" />
           </button>
-          <button type="button" class="frow" @click="tap(entry, $event)">
+          <button type="button" class="frow" :title="entry.name" @click="tap(entry, $event)">
             <span class="time t-label num" :class="selected(entry.id) ? '' : 'c2'">{{ entry.time }}</span>
-            <span class="col grow two">
+            <span class="col two">
               <span class="t-body name">{{ entry.name }}</span>
-              <span class="t-capn c2">{{ amountOf(entry) ? `${amountOf(entry)} · ` : "" }}{{ macros(entry) }}</span>
+              <span class="t-capn c2 sub">{{ amountOf(entry) ? `${amountOf(entry)} · ` : "" }}{{ macros(entry) }}</span>
             </span>
             <span class="t-bodys kc" data-num>{{ int(entry.kcal) }}</span>
           </button>
@@ -218,16 +218,31 @@ function onMenu(event: Event) {
 </template>
 
 <style scoped>
-.tl { display: flex; flex-direction: column; gap: 4px; min-width: 0; max-width: 100%; }
+.tl { display: flex; flex-direction: column; gap: 4px; min-width: 0; max-width: 100%; overflow: hidden; }
 .selhead { min-height: 44px; }
-.line { position: relative; display: flex; align-items: center; gap: 4px; min-height: 52px; border-radius: 10px; -webkit-touch-callout: none; user-select: none; }
+.line { position: relative; display: flex; align-items: center; gap: 4px; min-height: 52px; min-width: 0; max-width: 100%; border-radius: 10px; -webkit-touch-callout: none; user-select: none; }
 .line.sel { background: rgba(255, 255, 255, .05); }
-.frow { min-height: 52px; gap: 8px; display: flex; align-items: center; flex: 1 1 auto; min-width: 0; text-align: left; background: transparent; border-radius: 10px; padding: 4px 0; }
-.pending { min-height: 52px; gap: 8px; border: 1px dashed var(--color-border); border-radius: 12px; padding: 8px; }
-.time { width: 3.2rem; flex: none; }
+.frow {
+  min-height: 52px; flex: 1 1 auto; min-width: 0; width: 100%; text-align: left;
+  display: grid; grid-template-columns: 3.4rem minmax(0, 1fr) 4.25rem;
+  align-items: start; gap: 8px; background: transparent; border-radius: 10px; padding: 4px 0;
+}
+.pending {
+  min-height: 52px; min-width: 0; max-width: 100%;
+  display: grid; grid-template-columns: 3.4rem minmax(0, 1fr) auto 4.25rem;
+  align-items: start; gap: 8px; border: 1px dashed var(--color-border); border-radius: 12px; padding: 8px;
+}
+.time { width: 3.4rem; min-width: 0; font-variant-numeric: tabular-nums; }
 .two { gap: 1px; min-width: 0; align-items: flex-start; }
-.name { overflow-wrap: anywhere; min-width: 0; max-width: 100%; }
-.kc { min-width: 2.6rem; text-align: right; flex: none; }
+.name, .sub {
+  display: block; min-width: 0; max-width: 100%;
+  white-space: normal; overflow-wrap: anywhere; word-break: break-word;
+  text-overflow: clip;
+}
+.frow .kc, .pending .kc {
+  width: 4.25rem; max-width: none; overflow-wrap: normal;
+  text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums;
+}
 .retry { min-height: 44px; min-width: 44px; padding: 0 12px; border-radius: 22px; background: var(--color-surface-2); flex: none; }
 .addrow { min-height: 44px; gap: 8px; text-align: left; }
 .mark { position: relative; width: 44px; height: 44px; flex: none; display: flex; align-items: center; justify-content: center; }

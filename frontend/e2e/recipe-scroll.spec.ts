@@ -128,16 +128,21 @@ for (const size of [
     expect(overflow.overscroll).toBe("contain");
 
     const last = sheet.locator("[data-ingredient-index='5']");
+    const add = sheet.getByRole("button", { name: "Add ingredient" });
     expect(await insideSheet(page, "[data-ingredient-index='5']")).toBe(false);
 
     const pageBefore = await page.locator(".scroller").evaluate((el) => el.scrollTop);
     await last.scrollIntoViewIfNeeded();
-    await sheet.getByRole("button", { name: "Add ingredient" }).scrollIntoViewIfNeeded();
-    await body.hover();
-    await page.mouse.wheel(0, 240);
-
     expect(await insideSheet(page, "[data-ingredient-index='5']")).toBe(true);
-    await expect(sheet.getByRole("button", { name: "Add ingredient" })).toBeInViewport();
+    await expect(sheet.getByRole("button", { name: "Save recipe" })).toBeInViewport();
+
+    await add.scrollIntoViewIfNeeded();
+    await expect(add).toBeInViewport();
+    await body.hover();
+    await page.mouse.wheel(0, 80);
+    expect(await page.locator(".scroller").evaluate((el) => el.scrollTop)).toBe(pageBefore);
+    await last.scrollIntoViewIfNeeded();
+    expect(await insideSheet(page, "[data-ingredient-index='5']")).toBe(true);
     await expect(sheet.getByRole("button", { name: "Save recipe" })).toBeInViewport();
     const saveBox = await sheet.getByRole("button", { name: "Save recipe" }).boundingBox();
     expect(saveBox && saveBox.height >= 44 && saveBox.width >= 44).toBeTruthy();

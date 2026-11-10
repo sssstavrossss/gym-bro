@@ -1,6 +1,7 @@
 import { createApp } from "vue";
 import { createRouter, createWebHistory } from "vue-router";
 import App from "./App.vue";
+import { vAutofocus } from "./lib/autofocus";
 import { routes } from "./router";
 import "./styles/main.css";
 
@@ -17,4 +18,4 @@ function dynamicType() {
 dynamicType();
 window.addEventListener("resize", dynamicType);
 
-createApp(App).use(router).mount("#app");
+createApp(App).directive("autofocus", vAutofocus).use(router).mount("#app");

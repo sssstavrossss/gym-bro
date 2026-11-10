@@ -1,10 +1,9 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from "vue";
+import { computed, ref, watch } from "vue";
 import BottomSheet from "./BottomSheet.vue";
 import Icon from "./Icon.vue";
 import { int } from "../lib/format";
 import { canSaveGroup, groupName, groupNameMax } from "../lib/groups";
-import { keyboardEntry } from "../lib/viewport";
 import { findEntry, type LogEntry } from "../state/log";
 import { saveGroupFromEntries } from "../state/groups";
 import { closeGroupSheet, finishGroupSave, toast, ui } from "../ui";
@@ -13,7 +12,6 @@ const open = computed(() => ui.sheet === "group");
 const name = ref("");
 const error = ref("");
 const saving = ref(false);
-const input = ref<HTMLInputElement | null>(null);
 const list = computed(() => ui.groupEntryIds
   .map((id) => findEntry(id))
   .filter((entry): entry is LogEntry => entry !== null));
@@ -24,7 +22,6 @@ watch(open, (isOpen) => {
   if (!isOpen) return;
   name.value = "";
   error.value = "";
-  if (keyboardEntry.value) nextTick(() => input.value?.focus());
 });
 
 function amountOf(entry: LogEntry): string {
@@ -61,7 +58,7 @@ async function save() {
     </template>
     <label class="field row">
       <input
-        ref="input"
+        v-autofocus
         v-model="name"
         class="t-body grow"
         type="text"

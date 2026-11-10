@@ -281,7 +281,7 @@ const diffText = computed(() => (
         <span class="sr-only">Weight in kilograms</span>
         <span class="autosize t-dxl">
           <span class="mirror" aria-hidden="true">{{ value || "0" }}</span>
-          <input ref="input" v-model="value" class="t-dxl winput" size="1" inputmode="decimal" enterkeyhint="done" autocomplete="off" aria-label="Weight in kilograms" @focus="($event.target as HTMLInputElement).select()" />
+          <input ref="input" v-autofocus v-model="value" class="t-dxl winput" size="1" inputmode="decimal" enterkeyhint="done" autocomplete="off" aria-label="Weight in kilograms" @focus="($event.target as HTMLInputElement).select()" />
         </span>
         <span class="t-head c2">kg</span>
       </label>
