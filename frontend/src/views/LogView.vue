@@ -2,6 +2,7 @@
 import { computed, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import Icon from "../components/Icon.vue";
+import ManualTag from "../components/ManualTag.vue";
 import Timeline from "../components/Timeline.vue";
 import WeekStrip from "../components/WeekStrip.vue";
 import {
@@ -17,6 +18,7 @@ import {
   targetLine,
 } from "../lib/dayLog";
 import { shortDate, todayInZone } from "../lib/dates";
+import { isManualTarget } from "../lib/manualTarget";
 import { vp } from "../lib/viewport";
 import { deviceTimeZone } from "../state/profile";
 import { loadDay, pendingFor, setDayComplete, totalsOf, viewed } from "../state/log";
@@ -40,6 +42,7 @@ const totals = computed(() => totalsOf(entries.value));
 const target = computed(() => (ready.value ? viewed.target : null));
 const cells = computed(() => summaryCells(totals.value, target.value));
 const line = computed(() => (ready.value ? targetLine(viewed.target, viewed.firstTargetDate) : ""));
+const manual = computed(() => ready.value && isManualTarget(viewed.target?.reasons));
 const totalLine = computed(() => dayTotalText(totals.value.kcal, entries.value.length));
 const canPrev = computed(() => shiftLogDate(date.value, -1, today.value, setup.value) !== null);
 const canNext = computed(() => shiftLogDate(date.value, 1, today.value, setup.value) !== null);
@@ -116,7 +119,7 @@ async function confirmFast() {
           <span class="t-capn c3">{{ cell.caption }}</span>
         </div>
       </section>
-      <p class="t-capn c2 tline" :class="{ notg: !target }">{{ line }}</p>
+      <p class="t-capn c2 tline row" :class="{ notg: !target }">{{ line }}<ManualTag v-if="manual" /></p>
       <div class="maincol">
         <div class="row dayline">
           <span class="t-bodys">Day total</span>

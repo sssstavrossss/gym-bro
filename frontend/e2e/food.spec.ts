@@ -160,7 +160,7 @@ test("today empty, quick add, on target, edit, undo, and no sideways scroll", as
 
   await openToday(page, oid, 820);
   await expect(page.getByText("Nothing logged yet today")).toBeVisible();
-  await expect(page.getByText("Open log")).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Open log" })).toBeVisible();
 
   await openQuickAdd(page, 820);
   await macroField(page, "Name (optional)").fill("Fictional bar");
@@ -204,7 +204,8 @@ test("today empty, quick add, on target, edit, undo, and no sideways scroll", as
     if (width < 600) await expect(page.locator(".wbig")).toHaveCount(0);
     else await expect(page.locator(".wbig")).toBeVisible();
     await expectNoSideScroll(page);
-    await expect(page.getByText("Open log")).toHaveCount(0);
+    if (width < 600) await expect(page.getByText("Open log")).toHaveCount(0);
+    else await expect(page.getByRole("link", { name: "Open log" })).toBeVisible();
   }
 });
 
