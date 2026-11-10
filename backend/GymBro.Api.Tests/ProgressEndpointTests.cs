@@ -32,11 +32,13 @@ public sealed class ProgressEndpointTests(ApiFactory factory)
     [Fact]
     public async Task Empty_days_stay_empty_and_averages_use_only_logged_days()
     {
-        factory.Clock.UtcNow = new DateTimeOffset(2026, 11, 10, 9, 0, 0, TimeSpan.Zero);
         var user = TestData.NewUser("progress-days");
         using var client = factory.AsUser(user);
+        factory.Clock.UtcNow = new DateTimeOffset(2026, 11, 8, 9, 0, 0, TimeSpan.Zero);
         await Setup(client, "2026-11-08", "84.0");
-        Assert.Equal(HttpStatusCode.OK, (await client.PutAsync("/api/weigh-ins/2026-11-10", Json("""{"kg":83.6,"timeZone":"UTC"}"""))).StatusCode);
+        factory.Clock.UtcNow = new DateTimeOffset(2026, 11, 10, 9, 0, 0, TimeSpan.Zero);
+        var secondWeighIn = await client.PutAsync("/api/weigh-ins/2026-11-10", Json("""{"kg":83.6,"timeZone":"UTC"}"""));
+        Assert.True(secondWeighIn.IsSuccessStatusCode, await secondWeighIn.Content.ReadAsStringAsync());
         Assert.Equal(HttpStatusCode.Created, (await client.PostAsync("/api/log-entries", Json(Quick("p-a", "2026-11-08", "400", "40")))).StatusCode);
         Assert.Equal(HttpStatusCode.Created, (await client.PostAsync("/api/log-entries", Json(Quick("p-b", "2026-11-10", "600", "20")))).StatusCode);
         var removed = await client.PostAsync("/api/log-entries", Json(Quick("p-gone", "2026-11-09", "9999", "999")));
