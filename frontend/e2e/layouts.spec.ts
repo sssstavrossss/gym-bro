@@ -161,7 +161,8 @@ test("layouts stay in one column of scrolling from 375 to 1,920", async ({ page 
     await expect(page.getByRole("checkbox", { name: /Day complete/ })).toBeVisible();
 
     await page.goto("/progress");
-    await expect(page.getByText("Progress arrives in a later update.")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Progress", exact: true })).toBeVisible();
+    await expect(page.getByRole("radio", { name: "30 days" })).toHaveAttribute("aria-checked", "true");
     await expectNoSideScroll(page);
 
     await page.goto("/profile");

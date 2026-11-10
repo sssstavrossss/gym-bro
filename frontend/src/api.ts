@@ -437,6 +437,39 @@ export async function listWeighIns(): Promise<{ weighIns: WeighInRow[] }> {
   return jsonOrThrow(await request("/api/weigh-ins"));
 }
 
+export interface ProgressDay {
+  date: string;
+  logged: boolean;
+  kcal: number | null;
+  protein: number | null;
+  targetKcal: number | null;
+  targetProtein: number | null;
+}
+
+export interface ProgressResponse {
+  range: string;
+  from: string;
+  to: string;
+  today: string;
+  weight: {
+    currentKg: number | null;
+    currentDate: string | null;
+    changeKg: number | null;
+    count: number;
+    weighIns: { date: string; kg: number }[];
+  };
+  intake: {
+    loggedDays: number;
+    averageKcal: number | null;
+    averageProtein: number | null;
+  };
+  days: ProgressDay[];
+}
+
+export async function getProgress(range: string): Promise<ProgressResponse> {
+  return jsonOrThrow(await request(`/api/progress?range=${encodeURIComponent(range)}`));
+}
+
 export async function getWeightChart(days = 30): Promise<WeightChartResponse> {
   return jsonOrThrow(await request(`/api/weight/chart?days=${days}`));
 }
