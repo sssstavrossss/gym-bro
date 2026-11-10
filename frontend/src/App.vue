@@ -14,16 +14,19 @@ import WeightSheet from "./components/WeightSheet.vue";
 import { e2eSession } from "./auth/e2e";
 import { isConfigured, loadPublicConfig } from "./auth/publicConfig";
 import { currentAccount } from "./auth/session";
+import { isTypingTarget, screenLayoutFromFlags, shortcutEffect } from "./lib/layout";
 import { vp } from "./lib/viewport";
 import { boot } from "./state/boot";
 import { loadProfile, profile, retryLoad } from "./state/profile";
 import { loadToday, log, viewed } from "./state/log";
-import { closeCopy, closeFoodLayer, closeGroupSheet, closeSheet, endSelect, openAdd, openFood, openWeight, ui } from "./ui";
+import { closeCopy, closeFoodLayer, closeGroupSheet, closeSheet, endSelect, openFood, openWeight, ui } from "./ui";
 import SignInView from "./views/SignInView.vue";
 
 const route = useRoute();
 const router = useRouter();
 const showNav = computed(() => profile.hasSaved && route.path !== "/setup");
+const layoutName = computed(() => screenLayoutFromFlags({ tablet: vp.tablet, desktop: vp.desktop, wide: vp.wide }));
+const sheetOpen = computed(() => ui.sheet != null);
 
 onMounted(async () => {
   window.addEventListener("keydown", onKey);
@@ -79,45 +82,29 @@ watch(
 onBeforeUnmount(() => window.removeEventListener("keydown", onKey));
 
 function onKey(event: KeyboardEvent) {
-  if (event.metaKey || event.ctrlKey || event.altKey) return;
-  const target = event.target as HTMLElement | null;
-  const typing = target?.closest("input, textarea, select, [contenteditable='true']") != null;
-  if (event.key === "Escape") {
-    if (ui.sheet === "copy") {
-      event.preventDefault();
-      closeCopy();
-      return;
-    }
-    if (ui.sheet === "group") {
-      event.preventDefault();
-      closeGroupSheet();
-      return;
-    }
-    if (!ui.sheet && ui.selecting) {
-      event.preventDefault();
-      endSelect();
-      return;
-    }
-    if (!ui.sheet) return;
-    event.preventDefault();
-    if (ui.sheet === "food" && closeFoodLayer()) return;
-    closeSheet();
-    return;
-  }
-  if (typing || ui.sheet || !showNav.value) return;
-  const key = event.key.toLowerCase();
+  const effect = shortcutEffect({
+    key: event.key,
+    meta: event.metaKey,
+    ctrl: event.ctrlKey,
+    alt: event.altKey,
+    composing: event.isComposing,
+    typing: isTypingTarget(event.target),
+    sheet: ui.sheet,
+    selecting: ui.selecting,
+    nav: showNav.value,
+  });
+  if (effect.effect === "none") return;
+  event.preventDefault();
   const onDay = route.path.startsWith("/log") || route.path.startsWith("/today");
   const day = onDay && viewed.date ? viewed.date : undefined;
-  if (key === "n" || key === "/") {
-    event.preventDefault();
-    openFood("search", day);
-  } else if (key === "q") {
-    event.preventDefault();
-    openFood("quick", day);
-  } else if (key === "w") {
-    event.preventDefault();
-    openWeight();
-  }
+  if (effect.action === "add") openFood("search", day);
+  else if (effect.action === "quick") openFood("quick", day);
+  else if (effect.action === "weight") openWeight();
+  else if (effect.action === "close-copy") closeCopy();
+  else if (effect.action === "close-group") closeGroupSheet();
+  else if (effect.action === "end-select") endSelect();
+  else if (ui.sheet === "food" && closeFoodLayer()) return;
+  else closeSheet();
 }
 </script>
 
@@ -126,13 +113,13 @@ function onKey(event: KeyboardEvent) {
     <p class="t-body c2">Loading…</p>
   </div>
   <SignInView v-else-if="!boot.signedIn" />
-  <div v-else class="app" :class="{ 'is-tablet': vp.tablet && !vp.desktop, 'is-desktop': vp.desktop, 'is-wide': vp.wide, 'can-hover': vp.hover, 'has-nav': showNav, 'no-nav': !showNav, selecting: ui.selecting }">
-    <SideNav v-if="showNav && vp.desktop" />
-    <div class="scroller">
+  <div v-else class="app" :data-layout="layoutName" :class="{ 'is-tablet': vp.tablet && !vp.desktop, 'is-desktop': vp.desktop, 'is-wide': vp.wide, 'can-hover': vp.hover, 'has-nav': showNav, 'no-nav': !showNav, selecting: ui.selecting }">
+    <SideNav v-if="showNav && vp.desktop" :inert="sheetOpen" />
+    <div class="scroller" :inert="sheetOpen">
       <RouterView />
     </div>
-    <TabBar v-if="showNav && !vp.desktop && !ui.selecting" />
-    <SelectBar v-if="showNav && ui.selecting" />
+    <TabBar v-if="showNav && !vp.desktop && !ui.selecting" :inert="sheetOpen" />
+    <SelectBar v-if="showNav && ui.selecting" :inert="sheetOpen" />
     <CopySheet />
     <GroupSheet />
     <WeightSheet />

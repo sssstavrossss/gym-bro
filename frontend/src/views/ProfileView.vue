@@ -251,9 +251,11 @@ async function onSignOut() {
 .rate { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .stats { display: flex; gap: 12px; }
 .stats > div { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.pgrid, .pcol { display: flex; flex-direction: column; gap: var(--space-gap); }
+.pgrid, .pcol { display: flex; flex-direction: column; gap: var(--space-gap); min-width: 0; }
 .two.pgrid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start; }
-.desk.pgrid { grid-template-columns: minmax(0, 1.15fr) minmax(320px, 1fr); gap: 24px; }
+.desk.pgrid { grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 24px; }
+.two .frow, .desk .frow { min-width: 0; }
+.two .tz, .desk .tz { width: min(180px, 100%); max-width: 100%; }
 .signout { align-self: flex-start; min-height: 44px; }
 h2 { margin: 0; }
 /* xxxL and up: label on top, value under it, left-aligned. A value never splits from its unit. */

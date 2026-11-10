@@ -1,8 +1,13 @@
 <script setup lang="ts">
+import { ref } from "vue";
 import { useRoute } from "vue-router";
+import { useDialogFocus } from "../lib/focusTrap";
 import Icon from "./Icon.vue";
 import { viewed } from "../state/log";
 import { closeSheet, openFood, openWeight, ui } from "../ui";
+
+const root = ref<HTMLElement | null>(null);
+const restoreFocus = useDialogFocus(() => ui.sheet === "chooser", root);
 
 const route = useRoute();
 function addFood() {
@@ -12,8 +17,8 @@ function addFood() {
 </script>
 
 <template>
-  <Transition name="fade" :duration="250">
-    <div v-if="ui.sheet === 'chooser'" class="chooser-root" role="dialog" aria-modal="true" aria-label="Add" @click.self="closeSheet">
+  <Transition name="fade" :duration="250" @after-leave="restoreFocus">
+    <div v-if="ui.sheet === 'chooser'" ref="root" class="chooser-root" role="dialog" aria-modal="true" aria-label="Add" tabindex="-1" @click.self="closeSheet">
       <div class="chooser">
         <button type="button" class="tile" @click="addFood()">
           <span class="ic"><Icon name="food" :size="20" :sw="2.2" /></span>
@@ -37,6 +42,8 @@ function addFood() {
 
 <style scoped>
 .chooser-root { position: absolute; inset: 0; z-index: 25; background: rgba(0,0,0,.6); display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 20px; padding: 0 16px calc(var(--tabbar-h) + 16px); }
+.is-tablet .chooser-root { justify-content: center; padding: 24px 16px; }
+.is-tablet .chooser { width: min(520px, 100%); }
 .chooser { width: 100%; max-width: 520px; display: flex; gap: 12px; padding: 12px; border-radius: var(--radius-sheet); background: var(--color-surface); }
 .tile { flex: 1 1 0; min-width: 0; min-height: 128px; border-radius: var(--radius-card); padding: 16px; background: var(--color-surface-2); display: flex; flex-direction: column; align-items: flex-start; gap: 4px; text-align: left; }
 .tile:active { background: #303036; }

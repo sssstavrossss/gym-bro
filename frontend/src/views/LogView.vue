@@ -17,6 +17,7 @@ import {
   targetLine,
 } from "../lib/dayLog";
 import { shortDate, todayInZone } from "../lib/dates";
+import { vp } from "../lib/viewport";
 import { deviceTimeZone } from "../state/profile";
 import { loadDay, pendingFor, setDayComplete, totalsOf, viewed } from "../state/log";
 
@@ -108,19 +109,21 @@ async function confirmFast() {
     <WeekStrip :anchor="date" :selected="date" :today="today" :setup-date="setup" :logged-dates="viewed.loggedDates" @select="pick" />
 
     <p v-if="!ready" class="t-label c2" role="status">Loading this day…</p>
-    <template v-else>
-      <section class="summary row" :aria-label="target ? 'Day total against that day\'s target' : 'Day total, no target'">
+    <div v-else class="body" :class="{ desk: vp.desktop }">
+      <section class="summary" :aria-label="target ? 'Day total against that day\'s target' : 'Day total, no target'">
         <div v-for="cell in cells" :key="cell.key" class="col">
           <span class="t-ns" :class="{ overv: cell.over }" data-num>{{ cell.value }}<span v-if="cell.over" class="sr-only"> over</span></span>
           <span class="t-capn c3">{{ cell.caption }}</span>
         </div>
       </section>
       <p class="t-capn c2 tline" :class="{ notg: !target }">{{ line }}</p>
-      <div class="row dayline">
-        <span class="t-bodys">Day total</span>
-        <span class="t-body c2">&nbsp;· {{ totalLine }}</span>
+      <div class="maincol">
+        <div class="row dayline">
+          <span class="t-bodys">Day total</span>
+          <span class="t-body c2">&nbsp;· {{ totalLine }}</span>
+        </div>
+        <Timeline :date="date" :today="today" :entries="entries" :pending="pending" show-empty />
       </div>
-      <Timeline :date="date" :today="today" :entries="entries" :pending="pending" show-empty />
       <label class="done row">
         <input :checked="viewed.complete" type="checkbox" :disabled="saving" :aria-describedby="askFast ? 'fast-q' : 'done-hint'" @change="onComplete" />
         <span class="col">
@@ -135,16 +138,24 @@ async function confirmFast() {
           <button type="button" class="chip on t-label" @click="confirmFast">Yes</button>
         </div>
       </div>
-    </template>
+    </div>
   </main>
 </template>
 
 <style scoped>
-.log { gap: 8px; }
+.log { gap: 8px; min-width: 0; }
+.body { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.summary { display: flex; flex-direction: row; justify-content: space-between; }
+.maincol { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.desk.body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 340px); column-gap: 32px; row-gap: 12px; align-items: start; }
+.desk .maincol { grid-column: 1; grid-row: 1 / span 4; }
+.desk .summary, .desk .tline, .desk .done, .desk .ask { grid-column: 2; }
+.desk .summary { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 16px; }
 .nav { gap: 6px; }
 .nav .cbtn:disabled { opacity: 1; color: var(--text-tertiary); }
 .navlbl { min-width: 108px; text-align: center; }
-.summary { justify-content: space-between; padding: 12px 16px; border-radius: var(--radius-card); background: var(--color-surface); }
+.summary { padding: 12px 16px; border-radius: var(--radius-card); background: var(--color-surface); min-width: 0; }
+.is-tablet .summary { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px 16px; }
 .overv { text-decoration: underline dashed var(--text-secondary); text-underline-offset: 4px; }
 .tline { margin: 0; padding: 0 4px; }
 .tline.notg { padding: 8px 12px; border: 1px dashed var(--color-border-strong); border-radius: 10px; }

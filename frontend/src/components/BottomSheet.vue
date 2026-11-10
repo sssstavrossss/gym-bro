@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import { ref } from "vue";
+import { useDialogFocus } from "../lib/focusTrap";
 import { vp } from "../lib/viewport";
-defineProps<{ open: boolean; label: string; full?: boolean }>();
+const props = defineProps<{ open: boolean; label: string; full?: boolean }>();
 const emit = defineEmits<{ close: [] }>();
+const root = ref<HTMLElement | null>(null);
+const restoreFocus = useDialogFocus(() => props.open, root);
 const dy = ref(0);
 const dragging = ref(false);
 let startY = 0;
@@ -35,8 +38,8 @@ function up() {
 </script>
 
 <template>
-  <Transition name="sheet">
-    <div v-if="open" class="sheet-root" :class="{ panel: vp.desktop }" role="dialog" aria-modal="true" :aria-label="label">
+  <Transition name="sheet" @after-leave="restoreFocus">
+    <div v-if="open" ref="root" class="sheet-root" :class="{ panel: vp.desktop }" role="dialog" aria-modal="true" :aria-label="label" tabindex="-1">
       <div class="scrim" @click="emit('close')" />
       <div class="sheet" :class="{ dragging, full: full && !vp.desktop }" :style="dy ? { transform: `translateY(${dy}px)` } : undefined">
         <div class="drag-zone" @pointerdown="down" @pointermove="move" @pointerup="up" @pointercancel="up">
@@ -63,10 +66,11 @@ function up() {
 .drag-zone { display: flex; flex-direction: column; gap: 12px; touch-action: none; flex: none; }
 .grabber-row { display: flex; justify-content: center; }
 .grabber { width: 36px; height: 5px; border-radius: 3px; background: var(--color-track); }
-.is-tablet .sheet { left: max(0px, calc(50% - 300px)); right: max(0px, calc(50% - 300px)); }
+.is-tablet .sheet { left: max(16px, calc(50% - 300px)); right: max(16px, calc(50% - 300px)); }
+.is-tablet .sheet:not(.full) { bottom: 16px; border-radius: var(--radius-sheet); max-height: calc(100% - 32px); }
 /* Food sheet matches the prototype: full height, not a short panel over Today. */
 .sheet.full { top: calc(var(--sat) + 10px); max-height: none; overflow: hidden; }
-.is-tablet .sheet.full { top: max(calc(var(--sat) + 10px), calc(100% - 900px)); }
+.is-tablet .sheet.full { top: max(24px, calc(100% - 900px)); }
 .panel .scrim { background: rgba(0, 0, 0, 0.45); }
 .panel .sheet { top: 12px; bottom: 12px; right: 12px; left: auto; width: 460px; max-height: none; border-radius: var(--radius-sheet); padding: 20px 24px 24px; }
 .panel .grabber-row { display: none; }

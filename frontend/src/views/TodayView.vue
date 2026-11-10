@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import AccuracyDot from "../components/AccuracyDot.vue";
+import Bar from "../components/Bar.vue";
 import FreshStart from "../components/FreshStart.vue";
 import GoalReached from "../components/GoalReached.vue";
 import Icon from "../components/Icon.vue";
@@ -10,15 +11,18 @@ import Sparkline from "../components/Sparkline.vue";
 import Timeline from "../components/Timeline.vue";
 import WeekStrip from "../components/WeekStrip.vue";
 import WeightChart from "../components/WeightChart.vue";
-import { addDays, longDate, shortDate, todayInZone, weekday } from "../lib/dates";
+import { addDays, dayNum, longDate, shortDate, todayInZone, weekday, weekdayShort, weekStart } from "../lib/dates";
 import { int, kg } from "../lib/format";
+import { screenLayoutFromFlags } from "../lib/layout";
 import { macroStatus } from "../lib/macros";
 import { freshDismissed, goalDismissed, promptState } from "../lib/prompts";
+import { judgeWeekDay } from "../lib/weekCard";
 import { vp } from "../lib/viewport";
 import { isFreshStart, isLowAccuracy, trendChange, weightSubtitle } from "../lib/weightDisplay";
 import { boot } from "../state/boot";
 import { loadDay, pendingFor, totalsOf, viewed } from "../state/log";
 import { deviceTimeZone, profile } from "../state/profile";
+import { loadWeekDays, weekCache } from "../state/week";
 import { openFood, openWeight } from "../ui";
 
 const weight = computed(() => profile.weight);
@@ -71,113 +75,223 @@ const kcalLabel = computed(() => {
 function pick(day: string) {
   selected.value = day;
 }
+const layout = computed(() => screenLayoutFromFlags({ tablet: vp.tablet, desktop: vp.desktop, wide: vp.wide }));
+const weekDates = computed(() => {
+  const start = weekStart(today.value || "1970-01-01");
+  return Array.from({ length: 7 }, (_, index) => addDays(start, index));
+});
+watch(
+  [layout, today, () => viewed.loggedDates.join("|")],
+  () => {
+    if (layout.value === "phone" || layout.value === "tablet" || !today.value) return;
+    const dates = weekDates.value.filter((date) => date <= today.value);
+    void loadWeekDays(dates, new Set(viewed.loggedDates));
+  },
+  { immediate: true },
+);
+const weekRows = computed(() => {
+  weekCache.stamp;
+  return weekDates.value.map((date) => {
+    const future = date > today.value;
+    const live = viewed.loaded && viewed.date === date;
+    const cached = weekCache.days[date];
+    const known = live || cached != null;
+    const liveEntries = live ? viewed.entries : [];
+    const liveTotals = totalsOf(liveEntries);
+    const logged = live
+      ? liveEntries.length > 0 || pendingFor(date).length > 0
+      : Boolean(cached?.logged);
+    const food = live
+      ? { kcal: liveTotals.kcal, protein: liveTotals.p, fat: liveTotals.f, carbs: liveTotals.c }
+      : cached?.eaten ?? null;
+    const goalForDay = live
+      ? (viewed.target ? { kcal: viewed.target.kcal, protein: viewed.target.protein, fat: viewed.target.fat, carbs: viewed.target.carbs } : null)
+      : cached?.target ?? null;
+    const judged = judgeWeekDay({
+      date,
+      today: today.value,
+      logged: known && logged,
+      eaten: known ? food : null,
+      target: known && !future ? goalForDay : null,
+    });
+    const name = `${weekdayShort(date)} ${dayNum(date)}`;
+    let detail = ", later";
+    if (!future && !known) detail = ", loading";
+    else if (!future && !logged) detail = ", nothing logged";
+    else if (!future && judged.targetKcal == null) detail = " kcal, no target";
+    else if (!future && judged.on) detail = ` of ${int(judged.targetKcal ?? 0)}, on target`;
+    else if (!future && judged.over) detail = ` of ${int(judged.targetKcal ?? 0)}, over`;
+    else if (!future) detail = ` of ${int(judged.targetKcal ?? 0)}`;
+    return { date, name, detail, pending: !future && !known, kcal: food?.kcal ?? 0, ...judged };
+  });
+});
 </script>
 
 <template>
-  <main class="screen today">
-    <header class="col gap2">
-      <span class="t-cap c2">{{ longDate(selected) }}</span>
-      <h1 class="t-title">{{ title }}</h1>
-    </header>
-    <WeekStrip :anchor="today" :selected="selected" :today="today" :setup-date="viewed.setupDate" :logged-dates="viewed.loggedDates" @select="pick" />
+  <main class="screen today" :class="layout">
+    <div class="topbar">
+      <header class="col gap2">
+        <span class="t-cap c2">{{ longDate(selected) }}</span>
+        <h1 class="t-title">{{ title }}</h1>
+      </header>
+      <WeekStrip :anchor="today" :selected="selected" :today="today" :setup-date="viewed.setupDate" :logged-dates="viewed.loggedDates" @select="pick" />
+    </div>
 
-    <FreshStart v-if="showFresh && selected === today" />
-    <GoalReached v-if="showGoal && selected === today" />
+    <div class="grid">
+      <div class="stack c-a">
+        <FreshStart v-if="showFresh && selected === today" />
+        <GoalReached v-if="showGoal && selected === today" />
 
-    <section v-if="!ready" class="card kcal" aria-busy="true" aria-label="Loading today">
-      <span class="sk tall" />
-      <span class="sk" />
-    </section>
-    <template v-else>
-      <section v-if="!goal" class="card kcal">
-        <span class="t-dxl num" data-num>{{ int(eaten.kcal) }}</span>
-        <span class="t-label c2">kcal eaten · no target on this day</span>
-      </section>
-      <section v-else class="card kcal" :class="{ isover: kcalStatus === 'over' }" role="group" :aria-label="kcalLabel">
-        <div class="row end">
-          <div class="col">
-            <span class="t-dxl num" data-num>{{ int(Math.abs(left)) }}</span>
-            <span class="row gap8 tags">
-              <span class="t-label c2">{{ left >= 0 ? "kcal left" : "kcal over" }}</span>
-              <span v-if="kcalStatus === 'over'" class="overtag t-capn">Over target</span>
-              <span v-else-if="kcalStatus === 'hit'" class="hittag t-capn"><Icon name="check" :size="11" :sw="3" aria-hidden="true" /> On target ±5 %</span>
+        <section v-if="!ready" class="card kcal" aria-busy="true" aria-label="Loading today">
+          <span class="sk tall" />
+          <span class="sk" />
+        </section>
+        <template v-else>
+          <section v-if="!goal" class="card kcal">
+            <span class="t-dxl num" data-num>{{ int(eaten.kcal) }}</span>
+            <span class="t-label c2">kcal eaten · no target on this day</span>
+          </section>
+          <section v-else class="card kcal" :class="{ isover: kcalStatus === 'over' }" role="group" :aria-label="kcalLabel">
+            <div class="row end">
+              <div class="col">
+                <span class="t-dxl num" data-num>{{ int(Math.abs(left)) }}</span>
+                <span class="row gap8 tags">
+                  <span class="t-label c2">{{ left >= 0 ? "kcal left" : "kcal over" }}</span>
+                  <span v-if="kcalStatus === 'over'" class="overtag t-capn">Over target</span>
+                  <span v-else-if="kcalStatus === 'hit'" class="hittag t-capn"><Icon name="check" :size="11" :sw="3" aria-hidden="true" /> On target ±5 %</span>
+                </span>
+              </div>
+              <span class="grow" />
+              <div class="col right gap8">
+                <div class="col right"><span class="t-ns" data-num>{{ int(eaten.kcal) }}</span><span class="t-capn c3">eaten</span></div>
+                <div class="col right"><span class="t-ns" data-num>{{ int(goal.kcal) }}</span><span class="t-capn c2">{{ selected === today ? "target" : "that day's target" }}</span></div>
+              </div>
+            </div>
+          </section>
+          <MacroBars :target="goal" :totals="eaten" :label="selected === today ? 'Today\'s macros' : 'That day\'s macros'" />
+          <button v-if="layout === 'phone' && !hasDay" type="button" class="card prompt row" @click="openFood('search', selected)">
+            <span class="pic"><Icon name="plus" :size="18" :sw="2.6" /></span>
+            <span class="col grow">
+              <span class="t-bodys">{{ selected === today ? "Log your first food today" : "Nothing logged this day" }}</span>
+              <span class="t-capn c2">Search, pick a recent food or add a saved group</span>
             </span>
+            <Icon name="right" :size="16" class="c3" />
+          </button>
+          <section v-if="layout === 'phone' && hasDay" class="card logc">
+            <span class="t-cap c3">Log · {{ shortDate(selected) }}</span>
+            <Timeline compact :date="selected" :today="today" :entries="entries" :pending="pending" />
+          </section>
+        </template>
+
+        <div v-if="layout === 'phone'" class="card wcard row">
+          <button type="button" class="stretch" :aria-label="aria" @click="openWeight()" />
+          <div v-if="shown && weight" class="col gap2">
+            <span class="row gap6 trendline"><span class="t-cap c2">Weight · trend</span><InfoTip label="What is the trend?">{{ tip }}</InfoTip></span>
+            <span class="row gap8 numrow">
+              <span class="base"><span class="t-nm">{{ kg(weight.trendKg!) }}</span><span class="t-label c2">kg</span></span>
+              <AccuracyDot v-if="low" />
+            </span>
+            <span class="t-capn c2 nowrap wsub">{{ subtitle }}</span>
+          </div>
+          <div v-else class="col gap2">
+            <span class="t-cap c2">Weight</span>
+            <span class="t-head">No weigh-ins yet</span>
+            <span class="t-capn c2">Log your weight to start a trend</span>
           </div>
           <span class="grow" />
-          <div class="col right gap8">
-            <div class="col right"><span class="t-ns" data-num>{{ int(eaten.kcal) }}</span><span class="t-capn c3">eaten</span></div>
-            <div class="col right"><span class="t-ns" data-num>{{ int(goal.kcal) }}</span><span class="t-capn c2">{{ selected === today ? "target" : "that day's target" }}</span></div>
+          <Sparkline v-if="shown && profile.chart" :series="profile.chart.series" />
+          <span v-else class="chip t-label">Weigh in</span>
+          <Icon name="right" :size="16" class="c3" />
+        </div>
+      </div>
+
+      <div v-if="layout !== 'phone'" class="stack c-b">
+        <div class="card wbig">
+          <button type="button" class="stretch" :aria-label="aria" @click="openWeight()" />
+          <div class="row top">
+            <div v-if="shown && weight" class="col gap2">
+              <span class="row gap6 trendline"><span class="t-cap c2">Weight · trend</span><InfoTip label="What is the trend?">{{ tip }}</InfoTip></span>
+              <span class="row gap8 numrow">
+                <span class="base"><span class="t-nm">{{ kg(weight.trendKg!) }}</span><span class="t-label c2">kg</span></span>
+                <AccuracyDot v-if="low" label />
+              </span>
+              <span class="t-capn c2 wsub">{{ subtitle }}</span>
+            </div>
+            <div v-else class="col gap2">
+              <span class="t-cap c2">Weight</span>
+              <span class="t-head">No weigh-ins yet</span>
+              <span class="t-capn c2">Log your weight to start a trend</span>
+            </div>
+            <span class="grow" />
+            <span class="chip t-label">Log weight</span>
           </div>
+          <WeightChart v-if="shown && profile.chart" :series="profile.chart.series" fluid :height="140" />
+          <p v-else class="t-label c2 m0">Your 30-day chart appears here after a weigh-in.</p>
+          <p class="t-capn c2 m0">{{ tip }}</p>
         </div>
-      </section>
-      <MacroBars v-if="ready" :target="goal" :totals="eaten" :label="selected === today ? 'Today\'s macros' : 'That day\'s macros'" />
-      <button v-if="!vp.tablet && !hasDay" type="button" class="card prompt row" @click="openFood('search', selected)">
-        <span class="pic"><Icon name="plus" :size="18" :sw="2.6" /></span>
-        <span class="col grow">
-          <span class="t-bodys">{{ selected === today ? "Log your first food today" : "Nothing logged this day" }}</span>
-          <span class="t-capn c2">Search, pick a recent food or add a saved group</span>
-        </span>
-        <Icon name="right" :size="16" class="c3" />
-      </button>
-      <section v-if="!vp.tablet && hasDay" class="card logc">
+
+        <section v-if="layout === 'two' || layout === 'three'" class="card weekc" aria-labelledby="week-heading">
+          <div class="row weekhead">
+            <h2 id="week-heading" class="t-cap c2">This week</h2>
+            <span class="t-capn c2 legend">line = that day's target · ✓ on · hatched = over</span>
+          </div>
+          <button
+            v-for="row in weekRows"
+            :key="row.date"
+            type="button"
+            class="row wrow"
+            :class="{ sel: row.date === selected }"
+            :disabled="row.future"
+            :aria-pressed="row.date === selected"
+            @click="pick(row.date)"
+          >
+            <span class="t-label wl" :class="row.date === selected ? '' : 'c2'">{{ row.name }}</span>
+            <div v-if="row.pending" class="grow barw"><span class="t-capn c2">…</span></div>
+            <div v-else-if="row.targetKcal == null" class="grow barw"><span class="t-capn c2">{{ row.future ? "–" : "no target" }}</span></div>
+            <div v-else class="grow barw">
+              <Bar v-if="row.logged && row.bar != null" :pct="row.bar" :hit="row.on" :over="row.over" />
+              <span class="tgt" aria-hidden="true" />
+            </div>
+            <span class="wst" aria-hidden="true"><Icon v-if="row.on" name="check" :size="12" :sw="3" /></span>
+            <span v-if="row.over" class="t-capn c2">+</span>
+            <span class="t-bodys wk" :class="{ c2: row.future || !row.logged }">{{ row.logged ? int(row.kcal) : "–" }}</span>
+            <span class="sr-only">{{ row.detail }}</span>
+          </button>
+        </section>
+      </div>
+
+      <section v-if="layout !== 'phone' && ready" class="card logc c-c">
         <span class="t-cap c3">Log · {{ shortDate(selected) }}</span>
-        <Timeline compact :date="selected" :today="today" :entries="entries" :pending="pending" />
+        <Timeline compact show-empty :date="selected" :today="today" :entries="entries" :pending="pending" />
       </section>
-    </template>
-
-    <div v-if="!vp.tablet" class="card wcard row">
-      <button type="button" class="stretch" :aria-label="aria" @click="openWeight()" />
-      <div v-if="shown && weight" class="col gap2">
-        <span class="row gap6 trendline"><span class="t-cap c2">Weight · trend</span><InfoTip label="What is the trend?">{{ tip }}</InfoTip></span>
-        <span class="row gap8 numrow">
-          <span class="base"><span class="t-nm">{{ kg(weight.trendKg!) }}</span><span class="t-label c2">kg</span></span>
-          <AccuracyDot v-if="low" />
-        </span>
-        <span class="t-capn c2 nowrap wsub">{{ subtitle }}</span>
-      </div>
-      <div v-else class="col gap2">
-        <span class="t-cap c2">Weight</span>
-        <span class="t-head">No weigh-ins yet</span>
-        <span class="t-capn c2">Log your weight to start a trend</span>
-      </div>
-      <span class="grow" />
-      <Sparkline v-if="shown && profile.chart" :series="profile.chart.series" />
-      <span v-else class="chip t-label">Weigh in</span>
-      <Icon name="right" :size="16" class="c3" />
     </div>
-
-    <div v-else class="card wbig">
-      <button type="button" class="stretch" :aria-label="aria" @click="openWeight()" />
-      <div class="row top">
-        <div v-if="shown && weight" class="col gap2">
-          <span class="row gap6 trendline"><span class="t-cap c2">Weight · trend</span><InfoTip label="What is the trend?">{{ tip }}</InfoTip></span>
-          <span class="row gap8 numrow">
-            <span class="base"><span class="t-nm">{{ kg(weight.trendKg!) }}</span><span class="t-label c2">kg</span></span>
-            <AccuracyDot v-if="low" label />
-          </span>
-          <span class="t-capn c2 wsub">{{ subtitle }}</span>
-        </div>
-        <div v-else class="col gap2">
-          <span class="t-cap c2">Weight</span>
-          <span class="t-head">No weigh-ins yet</span>
-          <span class="t-capn c2">Log your weight to start a trend</span>
-        </div>
-        <span class="grow" />
-        <span class="chip t-label">Log weight</span>
-      </div>
-      <WeightChart v-if="shown && profile.chart" :series="profile.chart.series" fluid :height="140" />
-      <p v-else class="t-label c2 m0">Your 30-day chart appears here after a weigh-in.</p>
-      <p class="t-capn c2 m0">{{ tip }}</p>
-    </div>
-
-    <section v-if="vp.tablet && ready" class="card logc">
-      <span class="t-cap c3">Log · {{ shortDate(selected) }}</span>
-      <Timeline compact show-empty :date="selected" :today="today" :entries="entries" :pending="pending" />
-    </section>
   </main>
 </template>
 
 <style scoped>
+.grid, .stack, .topbar { display: flex; flex-direction: column; gap: var(--space-gap); min-width: 0; }
+.tablet .grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.tablet .c-c { grid-column: 1 / -1; }
+.two .topbar, .three .topbar { flex-direction: row; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.two .topbar :deep(.week), .three .topbar :deep(.week) { flex: 0 1 auto; min-width: 0; }
+.two .grid { display: grid; grid-template-columns: minmax(0, 400px) minmax(0, 1fr); grid-template-areas: "a c" "b c"; gap: 20px; align-items: start; }
+.two .c-a { grid-area: a; }
+.two .c-b { grid-area: b; }
+.two .c-c { grid-area: c; }
+.three .grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.25fr); gap: 20px; align-items: start; }
+.two .stack, .three .stack { gap: 20px; }
+.weekc { gap: 4px; min-width: 0; }
+.weekhead { justify-content: space-between; gap: 8px; flex-wrap: wrap; min-width: 0; }
+.weekhead h2 { margin: 0; }
+.legend { min-width: 0; overflow-wrap: anywhere; }
+.wrow { gap: 8px; min-height: 44px; width: 100%; min-width: 0; border-radius: 8px; text-align: left; }
+.wrow:disabled { cursor: default; }
+.wrow.sel { background: var(--color-surface-2); }
+.wl { width: 4.5rem; flex: none; }
+.wst { width: 14px; flex: none; display: inline-flex; justify-content: center; }
+.wk { width: 3.4rem; text-align: right; flex: none; }
+.barw { position: relative; min-width: 0; height: 10px; display: flex; align-items: center; }
+.tgt { position: absolute; left: calc(100% / 1.2); top: -3px; bottom: -3px; width: 1px; background: var(--text-tertiary); }
 .gap2 { gap: 2px; }
 .gap6 { gap: 6px; }
 .gap8 { gap: 8px; }
