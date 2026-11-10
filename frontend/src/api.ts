@@ -581,7 +581,7 @@ export async function getDayStatus(date: string, timeZone: string): Promise<DayS
   return jsonOrThrow(await request(`/api/day-status?${query}`));
 }
 
-export async function putDayStatus(date: string, body: { complete: boolean; fasting: boolean; timeZone: string }): Promise<DayStatusResponse> {
+export async function putDayStatus(date: string, body: { fasting: boolean; timeZone: string }): Promise<DayStatusResponse> {
   return jsonOrThrow(await request(`/api/day-status/${date}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
@@ -728,6 +728,132 @@ export async function copyLogEntries(body: { localDate: string; timeZone: string
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
+  }));
+}
+
+export interface RecalculateNumbers {
+  bmr: number;
+  tdee: number;
+  kcal: number;
+  protein: number;
+  fat: number;
+  carbs: number;
+  floorApplied: boolean;
+  manualKept: boolean;
+}
+
+export interface RecalculateDay {
+  date: string;
+  kcal: number;
+  targetKcal: number | null;
+  fasting: boolean;
+  canExclude: boolean;
+  included: boolean;
+}
+
+export interface RecalculateReview {
+  from: string;
+  to: string;
+  periodDays: number;
+  days: RecalculateDay[];
+  includedDays: number;
+  enough: boolean;
+  blocked: string | null;
+  trendStartKg: number | null;
+  trendEndKg: number | null;
+  trendChangeKg: number | null;
+  averageKcal: number | null;
+  burn: number | null;
+  proposed: RecalculateNumbers | null;
+  formula: RecalculateNumbers;
+}
+
+export async function getRecalculateBanner(): Promise<{ show: boolean; weekStart: string | null }> {
+  return jsonOrThrow(await request("/api/recalculate/banner"));
+}
+
+export async function dismissRecalculateBanner(): Promise<void> {
+  const response = await request("/api/recalculate/banner/dismiss", { method: "POST" });
+  if (response.status === 204) return;
+  await jsonOrThrow(response);
+}
+
+export async function getRecalculate(): Promise<RecalculateReview> {
+  return jsonOrThrow(await request("/api/recalculate"));
+}
+
+export async function previewRecalculate(exclude: string[]): Promise<RecalculateReview> {
+  return jsonOrThrow(await request("/api/recalculate/preview", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ exclude }),
+  }));
+}
+
+export async function saveRecalculate(exclude: string[], mode: "adaptive" | "formula"): Promise<RecalculateReview> {
+  return jsonOrThrow(await request("/api/recalculate", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ exclude, mode }),
+  }));
+}
+
+export interface NotificationSettings {
+  configured: boolean;
+  enabled: boolean;
+  publicKey: string;
+}
+
+export interface InboxItem {
+  id: number;
+  type: string;
+  title: string;
+  body: string;
+  link: string;
+  createdAt: string;
+  readAt: string | null;
+}
+
+export interface InboxResponse {
+  unread: number;
+  items: InboxItem[];
+}
+
+export async function getInbox(): Promise<InboxResponse> {
+  return jsonOrThrow(await request("/api/notifications/inbox"));
+}
+
+export async function getUnreadCount(): Promise<{ count: number }> {
+  return jsonOrThrow(await request("/api/notifications/inbox/unread"));
+}
+
+export async function markNotificationRead(id: number): Promise<InboxItem> {
+  return jsonOrThrow(await request(`/api/notifications/inbox/${id}/read`, { method: "POST" }));
+}
+
+export async function markAllNotificationsRead(): Promise<void> {
+  const response = await request("/api/notifications/inbox/read", { method: "POST" });
+  if (response.status === 204) return;
+  await jsonOrThrow(response);
+}
+
+export async function getNotifications(): Promise<NotificationSettings> {
+  return jsonOrThrow(await request("/api/notifications"));
+}
+
+export async function putNotifications(enabled: boolean): Promise<NotificationSettings> {
+  return jsonOrThrow(await request("/api/notifications", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ enabled }),
+  }));
+}
+
+export async function savePushSubscription(subscription: { endpoint: string; keys: { p256dh: string; auth: string } }): Promise<void> {
+  await jsonOrThrow(await request("/api/notifications/subscription", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(subscription),
   }));
 }
 

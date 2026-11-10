@@ -652,6 +652,12 @@ namespace GymBro.Api.Data.Migrations
                         .HasColumnType("numeric(3,2)")
                         .HasColumnName("rate_kg_per_week");
 
+                    b.Property<bool>("RemindersEnabled")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("reminders_enabled");
+
                     b.Property<string>("Sex")
                         .IsRequired()
                         .HasMaxLength(8)
@@ -671,6 +677,53 @@ namespace GymBro.Api.Data.Migrations
                     b.HasKey("UserId");
 
                     b.ToTable("profiles", (string)null);
+                });
+
+            modelBuilder.Entity("GymBro.Api.Data.PushSubscription", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("Auth")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("auth");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Endpoint")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("endpoint");
+
+                    b.Property<string>("P256dh")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("p256dh");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Endpoint")
+                        .IsUnique();
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("push_subscriptions", (string)null);
                 });
 
             modelBuilder.Entity("GymBro.Api.Data.Recipe", b =>
@@ -839,6 +892,31 @@ namespace GymBro.Api.Data.Migrations
                         });
                 });
 
+            modelBuilder.Entity("GymBro.Api.Data.ReminderSend", b =>
+                {
+                    b.Property<string>("UserId")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("user_id");
+
+                    b.Property<DateOnly>("LocalDate")
+                        .HasColumnType("date")
+                        .HasColumnName("local_date");
+
+                    b.Property<string>("Kind")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("kind");
+
+                    b.Property<DateTimeOffset>("SentAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("sent_at");
+
+                    b.HasKey("UserId", "LocalDate", "Kind");
+
+                    b.ToTable("reminder_sends", (string)null);
+                });
+
             modelBuilder.Entity("GymBro.Api.Data.TargetHistory", b =>
                 {
                     b.Property<long>("Id")
@@ -907,6 +985,67 @@ namespace GymBro.Api.Data.Migrations
                         .HasDatabaseName("ux_target_history_user_date");
 
                     b.ToTable("target_history", (string)null);
+                });
+
+            modelBuilder.Entity("GymBro.Api.Data.UserNotification", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("Body")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("body");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Link")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("link");
+
+                    b.Property<DateTimeOffset?>("ReadAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("read_at");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("title");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("type");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("user_id");
+
+                    b.Property<DateOnly?>("WeekStart")
+                        .HasColumnType("date")
+                        .HasColumnName("week_start");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId", "CreatedAt");
+
+                    b.HasIndex("UserId", "Type", "WeekStart")
+                        .IsUnique();
+
+                    b.ToTable("notifications", (string)null);
                 });
 
             modelBuilder.Entity("GymBro.Api.Data.UserServing", b =>
@@ -1087,6 +1226,15 @@ namespace GymBro.Api.Data.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("GymBro.Api.Data.PushSubscription", b =>
+                {
+                    b.HasOne("GymBro.Api.Data.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("GymBro.Api.Data.Recipe", b =>
                 {
                     b.HasOne("GymBro.Api.Data.AppUser", null)
@@ -1115,7 +1263,25 @@ namespace GymBro.Api.Data.Migrations
                         .HasConstraintName("fk_recipe_ingredients_recipe_owner");
                 });
 
+            modelBuilder.Entity("GymBro.Api.Data.ReminderSend", b =>
+                {
+                    b.HasOne("GymBro.Api.Data.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("GymBro.Api.Data.TargetHistory", b =>
+                {
+                    b.HasOne("GymBro.Api.Data.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("GymBro.Api.Data.UserNotification", b =>
                 {
                     b.HasOne("GymBro.Api.Data.AppUser", null)
                         .WithMany()

@@ -251,10 +251,10 @@ public sealed class SavedGroupTests(ApiFactory factory)
         Assert.Equal(HttpStatusCode.Created, (await Readd(client, groupId, "2026-10-24", "into-done")).StatusCode);
 
         var fasting = await client.GetFromJsonAsync<JsonElement>("/api/day-status?date=2026-10-23&timeZone=UTC");
-        Assert.True(fasting.GetProperty("complete").GetBoolean());
+        Assert.False(fasting.GetProperty("complete").GetBoolean());
         Assert.True(fasting.GetProperty("fasting").GetBoolean());
         var eaten = await client.GetFromJsonAsync<JsonElement>("/api/day-status?date=2026-10-24&timeZone=UTC");
-        Assert.True(eaten.GetProperty("complete").GetBoolean());
+        Assert.False(eaten.GetProperty("complete").GetBoolean());
         Assert.False(eaten.GetProperty("fasting").GetBoolean());
         var today = await client.GetFromJsonAsync<JsonElement>("/api/log-entries?date=2026-10-24");
         Assert.Equal(6, today.GetProperty("entries").GetArrayLength());
@@ -263,9 +263,9 @@ public sealed class SavedGroupTests(ApiFactory factory)
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var rows = await db.DayStatuses.AsNoTracking().Where(row => row.UserId == user).OrderBy(row => row.LocalDate).ToListAsync();
         Assert.Equal(2, rows.Count);
-        Assert.True(rows[0].Complete);
+        Assert.False(rows[0].Complete);
         Assert.True(rows[0].Fasting);
-        Assert.True(rows[1].Complete);
+        Assert.False(rows[1].Complete);
         Assert.False(rows[1].Fasting);
     }
 

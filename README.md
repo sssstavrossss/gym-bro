@@ -98,11 +98,23 @@ Sign-in settings are not baked into the JavaScript bundle. The API reads them fr
 | `PUT` | `/api/recipes/{id}` | bearer | Replaces the name, portions, finished weight and ingredients. Live foods are recalculated from their current values. A retired ingredient keeps its saved nutrients, or scales them when only the amount changes. Another person's recipe is 404. |
 | `DELETE` | `/api/recipes/{id}` | bearer | Sets `retired_at`. The row stays, so past log entries stay. It disappears from `GET /api/recipes`. Another person's recipe is 404. |
 | `POST` | `/api/recipes/{id}/log` | bearer | Writes one log entry named after the recipe, using the saved snapshot. `unit` is `portion` (or `portions`) or `g`. Grams are accepted only when the recipe has a finished weight, and the entry is that share of the finished weight. A past day needs a time. A future date or a date before setup is 400. A complete day, including a fasting day, stays as it was. A later edit of the recipe does not change this entry. A retired or another person's recipe is 404. |
+| `GET` | `/api/recalculate` | bearer | Review since the last recalculation. Days under 90% of that day's target can be excluded. Nothing is saved. |
+| `POST` | `/api/recalculate/preview` | bearer | The same review with `exclude` dates left out of the average. |
+| `POST` | `/api/recalculate` | bearer | Confirms today's target. `mode` is `adaptive` or `formula`. |
+| `GET` `/PUT` | `/api/notifications` | bearer | Push reminder setting. Missing VAPID keys leave `configured` false and the app still runs. |
+| `GET` | `/api/notifications/inbox` | bearer | This person's in-app notifications, newest first. The weekly reminder is created for the current Monday–Sunday week even when push is off. |
+| `GET` | `/api/notifications/inbox/unread` | bearer | Unread count for the Profile dot. |
+| `POST` | `/api/notifications/inbox/{id}/read` and `/api/notifications/inbox/read` | bearer | Marks one, or all, of this person's notifications read. Another person's id is 404. |
+| `POST` `/DELETE` | `/api/notifications/subscription` | bearer | Stores or removes this person's push subscription. `endpoint` is unique. |
 | `GET` | `/api/about` | bearer | Food-data credits: the Matvaretabellen citation and “Data from Open Food Facts.” |
 | `GET` | `/config.json` | anonymous | Runtime Entra settings for the SPA. `Cache-Control: no-store`. |
 | other `/api/*` | | same as `/api/me` | Unknown routes are not anonymous. |
 
 `firstSeenAt` is set on the first request and left alone after that. A later token updates `lastSeenAt`, and updates the name and email when the token actually contains them.
+
+Monday reminders use Web Push. Set `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, and `VAPID_SUBJECT` (see `.env.example` and `docker-compose.yml`). Leave them blank and Profile says notifications are not set up. The private key is never committed. A scheduled job sends “Time to recalculate your target” on Monday at or after 09:00 in the person's time zone, once that day, and the notification opens `/today?recalculate=1`.
+
+The automatic Monday target rewrite is no longer scheduled. Profile and macro changes still write today's target immediately. Recalculate is a button on Today and Profile. Progress averages already use logged days. The `day_status.complete` column stays in the database and is no longer written; fasting is its own mark.
 
 ## Entra External ID
 

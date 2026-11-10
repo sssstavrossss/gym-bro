@@ -36,6 +36,8 @@ public static class TargetReasons
     public const string MacroBalanceChange = "macro_balance_change";
     public const string WeeklyRecalculation = "weekly_recalculation";
     public const string FreshStart = "fresh_start";
+    public const string ManualChanged = "manual_changed";
+    public const string ModeSwitch = "mode_switch";
 }
 
 public sealed record NutritionInput(
@@ -163,6 +165,51 @@ public static class NutritionMath
         var carbExact = (kcal - proteinExact * 4m - fatKcal) / 4m;
         var carbs = Math.Max(0, Round(carbExact));
 
+        return new NutritionResult(bmr, tdee, kcal, protein, fat, carbs, floorApplied);
+    }
+
+    /// <summary>
+    /// Same BMR, floor, and macro rules as <see cref="Calculate"/>, with the
+    /// daily burn supplied by the caller. A locked calorie number is kept as
+    /// the target; the burn is still stored as TDEE.
+    /// </summary>
+    public static NutritionResult FromExpenditure(NutritionInput input, decimal expenditure, int? lockedKcal = null)
+    {
+        if (!ActivityFactors.ContainsKey(input.Activity))
+        {
+            throw new ArgumentException("Unknown activity.", nameof(input));
+        }
+
+        var sexOffset = input.Sex == Sexes.Male ? 5m : -161m;
+        var bmr = Round(10m * input.WeightKg + 6.25m * input.HeightCm - 5m * input.Age + sexOffset);
+        var tdee = Round(expenditure);
+        int kcal;
+        bool floorApplied;
+        if (lockedKcal is int locked)
+        {
+            kcal = locked;
+            floorApplied = false;
+        }
+        else
+        {
+            var perDay = input.RateKgPerWeek * KcalPerKg / 7m;
+            var delta = input.Goal switch
+            {
+                Goals.Lose => -perDay,
+                Goals.Gain => perDay,
+                _ => 0m,
+            };
+            var raw = expenditure + delta;
+            floorApplied = raw < bmr;
+            kcal = floorApplied ? bmr : Round(raw);
+        }
+
+        var proteinExact = input.ProteinGramsPerKg * input.WeightKg;
+        var protein = Round(proteinExact);
+        var fatKcal = kcal * (input.FatPercent / 100m);
+        var fat = Round(fatKcal / 9m);
+        var carbExact = (kcal - proteinExact * 4m - fatKcal) / 4m;
+        var carbs = Math.Max(0, Round(carbExact));
         return new NutritionResult(bmr, tdee, kcal, protein, fat, carbs, floorApplied);
     }
 }

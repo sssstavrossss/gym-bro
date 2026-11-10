@@ -4,7 +4,7 @@ import { primeKeyboard } from "./lib/focusField";
 import { deviceTimeZone } from "./state/profile";
 
 export const ui = reactive({
-  sheet: null as null | "weight" | "accuracy" | "chooser" | "food" | "copy" | "group" | "recipe",
+  sheet: null as null | "weight" | "accuracy" | "chooser" | "food" | "copy" | "group" | "recipe" | "recalculate",
   foodTab: "search" as "search" | "quick",
   /** Food open in the detail view. Null on the search list. */
   detailFoodId: null as string | null,
@@ -58,6 +58,10 @@ export function toast(text: string, action?: { label: string; run: () => void })
   toastTimer = window.setTimeout(() => {
     if (ui.toast?.id === id) ui.toast = null;
   }, action ? 5000 : 4000);
+}
+
+export function openRecalculate(): void {
+  ui.sheet = "recalculate";
 }
 
 export function openWeight(): void {

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import AccuracyDot from "../components/AccuracyDot.vue";
 import Icon from "../components/Icon.vue";
 import Segmented from "../components/Segmented.vue";
@@ -8,9 +8,64 @@ import { parseDecimal } from "../lib/numbers";
 import { boot } from "../state/boot";
 import { clearAllDrafts, commitProfile, profile, shownTargets, weightCaption } from "../state/profile";
 import { signOut } from "../auth/session";
-import { openWeight } from "../ui";
+import { disableReminders, enableReminders, getNotifications, notificationHint } from "../lib/notifications";
+import { getInbox, markAllNotificationsRead, markNotificationRead, type InboxItem, type NotificationSettings } from "../api";
+import { unreadCount } from "../lib/recalculate";
+import { inbox, refreshInbox } from "../state/inbox";
+import { openRecalculate, openWeight } from "../ui";
 import { vp } from "../lib/viewport";
 
+const notes = ref<NotificationSettings | null>(null);
+const noteError = ref("");
+const noteBusy = ref(false);
+const items = ref<InboxItem[]>([]);
+const hint = notificationHint();
+const sectionUnread = computed(() => unreadCount(items.value) > 0 || inbox.unread > 0);
+onMounted(() => {
+  void getNotifications().then((value) => { notes.value = value; }).catch(() => { noteError.value = "Couldn't load notification settings."; });
+  void loadInbox();
+});
+async function loadInbox() {
+  try {
+    const body = await getInbox();
+    items.value = body.items;
+    inbox.unread = body.unread;
+  } catch {
+    noteError.value = "Couldn't load notifications.";
+  }
+}
+async function openItem(item: InboxItem) {
+  if (!item.readAt) {
+    await markNotificationRead(item.id);
+    item.readAt = new Date().toISOString();
+    await refreshInbox();
+  }
+  if (item.type === "recalculate" || item.link.includes("recalculate")) openRecalculate();
+}
+async function onReadAll() {
+  noteBusy.value = true;
+  try {
+    await markAllNotificationsRead();
+    items.value = items.value.map((item) => ({ ...item, readAt: item.readAt ?? new Date().toISOString() }));
+    inbox.unread = 0;
+  } catch (error) {
+    noteError.value = error instanceof Error ? error.message : "Couldn't mark them read.";
+  } finally {
+    noteBusy.value = false;
+  }
+}
+async function onReminders() {
+  if (!notes.value || noteBusy.value) return;
+  noteBusy.value = true;
+  noteError.value = "";
+  try {
+    notes.value = notes.value.enabled ? await disableReminders() : await enableReminders(notes.value);
+  } catch (error) {
+    noteError.value = error instanceof Error ? error.message : "Couldn't update reminders.";
+  } finally {
+    noteBusy.value = false;
+  }
+}
 const actOpen = ref(false);
 const customOpen = ref(false);
 const year = new Date().getFullYear();
@@ -108,7 +163,7 @@ async function onSignOut() {
           <label class="frow">
             <span class="t-body c2">Birth year</span>
             <span class="fval">
-              <input v-autofocus v-model="profile.form.birthYear" class="ninput" type="text" inputmode="numeric" maxlength="4" autocomplete="off" aria-label="Birth year" @blur="onTextCommit" />
+              <input v-model="profile.form.birthYear" class="ninput" type="text" inputmode="numeric" maxlength="4" autocomplete="off" aria-label="Birth year" @blur="onTextCommit" />
               <span v-if="age !== null" class="t-label c2">{{ age }} y</span>
             </span>
           </label>
@@ -185,6 +240,36 @@ async function onSignOut() {
             <div><span class="t-label c2">Carbs</span><span class="t-ns" data-field="carbs">{{ shown.carbs }}</span><span class="t-label c2">g</span></div>
           </div>
           <p v-if="shown.floorApplied" class="t-body" data-floor="true">Raised to your BMR so the target does not go below it.</p>
+          <button type="button" class="chip t-label recalc" @click="openRecalculate">Recalculate</button>
+        </section>
+
+        <section class="card notes" aria-labelledby="remind-heading">
+          <div class="row head">
+            <h2 id="remind-heading" class="t-label c2 grow">Notifications<span v-if="sectionUnread" class="sr-only"> Unread</span></h2>
+            <span v-if="sectionUnread" class="bullet" aria-hidden="true" />
+            <button v-if="sectionUnread" type="button" class="t-label markall" :disabled="noteBusy" @click="onReadAll">Mark all read</button>
+          </div>
+          <p v-if="items.length === 0" class="t-body">No notifications yet.</p>
+          <ul v-else class="feed">
+            <li v-for="item in items" :key="item.id">
+              <button type="button" class="note row" @click="openItem(item)">
+                <span v-if="!item.readAt" class="bullet" aria-hidden="true" />
+                <span v-if="!item.readAt" class="sr-only">Unread</span>
+                <span class="col grow">
+                  <span class="t-bodys">{{ item.title }}</span>
+                  <span class="t-label c2 wrap">{{ item.body }}</span>
+                </span>
+              </button>
+            </li>
+          </ul>
+          <p v-if="notes && !notes.configured" class="t-body">Notifications are not set up.</p>
+          <template v-else>
+            <p v-if="hint" class="t-label c2">{{ hint }}</p>
+            <button type="button" class="chip t-label" :disabled="noteBusy || !notes" @click="onReminders">
+              {{ notes?.enabled ? "Turn reminders off" : "Enable notifications" }}
+            </button>
+          </template>
+          <p v-if="noteError" class="t-body" role="alert">{{ noteError }}</p>
         </section>
 
         <section class="card">
@@ -245,7 +330,16 @@ async function onSignOut() {
 .fval .ninput { margin-left: 0; }
 .ninput { width: 88px; margin-left: auto; text-align: right; background: transparent; border: 0; min-height: 44px; }
 .tz { margin-left: auto; width: 180px; text-align: right; background: transparent; border: 0; min-height: 44px; }
-.acts, .custom { display: flex; flex-direction: column; gap: 8px; }
+.recalc { align-self: flex-start; }
+.notes { gap: var(--space-gap); }
+.notes p { margin: 0; overflow-wrap: anywhere; }
+.head { gap: var(--space-gap); align-items: center; min-height: var(--control-hit); }
+.feed { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: calc(var(--space-gap) / 2); }
+.note { width: 100%; min-height: var(--control-hit); gap: var(--space-gap); text-align: left; align-items: flex-start; }
+.wrap { overflow-wrap: anywhere; }
+.markall { min-height: var(--control-hit); padding: 0 var(--space-gap); }
+.bullet { width: 8px; height: 8px; border-radius: 50%; background: var(--text-primary); flex: none; }
+.acts, .custom { display: flex; flex-direction: column; gap: var(--space-gap); }
 .act { min-height: 44px; display: flex; align-items: center; gap: 10px; text-align: left; border-radius: 10px; padding: 0 8px; }
 .act.on { background: var(--color-surface-2); }
 .rate { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }

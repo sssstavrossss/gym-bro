@@ -242,12 +242,35 @@ for (const width of [375, 390]) {
       await page.getByRole("button", { name: "Cancel" }).click();
 
       await page.getByRole("link", { name: "Profile" }).click();
-      const year = page.getByRole("textbox", { name: "Birth year" });
-      await expectReplace(page, year, "1988");
+      await expectProfileQuiet(page);
       await fieldsAtLeast16(page.locator("main"));
     });
   });
 }
+
+/** Profile is a page, not a sheet, so opening it focuses nothing and does not raise the keyboard. */
+async function expectProfileQuiet(page: Page) {
+  await expect(page.getByRole("heading", { name: "Profile", exact: true })).toBeVisible();
+  const where = await page.evaluate(() => {
+    const active = document.activeElement;
+    const main = document.querySelector("main");
+    if (active && main?.contains(active)) return "page";
+    if (active instanceof HTMLElement && active.classList.contains("kb-proxy")) return "keyboard";
+    return "none";
+  });
+  expect(where).toBe("none");
+}
+
+test("profile does not focus a field when it loads", async ({ page }) => {
+  const oid = `e2e-profile-quiet-${Date.now()}-${test.info().project.name}`;
+  const when = await clock(page);
+  await putWeighIn(page.request, oid, when.today, when.zone);
+  await putProfile(page.request, oid, when.zone);
+  await sign(page, oid);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/profile");
+  await expectProfileQuiet(page);
+});
 
 test.describe("setup", () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });

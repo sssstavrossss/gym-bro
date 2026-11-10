@@ -82,7 +82,7 @@ test("select, copy to today, and hover-delete with undo", async ({ page }) => {
   const selectBox = await select.boundingBox();
   expect(selectBox && selectBox.width >= 44 && selectBox.height >= 44).toBeTruthy();
 
-  const complete = page.getByRole("checkbox", { name: /Day complete/ });
+  const complete = page.getByRole("checkbox", { name: /Fasting day/ });
   await complete.click();
   await expect(complete).toBeChecked();
 
@@ -119,7 +119,7 @@ test("select, copy to today, and hover-delete with undo", async ({ page }) => {
 
   const status = await page.request.get(`/api/day-status?date=${when.today}&timeZone=${encodeURIComponent(when.zone)}`, { headers: headers(oid) });
   const day = await status.json();
-  expect(day.complete).toBe(true);
+  expect(day.fasting).toBe(true);
 
   const line = page.locator(".line").filter({ hasText: "Fictional broth" }).first();
   await line.hover();

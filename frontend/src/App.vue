@@ -11,6 +11,7 @@ import SideNav from "./components/SideNav.vue";
 import TabBar from "./components/TabBar.vue";
 import Toast from "./components/Toast.vue";
 import AccuracySheet from "./components/AccuracySheet.vue";
+import RecalculateSheet from "./components/RecalculateSheet.vue";
 import WeightSheet from "./components/WeightSheet.vue";
 import { e2eSession } from "./auth/e2e";
 import { isConfigured, loadPublicConfig } from "./auth/publicConfig";
@@ -20,6 +21,7 @@ import { isTypingTarget, screenLayoutFromFlags, shortcutEffect } from "./lib/lay
 import { vp } from "./lib/viewport";
 import { boot } from "./state/boot";
 import { loadProfile, profile, retryLoad } from "./state/profile";
+import { refreshInbox } from "./state/inbox";
 import { loadToday, log, viewed } from "./state/log";
 import { closeCopy, closeFoodLayer, closeGroupSheet, closeRecipeSheet, closeSheet, endSelect, openFood, openWeight, ui } from "./ui";
 import SignInView from "./views/SignInView.vue";
@@ -61,7 +63,10 @@ onMounted(async () => {
 
   if (boot.signedIn) {
     await loadProfile();
-    if (profile.hasSaved) await loadToday();
+    if (profile.hasSaved) {
+      await loadToday();
+      await refreshInbox();
+    }
   }
   boot.ready = true;
 });
@@ -129,6 +134,7 @@ function onKey(event: KeyboardEvent) {
     <GroupSheet />
     <RecipeSheet />
     <WeightSheet />
+    <RecalculateSheet />
     <AccuracySheet />
     <AddChooser />
     <FoodSheet />

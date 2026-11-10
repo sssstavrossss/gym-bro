@@ -7,12 +7,10 @@ import Timeline from "../components/Timeline.vue";
 import WeekStrip from "../components/WeekStrip.vue";
 import {
   clampLogDate,
-  dayCompleteHint,
-  dayCompleteLabel,
   dayTotalText,
-  fastingChoice,
-  fastingQuestion,
-  planDayComplete,
+  fastingHint,
+  fastingLabel,
+  nextFasting,
   shiftLogDate,
   summaryCells,
   targetLine,
@@ -21,11 +19,10 @@ import { shortDate, todayInZone } from "../lib/dates";
 import { isManualTarget } from "../lib/manualTarget";
 import { vp } from "../lib/viewport";
 import { deviceTimeZone } from "../state/profile";
-import { loadDay, pendingFor, setDayComplete, totalsOf, viewed } from "../state/log";
+import { loadDay, pendingFor, setFasting, totalsOf, viewed } from "../state/log";
 
 const route = useRoute();
 const router = useRouter();
-const askFast = ref(false);
 const saving = ref(false);
 
 const today = computed(() => viewed.today || todayInZone(deviceTimeZone()));
@@ -48,7 +45,6 @@ const canPrev = computed(() => shiftLogDate(date.value, -1, today.value, setup.v
 const canNext = computed(() => shiftLogDate(date.value, 1, today.value, setup.value) !== null);
 
 watch(date, (value) => {
-  askFast.value = false;
   if (typeof route.params.date === "string" && route.params.date !== value) {
     void router.replace(`/log/${value}`);
     return;
@@ -66,29 +62,13 @@ function pick(day: string) {
   if (day === date.value) return;
   void router.push(day === today.value ? "/log" : `/log/${day}`);
 }
-async function onComplete(event: Event) {
+async function onFasting(event: Event) {
   const input = event.target as HTMLInputElement;
-  const next = input.checked;
-  input.checked = viewed.complete;
+  const next = nextFasting(input.checked);
+  input.checked = viewed.fasting;
   if (saving.value) return;
-  const plan = planDayComplete(next, entries.value.length);
-  if (plan.kind === "ask") {
-    askFast.value = true;
-    return;
-  }
   saving.value = true;
-  await setDayComplete(date.value, plan.kind === "save", false);
-  saving.value = false;
-}
-function declineFast() {
-  askFast.value = false;
-}
-async function confirmFast() {
-  const choice = fastingChoice(true);
-  askFast.value = false;
-  if (!choice.save) return;
-  saving.value = true;
-  await setDayComplete(date.value, choice.complete, choice.fasting);
+  await setFasting(date.value, next);
   saving.value = false;
 }
 </script>
@@ -128,19 +108,12 @@ async function confirmFast() {
         <Timeline :date="date" :today="today" :entries="entries" :pending="pending" show-empty />
       </div>
       <label class="done row">
-        <input :checked="viewed.complete" type="checkbox" :disabled="saving" :aria-describedby="askFast ? 'fast-q' : 'done-hint'" @change="onComplete" />
+        <input :checked="viewed.fasting" type="checkbox" :disabled="saving" aria-describedby="fast-hint" @change="onFasting" />
         <span class="col">
-          <span class="t-bodys">{{ dayCompleteLabel }}</span>
-          <span id="done-hint" class="t-capn c2">{{ dayCompleteHint }}</span>
+          <span class="t-bodys">{{ fastingLabel }}</span>
+          <span id="fast-hint" class="t-capn c2">{{ fastingHint }}</span>
         </span>
       </label>
-      <div v-if="askFast" class="ask col" role="alertdialog" aria-labelledby="fast-q">
-        <p id="fast-q" class="t-bodys">{{ fastingQuestion }}</p>
-        <div class="row askb">
-          <button type="button" class="chip t-label" @click="declineFast">No</button>
-          <button type="button" class="chip on t-label" @click="confirmFast">Yes</button>
-        </div>
-      </div>
     </div>
   </main>
 </template>

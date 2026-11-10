@@ -275,9 +275,9 @@ export async function loadDay(date: string): Promise<void> {
   }
 }
 
-export async function setDayComplete(date: string, complete: boolean, fasting: boolean): Promise<boolean> {
+export async function setFasting(date: string, fasting: boolean): Promise<boolean> {
   try {
-    const saved = await putDayStatus(date, { complete, fasting, timeZone: deviceTimeZone() });
+    const saved = await putDayStatus(date, { fasting, timeZone: deviceTimeZone() });
     if (viewed.date === saved.localDate) {
       viewed.complete = saved.complete;
       viewed.fasting = saved.fasting;

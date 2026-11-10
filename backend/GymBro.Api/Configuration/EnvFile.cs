@@ -96,6 +96,9 @@ public static class EnvFile
         Copy("POSTGRES_PASSWORD", "Postgres__Password");
         Copy("OPENFOODFACTS_USER_AGENT", "Foods__OpenFoodFactsUserAgent");
         Copy("MATVARETABELLEN_URL", "Foods__MatvaretabellenUrl");
+        Copy("VAPID_PUBLIC_KEY", "WebPush__PublicKey");
+        Copy("VAPID_PRIVATE_KEY", "WebPush__PrivateKey");
+        Copy("VAPID_SUBJECT", "WebPush__Subject");
     }
 
     private static void Copy(string from, string to)

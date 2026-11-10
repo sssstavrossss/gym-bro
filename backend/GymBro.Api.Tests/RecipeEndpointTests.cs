@@ -296,19 +296,19 @@ public sealed class RecipeEndpointTests(ApiFactory factory)
         Assert.Equal(HttpStatusCode.Created, (await Log(client, id, "2026-10-24", "into-done", 1, "portion")).StatusCode);
 
         var fasting = await client.GetFromJsonAsync<JsonElement>("/api/day-status?date=2026-10-23&timeZone=UTC");
-        Assert.True(fasting.GetProperty("complete").GetBoolean());
+        Assert.False(fasting.GetProperty("complete").GetBoolean());
         Assert.True(fasting.GetProperty("fasting").GetBoolean());
         var eaten = await client.GetFromJsonAsync<JsonElement>("/api/day-status?date=2026-10-24&timeZone=UTC");
-        Assert.True(eaten.GetProperty("complete").GetBoolean());
+        Assert.False(eaten.GetProperty("complete").GetBoolean());
         Assert.False(eaten.GetProperty("fasting").GetBoolean());
 
         await using var scope = factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var rows = await db.DayStatuses.AsNoTracking().Where(row => row.UserId == user).OrderBy(row => row.LocalDate).ToListAsync();
         Assert.Equal(2, rows.Count);
-        Assert.True(rows[0].Complete);
+        Assert.False(rows[0].Complete);
         Assert.True(rows[0].Fasting);
-        Assert.True(rows[1].Complete);
+        Assert.False(rows[1].Complete);
         Assert.False(rows[1].Fasting);
         Assert.Equal(2, await db.LogEntries.CountAsync(entry => entry.UserId == user && entry.DeletedAt == null));
         Assert.DoesNotContain(await db.LogEntries.AsNoTracking().Where(entry => entry.UserId == user).Select(entry => entry.LocalDate).ToListAsync(), date => date == new DateOnly(2026, 10, 25) || date == new DateOnly(2026, 10, 21));

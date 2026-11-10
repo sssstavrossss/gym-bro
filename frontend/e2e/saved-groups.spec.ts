@@ -103,7 +103,7 @@ test("save a group from a selection, expand it, and re-add it on today", async (
   await sign(page, oid);
   await page.goto("/log");
   await expect(page.getByRole("heading", { name: "Log" })).toBeVisible();
-  const complete = page.getByRole("checkbox", { name: /Day complete/ });
+  const complete = page.getByRole("checkbox", { name: /Fasting day/ });
   await complete.click();
   await expect(complete).toBeChecked();
 
@@ -180,6 +180,5 @@ test("save a group from a selection, expand it, and re-add it on today", async (
 
   const status = await page.request.get(`/api/day-status?date=${when.today}&timeZone=${encodeURIComponent(when.zone)}`, { headers: headers(oid) });
   const day = await status.json();
-  expect(day.complete).toBe(true);
-  expect(day.fasting).toBe(false);
+  expect(day.fasting).toBe(true);
 });
