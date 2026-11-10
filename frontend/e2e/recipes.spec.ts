@@ -124,17 +124,17 @@ test("create a recipe, see per-portion protein update, log it, and retire it", a
   await sheet.getByRole("button", { name: "Add to recipe" }).click();
   await expect(sheet.getByText("250 g protein · 1000 kcal")).toBeVisible();
   await sheet.getByLabel("Portions").fill("5");
-  await expect(sheet.getByText("50 g protein per portion")).toBeVisible();
+  await expect(sheet.locator("[data-recipe-portion]")).toHaveText("P 50 · F 5 · C 0");
   await sheet.getByLabel("Portions").fill("10");
-  await expect(sheet.getByText("25 g protein per portion")).toBeVisible();
+  await expect(sheet.locator("[data-recipe-portion]")).toHaveText("P 25 · F 2.5 · C 0");
   await sheet.getByLabel("Portions").fill("5");
-  await expect(sheet.getByText("50 g protein per portion")).toBeVisible();
+  await expect(sheet.locator("[data-recipe-portion]")).toHaveText("P 50 · F 5 · C 0");
   await sheet.getByLabel("Recipe name").fill("Chicken pot");
   await sheet.getByLabel("Finished weight in grams, optional").fill("500");
 
   for (const width of [390, 768, 1280]) {
     await page.setViewportSize({ width, height: width >= 1024 ? 900 : 844 });
-    await expect(sheet.getByText("50 g protein per portion")).toBeVisible();
+    await expect(sheet.locator("[data-recipe-portion]")).toHaveText("P 50 · F 5 · C 0");
     const save = sheet.getByRole("button", { name: "Save recipe" });
     const box = await save.boundingBox();
     expect(box && box.height >= 44 && box.width >= 44).toBeTruthy();
@@ -218,7 +218,7 @@ test("save as recipe from a selection of foods", async ({ page }) => {
   await expect(sheet.getByText("Fictional quick side")).toHaveCount(0);
   await sheet.getByLabel("Recipe name").fill("Plate");
   await sheet.getByLabel("Portions").fill("3");
-  await expect(sheet.getByText("50 g protein per portion")).toBeVisible();
+  await expect(sheet.locator("[data-recipe-portion]")).toHaveText("P 50 · F 6.7 · C 0");
   await expectClean(page);
   await sheet.getByRole("button", { name: "Save recipe" }).click();
   await expect(page.getByText(/Saved “Plate” · 50 g protein per portion/)).toBeVisible();

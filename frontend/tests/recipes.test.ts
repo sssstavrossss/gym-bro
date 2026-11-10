@@ -6,6 +6,7 @@ import {
   matchingRecipes,
   perPortion,
   perPortionSentence,
+  recipeMacro,
   presetFromLogged,
   recipeFoodEntries,
   recipeNameError,
@@ -31,6 +32,15 @@ const chicken: CatalogFood = {
   pieceQuantity: null,
   pieceLabel: null,
 };
+
+it("shows grams to one decimal and leaves the computed fat at 3.75", () => {
+  const per = perPortion({ kcal: 150, protein: 15, fat: 3.75, carbs: 7.5 }, 1);
+  expect(per).toEqual({ kcal: 150, protein: 15, fat: 3.75, carbs: 7.5 });
+  expect(recipeMacro(per!.fat)).toBe("3.8");
+  expect(recipeMacro(per!.carbs)).toBe("7.5");
+  expect(recipeMacro(per!.protein)).toBe("15");
+  expect(perPortionSentence(per!)).toBe("15 g protein per portion");
+});
 
 it("shows 50 g protein per portion from 250 g of a 100 g-protein food split five ways", () => {
   const line = ingredientMacros(chicken, 250, "g");

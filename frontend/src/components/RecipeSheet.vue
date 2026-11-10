@@ -17,6 +17,7 @@ import {
   portionsError,
   presetFromLogged,
   recipeFigure,
+  recipeMacro,
   recipeNameError,
   recipeNameMax,
   scaleRecipeLog,
@@ -111,9 +112,9 @@ const logFigures = computed(() => {
   const preview = logPreview.value;
   return [
     { label: "KCAL", value: preview ? recipeFigure(preview.kcal) : "–" },
-    { label: "PROTEIN", value: preview ? recipeFigure(preview.protein) : "–" },
-    { label: "FAT", value: preview ? recipeFigure(preview.fat) : "–" },
-    { label: "CARBS", value: preview ? recipeFigure(preview.carbs) : "–" },
+    { label: "PROTEIN", value: preview ? recipeMacro(preview.protein) : "–" },
+    { label: "FAT", value: preview ? recipeMacro(preview.fat) : "–" },
+    { label: "CARBS", value: preview ? recipeMacro(preview.carbs) : "–" },
   ];
 });
 const logChips = computed(() => {
@@ -256,7 +257,7 @@ function draftFrom(food: CatalogFood, amount: string, unit: string): DraftLine {
 function lineSummary(line: DraftLine): string {
   const macros = macrosOf(line);
   if (!macros) return "";
-  return `${recipeFigure(macros.protein)} g protein · ${recipeFigure(macros.kcal)} kcal`;
+  return `${recipeMacro(macros.protein)} g protein · ${recipeFigure(macros.kcal)} kcal`;
 }
 
 function lineError(line: DraftLine): string | null {
@@ -373,7 +374,7 @@ async function save() {
     return;
   }
   const verb = mode.value === "edit" ? "Updated" : "Saved";
-  toast(`${verb} “${result.recipe.name}” · ${recipeFigure(result.recipe.perPortion.protein)} g protein per portion. Find it under Add food → Recipes.`);
+  toast(`${verb} “${result.recipe.name}” · ${recipeMacro(result.recipe.perPortion.protein)} g protein per portion. Find it under Add food → Recipes.`);
   finishRecipeSave();
 }
 
@@ -414,7 +415,7 @@ async function addLog() {
     error.value = result.message;
     return;
   }
-  toast(`Added ${amountLabel(result.entry.amount, result.entry.unit)} ${result.entry.name} · ${recipeFigure(result.entry.protein)} g protein`);
+  toast(`Added ${amountLabel(result.entry.amount, result.entry.unit)} ${result.entry.name} · ${recipeMacro(result.entry.protein)} g protein`);
   closeRecipeSheet();
 }
 
@@ -458,7 +459,7 @@ async function addLog() {
       <div class="row chips">
         <button v-for="amount in logChips" :key="amount" type="button" class="chip t-label" @click="logAmount = String(amount)">{{ amountLabel(amount, logUnit === "g" ? "g" : "portion") }}</button>
       </div>
-      <p v-if="logPreview" class="t-bodys">{{ recipeFigure(logPreview.protein) }} g protein in this log</p>
+      <p v-if="logPreview" class="t-bodys">{{ recipeMacro(logPreview.protein) }} g protein in this log</p>
       <p v-else-if="logUnit === 'g'" class="t-label" role="status">This recipe has no finished weight, so it can't be logged in grams.</p>
     </div>
 
@@ -495,7 +496,7 @@ async function addLog() {
           @click="pickUnit = choice.unit"
         >{{ choice.label }}</button>
       </div>
-      <p v-if="pickMacros" class="t-bodys" aria-live="polite">{{ recipeFigure(pickMacros.protein) }} g protein · {{ recipeFigure(pickMacros.kcal) }} kcal</p>
+      <p v-if="pickMacros" class="t-bodys" aria-live="polite">{{ recipeMacro(pickMacros.protein) }} g protein · {{ recipeFigure(pickMacros.kcal) }} kcal</p>
       <p v-else-if="pickProblem" class="t-label err" role="status">{{ pickProblem }}</p>
     </div>
 
@@ -571,16 +572,16 @@ async function addLog() {
           <span class="t-cap c2">Total</span>
           <span class="t-nm num">{{ recipeFigure(total.kcal) }}</span>
           <span class="t-label c2">kcal</span>
-          <span class="t-label c2">P {{ recipeFigure(total.protein) }} · F {{ recipeFigure(total.fat) }} · C {{ recipeFigure(total.carbs) }}</span>
+          <span class="t-label c2">P {{ recipeMacro(total.protein) }} · F {{ recipeMacro(total.fat) }} · C {{ recipeMacro(total.carbs) }}</span>
         </div>
         <div class="metric">
           <span class="t-cap c2">Per portion</span>
           <span class="t-nm num">{{ per ? recipeFigure(per.kcal) : "–" }}</span>
           <span class="t-label c2">kcal</span>
-          <span v-if="per" class="t-label c2">P {{ recipeFigure(per.protein) }} · F {{ recipeFigure(per.fat) }} · C {{ recipeFigure(per.carbs) }}</span>
+          <span v-if="per" class="t-label c2" data-recipe-portion>P {{ recipeMacro(per.protein) }} · F {{ recipeMacro(per.fat) }} · C {{ recipeMacro(per.carbs) }}</span>
+          <span v-else class="t-label c2">Enter portions to see the amount per portion.</span>
         </div>
-        <p v-if="per" class="t-label portion" data-recipe-portion>{{ sentence }} · {{ recipeFigure(per.fat) }} g fat · {{ recipeFigure(per.carbs) }} g carbs · {{ recipeFigure(per.kcal) }} kcal</p>
-        <p v-else class="t-label c2 portion">Enter portions to see the amount per portion.</p>
+        <p v-if="per" class="sr-only">{{ sentence }} · {{ recipeMacro(per.fat) }} g fat · {{ recipeMacro(per.carbs) }} g carbs · {{ recipeFigure(per.kcal) }} kcal</p>
       </div>
       <p v-if="error" class="t-label err" role="alert">{{ error }}</p>
       <button type="button" class="primary-btn t-bodys" :disabled="saving || !formReady" @click="save">
@@ -605,7 +606,6 @@ async function addLog() {
 .center { align-items: center; text-align: center; flex: 1; min-width: 0; }
 .sum { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; padding: 12px; border-radius: var(--radius-card); background: var(--color-surface-2); }
 .metric { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.portion { grid-column: 1 / -1; margin: 0; }
 .items { gap: 0; }
 .ing { display: flex; flex-direction: column; gap: 6px; padding: 10px 0; border-bottom: 1px solid var(--color-border); }
 .ingtop { gap: 8px; min-height: 44px; }

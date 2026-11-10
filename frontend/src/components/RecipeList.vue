@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import Icon from "./Icon.vue";
-import { recipeFigure } from "../lib/recipes";
+import { recipeFigure, recipeMacro } from "../lib/recipes";
 import type { Recipe } from "../api";
 
 defineProps<{
@@ -29,7 +29,7 @@ const emit = defineEmits<{ add: [recipe: Recipe]; edit: [recipe: Recipe]; remove
           <span class="mark t-capn">recipe</span>
         </span>
         <span class="t-label c2 ell">
-          {{ recipe.ingredients.length }} foods · {{ recipeFigure(recipe.perPortion.kcal) }} kcal · P {{ recipeFigure(recipe.perPortion.protein) }} per portion
+          {{ recipe.ingredients.length }} foods · {{ recipeFigure(recipe.perPortion.kcal) }} kcal · P {{ recipeMacro(recipe.perPortion.protein) }} per portion
           <template v-if="recipe.finishedGrams"> · {{ recipeFigure(recipe.finishedGrams) }} g finished</template>
         </span>
       </button>
