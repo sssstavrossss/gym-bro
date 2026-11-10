@@ -1,5 +1,6 @@
 import { reactive } from "vue";
 import { todayInZone, todayIso } from "./lib/dates";
+import { primeKeyboard } from "./lib/focusField";
 import { deviceTimeZone } from "./state/profile";
 
 export const ui = reactive({
@@ -60,6 +61,7 @@ export function toast(text: string, action?: { label: string; run: () => void })
 }
 
 export function openWeight(): void {
+  primeKeyboard();
   ui.editEntryId = null;
   ui.sheet = "weight";
 }
@@ -107,6 +109,7 @@ export function openAdd(): void {
 }
 
 export function openFood(tab: "search" | "quick" = "search", date?: string): void {
+  primeKeyboard();
   const today = todayInZone(deviceTimeZone());
   ui.editEntryId = null;
   ui.detailFoodId = null;
@@ -130,11 +133,13 @@ export function endSelect(): void {
 
 /** single: opened from one row's Copy to…, so closing it also leaves select mode. */
 export function openCopy(single = false): void {
+  primeKeyboard();
   ui.copySingle = single;
   ui.sheet = "copy";
 }
 
 export function openGroupSheet(ids: string[], returnTo: "food" | null): void {
+  primeKeyboard();
   ui.groupEntryIds = ids.slice();
   ui.groupReturn = returnTo;
   ui.sheet = "group";
@@ -148,6 +153,7 @@ function clearRecipe(): void {
 }
 
 export function openRecipeCreate(returnTo: "food" | null): void {
+  primeKeyboard();
   ui.recipeMode = "create";
   ui.recipeId = null;
   ui.recipeEntryIds = [];
@@ -156,6 +162,7 @@ export function openRecipeCreate(returnTo: "food" | null): void {
 }
 
 export function openRecipeEdit(id: string): void {
+  primeKeyboard();
   ui.recipeMode = "edit";
   ui.recipeId = id;
   ui.recipeEntryIds = [];
@@ -164,6 +171,7 @@ export function openRecipeEdit(id: string): void {
 }
 
 export function openRecipeLog(id: string): void {
+  primeKeyboard();
   ui.recipeMode = "log";
   ui.recipeId = id;
   ui.recipeEntryIds = [];
@@ -172,6 +180,7 @@ export function openRecipeLog(id: string): void {
 }
 
 export function openRecipeFromEntries(ids: string[], returnTo: "food" | "select"): void {
+  primeKeyboard();
   ui.recipeMode = "create";
   ui.recipeId = null;
   ui.recipeEntryIds = ids.slice();
@@ -224,6 +233,7 @@ export function closeCopy(): void {
 }
 
 export function openEdit(id: string, date?: string): void {
+  primeKeyboard();
   const today = todayInZone(deviceTimeZone());
   ui.editEntryId = id;
   ui.foodDate = date && date <= today ? date : ui.foodDate || today;

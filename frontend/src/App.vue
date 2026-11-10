@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import AddChooser from "./components/AddChooser.vue";
 import CopySheet from "./components/CopySheet.vue";
@@ -15,6 +15,7 @@ import WeightSheet from "./components/WeightSheet.vue";
 import { e2eSession } from "./auth/e2e";
 import { isConfigured, loadPublicConfig } from "./auth/publicConfig";
 import { currentAccount } from "./auth/session";
+import { bindFocusProxy } from "./lib/focusField";
 import { isTypingTarget, screenLayoutFromFlags, shortcutEffect } from "./lib/layout";
 import { vp } from "./lib/viewport";
 import { boot } from "./state/boot";
@@ -25,6 +26,8 @@ import SignInView from "./views/SignInView.vue";
 
 const route = useRoute();
 const router = useRouter();
+const kbProxy = ref<HTMLInputElement | null>(null);
+watch(kbProxy, (el) => bindFocusProxy(el));
 const showNav = computed(() => profile.hasSaved && route.path !== "/setup");
 const layoutName = computed(() => screenLayoutFromFlags({ tablet: vp.tablet, desktop: vp.desktop, wide: vp.wide }));
 const sheetOpen = computed(() => ui.sheet != null);
@@ -130,6 +133,14 @@ function onKey(event: KeyboardEvent) {
     <AddChooser />
     <FoodSheet />
     <Toast />
+    <!--
+      iOS Safari raises the keyboard only when focus() runs in the same turn as the tap.
+      Sheet fields mount after that turn, so the opener focuses this proxy first
+      (primeKeyboard) and the real field takes focus when it mounts. Not display:none
+      and not type=hidden, or iOS will not treat it as a text field. 16px so it
+      does not zoom. See frontend/src/lib/focusField.ts.
+    -->
+    <input ref="kbProxy" class="kb-proxy" type="text" tabindex="-1" aria-hidden="true" autocomplete="off" />
     <div v-if="log.unreachable" class="offline" role="status">
       <span class="t-body grow">server unreachable, try again</span>
     </div>
@@ -142,6 +153,10 @@ function onKey(event: KeyboardEvent) {
 
 <style>
 .app { position: relative; width: 100%; height: 100vh; height: 100dvh; overflow: hidden; background: var(--color-bg); }
+.kb-proxy {
+  position: absolute; left: 0; top: 0; width: 16px; height: 16px; opacity: 0;
+  font-size: 16px; border: 0; padding: 0; margin: 0; pointer-events: none; caret-color: transparent;
+}
 .scroller { position: absolute; inset: 0; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; }
 .app:has(.sheet-root) .scroller { overflow: hidden; }
 .is-desktop.has-nav .scroller { left: 240px; }

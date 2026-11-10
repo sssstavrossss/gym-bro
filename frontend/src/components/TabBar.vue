@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useRoute } from "vue-router";
 import Icon from "./Icon.vue";
+import { primeKeyboard } from "../lib/focusField";
 import { openAdd } from "../ui";
 
 const route = useRoute();
@@ -20,7 +21,7 @@ const active = (to: string) => route.path === to || route.path.startsWith(to + "
       <button v-if="t.label === '+'" type="button" class="plus" aria-label="Add" @click="openAdd">
         <Icon name="plus" :size="26" :sw="2.4" />
       </button>
-      <RouterLink v-else :to="t.to" class="tab" :class="{ on: active(t.to) }" :aria-current="active(t.to) ? 'page' : undefined">
+      <RouterLink v-else :to="t.to" class="tab" :class="{ on: active(t.to) }" :aria-current="active(t.to) ? 'page' : undefined" @click="t.to === '/profile' && route.path !== '/profile' ? primeKeyboard() : undefined">
         <Icon :name="t.icon" :size="24" />
         <span class="t-capn">{{ t.label }}</span>
       </RouterLink>

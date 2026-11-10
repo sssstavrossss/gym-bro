@@ -125,6 +125,7 @@ async function copy() {
         <span class="t-body grow">{{ custom ? named(custom) : "Another date…" }}</span>
         <Icon name="cal" :size="16" class="c2" />
         <input
+          v-autofocus
           class="dinput"
           type="date"
           :min="setup || undefined"
@@ -149,7 +150,8 @@ async function copy() {
 .opt { position: relative; min-height: 48px; gap: 10px; border-bottom: 1px solid var(--color-border); text-align: left; width: 100%; }
 .radio { width: 22px; height: 22px; border-radius: 11px; border: 1.5px solid var(--text-tertiary); display: flex; align-items: center; justify-content: center; flex: none; }
 .radio.on { background: var(--color-action); border-color: var(--color-action); color: var(--color-on-action); }
-.dinput { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; cursor: pointer; font-size: 16px; }
+/* Above 0 so WebKit will focus the date control. Still invisible on the row. */
+.dinput { position: absolute; inset: 0; opacity: 0.02; width: 100%; height: 100%; cursor: pointer; font-size: 16px; color: transparent; }
 .note { margin: 0; display: flex; align-items: center; gap: 6px; }
 .err { margin: 0; color: var(--text-primary); }
 .can-hover .opt:hover { background: rgba(255, 255, 255, .03); }

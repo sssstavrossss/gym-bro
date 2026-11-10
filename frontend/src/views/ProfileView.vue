@@ -108,7 +108,7 @@ async function onSignOut() {
           <label class="frow">
             <span class="t-body c2">Birth year</span>
             <span class="fval">
-              <input v-model="profile.form.birthYear" class="ninput" type="text" inputmode="numeric" maxlength="4" autocomplete="off" aria-label="Birth year" @blur="onTextCommit" />
+              <input v-autofocus v-model="profile.form.birthYear" class="ninput" type="text" inputmode="numeric" maxlength="4" autocomplete="off" aria-label="Birth year" @blur="onTextCommit" />
               <span v-if="age !== null" class="t-label c2">{{ age }} y</span>
             </span>
           </label>

@@ -15,13 +15,25 @@ const label = computed(() => {
   return past.value ? `${dayMonth(props.date)} · ${time}` : time;
 });
 
+// The input covers the chip, so the tap focuses it in the same gesture.
+// A later focus() would not raise the iOS keyboard. Font size stays at 16px.
 function prime() {
   const input = el.value;
   if (input && !input.value && !past.value) input.value = props.modelValue ?? nowHM();
 }
+function arm() {
+  prime();
+  // The tap lands on this input. Focusing it here, still inside pointerdown,
+  // is what raises the keyboard on iOS Safari. showPicker on click is too late.
+  el.value?.focus({ preventScroll: true });
+}
 function pick() {
   prime();
-  try { el.value?.showPicker(); } catch { /* the native control still opens on focus */ }
+  const input = el.value;
+  if (!input) return;
+  input.focus({ preventScroll: true });
+  try { input.showPicker(); } catch { /* focus already opened the control */ }
+  if (document.activeElement !== input) input.focus({ preventScroll: true });
 }
 function nowHM(): string {
   const now = new Date();
@@ -38,7 +50,7 @@ function change(event: Event) {
     <span class="tchip t-label" :class="{ set: modelValue, need: needed }">
       <Icon name="clock" :size="14" :sw="2.2" />
       <span>{{ label }}</span>
-      <input ref="el" class="tinput" type="time" :aria-label="`Time: ${label}. Change time`" :value="modelValue ?? ''" @pointerdown="prime" @click="pick" @change="change" />
+      <input ref="el" class="tinput" type="time" :aria-label="`Time: ${label}. Change time`" :value="modelValue ?? ''" @pointerdown="arm" @click="pick" @change="change" />
     </span>
     <button v-if="modelValue && !past && allowNow" type="button" class="now t-capn c2" @click="emit('update:modelValue', null)">Now</button>
   </span>
@@ -49,7 +61,8 @@ function change(event: Event) {
 .tchip { position: relative; min-height: 44px; padding: 0 12px; border-radius: 22px; display: inline-flex; align-items: center; gap: 6px; background: var(--color-surface-2); color: var(--text-primary); }
 .tchip.need { box-shadow: none; outline: 1.5px dashed var(--text-primary); outline-offset: -1.5px; background: transparent; }
 .tchip.set { box-shadow: inset 0 0 0 1.5px var(--text-secondary); }
-.tinput { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; border: 0; padding: 0; margin: 0; cursor: pointer; font-size: 16px; }
+/* opacity stays above 0 so WebKit will focus the control. It is still invisible. */
+.tinput { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0.02; border: 0; padding: 0; margin: 0; cursor: pointer; font-size: 16px; color: transparent; }
 .tchip:focus-within { outline: 2px solid var(--color-action); outline-offset: 2px; }
 .now { min-height: 44px; min-width: 44px; padding: 0 8px; }
 </style>

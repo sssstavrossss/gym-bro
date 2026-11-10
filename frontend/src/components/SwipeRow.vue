@@ -110,12 +110,12 @@ function act(kind: "copy" | "delete") {
 </template>
 
 <style scoped>
-.swipe { position: relative; overflow: hidden; }
+.swipe { position: relative; overflow: hidden; min-width: 0; max-width: 100%; }
 .actions { position: absolute; top: 0; right: 0; bottom: 0; display: flex; }
 .act { width: 72px; min-height: 44px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; color: #fff; }
 .act.copy { background: var(--color-surface-2); color: var(--text-primary); }
 .act.del { background: var(--shade-off); }
-.fg { position: relative; background: var(--color-bg); touch-action: pan-y; transition: transform .22s cubic-bezier(.2, .8, .2, 1); }
+.fg { position: relative; min-width: 0; max-width: 100%; background: var(--color-bg); touch-action: pan-y; transition: transform .22s cubic-bezier(.2, .8, .2, 1); }
 .card .fg { background: var(--color-surface); }
 .fg.dragging { transition: none; }
 </style>

@@ -48,7 +48,7 @@ async function onContinue() {
       </div>
       <label class="frow">
         <span class="t-body c2">Birth year</span>
-        <input v-model="profile.form.birthYear" class="ninput" type="text" inputmode="numeric" maxlength="4" autocomplete="off" aria-label="Birth year" />
+        <input v-autofocus v-model="profile.form.birthYear" class="ninput" type="text" inputmode="numeric" maxlength="4" autocomplete="off" aria-label="Birth year" />
         <span v-if="age !== null" class="t-label c2">{{ age }} y</span>
       </label>
       <label class="frow">

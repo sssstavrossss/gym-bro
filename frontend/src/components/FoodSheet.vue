@@ -9,6 +9,7 @@ import Keypad from "./Keypad.vue";
 import Segmented from "./Segmented.vue";
 import TimeChip from "./TimeChip.vue";
 import { dayMonth, todayInZone } from "../lib/dates";
+import { focusField, primeKeyboard } from "../lib/focusField";
 import { int } from "../lib/format";
 import {
   amountError,
@@ -335,6 +336,7 @@ function showFood(food: FoodSearchRow, preset?: { amount: number; unit: string }
   resetServingForm();
 }
 async function openFoodRow(food: FoodSearchRow, preset?: { amount: number; unit: string }) {
+  primeKeyboard();
   const gen = ++detailGen;
   let current = food;
   if (food.source === "off") {
@@ -364,16 +366,20 @@ function back() {
   formError.value = "";
 }
 function openNewFood(seedName?: string) {
+  primeKeyboard();
   ui.foodEditor = { seed: seedName ? { name: seedName } : undefined, ret: "list" };
 }
 function openMissingEditor() {
+  primeKeyboard();
   const seed = missingKcalEditorSeed(q.value);
   ui.foodEditor = { seed: seed ?? undefined, ret: "list" };
 }
 function editMine(food: FoodSearchRow, from: "list" | "detail") {
+  primeKeyboard();
   ui.foodEditor = { id: food.id, ret: from };
 }
 function openSeedEditor() {
+  primeKeyboard();
   ui.foodEditor = {
     seed: {
       name: qName.value.trim(),
@@ -696,13 +702,16 @@ async function prepareEdit(entry: LogEntry) {
   }
 }
 function focusFor() {
-  if (!keyboardEntry.value || ui.sheet !== "food" || ui.foodEditor) return;
+  if (ui.sheet !== "food" || ui.foodEditor) return;
   void nextTick(() => {
-    if (showDetail.value) {
-      amountEl.value?.focus();
-      amountEl.value?.select();
-    } else if (ui.foodTab === "search") searchEl.value?.focus();
+    const field = showDetail.value ? amountEl.value : ui.foodTab === "search" ? searchEl.value : null;
+    if (field) focusField(field);
   });
+}
+function onAddTabPointer(event: PointerEvent) {
+  const label = (event.target as HTMLElement).closest("button")?.textContent?.trim();
+  const next = label === "Quick Add" ? "quick" : label === "Search" ? "search" : null;
+  if (next && next !== ui.foodTab) primeKeyboard();
 }
 watch(q, (value) => {
   if (filter.value === "mine" || filter.value === "recipes") {
@@ -926,12 +935,14 @@ async function addQuick() {
 }
 
 function toggleServingForm() {
+  if (!svOpen.value) primeKeyboard();
   svOpen.value = !svOpen.value;
   svEditId.value = null;
   svName.value = "";
   svGrams.value = "";
 }
 function beginEditServing(row: OwnServing) {
+  primeKeyboard();
   svOpen.value = true;
   svEditId.value = row.id;
   svName.value = row.name;
@@ -1139,7 +1150,7 @@ async function deleteEdited() {
       <p v-if="needTime && !showEditor" class="needt t-label" role="status">
         <Icon name="clock" :size="14" :sw="2.2" /> Logging to {{ dayMonth(ui.foodDate) }} — pick the time you ate it.
       </p>
-      <Segmented v-if="!showDetail && !editing && !showEditor" v-model="ui.foodTab" label="Add food" :options="[{ value: 'search', label: 'Search' }, { value: 'quick', label: 'Quick Add' }]" />
+      <Segmented v-if="!showDetail && !editing && !showEditor" v-model="ui.foodTab" label="Add food" :options="[{ value: 'search', label: 'Search' }, { value: 'quick', label: 'Quick Add' }]" @pointerdown="onAddTabPointer" />
       </div>
     </template>
 
@@ -1159,13 +1170,10 @@ async function deleteEdited() {
         <span v-if="editingFood && foodChanged" class="t-capn c2">Using the values it was logged with — this food has changed since.</span>
       </div>
       <div class="col center gap8">
-        <div v-if="keyboardEntry" class="base">
-          <input ref="amountEl" :value="amountText" class="t-dl num ginput" inputmode="decimal" autocomplete="off" :aria-label="`Amount in ${unit}`"
+        <div class="base">
+          <input ref="amountEl" v-autofocus :value="amountText" class="t-dl num ginput" inputmode="decimal" autocomplete="off" :aria-label="`Amount in ${unit}`"
             @input="amountInput" @keydown.enter.prevent="addDetail" />
           <span class="t-head c2">{{ unitWord }}</span>
-        </div>
-        <div v-else class="base" role="status" :aria-label="amountLabel(amountNumber, unit)">
-          <span class="t-dl num" data-num>{{ amountText }}</span><span class="t-head c2">{{ unitWord }}</span>
         </div>
         <span v-if="isCount && preview.grams != null && gramsEach" class="t-label c2" aria-live="polite">= {{ int(preview.grams) }} g · 1 {{ unit }} = {{ gramsEach }} g</span>
         <div class="row units">
@@ -1179,7 +1187,7 @@ async function deleteEdited() {
         <div v-if="svOpen" class="svform col">
           <div class="row gap8 wrapc">
             <span class="t-label">1</span>
-            <input v-model="svName" class="sinp t-body" type="text" maxlength="16" autocomplete="off" aria-label="Serving name" placeholder="slice" />
+            <input v-model="svName" v-autofocus class="sinp t-body" type="text" maxlength="16" autocomplete="off" aria-label="Serving name" placeholder="slice" />
             <span class="t-label">=</span>
             <input v-model="svGrams" class="sinp t-body num" inputmode="decimal" autocomplete="off" aria-label="Grams in one serving" placeholder="35" @keydown.enter.prevent="saveServing" />
             <span class="t-label c2">g</span>
@@ -1240,15 +1248,13 @@ async function deleteEdited() {
     <template v-else-if="!editing && ui.foodTab === 'search'">
       <label class="field row">
         <Icon name="search" :size="18" class="c2" />
-        <input ref="searchEl" v-model="q" class="t-body grow" type="search" :placeholder="filter === 'mine' ? 'Search my foods' : filter === 'recipes' ? 'Search recipes' : 'Search foods'" :aria-label="filter === 'recipes' ? 'Search recipes' : 'Search foods'" autocomplete="off" enterkeyhint="search" @keydown="searchKey" />
+        <input ref="searchEl" v-autofocus v-model="q" class="t-body grow" type="search" :placeholder="filter === 'mine' ? 'Search my foods' : filter === 'recipes' ? 'Search recipes' : 'Search foods'" :aria-label="filter === 'recipes' ? 'Search recipes' : 'Search foods'" autocomplete="off" enterkeyhint="search" @keydown="searchKey" />
         <button v-if="q" type="button" class="clr c2" aria-label="Clear search" @click="q = ''"><Icon name="x" :size="16" /></button>
       </label>
       <div class="row fchips" role="group" aria-label="Show">
         <button type="button" class="chip t-label" :class="{ on: filter === 'all' }" :aria-pressed="filter === 'all'" @click="filter = 'all'">All foods</button>
         <button type="button" class="chip t-label" :class="{ on: filter === 'mine' }" :aria-pressed="filter === 'mine'" @click="filter = 'mine'">My foods · {{ mine.length }}</button>
         <button type="button" class="chip t-label" :class="{ on: filter === 'recipes' }" :aria-pressed="filter === 'recipes'" @click="filter = 'recipes'">Recipes · {{ savedRecipes.list.length }}</button>
-        <button v-if="filter !== 'recipes'" type="button" class="chip t-label" @click="openNewFood(filter === 'all' ? trimmedQuery || undefined : undefined)"><Icon name="plus" :size="14" :sw="2.4" /> New food</button>
-        <button v-else type="button" class="chip t-label" @click="openRecipeCreate('food')"><Icon name="plus" :size="14" :sw="2.4" /> New recipe</button>
       </div>
       <div class="list">
         <RecipeList
@@ -1283,6 +1289,11 @@ async function deleteEdited() {
         </template>
         <template v-if="filter === 'recipes'" />
         <template v-else-if="filter === 'mine'">
+          <div v-if="mine.length" class="row lhead">
+            <span class="t-cap c2">My foods</span>
+            <span class="grow" />
+            <button type="button" class="chip t-label" @click="openNewFood(trimmedQuery || undefined)"><Icon name="plus" :size="14" :sw="2.4" /> New food</button>
+          </div>
           <div v-if="!mine.length" class="col emptyc">
             <span class="t-bodys">{{ myFoodsEmptyTitle }}</span>
             <span class="t-label c2">{{ myFoodsEmptyDetail }}</span>
@@ -1383,7 +1394,7 @@ async function deleteEdited() {
 
     <div v-else class="body">
       <label class="field row">
-        <input v-model="qName" class="t-body grow" type="text" placeholder="Protein bar" aria-label="Name (optional)" autocomplete="off" enterkeyhint="done" @keydown.enter.prevent="keyboardEntry && addQuick()" />
+        <input v-autofocus v-model="qName" class="t-body grow" type="text" placeholder="Protein bar" aria-label="Name (optional)" autocomplete="off" enterkeyhint="done" @keydown.enter.prevent="keyboardEntry && addQuick()" />
         <span class="t-capn" :class="qSaveNeedsName ? '' : 'c2'">{{ qSave ? "name · needed" : "name · optional" }}</span>
       </label>
       <div class="qgrid">

@@ -53,8 +53,6 @@ const ready = ref(!props.editId);
 const tried = ref(false);
 const saving = ref(false);
 const formError = ref("");
-const nameEl = ref<HTMLInputElement | null>(null);
-
 const editing = computed(() => Boolean(props.editId && loaded.value));
 const form = computed<CustomFoodForm>(() => ({
   name: name.value,
@@ -108,22 +106,19 @@ function applyForm(next: CustomFoodForm, perServing: boolean) {
   storedPerServing.value = perServing;
 }
 
+if (!props.editId) applyForm(formFromSeed(props.seed), false);
+
 onMounted(async () => {
-  if (props.editId) {
-    try {
-      const food = await getFood(props.editId);
-      loaded.value = food;
-      applyForm(formFromFood(food), food.nutrientBasis === "per_serving");
-    } catch (error) {
-      formError.value = error instanceof ApiError ? error.message : "Couldn't open that food.";
-    } finally {
-      ready.value = true;
-    }
-  } else {
-    applyForm(formFromSeed(props.seed), false);
+  if (!props.editId) return;
+  try {
+    const food = await getFood(props.editId);
+    loaded.value = food;
+    applyForm(formFromFood(food), food.nutrientBasis === "per_serving");
+  } catch (error) {
+    formError.value = error instanceof ApiError ? error.message : "Couldn't open that food.";
+  } finally {
+    ready.value = true;
   }
-  await nextTick();
-  nameEl.value?.focus({ preventScroll: true });
 });
 
 async function save() {
@@ -181,7 +176,7 @@ const fields = [
     <p v-if="formError" class="t-capn errt m0" role="alert">{{ formError }}</p>
 
     <label class="fl col"><span class="t-capm c2">Name <span aria-hidden="true">*</span></span>
-      <input ref="nameEl" v-model="name" class="inp t-body" type="text" autocomplete="off" required :aria-invalid="errName" aria-describedby="fe-name-msg" placeholder="e.g. Lentil soup, home-made" />
+      <input v-autofocus v-model="name" class="inp t-body" type="text" autocomplete="off" required :aria-invalid="errName" aria-describedby="fe-name-msg" placeholder="e.g. Lentil soup, home-made" />
       <span id="fe-name-msg" class="t-capn" :class="errName ? 'errt' : 'c2'">{{ errName ? nameRequired : sameName ? duplicateNameNote : "" }}</span>
     </label>
     <label class="fl col"><span class="t-capm c2">Brand · optional</span>
