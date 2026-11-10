@@ -1,3 +1,4 @@
+using GymBro.Api.Notifications;
 using GymBro.Api.Nutrition;
 
 namespace GymBro.Api.Tests;
@@ -177,6 +178,15 @@ public sealed class AdaptiveTargetTests
         Assert.True(RecalculateBanner.Visible(false, false));
         Assert.False(RecalculateBanner.Visible(true, false));
         Assert.False(RecalculateBanner.Visible(false, true));
+    }
+
+    [Fact]
+    public void A_local_Monday_is_stored_as_a_UTC_instant()
+    {
+        var zone = TimeZoneInfo.FindSystemTimeZoneById("Europe/Oslo");
+        var utc = NotificationBook.UtcInstant(new DateOnly(2026, 11, 9), zone);
+        Assert.Equal(TimeSpan.Zero, utc.Offset);
+        Assert.Equal(new DateTimeOffset(2026, 11, 8, 23, 0, 0, TimeSpan.Zero), utc);
     }
 
     private static IEnumerable<decimal> ClosedAverage(AdaptiveReview review) =>

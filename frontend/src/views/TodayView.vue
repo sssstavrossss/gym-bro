@@ -350,8 +350,8 @@ const weekRows = computed(() => {
 .barw { position: relative; min-width: 0; height: 10px; display: flex; align-items: center; }
 .tgt { position: absolute; left: calc(100% / 1.2); top: -3px; bottom: -3px; width: 1px; background: var(--text-tertiary); }
 .recalc { align-self: flex-start; }
-.remind { flex-direction: row; flex-wrap: wrap; align-items: center; gap: var(--space-gap); }
-.msg { margin: 0; min-width: 10rem; overflow-wrap: anywhere; }
+.remind { flex-direction: row; flex-wrap: wrap; align-items: center; gap: var(--space-gap); min-width: 0; max-width: 100%; }
+.msg { margin: 0; flex: 1 1 8rem; min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
 .gap2 { gap: 2px; }
 .gap6 { gap: 6px; }
 .gap8 { gap: 8px; }

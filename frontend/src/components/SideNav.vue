@@ -75,7 +75,7 @@ kbd { font: 600 11px/1 Inter, sans-serif; padding: 3px 6px; border-radius: 5px; 
 .nav { gap: 2px; margin-top: 16px; }
 .item { height: 44px; padding: 0 12px; gap: 12px; border-radius: 12px; color: var(--text-secondary); text-decoration: none; }
 .ic { position: relative; display: inline-flex; }
-.bullet { position: absolute; top: -2px; right: -6px; width: 8px; height: 8px; border-radius: 50%; background: var(--text-primary); }
+.bullet { position: absolute; top: 0; right: 0; width: 8px; height: 8px; border-radius: 50%; background: var(--text-primary); }
 .item.on { background: var(--color-surface); color: var(--text-primary); }
 .glance { gap: calc(var(--space-gap) / 2); padding: var(--space-gap); border-radius: 12px; background: var(--color-surface); }
 .gap { gap: calc(var(--space-gap) / 2); }

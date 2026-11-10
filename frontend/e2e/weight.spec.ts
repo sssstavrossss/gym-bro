@@ -161,7 +161,7 @@ test("fresh start Recalculate writes today's fresh_start target", async ({ page 
   await putProfile(page.request, oid, when.zone, 70);
   await putWeighIn(page.request, oid, when.today, 90, when.zone, true);
   await openApp(page, oid, 390);
-  await page.getByRole("button", { name: "Recalculate" }).click();
+  await page.getByRole("region", { name: "Fresh start" }).getByRole("button", { name: "Recalculate" }).click();
   await expect(page.getByRole("heading", { name: "Fresh start" })).toHaveCount(0);
   const after = await (await page.request.get("/api/profile", { headers: headers(oid) })).json();
   expect(after.targets.reason).toBe("fresh_start");
@@ -349,7 +349,7 @@ test("undo restores the deleted weigh-in", async ({ page }) => {
 });
 
 async function tapCenter(page: Page, locator: Locator) {
-  await locator.scrollIntoViewIfNeeded();
+  await locator.evaluate((el) => el.scrollIntoView({ block: "center", inline: "nearest" }));
   const box = await locator.boundingBox();
   expect(box).toBeTruthy();
   await page.mouse.click(box!.x + box!.width / 2, box!.y + box!.height / 2);

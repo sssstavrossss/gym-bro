@@ -33,7 +33,6 @@ public static class NotificationBook
             cancellationToken);
         if (row is null)
         {
-            var localMonday = week.ToDateTime(TimeOnly.MinValue);
             row = new UserNotification
             {
                 UserId = profile.UserId,
@@ -42,7 +41,7 @@ public static class NotificationBook
                 Body = NotificationTypes.RecalculateTitle,
                 Link = NotificationTypes.RecalculateLink,
                 WeekStart = week,
-                CreatedAt = new DateTimeOffset(localMonday, zone.GetUtcOffset(localMonday)),
+                CreatedAt = UtcInstant(week, zone),
             };
             db.UserNotifications.Add(row);
         }
@@ -72,6 +71,13 @@ public static class NotificationBook
         {
             row.ReadAt = clock.GetUtcNow();
         }
+    }
+
+    /// <summary>Local midnight of <paramref name="day"/> in <paramref name="zone"/>, as a UTC instant. Npgsql rejects a non-zero offset on timestamptz.</summary>
+    public static DateTimeOffset UtcInstant(DateOnly day, TimeZoneInfo zone)
+    {
+        var local = day.ToDateTime(TimeOnly.MinValue);
+        return new DateTimeOffset(local, zone.GetUtcOffset(local)).ToUniversalTime();
     }
 
     public static async Task<bool> RecalculatedThisWeek(

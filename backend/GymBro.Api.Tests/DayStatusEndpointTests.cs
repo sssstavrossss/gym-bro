@@ -76,15 +76,19 @@ public sealed class DayStatusEndpointTests(ApiFactory factory)
     }
 
     [Fact]
-    public async Task Unticking_day_complete_removes_the_row()
+    public async Task Clearing_fasting_keeps_the_row_and_leaves_complete_unused()
     {
         factory.Clock.UtcNow = new DateTimeOffset(2026, 10, 24, 9, 0, 0, TimeSpan.Zero);
         var user = TestData.NewUser("untick");
         using var client = factory.AsUser(user);
         await Setup(client, "2026-10-24");
-        Assert.Equal(HttpStatusCode.OK, (await client.PutAsync("/api/day-status/2026-10-24", Json(Complete(true, true)))).StatusCode);
+        var marked = await client.PutAsync("/api/day-status/2026-10-24", Json(Complete(false, true)));
+        Assert.Equal(HttpStatusCode.OK, marked.StatusCode);
+        var markedBody = await marked.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.False(markedBody.GetProperty("complete").GetBoolean());
+        Assert.True(markedBody.GetProperty("fasting").GetBoolean());
 
-        var cleared = await client.PutAsync("/api/day-status/2026-10-24", Json(Complete(false, true)));
+        var cleared = await client.PutAsync("/api/day-status/2026-10-24", Json(Complete(false, false)));
         Assert.Equal(HttpStatusCode.OK, cleared.StatusCode);
         var body = await cleared.Content.ReadFromJsonAsync<JsonElement>();
         Assert.False(body.GetProperty("complete").GetBoolean());
