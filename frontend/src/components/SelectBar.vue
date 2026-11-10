@@ -5,12 +5,14 @@ import { int } from "../lib/format";
 import { toggleGroup } from "../lib/selection";
 import { vp } from "../lib/viewport";
 import { findEntry, removeEntries, viewed, type LogEntry } from "../state/log";
-import { endSelect, openCopy, ui } from "../ui";
+import { canSaveGroup } from "../lib/groups";
+import { endSelect, openCopy, openGroupSheet, ui } from "../ui";
 
 const entries = computed(() => ui.selected.map((id) => findEntry(id)).filter((entry): entry is LogEntry => entry !== null));
 const kcal = computed(() => entries.value.reduce((sum, entry) => sum + entry.kcal, 0));
 const dayIds = computed(() => viewed.entries.map((entry) => entry.id));
 const allSelected = computed(() => dayIds.value.length > 0 && dayIds.value.every((id) => ui.selected.includes(id)));
+const canGroup = computed(() => canSaveGroup(entries.value.length));
 
 function toggleAll() {
   ui.selected = toggleGroup(ui.selected, dayIds.value);
@@ -35,6 +37,9 @@ async function del() {
       <button type="button" class="act" :disabled="!entries.length" @click="openCopy()">
         <Icon name="copy" :size="20" /><span class="t-capn">Copy to…</span>
       </button>
+      <button type="button" class="act" :disabled="!canGroup" :title="canGroup ? undefined : 'Select 2 or more'" @click="openGroupSheet(entries.map((entry) => entry.id), null)">
+        <Icon name="layers" :size="20" /><span class="t-capn">Save as group</span>
+      </button>
       <button type="button" class="act" :disabled="!entries.length" @click="del">
         <Icon name="trash" :size="20" /><span class="t-capn">Delete</span>
       </button>
@@ -55,10 +60,11 @@ async function del() {
 .link { color: var(--text-primary); min-height: 44px; padding: 6px 8px; }
 .acts { justify-content: space-around; }
 .act {
-  min-width: 88px; min-height: 52px; border-radius: 12px;
+  flex: 1 1 0; min-width: 44px; max-width: 140px; min-height: 52px; padding: 4px 6px; border-radius: 12px;
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
   color: var(--text-primary);
 }
+.act .t-capn { text-align: center; }
 .act:disabled { opacity: .35; cursor: default; }
 .can-hover .act:not(:disabled):hover { background: var(--color-surface-2); }
 .can-hover .link:hover { background: var(--color-surface-2); border-radius: 10px; }

@@ -286,6 +286,37 @@ export interface LogCopyResponse {
   entries: LogEntryResponse[];
 }
 
+export interface SavedGroupItem {
+  id: string;
+  foodId: string | null;
+  name: string;
+  amount: number;
+  unit: string;
+  grams: number | null;
+  kcal: number;
+  protein: number;
+  fat: number;
+  carbs: number;
+  quick: boolean;
+  available: boolean;
+}
+
+export interface SavedGroup {
+  id: string;
+  name: string;
+  createdAt: string;
+  kcal: number;
+  items: SavedGroupItem[];
+}
+
+export interface GroupLogResponse {
+  localDate: string;
+  time: string;
+  entries: LogEntryResponse[];
+  skipped: { name: string; notice: string }[];
+  notice: string;
+}
+
 export interface LogPatchBody {
   name?: string;
   time?: string;
@@ -545,6 +576,32 @@ export async function addLogEntry(body: LogCreateBody): Promise<LogEntryResponse
 export async function patchLogEntry(id: string, body: LogPatchBody): Promise<LogEntryResponse> {
   return jsonOrThrow(await request(`/api/log-entries/${id}`, {
     method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  }));
+}
+
+export async function listGroups(): Promise<{ groups: SavedGroup[] }> {
+  return jsonOrThrow(await request("/api/groups"));
+}
+
+export async function createGroup(body: { name: string; entryIds: string[] }): Promise<SavedGroup> {
+  return jsonOrThrow(await request("/api/groups", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  }));
+}
+
+export async function deleteGroup(id: string): Promise<void> {
+  const response = await request(`/api/groups/${id}`, { method: "DELETE" });
+  if (response.status === 204) return;
+  await jsonOrThrow(response);
+}
+
+export async function logGroup(id: string, body: { localDate: string; timeZone: string; time: string | null; idempotencyKey: string }): Promise<GroupLogResponse> {
+  return jsonOrThrow(await request(`/api/groups/${id}/log`, {
+    method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   }));

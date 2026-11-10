@@ -1,6 +1,9 @@
 namespace GymBro.Api.Data;
 
-/// <summary>A named set of entries that were logged together. Optional.</summary>
+/// <summary>
+/// A named set of foods or quick-adds, private to one user.
+/// Re-adding it writes new log entries; it is not a combined recipe food.
+/// </summary>
 public sealed class EntryGroup
 {
     public Guid Id { get; set; }

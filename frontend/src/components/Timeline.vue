@@ -1,14 +1,17 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import Icon from "./Icon.vue";
 import SwipeRow from "./SwipeRow.vue";
 import { byTime } from "../lib/dayLog";
 import { dayMonth } from "../lib/dates";
 import { int } from "../lib/format";
+import { readdToast } from "../lib/groups";
 import { activateMark, activateRow, longPressMoved, longPressMs, type Selection } from "../lib/selection";
 import { vp } from "../lib/viewport";
 import { removeEntries, retryPending, type LogEntry, type PendingAdd } from "../state/log";
-import { openCopy, openEdit, openFood, startSelect, ui } from "../ui";
+import { loadGroups, readdSavedGroup, savedGroups } from "../state/groups";
+import { deviceTimeZone } from "../state/profile";
+import { openCopy, openEdit, openFood, startSelect, toast, ui } from "../ui";
 
 const props = defineProps<{ date: string; today: string; entries: LogEntry[]; pending: PendingAdd[]; compact?: boolean; showEmpty?: boolean }>();
 const rows = computed(() => byTime(props.entries));
@@ -69,6 +72,29 @@ async function retry(pending: PendingAdd) {
 function add() {
   openFood("search", props.date);
 }
+const groupChips = computed(() => savedGroups.list.slice(0, 3));
+onMounted(() => { void loadGroups(); });
+async function quickGroup(id: string, name: string) {
+  if (props.date !== props.today) {
+    openFood("search", props.date);
+    return;
+  }
+  const result = await readdSavedGroup(id, {
+    localDate: props.date,
+    timeZone: deviceTimeZone(),
+    time: null,
+    idempotencyKey: crypto.randomUUID(),
+  });
+  if (!result.ok) {
+    toast(result.message);
+    return;
+  }
+  const kcal = result.entries.reduce((sum, entry) => sum + entry.kcal, 0);
+  toast(readdToast(name, result.entries.length, kcal, result.notice), result.entries.length ? {
+    label: "Undo",
+    run: () => { void removeEntries(result.entries, { announce: false }); },
+  } : undefined);
+}
 
 let timer = 0;
 let sx = 0;
@@ -110,6 +136,14 @@ function onMenu(event: Event) {
       <span class="t-head">{{ isToday ? "Nothing logged yet today" : `Nothing logged on ${dayMonth(date)}` }}</span>
       <span class="t-label c2">{{ isToday ? "Add food as you eat — each entry gets the time you add it." : "Add food to this day and pick the time it was eaten." }}</span>
       <button type="button" class="primary-btn t-bodys ebtn" @click="add"><Icon name="plus" :size="18" :sw="2.6" /> Add food</button>
+      <template v-if="groupChips.length">
+        <span class="t-capn c3">or add a saved group</span>
+        <div class="row gchips">
+          <button v-for="group in groupChips" :key="group.id" type="button" class="chip t-label" :aria-label="`Add group ${group.name}`" @click="quickGroup(group.id, group.name)">
+            <Icon name="layers" :size="13" /> {{ group.name }}
+          </button>
+        </div>
+      </template>
     </div>
     <template v-else>
       <div v-if="rows.length && !ui.selecting" class="row selhead">
@@ -216,5 +250,6 @@ function onMenu(event: Event) {
 .empty { align-items: center; text-align: center; gap: 8px; padding: 28px 16px; border-radius: var(--radius-card); border: 1px dashed var(--color-border); }
 .eic { width: 44px; height: 44px; border-radius: 22px; background: var(--color-surface-2); display: flex; align-items: center; justify-content: center; color: var(--text-secondary); }
 .ebtn { width: auto; padding: 0 22px; min-height: 44px; margin-top: 8px; }
+.gchips { gap: 8px; flex-wrap: wrap; justify-content: center; }
 .tip { margin: 8px 0 0; text-align: center; }
 </style>

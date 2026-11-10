@@ -111,6 +111,94 @@ namespace GymBro.Api.Data.Migrations
                     b.ToTable("entry_groups", (string)null);
                 });
 
+            modelBuilder.Entity("GymBro.Api.Data.EntryGroupItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("amount");
+
+                    b.Property<decimal>("Carbs")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("carbs");
+
+                    b.Property<decimal>("Fat")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("fat");
+
+                    b.Property<Guid?>("FoodId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("food_id");
+
+                    b.Property<string>("FoodOwnerKey")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("food_owner_key");
+
+                    b.Property<decimal?>("Grams")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("grams");
+
+                    b.Property<Guid>("GroupId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("group_id");
+
+                    b.Property<decimal>("Kcal")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("kcal");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("name");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("integer")
+                        .HasColumnName("position");
+
+                    b.Property<decimal>("Protein")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("protein");
+
+                    b.Property<string>("Unit")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("unit");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FoodOwnerKey", "FoodId");
+
+                    b.HasIndex("GroupId", "Position")
+                        .IsUnique();
+
+                    b.HasIndex("UserId", "GroupId");
+
+                    b.ToTable("entry_group_items", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_entry_group_items_food_owner", "food_owner_key = '' OR food_owner_key = user_id");
+                        });
+                });
+
             modelBuilder.Entity("GymBro.Api.Data.Food", b =>
                 {
                     b.Property<Guid>("Id")
@@ -758,6 +846,24 @@ namespace GymBro.Api.Data.Migrations
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("GymBro.Api.Data.EntryGroupItem", b =>
+                {
+                    b.HasOne("GymBro.Api.Data.Food", null)
+                        .WithMany()
+                        .HasForeignKey("FoodOwnerKey", "FoodId")
+                        .HasPrincipalKey("OwnerKey", "Id")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .HasConstraintName("fk_entry_group_items_food_owner");
+
+                    b.HasOne("GymBro.Api.Data.EntryGroup", null)
+                        .WithMany()
+                        .HasForeignKey("UserId", "GroupId")
+                        .HasPrincipalKey("UserId", "Id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_entry_group_items_group_owner");
                 });
 
             modelBuilder.Entity("GymBro.Api.Data.Food", b =>

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from "vue";
-import { ApiError, createCustomFood, createServing, deleteServing, getFood, listMyFoods, listRecentFoods, searchFoods, searchOpenFoodFacts, ServerUnreachable, updateServing, type FoodSearchRow, type OffFoodRow, type RecentFood } from "../api";
+import { ApiError, createCustomFood, createServing, deleteServing, getFood, listMyFoods, listRecentFoods, searchFoods, searchOpenFoodFacts, ServerUnreachable, updateServing, type FoodSearchRow, type OffFoodRow, type RecentFood, type SavedGroup } from "../api";
 import BottomSheet from "./BottomSheet.vue";
 import FoodEditor from "./FoodEditor.vue";
 import Bar from "./Bar.vue";
@@ -62,8 +62,11 @@ import { kcalFromMacros, macroStatus } from "../lib/macros";
 import { nextQuickInput, nextQuickNumber } from "../lib/quickEntry";
 import { keyboardEntry } from "../lib/viewport";
 import { deviceTimeZone, profile } from "../state/profile";
-import { findEntry, log, removeEntry, saveQuickAdd, totalsOf, updateFoodAmount, updateQuickAdd, viewed, type LogEntry } from "../state/log";
-import { closeFoodLayer, closeSheet, openCopy, toast, ui } from "../ui";
+import { findEntry, log, removeEntries, removeEntry, saveQuickAdd, totalsOf, updateFoodAmount, updateQuickAdd, viewed, type LogEntry } from "../state/log";
+import SavedGroups from "./SavedGroups.vue";
+import { canSaveGroup, groupTimeNote, matchingGroups, readdToast } from "../lib/groups";
+import { deleteSavedGroup, loadGroups, readdSavedGroup, savedGroups } from "../state/groups";
+import { closeFoodLayer, closeSheet, openCopy, openGroupSheet, toast, ui } from "../ui";
 
 const open = computed(() => ui.sheet === "food");
 const editing = computed(() => findEntry(ui.editEntryId));
@@ -120,11 +123,15 @@ const amountText = ref("100");
 const unit = ref<UnitChoice["unit"]>("g");
 const fresh = ref(true);
 const foodChanged = ref(false);
-const session = ref<{ name: string; kcal: number }[]>([]);
+const session = ref<{ id: string; name: string; kcal: number }[]>([]);
+const justGroup = ref<string | null>(null);
+const groupKeys = new Map<string, string>();
 let searchGen = 0;
 let searchTimer = 0;
 
 const sessionKcal = computed(() => session.value.reduce((sum, row) => sum + row.kcal, 0));
+const visibleGroups = computed(() => matchingGroups(savedGroups.list, q.value));
+const groupNote = computed(() => groupTimeNote(needTime.value, pastDay.value, time.value));
 const foodEntries = computed(() => {
   if (viewed.date === ui.foodDate) return viewed.entries;
   if (ui.foodDate === foodToday.value) return log.entries;
@@ -590,7 +597,7 @@ async function addRecent(food: RecentFood) {
     }
     recentKeys.delete(food.id);
     toast(`Added ${amountLabel(result.entry.amount, result.entry.unit || picked.unit)} ${result.entry.name} · ${int(result.entry.kcal)} kcal`);
-    session.value.push({ name: result.entry.name, kcal: result.entry.kcal });
+    noteSession(result.entry);
     justAdded.value = food.id;
     window.clearTimeout(justTimer);
     justTimer = window.setTimeout(() => {
@@ -697,6 +704,11 @@ watch(results, (rows) => {
 watch(() => [ui.sheet, ui.detailFoodId, ui.foodTab, showDetail.value], focusFor);
 watch(open, (isOpen) => {
   if (!isOpen) return;
+  if (ui.resumeFood) {
+    ui.resumeFood = false;
+    void loadGroups();
+    return;
+  }
   q.value = "";
   results.value = [];
   searchError.value = "";
@@ -714,8 +726,66 @@ watch(open, (isOpen) => {
   } else {
     void loadRecents();
     void loadMine();
+    void loadGroups();
   }
 });
+
+function noteSession(entry: { id: string; name: string; kcal: number }) {
+  session.value.push({ id: entry.id, name: entry.name, kcal: entry.kcal });
+}
+function saveSessionGroup() {
+  if (!canSaveGroup(session.value.length)) return;
+  openGroupSheet(session.value.map((row) => row.id), "food");
+}
+async function addGroup(group: SavedGroup) {
+  if (saving.value) return;
+  const when = logTimeForAdd(ui.foodDate, foodToday.value, time.value);
+  if (!when.ok) {
+    formError.value = "Pick a time to add";
+    return;
+  }
+  let key = groupKeys.get(group.id);
+  if (!key) {
+    key = crypto.randomUUID();
+    groupKeys.set(group.id, key);
+  }
+  saving.value = true;
+  formError.value = "";
+  const result = await readdSavedGroup(group.id, {
+    localDate: ui.foodDate,
+    timeZone: deviceTimeZone(),
+    time: when.time,
+    idempotencyKey: key,
+  });
+  saving.value = false;
+  if (!result.ok) {
+    groupKeys.delete(group.id);
+    formError.value = result.message;
+    return;
+  }
+  groupKeys.delete(group.id);
+  const addedKcal = result.entries.reduce((sum, entry) => sum + entry.kcal, 0);
+  for (const entry of result.entries) noteSession(entry);
+  justGroup.value = group.id;
+  window.setTimeout(() => {
+    if (justGroup.value === group.id) justGroup.value = null;
+  }, 1200);
+  toast(readdToast(group.name, result.entries.length, addedKcal, result.notice), result.entries.length ? {
+    label: "Undo",
+    run: () => {
+      const ids = new Set(result.entries.map((entry) => entry.id));
+      session.value = session.value.filter((row) => !ids.has(row.id));
+      void removeEntries(result.entries, { announce: false });
+    },
+  } : undefined);
+}
+async function removeGroup(group: SavedGroup) {
+  if (saving.value) return;
+  saving.value = true;
+  const removed = await deleteSavedGroup(group.id);
+  saving.value = false;
+  if (removed) toast(`Deleted group ${group.name}`);
+}
 
 async function addQuick() {
   if (saving.value) return;
@@ -799,7 +869,7 @@ async function addQuick() {
     toast(savedMine
       ? `Added ${result.entry.name} · ${int(result.entry.kcal)} kcal · saved to My foods`
       : `Added ${result.entry.name} · ${int(result.entry.kcal)} kcal`);
-    session.value.push({ name: result.entry.name, kcal: result.entry.kcal });
+    noteSession(result.entry);
     if (savedMine) void loadMine();
     const held = pastDay.value ? time.value : null;
     fill(null);
@@ -976,7 +1046,7 @@ async function addDetail() {
       return;
     }
     toast(`Added ${amountLabel(result.entry.amount, result.entry.unit || unit.value)} ${result.entry.name} · ${int(result.entry.kcal)} kcal`);
-    session.value.push({ name: result.entry.name, kcal: result.entry.kcal });
+    noteSession(result.entry);
     ui.detailFoodId = null;
     detailFood.value = null;
     q.value = "";
@@ -1135,6 +1205,16 @@ async function deleteEdited() {
         <button type="button" class="chip t-label" @click="openNewFood(filter === 'all' ? trimmedQuery || undefined : undefined)"><Icon name="plus" :size="14" :sw="2.4" /> New food</button>
       </div>
       <div class="list">
+        <SavedGroups
+          v-if="filter !== 'mine'"
+          :groups="visibleGroups"
+          :note="groupNote"
+          :saving="saving"
+          :need-time="needTime"
+          :added-id="justGroup"
+          @add="addGroup"
+          @remove="removeGroup"
+        />
         <template v-if="filter === 'mine'">
           <div v-if="!mine.length" class="col emptyc">
             <span class="t-bodys">{{ myFoodsEmptyTitle }}</span>
@@ -1222,7 +1302,12 @@ async function deleteEdited() {
           <span class="t-bodys">{{ session.length }} added · {{ int(sessionKcal) }} kcal</span>
           <span class="t-capn c2">{{ pastDay ? dayMonth(ui.foodDate) : "Today" }} · {{ int(foodTotals.kcal) }} kcal</span>
         </span>
-        <button type="button" class="chip on" @click="closeSheet">Done</button>
+        <span class="row sbtns">
+          <button v-if="canSaveGroup(session.length)" type="button" class="chip" @click="saveSessionGroup">
+            <Icon name="layers" :size="14" /> Save as group
+          </button>
+          <button type="button" class="chip on" @click="closeSheet">Done</button>
+        </span>
       </div>
     </template>
 
@@ -1346,6 +1431,7 @@ async function deleteEdited() {
 .arow { gap: 6px; }
 .session { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; padding: 10px 12px; border-radius: var(--radius-card); background: var(--color-surface-2); flex: none; }
 .stext { flex: 1 1 150px; min-width: 0; }
+.sbtns { gap: 8px; flex: 0 0 auto; margin-left: auto; }
 .dt-l .units, .dt-l .chips { justify-content: center; }
 .dt-l .uchip { min-height: 44px; }
 .dt-xl .preview { display: grid; grid-template-columns: 1fr 1fr; row-gap: 12px; }
