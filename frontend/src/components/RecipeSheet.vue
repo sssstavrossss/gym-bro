@@ -615,7 +615,8 @@ async function addLog() {
 .preview { display: flex; justify-content: space-around; gap: 8px; padding: 14px 8px; border-radius: var(--radius-card); background: var(--color-surface-2); }
 .center { align-items: center; text-align: center; flex: 1; min-width: 0; }
 .sum { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; padding: 12px; border-radius: var(--radius-card); background: var(--color-surface-2); }
-.metric { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.metric { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 0; text-align: left; }
+.metric .num { text-align: left; }
 .items { gap: 0; }
 .ing { display: flex; flex-direction: column; gap: 4px; padding: 4px 0; border-bottom: 1px solid var(--color-border); }
 .ingrow { display: grid; grid-template-columns: minmax(0, 1fr) auto 44px; gap: 8px; align-items: center; min-height: 44px; }

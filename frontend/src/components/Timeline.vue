@@ -220,7 +220,7 @@ function onMenu(event: Event) {
 <style scoped>
 .tl { display: flex; flex-direction: column; gap: 4px; min-width: 0; max-width: 100%; overflow: hidden; }
 .selhead { min-height: 44px; }
-.line { position: relative; display: flex; align-items: center; gap: 4px; min-height: 52px; min-width: 0; max-width: 100%; border-radius: 10px; -webkit-touch-callout: none; user-select: none; }
+.line { position: relative; display: flex; align-items: flex-start; gap: 4px; min-height: 52px; min-width: 0; max-width: 100%; border-radius: 10px; -webkit-touch-callout: none; user-select: none; }
 .line.sel { background: rgba(255, 255, 255, .05); }
 .frow {
   min-height: 52px; flex: 1 1 auto; min-width: 0; width: 100%; text-align: left;
@@ -245,9 +245,14 @@ function onMenu(event: Event) {
 }
 .retry { min-height: 44px; min-width: 44px; padding: 0 12px; border-radius: 22px; background: var(--color-surface-2); flex: none; }
 .addrow { min-height: 44px; gap: 8px; text-align: left; }
-.mark { position: relative; width: 44px; height: 44px; flex: none; display: flex; align-items: center; justify-content: center; }
-.dot { width: 8px; height: 8px; border-radius: 4px; background: var(--text-tertiary); transition: all .15s; }
-.tick { position: absolute; color: var(--color-on-action); opacity: 0; }
+.mark { position: relative; width: 44px; height: 44px; flex: none; align-self: flex-start; }
+/* The hit target stays 44px. The dot sits on the first line, level with the time. */
+.dot, .tick {
+  position: absolute; left: 50%; top: calc(4px + 0.4706rem);
+  transform: translate(-50%, -50%);
+}
+.dot { width: 8px; height: 8px; border-radius: 4px; background: var(--text-tertiary); transition: width .15s, height .15s, background .15s, box-shadow .15s; }
+.tick { color: var(--color-on-action); opacity: 0; }
 .selecting .dot, .mark.on .dot { width: 22px; height: 22px; border-radius: 11px; }
 .selecting .dot { background: var(--color-bg); box-shadow: inset 0 0 0 1.5px var(--text-tertiary); }
 .mark.on .dot { background: var(--color-action); box-shadow: none; }

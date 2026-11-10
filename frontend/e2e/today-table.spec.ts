@@ -95,9 +95,13 @@ test("the today log keeps its columns when a name and the calories are wide", as
       const time = node.querySelector(".time");
       const kcal = node.querySelector(".kc");
       if (!(name instanceof HTMLElement) || !(time instanceof HTMLElement) || !(kcal instanceof HTMLElement)) return null;
+      const line = node.closest(".line");
+      const dot = line?.querySelector(".dot");
+      if (!(dot instanceof HTMLElement)) return null;
       const nameBox = name.getBoundingClientRect();
       const timeBox = time.getBoundingClientRect();
       const kcalBox = kcal.getBoundingClientRect();
+      const dotBox = dot.getBoundingClientRect();
       const rowBox = node.getBoundingClientRect();
       const nameStyle = getComputedStyle(name);
       const kcalStyle = getComputedStyle(kcal);
@@ -107,6 +111,8 @@ test("the today log keeps its columns when a name and the calories are wide", as
         nameHeight: Math.round(nameBox.height),
         timeLeft: Math.round(timeBox.left),
         timeTop: Math.round(timeBox.top),
+        timeMid: timeBox.top + timeBox.height / 2,
+        dotMid: dotBox.top + dotBox.height / 2,
         kcalRight: Math.round(kcalBox.right),
         kcalTop: Math.round(kcalBox.top),
         nameTop: Math.round(nameBox.top),
@@ -120,7 +126,7 @@ test("the today log keeps its columns when a name and the calories are wide", as
     }));
     expect(measured.every((row) => row !== null)).toBe(true);
     const cast = measured as {
-      rowHeight: number; nameLeft: number; nameHeight: number; timeLeft: number; timeTop: number;
+      rowHeight: number; nameLeft: number; nameHeight: number; timeLeft: number; timeTop: number; timeMid: number; dotMid: number;
       kcalRight: number; kcalTop: number; nameTop: number; clipped: boolean;
       whiteSpace: string; overflowWrap: string; textOverflow: string; figures: string; align: string;
     }[];
@@ -136,6 +142,7 @@ test("the today log keeps its columns when a name and the calories are wide", as
     expect(tall.textOverflow).not.toBe("ellipsis");
     expect(Math.abs(tall.kcalTop - tall.nameTop)).toBeLessThanOrEqual(6);
     expect(Math.abs(tall.timeTop - tall.nameTop)).toBeLessThanOrEqual(6);
+    expect(Math.abs(tall.dotMid - tall.timeMid)).toBeLessThanOrEqual(2);
     expect(cast.every((row) => row.figures.includes("tabular-nums"))).toBe(true);
     expect(cast.every((row) => row.align === "right")).toBe(true);
 
@@ -148,8 +155,10 @@ test("the today log keeps its columns when a name and the calories are wide", as
     expect(overflow, `${size.width}px scrolls sideways`).toBe(true);
 
     if (size.width === 390 && test.info().project.name === "chromium") {
-      await long.scrollIntoViewIfNeeded();
+      const line = page.locator(".line").filter({ hasText: "Superlongcataloguename" });
+      await line.evaluate((el) => el.scrollIntoView({ block: "start" }));
       await page.screenshot({ path: "/opt/cursor/artifacts/today-table-long-name-phone.png" });
+      await line.screenshot({ path: "/opt/cursor/artifacts/today-row-wrapped-phone.png" });
     }
   }
 });

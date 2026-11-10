@@ -206,9 +206,20 @@ for (const width of [375, 390]) {
       await recipe.getByRole("button", { name: "Add to recipe" }).click();
       await expect(recipe.getByRole("textbox", { name: "Recipe name" })).toBeFocused();
       await fieldsAtLeast16(recipe);
+      const summaryAlign = await recipe.locator(".metric").evaluateAll((nodes) => nodes.map((node) => {
+        const figure = node.querySelector(".t-nm");
+        const label = node.querySelector(".t-label");
+        return {
+          figure: figure ? getComputedStyle(figure).textAlign : "",
+          label: label ? getComputedStyle(label).textAlign : "",
+        };
+      }));
+      expect(summaryAlign.every((item) => item.figure === "left" && item.label === "left")).toBe(true);
+      await expect(recipe.locator(".metric").nth(1).locator(".t-nm")).toHaveText("–");
       if (width === 390 && test.info().project.name === "chromium") {
         await recipe.locator("[data-ingredient-index='0']").scrollIntoViewIfNeeded();
         await page.screenshot({ path: "/opt/cursor/artifacts/recipe-sheet-phone.png" });
+        await recipe.locator(".sum").screenshot({ path: "/opt/cursor/artifacts/recipe-summary-phone.png" });
       }
       await recipe.getByRole("button", { name: "Close" }).click();
 
