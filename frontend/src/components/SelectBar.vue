@@ -57,8 +57,8 @@ async function del() {
 .sbar {
   position: absolute; left: 0; right: 0; bottom: 0; z-index: 22;
   background: var(--color-surface); border-top: 1px solid var(--color-border);
-  padding: 8px max(16px, calc(50% - 300px)) max(var(--sab), 12px);
-  display: flex; flex-direction: column; gap: 6px;
+  padding: var(--space-gap) max(var(--space-screen), calc(50% - 300px)) max(var(--sab), var(--space-gap));
+  display: flex; flex-direction: column; gap: var(--space-gap);
 }
 .inset { left: 240px; }
 .top { gap: 8px; min-height: 44px; }

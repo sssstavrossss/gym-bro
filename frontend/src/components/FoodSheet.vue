@@ -1137,13 +1137,13 @@ async function deleteEdited() {
     <template #header>
       <div class="toast-pad">
       <div class="row hdr">
-        <button v-if="showDetail || showEditor" type="button" class="cbtn" style="--s: 44px" aria-label="Back" @click="back">
+        <button v-if="showDetail || showEditor" type="button" class="cbtn"  aria-label="Back" @click="back">
           <Icon name="left" :size="18" />
         </button>
         <h2 v-else class="t-head">{{ editing ? "Edit food" : "Add food" }}</h2>
         <span class="grow" />
         <TimeChip v-if="!showEditor" v-model="time" :date="ui.foodDate" :today="foodToday" :allow-now="!pastDay && !editing" />
-        <button type="button" class="cbtn" style="--s: 44px" aria-label="Close" @click="closeSheet">
+        <button type="button" class="cbtn"  aria-label="Close" @click="closeSheet">
           <Icon name="x" :size="18" />
         </button>
       </div>
@@ -1231,7 +1231,7 @@ async function deleteEdited() {
         <button type="button" class="chip" @click="saveError = false">Dismiss</button>
       </div>
       <Keypad v-if="!keyboardEntry" @key="amountKey" />
-      <p v-else class="t-capn c3 khint"><kbd>Enter</kbd> {{ editing ? "save" : "add" }} · <kbd>Esc</kbd> {{ editing ? "close" : "back to search" }}</p>
+      <p v-else class="t-capn c3 khint keyhint"><kbd>Enter</kbd> {{ editing ? "save" : "add" }} · <kbd>Esc</kbd> {{ editing ? "close" : "back to search" }}</p>
       <div class="row gap8 actions">
         <button v-if="editing" type="button" class="del-btn t-bodys" aria-label="Copy to another day" :disabled="saving" @click="copyEdited">
           <Icon name="copy" :size="16" /><span>Copy to…</span>
@@ -1304,8 +1304,8 @@ async function deleteEdited() {
               <span class="t-body ell">{{ food.name }}</span>
               <span class="t-label c2 ell">{{ rowSub(food) }}</span>
             </button>
-            <button type="button" class="cbtn" style="--s: 44px" :aria-label="`Edit ${food.name}`" @click="editMine(food, 'list')"><Icon name="edit" :size="17" /></button>
-            <button type="button" class="cbtn filled" style="--s: 44px" :aria-label="needTime ? `Pick a time to add ${food.name}` : `Add ${amountLabel(Number(listedPreset(food).amount), listedPreset(food).unit)} ${food.name}`" :disabled="saving || needTime" @click="addListed(food)">
+            <button type="button" class="cbtn"  :aria-label="`Edit ${food.name}`" @click="editMine(food, 'list')"><Icon name="edit" :size="17" /></button>
+            <button type="button" class="cbtn filled"  :aria-label="needTime ? `Pick a time to add ${food.name}` : `Add ${amountLabel(Number(listedPreset(food).amount), listedPreset(food).unit)} ${food.name}`" :disabled="saving || needTime" @click="addListed(food)">
               <Icon :name="justAdded === food.id ? 'check' : 'plus'" :size="18" :sw="2.4" />
             </button>
           </div>
@@ -1322,7 +1322,7 @@ async function deleteEdited() {
               <span class="row gap6 nm"><span class="t-body ell">{{ food.name }}</span><span v-if="isMyFood(food)" class="mine t-capn">my food</span></span>
               <span class="t-label c2 ell">{{ withBrand(food.brand, recentSubtitle(food, food.amount, food.unit)) }}</span>
             </button>
-            <button type="button" class="cbtn filled" style="--s: 44px" :aria-label="needTime ? `Pick a time to add ${food.name}` : `Add ${amountLabel(food.amount, food.unit)} ${food.name}`" :disabled="saving || needTime" @click="addRecent(food)">
+            <button type="button" class="cbtn filled"  :aria-label="needTime ? `Pick a time to add ${food.name}` : `Add ${amountLabel(food.amount, food.unit)} ${food.name}`" :disabled="saving || needTime" @click="addRecent(food)">
               <Icon :name="justAdded === food.id ? 'check' : 'plus'" :size="18" :sw="2.4" />
             </button>
           </div>
@@ -1438,7 +1438,7 @@ async function deleteEdited() {
         <button type="button" class="chip" @click="saveError = false">Dismiss</button>
       </div>
       <Keypad v-if="!keyboardEntry" @key="qKey" />
-      <p v-else class="t-capn c3 khint"><kbd>Tab</kbd> next field · <kbd>Enter</kbd> {{ editing ? "save" : "add" }} · <kbd>Esc</kbd> close</p>
+      <p v-else class="t-capn c3 khint keyhint"><kbd>Tab</kbd> next field · <kbd>Enter</kbd> {{ editing ? "save" : "add" }} · <kbd>Esc</kbd> close</p>
       <div class="row gap8 actions">
         <button v-if="editing" type="button" class="del-btn t-bodys" aria-label="Copy to another day" :disabled="saving" @click="copyEdited">
           <Icon name="copy" :size="16" /><span>Copy to…</span>
@@ -1455,7 +1455,7 @@ async function deleteEdited() {
 </template>
 
 <style scoped>
-.hdr { gap: 8px; min-width: 0; flex-wrap: wrap; }
+.hdr { gap: var(--space-gap); min-width: 0; flex-wrap: wrap; align-items: center; }
 .needt { margin: 0; display: flex; align-items: center; gap: 6px; color: var(--text-secondary); }
 .toast-pad { display: flex; flex-direction: column; gap: 12px; padding-top: var(--food-toast-space, 0px); }
 .gap2 { gap: 2px; }
@@ -1497,9 +1497,24 @@ async function deleteEdited() {
 .preview { display: flex; justify-content: space-around; gap: 8px; padding: 14px 8px; border-radius: var(--radius-card); background: var(--color-surface-2); flex: none; }
 .units, .chips { gap: 8px; flex-wrap: wrap; justify-content: center; max-width: 100%; }
 .unit-radios { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; max-width: 100%; }
-.uchip { min-width: 44px; min-height: 44px; padding: 0 12px; border-radius: 22px; border: 1px solid var(--color-border); display: inline-flex; align-items: center; justify-content: center; gap: 2px; background: transparent; color: var(--text-primary); }
-.uchip.on { background: var(--color-action); color: var(--color-on-action); border-color: var(--color-action); }
-.uchip.add { border-style: dashed; color: var(--text-secondary); gap: 4px; }
+.uchip {
+  position: relative; box-sizing: border-box; min-width: var(--control-hit); min-height: var(--control-hit);
+  padding: calc((var(--control-hit) - var(--control-s)) / 2) var(--space-gap);
+  border: 0; border-radius: calc(var(--control-s) / 2); background: transparent; color: var(--text-primary);
+  display: inline-flex; align-items: center; justify-content: center; gap: calc(var(--space-gap) / 3);
+  isolation: isolate;
+}
+.uchip::before {
+  content: ""; position: absolute; z-index: -1; left: 0; right: 0;
+  top: calc((var(--control-hit) - var(--control-s)) / 2);
+  bottom: calc((var(--control-hit) - var(--control-s)) / 2);
+  border-radius: calc(var(--control-s) / 2); border: 1px solid var(--color-border);
+}
+.uchip > * { position: relative; }
+.uchip.on { color: var(--color-on-action); }
+.uchip.on::before { background: var(--color-action); border-color: var(--color-action); }
+.uchip.add { color: var(--text-secondary); gap: calc(var(--space-gap) / 2); }
+.uchip.add::before { border-style: dashed; }
 .ug { color: var(--text-secondary); }
 .svform { gap: 8px; padding: 10px 12px; border-radius: 12px; background: var(--color-surface-2); align-items: center; width: 100%; }
 .sinp { height: 44px; width: 110px; min-width: 0; padding: 0 10px; border-radius: 10px; border: 1px solid var(--color-border); background: var(--color-surface); color: var(--text-primary); }
@@ -1517,7 +1532,7 @@ async function deleteEdited() {
 .dt-l .uchip { min-height: 44px; }
 .dt-xl .preview { display: grid; grid-template-columns: 1fr 1fr; row-gap: 12px; }
 .dt-xl .qgrid { grid-template-columns: 1fr; }
-.fchips { gap: 8px; flex-wrap: wrap; flex: none; }
+.fchips { gap: var(--space-gap); flex-wrap: wrap; flex: none; }
 .mine { display: inline-flex; align-items: center; gap: 3px; padding: 1px 6px; border-radius: 6px; border: 1px solid var(--color-border); color: var(--text-secondary); white-space: nowrap; flex: none; }
 .nm { min-width: 0; max-width: 100%; }
 .gap6 { gap: 6px; }

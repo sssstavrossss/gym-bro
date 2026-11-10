@@ -1,11 +1,14 @@
 import { reactive } from "vue";
 import { getTargets, listLogEntries } from "../api";
+import { isManualTarget } from "../lib/manualTarget";
 import type { DayTarget, MacroTotals } from "../lib/weekCard";
 
 export interface WeekDayData {
   logged: boolean;
   eaten: MacroTotals | null;
   target: DayTarget | null;
+  /** True only when that day's saved target carries a manual-number reason. */
+  manual: boolean;
 }
 
 export const weekCache = reactive({
@@ -19,7 +22,7 @@ let request = 0;
 export async function loadWeekDays(dates: readonly string[], logged: ReadonlySet<string>): Promise<void> {
   const gen = ++request;
   const rows = await Promise.all(dates.map(async (date) => {
-    const data: WeekDayData = { logged: logged.has(date), eaten: null, target: null };
+    const data: WeekDayData = { logged: logged.has(date), eaten: null, target: null, manual: false };
     try {
       const targets = await getTargets(date);
       if (targets.targets) {
@@ -29,6 +32,7 @@ export async function loadWeekDays(dates: readonly string[], logged: ReadonlySet
           fat: targets.targets.fat,
           carbs: targets.targets.carbs,
         };
+        data.manual = isManualTarget(targets.targets.reasons);
       }
       if (logged.has(date)) {
         const list = await listLogEntries(date);

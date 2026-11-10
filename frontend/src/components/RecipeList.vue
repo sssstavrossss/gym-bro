@@ -33,13 +33,13 @@ const emit = defineEmits<{ add: [recipe: Recipe]; edit: [recipe: Recipe]; remove
           <template v-if="recipe.finishedGrams"> · {{ recipeFigure(recipe.finishedGrams) }} g finished</template>
         </span>
       </button>
-      <button type="button" class="cbtn" style="--s: 44px" :aria-label="`Edit recipe ${recipe.name}`" :disabled="saving" @click="emit('edit', recipe)">
+      <button type="button" class="cbtn" :aria-label="`Edit recipe ${recipe.name}`" :disabled="saving" @click="emit('edit', recipe)">
         <Icon name="edit" :size="16" />
       </button>
-      <button type="button" class="cbtn" style="--s: 44px" :aria-label="`Delete recipe ${recipe.name}`" :disabled="saving" @click="emit('remove', recipe)">
+      <button type="button" class="cbtn" :aria-label="`Delete recipe ${recipe.name}`" :disabled="saving" @click="emit('remove', recipe)">
         <Icon name="trash" :size="16" />
       </button>
-      <button type="button" class="cbtn filled" style="--s: 44px" :aria-label="`Log recipe ${recipe.name}`" :disabled="saving" @click="emit('add', recipe)">
+      <button type="button" class="cbtn filled" :aria-label="`Log recipe ${recipe.name}`" :disabled="saving" @click="emit('add', recipe)">
         <Icon name="plus" :size="18" :sw="2.4" />
       </button>
     </div>

@@ -101,7 +101,7 @@ async function copy() {
           <h2 class="t-head">Copy {{ list.length }} item{{ list.length === 1 ? "" : "s" }} to…</h2>
           <span class="t-label c2">{{ int(kcal) }} kcal · from {{ named(from) }}</span>
         </div>
-        <button type="button" class="cbtn" style="--s: 44px" aria-label="Close" @click="closeCopy">
+        <button type="button" class="cbtn" aria-label="Close" @click="closeCopy">
           <Icon name="x" :size="18" />
         </button>
       </div>
@@ -145,7 +145,7 @@ async function copy() {
 </template>
 
 <style scoped>
-.hdr { gap: 8px; align-items: flex-start; }
+.hdr { gap: var(--space-gap); align-items: center; }
 .opts { gap: 0; }
 .opt { position: relative; min-height: 48px; gap: 10px; border-bottom: 1px solid var(--color-border); text-align: left; width: 100%; }
 .radio { width: 22px; height: 22px; border-radius: 11px; border: 1.5px solid var(--text-tertiary); display: flex; align-items: center; justify-content: center; flex: none; }

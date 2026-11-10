@@ -156,7 +156,7 @@ function onMenu(event: Event) {
           <span class="t-body name">{{ item.name }}</span>
           <span class="t-capn c2 sub">Pending · {{ macros(item) }}</span>
         </span>
-        <button type="button" class="retry t-bodys" @click="retry(item)">Retry</button>
+        <button type="button" class="chip t-label" @click="retry(item)">Retry</button>
         <span class="t-bodys kc" data-num>{{ int(item.kcal) }}</span>
       </div>
       <SwipeRow
@@ -209,7 +209,7 @@ function onMenu(event: Event) {
         </div>
       </SwipeRow>
       <button v-if="(rows.length || pending.length) && !ui.selecting" type="button" class="addrow row" @click="add">
-        <span class="cbtn addc" style="--s: 44px" aria-hidden="true"><Icon name="plus" :size="16" :sw="2.4" /></span>
+        <span class="cbtn fit addc" style="--s: var(--control-s-sm)" aria-hidden="true"><Icon name="plus" :size="13" :sw="2.4" /></span>
         <span class="t-body c2">{{ isToday ? "Add food" : `Add food to ${dayMonth(date)}` }}</span>
       </button>
       <p v-if="rows.length && !ui.selecting" class="t-capn c3 tip">{{ hint }}</p>
@@ -243,8 +243,8 @@ function onMenu(event: Event) {
   width: 4.25rem; max-width: none; overflow-wrap: normal;
   text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums;
 }
-.retry { min-height: 44px; min-width: 44px; padding: 0 12px; border-radius: 22px; background: var(--color-surface-2); flex: none; }
-.addrow { min-height: 44px; gap: 8px; text-align: left; }
+.addrow { min-height: var(--control-hit); gap: var(--space-gap); align-items: center; text-align: left; }
+.addc { pointer-events: none; }
 .mark { position: relative; width: 44px; height: 44px; flex: none; align-self: flex-start; }
 /* The hit target stays 44px. The dot sits on the first line, level with the time. */
 .dot, .tick {
@@ -258,8 +258,17 @@ function onMenu(event: Event) {
 .mark.on .dot { background: var(--color-action); box-shadow: none; }
 .mark.on .tick { opacity: 1; }
 .hacts { position: absolute; right: 0; top: 0; bottom: 0; gap: 4px; align-items: center; opacity: 0; pointer-events: none; }
-.hbtn { width: 44px; height: 44px; border-radius: 10px; display: flex; align-items: center; justify-content: center; color: var(--text-secondary); background: var(--color-surface-2); }
-.hbtn:hover, .hbtn:focus-visible { color: #fff; background: var(--shade-off); }
+.hbtn {
+  position: relative; width: var(--control-hit); height: var(--control-hit);
+  display: flex; align-items: center; justify-content: center; color: var(--text-secondary); background: transparent; isolation: isolate;
+}
+.hbtn::before {
+  content: ""; position: absolute; z-index: -1; width: var(--control-s); height: var(--control-s);
+  border-radius: 10px; background: var(--color-surface-2);
+}
+.hbtn > * { position: relative; }
+.hbtn:hover, .hbtn:focus-visible { color: #fff; }
+.hbtn:hover::before, .hbtn:focus-visible::before { background: var(--shade-off); }
 @media (hover: hover) and (pointer: fine) {
   .line:hover .hacts, .line:focus-within .hacts { opacity: 1; pointer-events: auto; }
   .line:hover .kc, .line:focus-within .kc { opacity: 0; }
@@ -268,7 +277,7 @@ function onMenu(event: Event) {
   .line:hover .mark.on .dot { background: var(--color-action); box-shadow: none; }
 }
 .empty { align-items: center; text-align: center; gap: 8px; padding: 28px 16px; border-radius: var(--radius-card); border: 1px dashed var(--color-border); }
-.eic { width: 44px; height: 44px; border-radius: 22px; background: var(--color-surface-2); display: flex; align-items: center; justify-content: center; color: var(--text-secondary); }
+.eic { width: var(--control-s); height: var(--control-s); border-radius: 50%; background: var(--color-surface-2); display: flex; align-items: center; justify-content: center; color: var(--text-secondary); }
 .ebtn { width: auto; padding: 0 22px; min-height: 44px; margin-top: 8px; }
 .gchips { gap: 8px; flex-wrap: wrap; justify-content: center; }
 .tip { margin: 8px 0 0; text-align: center; }

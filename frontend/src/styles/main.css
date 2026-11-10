@@ -35,6 +35,11 @@
   --radius-sheet: 24px;
   --space-screen: 16px;
   --space-gap: 12px;
+  /* One control scale. The face is what you see; the hit box stays at least 44px. */
+  --control-s: 32px;
+  --control-s-sm: 24px;
+  --control-chip: 30px;
+  --control-hit: 44px;
 
   /* Safe areas (iPhone). In ?statusbar demo mode these are faked for screenshots. */
   --sat: env(safe-area-inset-top, 0px);
@@ -101,15 +106,30 @@ svg { display: block; flex: none; }
 .col { display: flex; flex-direction: column; }
 .grow { flex: 1 1 auto; min-width: 0; }
 .base { display: flex; align-items: baseline; gap: 4px; }
-.card { background: var(--color-surface); border-radius: var(--radius-card); padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+.card { background: var(--color-surface); border-radius: var(--radius-card); padding: var(--space-screen); display: flex; flex-direction: column; gap: var(--space-gap); }
 .divider { height: 1px; background: var(--color-border); }
 
 .screen { padding: calc(var(--sat) + 4px) var(--space-screen) calc(var(--tabbar-h) + 24px); display: flex; flex-direction: column; gap: var(--space-gap); min-width: 0; max-width: 100%; }
 .screen-head { display: flex; align-items: center; min-height: 34px; }
 
-/* circle buttons */
-.cbtn { width: var(--s, 32px); height: var(--s, 32px); min-width: var(--s, 32px); min-height: var(--s, 32px); border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: var(--color-surface-2); color: #fff; flex: none; transition: transform .12s, opacity .12s; }
-.cbtn.filled { background: var(--color-action); color: var(--color-on-action); }
+/* Circle buttons. The box is the 44px hit target. --s is the visible disc. .fit is a glyph inside a larger row. */
+.cbtn {
+  position: relative; box-sizing: border-box;
+  width: var(--control-hit); height: var(--control-hit); min-width: var(--control-hit); min-height: var(--control-hit);
+  border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
+  background: transparent; color: #fff; flex: none; isolation: isolate; transition: transform .12s, opacity .12s;
+}
+.cbtn::before {
+  content: ""; position: absolute; z-index: -1; width: var(--s, var(--control-s)); height: var(--s, var(--control-s));
+  border-radius: 50%; background: var(--color-surface-2);
+}
+.cbtn > * { position: relative; }
+.cbtn.filled { color: var(--color-on-action); }
+.cbtn.filled::before { background: var(--color-action); }
+.cbtn.fit {
+  width: var(--s, var(--control-s)); height: var(--s, var(--control-s));
+  min-width: var(--s, var(--control-s)); min-height: var(--s, var(--control-s));
+}
 .cbtn:active { transform: scale(.92); opacity: .85; }
 .cbtn:disabled { opacity: .35; cursor: default; }
 
@@ -117,8 +137,26 @@ svg { display: block; flex: none; }
 .primary-btn:active { opacity: .85; }
 .primary-btn:disabled { opacity: .35; }
 
-.chip { height: 30px; padding: 0 10px; border-radius: 15px; display: inline-flex; align-items: center; justify-content: center; background: var(--color-surface-2); color: var(--text-secondary); }
-.chip.on { background: var(--color-action); color: var(--color-on-action); }
+/* Pills. Padding keeps the visible face compact; min-height is the touch target. */
+.chip {
+  position: relative; box-sizing: border-box;
+  display: inline-flex; align-items: center; justify-content: center; gap: calc(var(--space-gap) / 2);
+  min-height: var(--control-hit); min-width: var(--control-hit); height: auto;
+  padding: calc((var(--control-hit) - var(--control-chip)) / 2) var(--space-gap);
+  border-radius: calc(var(--control-chip) / 2);
+  background: transparent; color: var(--text-secondary); isolation: isolate;
+}
+.chip::before {
+  content: ""; position: absolute; z-index: -1; left: 0; right: 0;
+  top: calc((var(--control-hit) - var(--control-chip)) / 2);
+  bottom: calc((var(--control-hit) - var(--control-chip)) / 2);
+  border-radius: calc(var(--control-chip) / 2); background: var(--color-surface-2);
+}
+.chip > * { position: relative; }
+.chip.on { color: var(--color-on-action); }
+.chip.on::before { background: var(--color-action); }
+.chip.big { padding: 6px var(--space-screen); }
+.chip.big::before { top: 0; bottom: 0; border-radius: 22px; }
 
 .pressable { transition: opacity .12s; }
 .pressable:active { opacity: .6; }
@@ -132,12 +170,21 @@ svg { display: block; flex: none; }
 .is-desktop .t-title { font-size: 1.8824rem; line-height: 2.2353rem; }
 .can-hover .card.clickable { transition: background .15s; }
 .can-hover .card.clickable:hover { background: #202023; }
-.can-hover .cbtn:not(.filled):not(:disabled):hover { background: #303036; }
+.can-hover .cbtn:not(.filled):not(:disabled):hover::before { background: #303036; }
 .can-hover .cbtn.filled:hover { opacity: .88; }
 .can-hover .primary-btn:not(:disabled):hover { opacity: .9; }
-.can-hover .chip:not(.on):hover { background: #303036; color: var(--text-primary); }
+.can-hover .chip:not(.on):hover { color: var(--text-primary); }
+.can-hover .chip:not(.on):hover::before { background: #303036; }
 .can-hover .pressable:hover { opacity: .8; }
 kbd { font: 600 0.6471rem/1 "Inter", sans-serif; padding: 2px 5px; border-radius: 4px; border: 1px solid var(--color-border); color: var(--text-secondary); }
+.keyhint {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: center;
+  gap: var(--space-gap); margin: 0; line-height: 1;
+}
+.keyhint kbd {
+  display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box;
+  min-width: 1.5em; min-height: 1.5em; padding: 2px 6px; line-height: 1;
+}
 /* Grid helpers */
 .dash { display: grid; gap: 16px; align-items: start; }
 .stack { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
@@ -145,7 +192,6 @@ kbd { font: 600 0.6471rem/1 "Inter", sans-serif; padding: 2px 5px; border-radius
 
 /* Hit targets are at least 44px. Essential text stays on secondary or primary;
    tertiary grey is too faint for anything the person has to read to use the app. */
-.chip { min-height: 44px; height: 44px; padding: 0 14px; border-radius: 22px; }
 .primary-btn { min-height: 52px; }
 .seg { min-height: 44px; }
 input, select { font-size: 1rem; }

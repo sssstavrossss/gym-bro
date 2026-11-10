@@ -434,12 +434,12 @@ async function addLog() {
   <BottomSheet :open="open" :label="title" full @close="closeRecipeSheet">
     <template #header>
       <div class="row hdr">
-        <button v-if="step !== 'form'" type="button" class="cbtn" style="--s: 44px" aria-label="Back" @click="backStep">
+        <button v-if="step !== 'form'" type="button" class="cbtn" aria-label="Back" @click="backStep">
           <Icon name="left" :size="18" />
         </button>
         <h2 class="t-head grow">{{ step === "search" ? "Add ingredient" : step === "amount" ? (picked?.name || "Amount") : title }}</h2>
         <TimeChip v-if="mode === 'log' && step === 'form'" v-model="time" :date="ui.foodDate" :today="foodToday" />
-        <button type="button" class="cbtn" style="--s: 44px" aria-label="Close" @click="closeRecipeSheet">
+        <button type="button" class="cbtn" aria-label="Close" @click="closeRecipeSheet">
           <Icon name="x" :size="18" />
         </button>
       </div>
@@ -543,7 +543,7 @@ async function addLog() {
               <input v-model="line.amountText" class="t-body num" inputmode="decimal" autocomplete="off" :aria-label="`Amount of ${line.name}`" :readonly="!line.available && !line.stored" @focus="selectAmount" />
               <span class="t-label c2">{{ line.unit }}</span>
             </label>
-            <button type="button" class="cbtn" style="--s: 44px" :aria-label="`Remove ${line.name}`" @click="removeLine(line.key)">
+            <button type="button" class="cbtn" :aria-label="`Remove ${line.name}`" @click="removeLine(line.key)">
               <Icon name="x" :size="16" />
             </button>
           </div>
@@ -605,7 +605,7 @@ async function addLog() {
 </template>
 
 <style scoped>
-.hdr { gap: 8px; min-width: 0; }
+.hdr { gap: var(--space-gap); min-width: 0; align-items: center; }
 .stack { display: flex; flex-direction: column; gap: 12px; }
 .field { min-height: 44px; padding: 0 12px; gap: 8px; border-radius: var(--radius-control); background: var(--color-surface-2); flex: none; }
 .field input { border: 0; outline: 0; background: transparent; min-width: 0; width: 100%; padding: 0; color: var(--text-primary); }
