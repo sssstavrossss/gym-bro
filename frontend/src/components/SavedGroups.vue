@@ -54,7 +54,6 @@ function toggle(id: string) {
         <button
           type="button"
           class="cbtn filled"
-          style="--s: 44px"
           :aria-label="needTime ? `Pick a time to add group ${group.name}` : `Add group ${group.name}`"
           :disabled="saving || needTime"
           @click="emit('add', group)"
@@ -85,7 +84,15 @@ function toggle(id: string) {
 .gsum { display: flex; min-width: 0; width: 100%; max-width: 100%; overflow: hidden; }
 .gnum { flex: none; white-space: nowrap; }
 .gnames { min-width: 0; }
-.ibtn { width: 44px; height: 44px; border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; color: var(--text-secondary); flex: none; }
+.ibtn {
+  position: relative; width: var(--control-hit); height: var(--control-hit);
+  display: inline-flex; align-items: center; justify-content: center; color: var(--text-secondary); flex: none; background: transparent; isolation: isolate;
+}
+.ibtn::before {
+  content: ""; position: absolute; z-index: -1; width: var(--control-s); height: var(--control-s); border-radius: 10px;
+}
+.ibtn > * { position: relative; }
+.ibtn:hover::before { background: var(--color-surface-2); }
 .ibtn:disabled { opacity: .35; }
 .flip { transform: rotate(180deg); }
 .gitems { padding: 4px 0 8px 42px; gap: 6px; border-bottom: 1px solid var(--color-border); }

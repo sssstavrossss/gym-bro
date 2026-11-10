@@ -47,8 +47,13 @@ function addFood() {
 .chooser { width: 100%; max-width: 520px; display: flex; gap: 12px; padding: 12px; border-radius: var(--radius-sheet); background: var(--color-surface); }
 .tile { flex: 1 1 0; min-width: 0; min-height: 128px; border-radius: var(--radius-card); padding: 16px; background: var(--color-surface-2); display: flex; flex-direction: column; align-items: flex-start; gap: 4px; text-align: left; }
 .tile:active { background: #303036; }
-.ic { width: 44px; height: 44px; border-radius: 22px; background: var(--color-action); color: var(--color-on-action); display: flex; align-items: center; justify-content: center; }
-.close { width: 56px; height: 56px; border-radius: 28px; background: var(--color-action); color: var(--color-on-action); display: flex; align-items: center; justify-content: center; }
+.ic { width: var(--control-s); height: var(--control-s); border-radius: 50%; background: var(--color-action); color: var(--color-on-action); display: flex; align-items: center; justify-content: center; }
+.close {
+  position: relative; width: var(--control-hit); height: var(--control-hit); border-radius: 50%;
+  background: transparent; color: var(--color-on-action); display: flex; align-items: center; justify-content: center; isolation: isolate;
+}
+.close::before { content: ""; position: absolute; z-index: -1; width: var(--control-s); height: var(--control-s); border-radius: 50%; background: var(--color-action); }
+.close > * { position: relative; }
 .fade-enter-active, .fade-leave-active { transition: opacity .2s; }
 .fade-enter-from, .fade-leave-to { opacity: 0; }
 @media (prefers-reduced-motion: reduce) {

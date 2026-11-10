@@ -99,11 +99,11 @@ async function confirmFast() {
       <h1 class="t-title">Log</h1>
       <span class="grow" />
       <div class="row nav">
-        <button type="button" class="cbtn" style="--s: 44px" aria-label="Previous day" :disabled="!canPrev" @click="go(-1)">
+        <button type="button" class="cbtn" aria-label="Previous day" :disabled="!canPrev" @click="go(-1)">
           <Icon name="left" :size="18" />
         </button>
         <span class="t-bodys navlbl">{{ shortDate(date) }}</span>
-        <button type="button" class="cbtn" style="--s: 44px" aria-label="Next day" :disabled="!canNext" @click="go(1)">
+        <button type="button" class="cbtn" aria-label="Next day" :disabled="!canNext" @click="go(1)">
           <Icon name="right" :size="18" />
         </button>
       </div>

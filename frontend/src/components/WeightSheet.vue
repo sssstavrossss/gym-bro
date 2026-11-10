@@ -382,8 +382,8 @@ const diffText = computed(() => (
 .autosize > * { grid-area: 1 / 1; }
 .mirror { visibility: hidden; white-space: pre; padding-right: 4px; }
 .winput { width: 0; min-width: 100%; min-height: 44px; background: transparent; border: 0; padding: 0; caret-color: #fff; }
-.cbtn { width: 44px; height: 44px; font-size: 1.25rem; }
-.cbtn.filled { width: 56px; height: 56px; background: var(--color-action); color: var(--color-on-action); border-radius: 50%; }
+.cbtn { font-size: 1.25rem; }
+.cbtn.filled { --s: 56px; width: 56px; height: 56px; min-width: 56px; min-height: 56px; }
 .cbtn.filled:disabled { opacity: .35; }
 .chart-card { background: var(--color-surface-2); gap: 10px; }
 .legend, .lg, .lblrow, .tgb { gap: 8px; }

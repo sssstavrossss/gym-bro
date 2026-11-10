@@ -47,5 +47,5 @@ function weigh() {
 .body { gap: 12px; }
 .btns { gap: 8px; margin-top: 4px; }
 .ghost { min-height: 48px; border-radius: 24px; color: var(--text-primary); background: var(--color-surface-2); }
-.cbtn { width: 44px; height: 44px; font-size: 1.25rem; }
+.cbtn { font-size: 1.25rem; }
 </style>

@@ -92,8 +92,8 @@ const sheetStyle = computed(() => {
   top: auto;
   max-height: calc(100dvh - var(--sat) - var(--keyboard, 0px) - 10px);
   background: var(--color-surface); border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
-  padding: 8px 16px max(var(--sab), 16px);
-  display: flex; flex-direction: column; gap: 12px;
+  padding: var(--space-gap) var(--space-screen) max(var(--sab), var(--space-screen));
+  display: flex; flex-direction: column; gap: var(--space-gap);
   overflow: hidden; min-height: 0;
   transition: transform .3s cubic-bezier(.2, .8, .2, 1);
 }

@@ -53,7 +53,7 @@ onBeforeUnmount(() => {
 <style scoped>
 .itip { position: relative; display: inline-flex; z-index: 3; }
 .ibtn {
-  position: relative; width: 44px; height: 44px; margin: -28px -4px -2px;
+  position: relative; width: var(--control-hit); height: var(--control-hit); margin: 0;
   display: inline-flex; align-items: center; justify-content: center;
   color: var(--text-secondary); border-radius: 22px;
 }

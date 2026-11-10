@@ -57,12 +57,12 @@ function change(event: Event) {
 </template>
 
 <style scoped>
-.tchip-wrap { position: relative; display: inline-flex; align-items: center; gap: 6px; max-width: 100%; }
-.tchip { position: relative; min-height: 44px; padding: 0 12px; border-radius: 22px; display: inline-flex; align-items: center; gap: 6px; background: var(--color-surface-2); color: var(--text-primary); }
+.tchip-wrap { position: relative; display: inline-flex; align-items: center; gap: var(--space-gap); max-width: 100%; min-height: var(--control-hit); }
+.tchip { position: relative; height: var(--control-s); min-height: var(--control-s); padding: 0 var(--space-gap); border-radius: calc(var(--control-s) / 2); display: inline-flex; align-items: center; gap: calc(var(--space-gap) / 2); background: var(--color-surface-2); color: var(--text-primary); }
 .tchip.need { box-shadow: none; outline: 1.5px dashed var(--text-primary); outline-offset: -1.5px; background: transparent; }
 .tchip.set { box-shadow: inset 0 0 0 1.5px var(--text-secondary); }
 /* opacity stays above 0 so WebKit will focus the control. It is still invisible. */
-.tinput { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0.02; border: 0; padding: 0; margin: 0; cursor: pointer; font-size: 16px; color: transparent; }
+.tinput { position: absolute; left: 0; right: 0; top: 50%; width: 100%; height: var(--control-hit); transform: translateY(-50%); opacity: 0.02; border: 0; padding: 0; margin: 0; cursor: pointer; font-size: 16px; color: transparent; }
 .tchip:focus-within { outline: 2px solid var(--color-action); outline-offset: 2px; }
-.now { min-height: 44px; min-width: 44px; padding: 0 8px; }
+.now { min-height: var(--control-hit); min-width: var(--control-hit); padding: 0 var(--space-gap); }
 </style>

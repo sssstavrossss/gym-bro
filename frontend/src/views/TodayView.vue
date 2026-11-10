@@ -192,7 +192,7 @@ const weekRows = computed(() => {
         <div v-if="layout === 'phone'" class="card wcard row">
           <button type="button" class="stretch" :aria-label="aria" @click="openWeight()" />
           <div v-if="shown && weight" class="col gap2">
-            <span class="row gap6 trendline"><span class="t-cap c2">Weight · trend</span><InfoTip label="What is the trend?">{{ tip }}</InfoTip></span>
+            <span class="row trendline"><span class="t-cap c2">Weight · trend</span><InfoTip label="What is the trend?">{{ tip }}</InfoTip></span>
             <span class="row gap8 numrow">
               <span class="base"><span class="t-nm">{{ kg(weight.trendKg!) }}</span><span class="t-label c2">kg</span></span>
               <AccuracyDot v-if="low" />
@@ -216,7 +216,7 @@ const weekRows = computed(() => {
           <button type="button" class="stretch" :aria-label="aria" @click="openWeight()" />
           <div class="row top">
             <div v-if="shown && weight" class="col gap2">
-              <span class="row gap6 trendline"><span class="t-cap c2">Weight · trend</span><InfoTip label="What is the trend?">{{ tip }}</InfoTip></span>
+              <span class="row trendline"><span class="t-cap c2">Weight · trend</span><InfoTip label="What is the trend?">{{ tip }}</InfoTip></span>
               <span class="row gap8 numrow">
                 <span class="base"><span class="t-nm">{{ kg(weight.trendKg!) }}</span><span class="t-label c2">kg</span></span>
                 <AccuracyDot v-if="low" label />
@@ -299,11 +299,11 @@ const weekRows = computed(() => {
 .wrow:disabled { cursor: default; }
 .wrow.sel { background: var(--color-surface-2); }
 .wl { width: 4.5rem; flex: none; }
-.tgl { gap: 6px; align-items: center; }
+.tgl { gap: var(--space-gap); align-items: center; }
 .wm { width: 18px; flex: none; display: inline-flex; align-items: center; }
 .wst { width: 14px; flex: none; display: inline-flex; justify-content: center; }
 .loghead { min-height: 44px; align-items: center; }
-.more { display: inline-flex; align-items: center; gap: 2px; min-height: 44px; text-decoration: none; color: var(--text-secondary); }
+.more { display: inline-flex; align-items: center; gap: calc(var(--space-gap) / 2); min-height: var(--control-hit); padding: 0 calc(var(--space-gap) / 2); text-decoration: none; color: var(--text-secondary); }
 .more:hover { color: var(--text-primary); }
 .wk { width: 3.4rem; text-align: right; flex: none; }
 .barw { position: relative; min-width: 0; height: 10px; display: flex; align-items: center; }
@@ -320,7 +320,7 @@ const weekRows = computed(() => {
 .overtag { padding: 2px 7px; border-radius: 6px; border: 1px dashed var(--text-secondary); color: var(--text-secondary); }
 .hittag { display: inline-flex; align-items: center; gap: 4px; padding: 2px 7px; border-radius: 6px; background: var(--color-surface-2); color: var(--text-primary); }
 .prompt { flex-direction: row; align-items: center; gap: 12px; text-align: left; width: 100%; min-width: 0; }
-.pic { width: 44px; height: 44px; border-radius: 22px; background: var(--color-action); color: var(--color-on-action); display: flex; align-items: center; justify-content: center; flex: none; }
+.pic { width: var(--control-s); height: var(--control-s); border-radius: 50%; background: var(--color-action); color: var(--color-on-action); display: flex; align-items: center; justify-content: center; flex: none; }
 .sk { display: block; height: 12px; width: 40%; border-radius: 6px; background: var(--color-surface-2); }
 .sk.tall { height: 64px; width: 55%; border-radius: 10px; }
 .logc { min-width: 0; }
@@ -346,8 +346,8 @@ const weekRows = computed(() => {
 .wcard > .col { min-width: 0; }
 .nowrap { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 .wbig { gap: 12px; }
-.top { align-items: flex-start; gap: 12px; }
-.trendline { align-items: flex-start; min-width: 0; max-width: 100%; }
+.top { align-items: flex-start; gap: var(--space-gap); }
+.trendline { align-items: center; min-width: 0; max-width: 100%; gap: var(--space-gap); }
 .trendline .t-cap { min-width: 0; }
 .dt-xl .wcard > .grow { display: none; }
 .dt-xl .wcard > .col { flex: 1 1 auto; min-width: 0; }

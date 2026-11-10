@@ -51,7 +51,7 @@ async function save() {
     <template #header>
       <div class="row hdr">
         <h2 class="t-head grow">Save as group</h2>
-        <button type="button" class="cbtn" style="--s: 44px" aria-label="Close" @click="closeGroupSheet">
+        <button type="button" class="cbtn" aria-label="Close" @click="closeGroupSheet">
           <Icon name="x" :size="18" />
         </button>
       </div>
@@ -85,7 +85,7 @@ async function save() {
 </template>
 
 <style scoped>
-.hdr { gap: 8px; }
+.hdr { gap: var(--space-gap); align-items: center; }
 .field { min-height: 44px; padding: 0 12px; border-radius: var(--radius-control); background: var(--color-surface-2); flex: none; }
 .field input { border: 0; outline: 0; background: transparent; min-width: 0; width: 100%; padding: 0; }
 .field input::placeholder { color: var(--text-tertiary); }
