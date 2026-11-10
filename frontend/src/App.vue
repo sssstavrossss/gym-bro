@@ -142,7 +142,8 @@ function onKey(event: KeyboardEvent) {
 
 <style>
 .app { position: relative; width: 100%; height: 100vh; height: 100dvh; overflow: hidden; background: var(--color-bg); }
-.scroller { position: absolute; inset: 0; overflow-y: auto; overflow-x: hidden; }
+.scroller { position: absolute; inset: 0; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; }
+.app:has(.sheet-root) .scroller { overflow: hidden; }
 .is-desktop.has-nav .scroller { left: 240px; }
 .no-nav { --tabbar-h: 0px; }
 .app.selecting { --tabbar-h: calc(128px + max(var(--sab), 12px)); }
