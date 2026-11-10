@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { tabDestination } from "../src/lib/focusTrap";
-import { screenLayout, screenLayoutFromFlags, shortcutEffect, shortcutHint } from "../src/lib/layout";
+import { keyboardInset, screenLayout, screenLayoutFromFlags, shortcutEffect, shortcutHint } from "../src/lib/layout";
 import { judgeWeekDay, type DayTarget, type MacroTotals } from "../src/lib/weekCard";
 
 const base = {
@@ -13,6 +13,16 @@ const base = {
   selecting: false,
   nav: true,
 } as const;
+
+describe("keyboard inset", () => {
+  it("lifts a sheet by the part of the layout viewport the keyboard covers", () => {
+    expect(keyboardInset(800, 800, 0)).toBe(0);
+    expect(keyboardInset(800, 420, 0)).toBe(380);
+    expect(keyboardInset(800, 420, 20)).toBe(360);
+    expect(keyboardInset(800, 900, 0)).toBe(0);
+    expect(keyboardInset(Number.NaN, 400, 0)).toBe(0);
+  });
+});
 
 describe("screen layout", () => {
   it("keeps phone under 600, tablet through 1,023, and desktop from 1,024", () => {

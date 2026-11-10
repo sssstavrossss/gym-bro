@@ -1,3 +1,12 @@
+/**
+ * How far the on-screen keyboard covers the layout viewport.
+ * iOS does not shrink `dvh` for the keyboard, so sheets use this inset.
+ */
+export function keyboardInset(innerHeight: number, visualHeight: number, offsetTop: number): number {
+  if (![innerHeight, visualHeight, offsetTop].every((value) => Number.isFinite(value))) return 0;
+  return Math.max(0, Math.round(innerHeight - visualHeight - offsetTop));
+}
+
 /** Phone < 600, tablet 600–1,023, desktop 1,024–1,279, wide dashboard from 1,280. */
 export type ScreenLayout = "phone" | "tablet" | "two" | "three";
 

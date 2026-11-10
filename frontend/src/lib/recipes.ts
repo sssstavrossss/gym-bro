@@ -1,6 +1,7 @@
 import {
   amountError,
   hasGramBasis,
+  macroFigure,
   macrosForFood,
   normalizeUnit,
   round2,
@@ -19,6 +20,14 @@ export interface RecipeTotals {
   protein: number;
   fat: number;
   carbs: number;
+}
+
+/**
+ * Grams as the rest of the app shows them: a whole number, or one decimal.
+ * 3.75 is shown as 3.8. This does not change the stored value.
+ */
+export function recipeMacro(value: number): string {
+  return macroFigure(value);
 }
 
 /** Up to two decimals, matching the stored snapshot. 50 stays 50. */
@@ -76,7 +85,7 @@ export function perPortion(total: RecipeTotals, portions: number): RecipeTotals 
 }
 
 export function perPortionSentence(per: RecipeTotals): string {
-  return `${recipeFigure(per.protein)} g protein per portion`;
+  return `${recipeMacro(per.protein)} g protein per portion`;
 }
 
 /** Nutrition for one ingredient from the food's own basis. Null when the amount or unit cannot be used. */
