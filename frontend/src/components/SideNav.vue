@@ -6,7 +6,6 @@ import Icon from "./Icon.vue";
 import { int } from "../lib/format";
 import { dayTotals, viewed } from "../state/log";
 import { profile, weightCaption } from "../state/profile";
-import { primeKeyboard } from "../lib/focusField";
 import { inbox } from "../state/inbox";
 import { openFood, openWeight } from "../ui";
 
@@ -41,7 +40,7 @@ const eaten = computed(() => {
     </button>
 
     <nav class="nav col" aria-label="Main">
-      <RouterLink v-for="i in items" :key="i.to" :to="i.to" class="item row" :class="{ on: active(i.to) }" :aria-current="active(i.to) ? 'page' : undefined" @click="i.to === '/profile' && route.path !== '/profile' ? primeKeyboard() : undefined">
+      <RouterLink v-for="i in items" :key="i.to" :to="i.to" class="item row" :class="{ on: active(i.to) }" :aria-current="active(i.to) ? 'page' : undefined">
         <span class="ic"><Icon :name="i.icon" :size="20" /><span v-if="i.to === '/profile' && inbox.unread > 0" class="bullet" aria-label="Unread" /></span><span class="t-bodys">{{ i.label }}</span>
       </RouterLink>
     </nav>
