@@ -5,15 +5,15 @@ import { ApiError, getProgress, ServerUnreachable, type ProgressDay, type Progre
 import { dayMonth, spanLabel } from "../lib/dates";
 import { formatDecimal, int, kg, signed } from "../lib/format";
 import { screenLayoutFromFlags } from "../lib/layout";
-import { axisMarks } from "../lib/chartScale";
-import { intakeBars, targetLine, valueY, weightDots } from "../lib/progressChart";
+import { fewMarks, intakeBars, intakeMax, scaleTicks, targetLine, valueY, weightDots } from "../lib/progressChart";
 import { vp } from "../lib/viewport";
 
 const ranges = [
-  { value: "7d", label: "7 days" },
-  { value: "30d", label: "30 days" },
-  { value: "90d", label: "90 days" },
-  { value: "all", label: "All" },
+  { value: "7d", label: "7d", ariaLabel: "7 days" },
+  { value: "30d", label: "30d", ariaLabel: "30 days" },
+  { value: "90d", label: "90d", ariaLabel: "90 days" },
+  { value: "6m", label: "6m", ariaLabel: "6 months" },
+  { value: "all", label: "All", ariaLabel: "All" },
 ];
 const range = ref("30d");
 const data = ref<ProgressResponse | null>(null);
@@ -45,12 +45,12 @@ const weight = computed(() => data.value?.weight ?? null);
 const intake = computed(() => data.value?.intake ?? null);
 const days = computed(() => data.value?.days ?? []);
 
-const currentText = computed(() => weight.value?.currentKg == null ? "–" : kg(weight.value.currentKg));
+const currentText = computed(() => weight.value?.currentKg == null ? "–" : `${kg(weight.value.currentKg)} kg`);
 const currentNote = computed(() => {
   if (!weight.value || weight.value.currentKg == null || !weight.value.currentDate) return "No weigh-in yet";
   return dayMonth(weight.value.currentDate);
 });
-const changeText = computed(() => weight.value?.changeKg == null ? "–" : signed(weight.value.changeKg, 1));
+const changeText = computed(() => weight.value?.changeKg == null ? "–" : `${signed(weight.value.changeKg, 1)} kg`);
 const changeNote = computed(() => {
   const count = weight.value?.count ?? 0;
   if (count === 0) return "No weigh-ins in this range";
@@ -83,9 +83,22 @@ const weights = computed(() => weightDots(
   plot.width,
   plot.height,
 ));
-const weightMarks = computed(() => weights.value.dots.length ? axisMarks(weights.value.low, weights.value.high) : []);
-function markY(mark: number) {
+const weightTicks = computed(() => weights.value.dots.length ? fewMarks(weights.value.low, weights.value.high, weights.value.flat) : []);
+const kcalMax = computed(() => intakeMax(kcalDays.value));
+const proteinMax = computed(() => intakeMax(proteinDays.value));
+const kcalTicks = computed(() => kcalBars.value.length ? scaleTicks(0, kcalMax.value) : []);
+const proteinTicks = computed(() => proteinBars.value.length ? scaleTicks(0, proteinMax.value) : []);
+function weightY(mark: number) {
   return valueY(mark, weights.value.low, weights.value.high, plot.height);
+}
+function intakeY(mark: number, max: number) {
+  return valueY(mark, 0, max, plot.height);
+}
+function tickTop(y: number) {
+  return `${(y / plot.height) * 100}%`;
+}
+function axisNumber(n: number) {
+  return Number.isInteger(n) ? int(n) : formatDecimal(n, 1);
 }
 
 const period = computed(() => data.value ? spanLabel(data.value.from, data.value.to) : "");
@@ -139,7 +152,7 @@ function weighInOn(date: string): string {
         <div class="stat">
           <span class="t-cap c2">Current weight</span>
           <span class="t-ns num" data-num>{{ currentText }}</span>
-          <span class="t-label c2">{{ currentNote }}<template v-if="weight?.currentKg != null"> kg</template></span>
+          <span class="t-label c2">{{ currentNote }}</span>
         </div>
         <div class="stat">
           <span class="t-cap c2">Change</span>
@@ -173,11 +186,16 @@ function weighInOn(date: string): string {
           </div>
           <p v-if="!weights.dots.length" class="t-body c2">No weigh-ins in this range. Days you didn't weigh in stay blank.</p>
           <template v-else>
+            <div class="plot">
             <svg :viewBox="`0 0 ${plot.width} ${plot.height}`" class="fig" role="img" :aria-label="weightLabel">
-              <line v-for="mark in weightMarks" :key="mark" x1="0" :x2="plot.width" :y1="markY(mark)" :y2="markY(mark)" stroke="#fff" stroke-opacity="0.08" />
+              <line v-for="mark in weightTicks" :key="mark" x1="0" :x2="plot.width" :y1="weightY(mark)" :y2="weightY(mark)" stroke="#fff" stroke-opacity="0.08" />
               <path :d="weights.line" fill="none" stroke="#7DB1FF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
               <circle v-for="dot in weights.dots" :key="dot.date" :cx="dot.x" :cy="dot.y" r="4" fill="#7DB1FF" />
             </svg>
+            <div class="ylabels" aria-hidden="true">
+              <span v-for="mark in weightTicks" :key="'wy' + mark" class="t-capn c2" :style="{ top: tickTop(weightY(mark)) }">{{ kg(mark) }}</span>
+            </div>
+            </div>
             <div class="row xlabels">
               <span v-for="day in axisDates" :key="day.date" class="t-capn c2">{{ dayMonth(day.date) }}</span>
             </div>
@@ -193,10 +211,16 @@ function weighInOn(date: string): string {
           </div>
           <p v-if="!kcalBars.length" class="t-body c2">No food logged in this range.</p>
           <template v-else>
+            <div class="plot">
             <svg :viewBox="`0 0 ${plot.width} ${plot.height}`" class="fig" role="img" :aria-label="kcalLabel">
+              <line v-for="mark in kcalTicks" :key="'kg' + mark" x1="0" :x2="plot.width" :y1="intakeY(mark, kcalMax)" :y2="intakeY(mark, kcalMax)" stroke="#fff" stroke-opacity="0.08" />
               <path v-if="kcalTarget" :d="kcalTarget" fill="none" stroke="#737379" stroke-width="1.5" stroke-dasharray="4 4" />
               <rect v-for="(bar, index) in kcalBars" :key="index" :x="bar.x - 3" :y="bar.y" width="6" :height="bar.h" fill="#ffffff" rx="1" />
             </svg>
+            <div class="ylabels wide" aria-hidden="true">
+              <span v-for="mark in kcalTicks" :key="'ky' + mark" class="t-capn c2" :style="{ top: tickTop(intakeY(mark, kcalMax)) }">{{ axisNumber(mark) }}</span>
+            </div>
+            </div>
             <div class="row xlabels">
               <span v-for="day in axisDates" :key="'k' + day.date" class="t-capn c2">{{ dayMonth(day.date) }}</span>
             </div>
@@ -212,10 +236,16 @@ function weighInOn(date: string): string {
           </div>
           <p v-if="!proteinBars.length" class="t-body c2">No food logged in this range.</p>
           <template v-else>
+            <div class="plot">
             <svg :viewBox="`0 0 ${plot.width} ${plot.height}`" class="fig" role="img" :aria-label="proteinLabel">
+              <line v-for="mark in proteinTicks" :key="'pg' + mark" x1="0" :x2="plot.width" :y1="intakeY(mark, proteinMax)" :y2="intakeY(mark, proteinMax)" stroke="#fff" stroke-opacity="0.08" />
               <path v-if="proteinTarget" :d="proteinTarget" fill="none" stroke="#737379" stroke-width="1.5" stroke-dasharray="4 4" />
               <rect v-for="(bar, index) in proteinBars" :key="index" :x="bar.x - 3" :y="bar.y" width="6" :height="bar.h" fill="#7DB1FF" rx="1" />
             </svg>
+            <div class="ylabels" aria-hidden="true">
+              <span v-for="mark in proteinTicks" :key="'py' + mark" class="t-capn c2" :style="{ top: tickTop(intakeY(mark, proteinMax)) }">{{ axisNumber(mark) }}</span>
+            </div>
+            </div>
             <div class="row xlabels">
               <span v-for="day in axisDates" :key="'p' + day.date" class="t-capn c2">{{ dayMonth(day.date) }}</span>
             </div>
@@ -255,7 +285,11 @@ function weighInOn(date: string): string {
 .note { margin: 0; }
 .charts { display: flex; flex-direction: column; gap: var(--space-gap); min-width: 0; }
 .chart { min-width: 0; }
-.fig { width: 100%; height: auto; display: block; }
+.plot { display: flex; align-items: stretch; gap: 6px; min-width: 0; }
+.fig { flex: 1 1 auto; width: auto; min-width: 0; height: auto; display: block; }
+.ylabels { position: relative; width: 2.8rem; flex: none; }
+.ylabels.wide { width: 3.6rem; }
+.ylabels span { position: absolute; right: 0; transform: translateY(-50%); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .xlabels { justify-content: space-between; gap: 8px; min-width: 0; }
 .head :deep(.seg) { flex-wrap: wrap; }
 .tablet .head, .two .head, .three .head { flex-direction: row; align-items: flex-end; justify-content: space-between; }

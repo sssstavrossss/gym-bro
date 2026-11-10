@@ -12,6 +12,9 @@ public sealed class ProgressMathTests
         Assert.Equal(new DateOnly(2026, 11, 4), ProgressMath.WindowStart(Today, "7d", null));
         Assert.Equal(new DateOnly(2026, 10, 12), ProgressMath.WindowStart(Today, "30d", null));
         Assert.Equal(new DateOnly(2026, 8, 13), ProgressMath.WindowStart(Today, "90d", null));
+        var sixMonths = ProgressMath.WindowStart(Today, "6m", null);
+        Assert.Equal(ProgressMath.SixMonthsDays, Today.DayNumber - sixMonths.DayNumber + 1);
+        Assert.Equal(new DateOnly(2026, 5, 13), sixMonths);
         Assert.Equal(new DateOnly(2026, 1, 2), ProgressMath.WindowStart(Today, "all", new DateOnly(2026, 1, 2)));
         Assert.Equal(Today, ProgressMath.WindowStart(Today, "all", null));
         Assert.Equal(Today, ProgressMath.WindowStart(Today, "all", Today.AddDays(3)));
@@ -46,6 +49,7 @@ public sealed class ProgressMathTests
     [InlineData(null, "30d")]
     [InlineData(" 7D ", "7d")]
     [InlineData("all", "all")]
+    [InlineData(" 6M ", "6m")]
     public void Known_ranges_are_accepted(string? raw, string normalized)
     {
         Assert.True(ProgressMath.TryRange(raw, out var value));

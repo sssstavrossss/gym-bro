@@ -108,8 +108,9 @@ test.describe("progress", () => {
 
     await openProgress(page, 390);
     const summary = page.getByRole("region", { name: "Summary" });
-    await expect(summary).toContainText("83.6");
-    await expect(summary).toContainText(/[−-]0\.4/);
+    await expect(summary.getByText("83.6 kg")).toBeVisible();
+    await expect(summary.getByText(/[−-]0\.4 kg/)).toBeVisible();
+    await expect(summary.locator(".stat").first().locator(".t-label")).not.toHaveText(/kg/);
     await expect(summary).toContainText("500");
     await expect(summary).toContainText("30");
     await expect(summary.getByText("2", { exact: true })).toBeVisible();
@@ -139,10 +140,20 @@ test.describe("progress", () => {
     await expect(summary).toContainText("500");
     await expectNoSideScroll(page);
 
+    await page.setViewportSize({ width: 320, height: 700 });
+    const rangeBox = await page.getByRole("radiogroup", { name: "Range" }).boundingBox();
+    expect(rangeBox && rangeBox.x >= -1 && rangeBox.x + rangeBox.width <= 321).toBeTruthy();
+    await page.getByRole("radio", { name: "6 months" }).click();
+    await expect(summary).toContainText("of 182 days");
+    await expectNoSideScroll(page);
+
     await openProgress(page, 1440);
     await expect(page.locator("aside.side")).toBeVisible();
     await expect(page.locator("main.progress")).toHaveClass(/two|three/);
-    await expect(summary).toContainText("83.6");
+    await expect(summary.getByText("83.6 kg")).toBeVisible();
+    const deskRange = await page.getByRole("radiogroup", { name: "Range" }).boundingBox();
+    const desk = page.viewportSize();
+    expect(deskRange && desk && deskRange.x + deskRange.width <= desk.width + 1).toBeTruthy();
     await expectNoSideScroll(page);
     if (test.info().project.name === "chromium") {
       await page.screenshot({ path: "/opt/cursor/artifacts/progress-desktop.png" });

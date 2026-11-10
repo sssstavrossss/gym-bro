@@ -26,7 +26,7 @@ public sealed class ProgressEndpointTests(ApiFactory factory)
         await Setup(client, "2026-11-10");
         var response = await client.GetAsync("/api/progress?range=week");
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        Assert.Equal("Use 7d, 30d, 90d, or all.", (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("error").GetString());
+        Assert.Equal("Use 7d, 30d, 90d, 6m, or all.", (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("error").GetString());
     }
 
     [Fact]

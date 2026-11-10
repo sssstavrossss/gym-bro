@@ -1,11 +1,18 @@
 import { expect, it } from "vitest";
-import { intakeBars, slotX, targetLine, weightDots } from "../src/lib/progressChart";
+import { fewMarks, intakeBars, scaleTicks, slotX, targetLine, weightDots } from "../src/lib/progressChart";
 
 const days = [
   { date: "2026-11-08", logged: true, value: 400, target: 2000 },
   { date: "2026-11-09", logged: false, value: null, target: 2000 },
   { date: "2026-11-10", logged: true, value: 600, target: 2000 },
 ];
+
+it("labels a scale with the top, middle, and bottom", () => {
+  expect(scaleTicks(0, 2000)).toEqual([2000, 1000, 0]);
+  expect(scaleTicks(83, 83)).toEqual([83]);
+  expect(fewMarks(70, 90).length).toBeLessThanOrEqual(4);
+  expect(fewMarks(83, 84.5)).toEqual([84.5, 84, 83.5, 83]);
+});
 
 it("keeps an empty day as a gap instead of a zero bar", () => {
   const bars = intakeBars(days, 320, 140);

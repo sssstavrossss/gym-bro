@@ -1,7 +1,7 @@
 <script setup lang="ts" generic="T extends string">
 import { nextTick } from "vue";
 
-const props = defineProps<{ options: { value: T; label: string }[]; modelValue: T; label: string }>();
+const props = defineProps<{ options: { value: T; label: string; ariaLabel?: string }[]; modelValue: T; label: string }>();
 const emit = defineEmits<{ "update:modelValue": [T] }>();
 
 function tabIndex(value: T, index: number) {
@@ -27,7 +27,7 @@ async function onKey(event: KeyboardEvent, index: number) {
 <template>
   <div class="seg" role="radiogroup" :aria-label="label" :style="{ minWidth: options.length * 44 + 8 + 'px' }">
     <button v-for="(o, index) in options" :key="o.value" type="button" role="radio" class="seg-btn t-label"
-      :class="{ on: o.value === modelValue }" :aria-checked="o.value === modelValue" :tabindex="tabIndex(o.value, index)"
+      :class="{ on: o.value === modelValue }" :aria-checked="o.value === modelValue" :aria-label="o.ariaLabel" :tabindex="tabIndex(o.value, index)"
       @click="emit('update:modelValue', o.value)" @keydown="onKey($event, index)">{{ o.label }}</button>
   </div>
 </template>

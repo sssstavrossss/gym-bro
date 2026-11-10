@@ -6,15 +6,22 @@ namespace GymBro.Api.Progress;
 /// </summary>
 public static class ProgressMath
 {
-    public const string BadRange = "Use 7d, 30d, 90d, or all.";
+    public const string BadRange = "Use 7d, 30d, 90d, 6m, or all.";
+
+    /// <summary>Six months is 182 days, the same inclusive day count as 7, 30, and 90.</summary>
+    public const int SixMonthsDays = 182;
 
     public static bool TryRange(string? range, out string normalized)
     {
         normalized = string.IsNullOrWhiteSpace(range) ? "30d" : range.Trim().ToLowerInvariant();
-        return normalized is "7d" or "30d" or "90d" or "all";
+        return normalized is "7d" or "30d" or "90d" or "6m" or "all";
     }
 
-    /// <summary>Inclusive start. All begins on the earliest stored weigh-in or log, not before.</summary>
+    /// <summary>
+    /// Inclusive start. 7d, 30d, 90d, and 6m are fixed lengths ending today
+    /// (6m is 182 days, not a calendar month boundary). All begins on the
+    /// earliest stored weigh-in or log, not before.
+    /// </summary>
     public static DateOnly WindowStart(DateOnly today, string range, DateOnly? earliest)
     {
         var start = range switch
@@ -22,6 +29,7 @@ public static class ProgressMath
             "7d" => today.AddDays(-6),
             "30d" => today.AddDays(-29),
             "90d" => today.AddDays(-89),
+            "6m" => today.AddDays(-(SixMonthsDays - 1)),
             _ => earliest is DateOnly first && first < today ? first : today,
         };
         return start > today ? today : start;

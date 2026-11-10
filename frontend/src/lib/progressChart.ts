@@ -1,4 +1,4 @@
-import { axisBounds } from "./chartScale";
+import { axisBounds, axisMarks } from "./chartScale";
 
 export interface IntakeDay {
   date: string;
@@ -24,6 +24,29 @@ export function slotX(index: number, count: number, width: number): number {
 export function valueY(value: number, low: number, high: number, height: number): number {
   const span = high - low || 1;
   return pad + ((high - value) / span) * (height - pad * 2);
+}
+
+/** Top, middle, and bottom of a scale. Duplicates collapse when the range is flat. */
+export function scaleTicks(low: number, high: number): number[] {
+  const ticks = [high, (low + high) / 2, low];
+  return ticks.filter((tick, index) => ticks.findIndex((item) => Math.abs(item - tick) < 1e-9) === index);
+}
+
+/** At most four labels. A narrow kilogram scale keeps every half-kilogram tick. */
+export function fewMarks(low: number, high: number, flat = false): number[] {
+  const all = [high, ...axisMarks(low, high, flat), low].filter((tick, index, list) => (
+    list.findIndex((item) => Math.abs(item - tick) < 1e-9) === index
+  ));
+  if (all.length <= 4) return all;
+  const last = all.length - 1;
+  return [0, 1, 2, 3].map((step) => all[Math.round((step * last) / 3)])
+    .filter((tick, index, list) => list.indexOf(tick) === index);
+}
+
+export function intakeMax(days: IntakeDay[]): number {
+  const values = days.flatMap((day) => (day.logged && day.value != null ? [day.value] : []));
+  const targets = days.flatMap((day) => (day.target != null ? [day.target] : []));
+  return Math.max(1, ...values, ...targets);
 }
 
 /** Logged days only. A missing day keeps its slot empty so neighbours do not slide together. */
@@ -70,11 +93,11 @@ export function weightDots(
   weighIns: { date: string; kg: number }[],
   width: number,
   height: number,
-): { dots: WeightDot[]; line: string; low: number; high: number } {
+): { dots: WeightDot[]; line: string; low: number; high: number; flat: boolean } {
   const byDate = new Map(weighIns.map((row) => [row.date, row.kg]));
   const values = weighIns.map((row) => row.kg);
-  const bounds = values.length ? axisBounds(values) : { lo: 0, hi: 1 };
-  const { lo, hi } = bounds;
+  const bounds = values.length ? axisBounds(values) : { lo: 0, hi: 1, flat: true };
+  const { lo, hi, flat } = bounds;
   const dots: WeightDot[] = [];
   days.forEach((day, index) => {
     const kg = byDate.get(day.date);
@@ -82,5 +105,5 @@ export function weightDots(
     dots.push({ x: slotX(index, days.length, width), y: valueY(kg, lo, hi, height), date: day.date, kg });
   });
   const line = dots.map((dot, index) => `${index === 0 ? "M" : "L"}${dot.x.toFixed(1)},${dot.y.toFixed(1)}`).join(" ");
-  return { dots, line, low: lo, high: hi };
+  return { dots, line, low: lo, high: hi, flat };
 }
