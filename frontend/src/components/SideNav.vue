@@ -71,5 +71,5 @@ kbd { font: 600 11px/1 Inter, sans-serif; padding: 3px 6px; border-radius: 5px; 
 .item.on { background: var(--color-surface); color: var(--text-primary); }
 .glance { gap: 6px; padding: 12px; border-radius: 12px; background: var(--color-surface); }
 .gap { gap: 4px; }
-.keys { margin: 4px 4px 0; line-height: 20px; }
+.keys { margin: 4px 4px 0; line-height: 20px; overflow-wrap: anywhere; }
 </style>

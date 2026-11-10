@@ -140,7 +140,7 @@ test("fresh start asks, and Not now writes nothing", async ({ page }) => {
     await expect(page.getByText(/\d[\d,]* → \d[\d,]* kcal/)).toBeVisible();
     await page.getByRole("button", { name: /Open weight/ }).first().click();
     await expect(page.locator(".stats")).toContainText("—");
-    await expect(page.getByText("This week")).toBeVisible();
+    await expect(page.getByRole("dialog", { name: "Log weight" }).getByText("This week")).toBeVisible();
     await expect(page.getByText("30 days", { exact: true })).toBeVisible();
     await page.getByRole("button", { name: "Close", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Log weight" })).toHaveCount(0);

@@ -91,8 +91,9 @@ const summary = computed(() => {
 </template>
 
 <style scoped>
-.wchart { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
-.plot { gap: 6px; align-items: flex-start; }
+.wchart { display: flex; flex-direction: column; gap: 10px; min-width: 0; max-width: 100%; }
+.plot { gap: 6px; align-items: flex-start; min-width: 0; max-width: 100%; }
+.plot svg { flex: 1 1 auto; min-width: 0; max-width: calc(100% - 48px); height: auto; }
 .ylabels { position: relative; flex: 1; min-width: 36px; }
 .ylabels span { position: absolute; left: 0; white-space: nowrap; }
 .xlabels { justify-content: space-between; gap: 8px; }
