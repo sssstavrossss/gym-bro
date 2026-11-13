@@ -225,8 +225,8 @@ function onMenu(event: Event) {
 .entries {
   border-top: 1px solid var(--color-border);
   border-bottom: 1px solid var(--color-border);
-  padding-top: calc(var(--space-gap) / 2);
-  padding-bottom: calc(var(--space-gap) / 2);
+  padding-top: 0;
+  padding-bottom: 0;
 }
 .entries > .pending:not(:first-child),
 .entries > :deep(.swipe:not(:first-child)) { border-top: 1px solid var(--color-border); }

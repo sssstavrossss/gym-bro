@@ -49,6 +49,7 @@ test("select mode keeps food rows inside the list and gives the check its own sl
   await expect.poll(() => oats.locator(".dot").evaluate((el) => el.getBoundingClientRect().width)).toBeCloseTo(22, 0);
 
   await expectRow(oats, roll, before);
+  await expectFlush(page.locator("main"));
   if (test.info().project.name === "chromium") {
     await page.screenshot({ path: "/opt/cursor/artifacts/iphone40-select-log.png" });
   }
@@ -56,6 +57,10 @@ test("select mode keeps food rows inside the list and gives the check its own sl
   await page.getByRole("button", { name: "Cancel", exact: true }).click();
   await page.getByRole("link", { name: "Today", exact: true }).click();
   await expect(page.locator("main.today .logc")).toBeVisible();
+  await expectFlush(page.locator("main.today .logc"));
+  if (test.info().project.name === "chromium") {
+    await page.screenshot({ path: "/opt/cursor/artifacts/iphone40-home.png" });
+  }
   const homeOats = page.locator("main.today .logc .line").filter({ hasText: "Fictional select oats" });
   const homeRoll = page.locator("main.today .logc .line").filter({ hasText: "Fictional select roll" });
   await expect(homeOats).toBeVisible();
@@ -76,10 +81,45 @@ test("select mode keeps food rows inside the list and gives the check its own sl
   expect(homeLine!.x).toBeGreaterThanOrEqual(card!.x + 12);
   expect(homeLine!.x + homeLine!.width).toBeLessThanOrEqual(card!.x + card!.width - 12);
   await expectRow(homeOats, homeRoll);
+  await expectFlush(page.locator("main.today .logc"));
   if (test.info().project.name === "chromium") {
     await page.screenshot({ path: "/opt/cursor/artifacts/iphone40-select-home.png" });
   }
 });
+
+async function expectFlush(scope: Locator) {
+  const metrics = await scope.locator("[data-log-entries]").evaluate((el) => {
+    const box = el.getBoundingClientRect();
+    const style = getComputedStyle(el);
+    const rows = [...el.querySelectorAll(".line")];
+    const first = rows[0].getBoundingClientRect();
+    const last = rows[rows.length - 1].getBoundingClientRect();
+    const frow = getComputedStyle(rows[0].querySelector(".frow")!);
+    const selected = el.querySelector(".line.sel");
+    const swipe = selected?.closest(".swipe")?.getBoundingClientRect();
+    const selectedBox = selected?.getBoundingClientRect();
+    return {
+      padTop: parseFloat(style.paddingTop),
+      padBottom: parseFloat(style.paddingBottom),
+      above: first.top - box.top,
+      below: box.bottom - last.bottom,
+      borderTop: parseFloat(style.borderTopWidth),
+      borderBottom: parseFloat(style.borderBottomWidth),
+      textPad: parseFloat(frow.paddingTop),
+      selTop: selected && swipe && selectedBox ? selectedBox.top - swipe.top : null,
+      selBottom: selected && swipe && selectedBox ? swipe.bottom - selectedBox.bottom : null,
+    };
+  });
+  expect(metrics.padTop).toBe(0);
+  expect(metrics.padBottom).toBe(0);
+  expect(metrics.above).toBeLessThanOrEqual(metrics.borderTop + 0.5);
+  expect(metrics.below).toBeLessThanOrEqual(metrics.borderBottom + 0.5);
+  expect(metrics.textPad).toBeGreaterThanOrEqual(4);
+  if (metrics.selTop != null) {
+    expect(metrics.selTop).toBeLessThanOrEqual(0.5);
+    expect(metrics.selBottom).toBeLessThanOrEqual(0.5);
+  }
+}
 
 async function edge(line: Locator) {
   return line.locator(".kc").evaluate((el) => el.getBoundingClientRect().right);
