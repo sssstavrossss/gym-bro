@@ -29,6 +29,14 @@ public sealed class ProgressMathTests
     }
 
     [Fact]
+    public void Trend_change_uses_the_first_and_last_trend_and_skips_gaps()
+    {
+        Assert.Null(ProgressMath.TrendChange([]));
+        Assert.Null(ProgressMath.TrendChange([null, 84m]));
+        Assert.Equal(-0.06m, ProgressMath.TrendChange([null, 84.00m, null, 83.94m]));
+    }
+
+    [Fact]
     public void Change_needs_two_weigh_ins()
     {
         Assert.Null(ProgressMath.Change([]));

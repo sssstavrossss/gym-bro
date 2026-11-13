@@ -73,6 +73,13 @@ public sealed class ProgressEndpointTests(ApiFactory factory)
         Assert.True(logged.GetProperty("targetKcal").GetInt32() > 0);
         Assert.Equal(84.00m, logged.GetProperty("trendKg").GetDecimal());
         Assert.Equal(83.94m, Day(days, "2026-11-10").GetProperty("trendKg").GetDecimal());
+        Assert.Equal(1m, logged.GetProperty("fat").GetDecimal());
+        Assert.Equal(1m, logged.GetProperty("carbs").GetDecimal());
+        Assert.True(logged.GetProperty("targetFat").GetInt32() > 0);
+        Assert.True(logged.GetProperty("targetCarbs").GetInt32() > 0);
+        Assert.Equal(-0.06m, body.GetProperty("weight").GetProperty("trendChangeKg").GetDecimal());
+        Assert.Equal(JsonValueKind.Null, gap.GetProperty("fat").ValueKind);
+        Assert.Equal(JsonValueKind.Null, gap.GetProperty("carbs").ValueKind);
     }
 
     [Fact]
@@ -101,6 +108,7 @@ public sealed class ProgressEndpointTests(ApiFactory factory)
         Assert.Equal("2026-11-10", body.GetProperty("from").GetString());
         Assert.Equal(1, body.GetProperty("days").GetArrayLength());
         Assert.Equal(JsonValueKind.Null, body.GetProperty("weight").GetProperty("changeKg").ValueKind);
+        Assert.Equal(JsonValueKind.Null, body.GetProperty("weight").GetProperty("trendChangeKg").ValueKind);
         Assert.Equal(1, body.GetProperty("weight").GetProperty("count").GetInt32());
     }
 
@@ -127,6 +135,8 @@ public sealed class ProgressEndpointTests(ApiFactory factory)
         Assert.True(before.GetProperty("logged").GetBoolean());
         Assert.Equal(100m, before.GetProperty("kcal").GetDecimal());
         Assert.Equal(JsonValueKind.Null, before.GetProperty("targetKcal").ValueKind);
+        Assert.Equal(JsonValueKind.Null, before.GetProperty("targetFat").ValueKind);
+        Assert.Equal(JsonValueKind.Null, before.GetProperty("targetCarbs").ValueKind);
         var on = Day(body.GetProperty("days"), "2026-11-10");
         Assert.False(on.GetProperty("logged").GetBoolean());
         Assert.Equal(JsonValueKind.Null, on.GetProperty("kcal").ValueKind);

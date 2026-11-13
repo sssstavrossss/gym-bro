@@ -445,6 +445,10 @@ export interface ProgressDay {
   targetKcal: number | null;
   targetProtein: number | null;
   trendKg: number | null;
+  fat?: number | null;
+  carbs?: number | null;
+  targetFat?: number | null;
+  targetCarbs?: number | null;
 }
 
 export interface ProgressResponse {
@@ -456,6 +460,7 @@ export interface ProgressResponse {
     currentKg: number | null;
     currentDate: string | null;
     changeKg: number | null;
+    trendChangeKg: number | null;
     count: number;
     weighIns: { date: string; kg: number }[];
   };
