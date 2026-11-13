@@ -55,15 +55,8 @@ test("controls keep a compact face, a 44px hit, and clear gaps", async ({ page }
 
   for (const width of widths) {
     await page.setViewportSize({ width, height: width >= 1024 ? 900 : 844 });
-    await page.goto("/today");
-    await expect(page.getByRole("main", { name: "Today" })).toBeVisible();
-
-    const overflow = await page.evaluate(() => {
-      const scroller = document.querySelector(".scroller");
-      const root = document.documentElement;
-      return root.scrollWidth <= root.clientWidth + 1 && (!scroller || scroller.scrollWidth <= scroller.clientWidth + 1);
-    });
-    expect(overflow).toBe(true);
+    await page.goto("/log");
+    await expect(page.getByRole("heading", { name: "Log" })).toBeVisible();
 
     const select = page.getByRole("button", { name: "Select", exact: true });
     await select.scrollIntoViewIfNeeded();
@@ -83,6 +76,16 @@ test("controls keep a compact face, a 44px hit, and clear gaps", async ({ page }
     expect(plus.height).toBeLessThanOrEqual(26);
     expect(plus.width).toBeLessThanOrEqual(26);
     expect(overlaps(selectBox, addBox)).toBe(false);
+
+    await page.goto("/today");
+    await expect(page.getByRole("main", { name: "Today" })).toBeVisible();
+    const overflow = await page.evaluate(() => {
+      const scroller = document.querySelector(".scroller");
+      const root = document.documentElement;
+      return root.scrollWidth <= root.clientWidth + 1 && (!scroller || scroller.scrollWidth <= scroller.clientWidth + 1);
+    });
+    expect(overflow).toBe(true);
+    await expect(page.getByRole("button", { name: "Select", exact: true })).toHaveCount(0);
 
     const info = page.getByRole("button", { name: "What is the trend?" });
     await info.scrollIntoViewIfNeeded();

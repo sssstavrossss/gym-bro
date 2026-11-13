@@ -12,7 +12,7 @@ import Sparkline from "../components/Sparkline.vue";
 import Timeline from "../components/Timeline.vue";
 import WeekStrip from "../components/WeekStrip.vue";
 import WeightChart from "../components/WeightChart.vue";
-import { addDays, dayNum, longDate, shortDate, todayInZone, weekday, weekdayShort, weekStart } from "../lib/dates";
+import { addDays, dayNum, longDate, todayInZone, weekday, weekdayShort, weekStart } from "../lib/dates";
 import { int, kg } from "../lib/format";
 import { screenLayoutFromFlags } from "../lib/layout";
 import { freshDismissed, goalDismissed, promptState } from "../lib/prompts";
@@ -75,6 +75,11 @@ const hasDay = computed(() => entries.value.length > 0 || pending.value.length >
 const title = computed(() => (
   selected.value === today.value ? "Today" : selected.value === addDays(today.value, -1) ? "Yesterday" : weekday(selected.value)
 ));
+const foodTitle = computed(() => {
+  if (selected.value === today.value) return "Foods today";
+  if (selected.value === addDays(today.value, -1)) return "Foods yesterday";
+  return `Foods ${weekday(selected.value)}`;
+});
 function pick(day: string) {
   selected.value = day;
 }
@@ -164,8 +169,8 @@ const weekRows = computed(() => {
             <Icon name="right" :size="16" class="c3" />
           </button>
           <section v-if="layout === 'phone' && hasDay" class="card logc">
-            <span class="t-cap c3">Log · {{ shortDate(selected) }}</span>
-            <Timeline compact :date="selected" :today="today" :entries="entries" :pending="pending" />
+            <h2 class="foods t-label c2">{{ foodTitle }}</h2>
+            <Timeline home compact :date="selected" :today="today" :entries="entries" :pending="pending" />
           </section>
         </template>
 
@@ -249,11 +254,11 @@ const weekRows = computed(() => {
 
       <section v-if="layout !== 'phone' && ready" class="card logc c-c">
         <div class="row loghead">
-          <span class="t-cap c3">Log · {{ shortDate(selected) }}</span>
+          <h2 class="foods t-label c2">{{ foodTitle }}</h2>
           <span class="grow" />
           <RouterLink :to="logHref" class="t-label c2 more">Open log <Icon name="right" :size="14" /></RouterLink>
         </div>
-        <Timeline compact show-empty :date="selected" :today="today" :entries="entries" :pending="pending" />
+        <Timeline home compact show-empty :date="selected" :today="today" :entries="entries" :pending="pending" />
       </section>
     </div>
   </main>
@@ -283,6 +288,7 @@ const weekRows = computed(() => {
 .wm { width: 18px; flex: none; display: inline-flex; align-items: center; }
 .wst { width: 14px; flex: none; display: inline-flex; justify-content: center; }
 .loghead { min-height: 44px; align-items: center; }
+.foods { margin: 0; text-align: left; }
 .more { display: inline-flex; align-items: center; gap: calc(var(--space-gap) / 2); min-height: var(--control-hit); padding: 0 calc(var(--space-gap) / 2); text-decoration: none; color: var(--text-secondary); }
 .more:hover { color: var(--text-primary); }
 .wk { width: 3.4rem; text-align: right; flex: none; }

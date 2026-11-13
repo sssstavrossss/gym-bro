@@ -308,7 +308,8 @@ test("a touch screen at desktop width keeps swipe and the keypad", async ({ page
   expect(coarse.hover).toBe(false);
   expect(coarse.layout).toBe("three");
   await expect(page.locator("aside.side")).toBeVisible();
-  await expect(page.getByText(/Swipe left/)).toBeVisible();
+  await expect(page.getByText(/Swipe left/)).toHaveCount(0);
+  await expect(page.locator("main.today .swipe")).toBeVisible();
   await expect(page.locator(".hacts")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Copy Fictional touch bar to another day" })).toBeAttached();
 

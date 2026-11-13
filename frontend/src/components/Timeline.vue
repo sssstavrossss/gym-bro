@@ -13,7 +13,7 @@ import { loadGroups, readdSavedGroup, savedGroups } from "../state/groups";
 import { deviceTimeZone } from "../state/profile";
 import { openCopy, openEdit, openFood, startSelect, toast, ui } from "../ui";
 
-const props = defineProps<{ date: string; today: string; entries: LogEntry[]; pending: PendingAdd[]; compact?: boolean; showEmpty?: boolean }>();
+const props = defineProps<{ date: string; today: string; entries: LogEntry[]; pending: PendingAdd[]; compact?: boolean; showEmpty?: boolean; home?: boolean }>();
 const rows = computed(() => byTime(props.entries));
 const ordered = computed(() => rows.value.map((entry) => entry.id));
 const isToday = computed(() => props.date === props.today);
@@ -146,7 +146,7 @@ function onMenu(event: Event) {
       </template>
     </div>
     <template v-else>
-      <div v-if="rows.length && !ui.selecting" class="row selhead">
+      <div v-if="rows.length && !ui.selecting && !home" class="row selhead">
         <span class="grow" />
         <button type="button" class="chip t-label" @click="startSelect()">Select</button>
       </div>
@@ -214,7 +214,7 @@ function onMenu(event: Event) {
         <span class="cbtn fit addc" style="--s: var(--control-s-sm)" aria-hidden="true"><Icon name="plus" :size="13" :sw="2.4" /></span>
         <span class="t-body c2">{{ isToday ? "Add food" : `Add food to ${dayMonth(date)}` }}</span>
       </button>
-      <p v-if="rows.length && !ui.selecting" class="t-capn c3 tip">{{ hint }}</p>
+      <p v-if="rows.length && !ui.selecting && !home" class="t-capn c3 tip">{{ hint }}</p>
     </template>
   </div>
 </template>
