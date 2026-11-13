@@ -9,6 +9,7 @@ import { dayMonth, todayInZone } from "../lib/dates";
 import { amountError, amountLabel, defaultAmount, parseAmount, unitsForFood, type CatalogFood } from "../lib/foodAmount";
 import { acceptSearchResult, preparedSearch, searchDebounceMs } from "../lib/foodSearch";
 import { addNeedsTime, logTimeForAdd } from "../lib/foodSheet";
+import { bindPick, clickPick } from "../lib/cleanTap";
 import { armReplace, primeKeyboard, selectField } from "../lib/focusField";
 import { afterInsertion, markWholeSelection, nextQuickInput, nextQuickNumber, tookWholeSelection } from "../lib/quickEntry";
 import { keyboardEntry } from "../lib/viewport";
@@ -402,6 +403,12 @@ const searchRows = computed(() => (q.value.trim().length >= 2 ? results.value : 
   return !needle || `${food.name} ${food.brand ?? ""}`.toLowerCase().includes(needle);
 })));
 
+function pressIngredient(event: PointerEvent, food: FoodSearchRow) {
+  bindPick(event, () => { void chooseFood(food); });
+}
+function pickIngredient(event: MouseEvent, food: FoodSearchRow) {
+  clickPick(event, () => { void chooseFood(food); });
+}
 async function chooseFood(food: FoodSearchRow) {
   primeKeyboard();
   let current: CatalogFood = food;
@@ -552,7 +559,7 @@ async function addLog() {
         <input v-autofocus v-model="q" class="t-body grow" type="search" placeholder="Search foods" aria-label="Search foods" autocomplete="off" />
       </label>
       <p v-if="searching" class="t-label c2" role="status">Searching…</p>
-      <button v-for="food in searchRows" :key="food.id" type="button" class="rrow row" @click="chooseFood(food)">
+      <button v-for="food in searchRows" :key="food.id" type="button" class="rrow row" @pointerdown="pressIngredient($event, food)" @click="pickIngredient($event, food)">
         <span class="col grow rtext">
           <span class="t-body name">{{ food.name }}</span>
           <span class="t-label c2 facts">{{ foodFacts(food) }}</span>

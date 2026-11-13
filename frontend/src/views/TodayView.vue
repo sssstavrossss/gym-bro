@@ -15,7 +15,6 @@ import WeightChart from "../components/WeightChart.vue";
 import { addDays, dayNum, longDate, shortDate, todayInZone, weekday, weekdayShort, weekStart } from "../lib/dates";
 import { int, kg } from "../lib/format";
 import { screenLayoutFromFlags } from "../lib/layout";
-import { macroStatus } from "../lib/macros";
 import { freshDismissed, goalDismissed, promptState } from "../lib/prompts";
 import { isManualTarget } from "../lib/manualTarget";
 import { judgeWeekDay } from "../lib/weekCard";
@@ -71,20 +70,11 @@ watch(selected, (value) => { void loadDay(value); }, { immediate: true });
 const ready = computed(() => viewed.loaded && viewed.date === selected.value && !viewed.loading);
 const entries = computed(() => (ready.value ? viewed.entries : []));
 const pending = computed(() => pendingFor(selected.value));
-const eaten = computed(() => totalsOf(entries.value));
 const goal = computed(() => (ready.value ? viewed.target : null));
 const hasDay = computed(() => entries.value.length > 0 || pending.value.length > 0);
-const left = computed(() => (goal.value ? goal.value.kcal - eaten.value.kcal : 0));
-const kcalStatus = computed(() => (goal.value && hasDay.value ? macroStatus("kcal", eaten.value.kcal, goal.value.kcal) : "under"));
 const title = computed(() => (
   selected.value === today.value ? "Today" : selected.value === addDays(today.value, -1) ? "Yesterday" : weekday(selected.value)
 ));
-const kcalLabel = computed(() => {
-  if (!goal.value) return `${int(eaten.value.kcal)} kcal eaten, no target on this day`;
-  const side = left.value >= 0 ? `${int(left.value)} left` : `${int(-left.value)} over`;
-  const status = kcalStatus.value === "hit" ? ", on target" : kcalStatus.value === "over" ? ", over target" : "";
-  return `${title.value}: ${int(eaten.value.kcal)} of ${int(goal.value.kcal)} kcal, ${side}${status}`;
-});
 function pick(day: string) {
   selected.value = day;
 }
@@ -102,7 +92,6 @@ watch(
   },
   { immediate: true },
 );
-const manualSelected = computed(() => ready.value && viewed.date === selected.value && isManualTarget(viewed.target?.reasons));
 const weekHasManual = computed(() => weekRows.value.some((row) => !row.future && row.manual));
 const logHref = computed(() => `/log/${selected.value}`);
 const weekRows = computed(() => {
@@ -159,33 +148,12 @@ const weekRows = computed(() => {
         <FreshStart v-if="showFresh && selected === today" />
         <GoalReached v-if="showGoal && selected === today" />
 
-        <section v-if="!ready" class="card kcal" aria-busy="true" aria-label="Loading today">
-          <span class="sk tall" />
+        <section v-if="!ready" class="card macros" aria-busy="true" aria-label="Loading today">
+          <span class="sk" />
           <span class="sk" />
         </section>
         <template v-else>
-          <section v-if="!goal" class="card kcal">
-            <span class="home-kcal num" data-num>{{ int(eaten.kcal) }}</span>
-            <span class="t-label c2">kcal eaten · no target on this day</span>
-          </section>
-          <section v-else class="card kcal" :class="{ isover: kcalStatus === 'over' }" role="group" :aria-label="kcalLabel">
-            <div class="row end">
-              <div class="col">
-                <span class="home-kcal num" data-num>{{ int(Math.abs(left)) }}</span>
-                <span class="row gap8 tags">
-                  <span class="t-label c2">{{ left >= 0 ? "kcal left" : "kcal over" }}</span>
-                  <span v-if="kcalStatus === 'over'" class="overtag t-capn">Over target</span>
-                  <span v-else-if="kcalStatus === 'hit'" class="hittag t-capn"><Icon name="check" :size="11" :sw="3" aria-hidden="true" /> On target ±5 %</span>
-                </span>
-              </div>
-              <span class="grow" />
-              <div class="col right gap8">
-                <div class="col right"><span class="t-ns" data-num>{{ int(eaten.kcal) }}</span><span class="t-capn c3">eaten</span></div>
-                <div class="col right"><span class="t-ns" data-num>{{ int(goal.kcal) }}</span><span class="row tgl"><ManualTag v-if="manualSelected" /><span class="t-capn c2">{{ selected === today ? "target" : "that day's target" }}</span></span></div>
-              </div>
-            </div>
-          </section>
-          <MacroBars :target="goal" :totals="eaten" :label="selected === today ? 'Today\'s macros' : 'That day\'s macros'" />
+          <MacroBars :target="goal" :totals="totalsOf(entries)" :label="selected === today ? 'Today\'s macros' : 'That day\'s macros'" />
           <button v-if="layout === 'phone' && !hasDay" type="button" class="card prompt row" @click="openFood('search', selected)">
             <span class="pic"><Icon name="plus" :size="18" :sw="2.6" /></span>
             <span class="col grow">
@@ -325,20 +293,12 @@ const weekRows = computed(() => {
 .gap6 { gap: 6px; }
 .gap8 { gap: 8px; }
 .m0 { margin: 0; }
-.kcal { padding: 20px 16px; gap: 4px; min-width: 0; max-width: 100%; }
-.home-kcal { font-size: min(2.4rem, 48px); line-height: 1.08; font-weight: 700; letter-spacing: -0.03em; }
 .today { min-width: 0; max-width: 100%; }
-.end { align-items: flex-end; flex-wrap: wrap; }
-.right { align-items: flex-end; }
-.tags { flex-wrap: wrap; }
-.overtag { padding: 2px 7px; border-radius: 6px; border: 1px dashed var(--text-secondary); color: var(--text-secondary); }
-.hittag { display: inline-flex; align-items: center; gap: 4px; padding: 2px 7px; border-radius: 6px; background: var(--color-surface-2); color: var(--text-primary); }
 .prompt { flex-direction: row; align-items: center; gap: 12px; text-align: left; width: 100%; min-width: 0; }
 .pic { width: var(--control-s); height: var(--control-s); border-radius: 50%; background: var(--color-action); color: var(--color-on-action); display: flex; align-items: center; justify-content: center; flex: none; }
 .sk { display: block; height: 12px; width: 40%; border-radius: 6px; background: var(--color-surface-2); }
-.sk.tall { height: 40px; width: 55%; border-radius: 10px; }
 .logc { min-width: 0; }
-.home-kcal, [data-num] { max-width: 100%; overflow-wrap: anywhere; }
+[data-num] { max-width: 100%; overflow-wrap: anywhere; }
 .wcard, .wbig { position: relative; }
 .stretch { position: absolute; inset: 0; z-index: 1; }
 .wcard > :not(.stretch),

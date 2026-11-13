@@ -60,6 +60,7 @@ import {
 } from "../lib/foodSheet";
 import { quickAddFoodWrite } from "../lib/customFood";
 import { kcalFromMacros, macroStatus } from "../lib/macros";
+import { bindPick, clickPick } from "../lib/cleanTap";
 import { afterInsertion, markWholeSelection, nextQuickInput, nextQuickNumber, tookWholeSelection } from "../lib/quickEntry";
 import { keyboardEntry } from "../lib/viewport";
 import { deviceTimeZone, profile } from "../state/profile";
@@ -329,6 +330,12 @@ function showFood(food: FoodSearchRow, preset?: { amount: number; unit: string }
   saveError.value = false;
   idempotencyKey.value = "";
   resetServingForm();
+}
+function pickFood(event: MouseEvent, food: FoodSearchRow, preset?: { amount: number; unit: string }) {
+  clickPick(event, () => { void openFoodRow(food, preset); });
+}
+function pressFood(event: PointerEvent, food: FoodSearchRow, preset?: { amount: number; unit: string }) {
+  bindPick(event, () => { void openFoodRow(food, preset); });
 }
 async function openFoodRow(food: FoodSearchRow, preset?: { amount: number; unit: string }) {
   primeKeyboard();
@@ -1306,7 +1313,7 @@ async function deleteEdited() {
             <button type="button" class="chip on t-label" @click="openNewFood()"><Icon name="plus" :size="14" :sw="2.4" /> Create a food</button>
           </div>
           <div v-for="(food, index) in mineListed" :key="food.id" class="rrow row" :class="{ hl: keyboardEntry && index === hi }" @mouseenter="hi = index">
-            <button type="button" class="col grow rtext" @pointerdown="openFoodRow(food)" @click="openFoodRow(food)">
+            <button type="button" class="col grow rtext" @pointerdown="pressFood($event, food)" @click="pickFood($event, food)">
               <span class="t-body ell">{{ food.name }}</span>
               <span class="t-label c2 ell">{{ rowSub(food) }}</span>
             </button>
@@ -1324,7 +1331,7 @@ async function deleteEdited() {
             <span class="t-capn c2">{{ keyboardEntry ? recentHintKeys : recentHintTouch }}</span>
           </div>
           <div v-for="(food, index) in recents" :key="food.id" class="rrow row" :class="{ hl: keyboardEntry && index === hi }" @mouseenter="hi = index">
-            <button type="button" class="col grow rtext" @click="openFoodRow(food, { amount: food.amount, unit: food.unit })">
+            <button type="button" class="col grow rtext" @pointerdown="pressFood($event, food, { amount: food.amount, unit: food.unit })" @click="pickFood($event, food, { amount: food.amount, unit: food.unit })">
               <span class="row gap6 nm"><span class="t-body ell">{{ food.name }}</span><span v-if="isMyFood(food)" class="mine t-capn">my food</span></span>
               <span class="t-label c2 ell">{{ withBrand(food.brand, recentSubtitle(food, food.amount, food.unit)) }}</span>
             </button>
@@ -1344,14 +1351,14 @@ async function deleteEdited() {
             <button v-if="trimmedQuery.length >= 2" type="button" class="chip" @click="runSearch(trimmedQuery)">Try again</button>
           </div>
           <div v-if="results.length" class="row lhead"><span class="t-cap c2">Results</span></div>
-          <button v-for="(food, index) in results" :key="food.id" type="button" class="rrow row" :class="{ hl: keyboardEntry && index === hi }" @pointerdown="openFoodRow(food)" @click="openFoodRow(food)" @mouseenter="hi = index">
+          <button v-for="(food, index) in results" :key="food.id" type="button" class="rrow row" :class="{ hl: keyboardEntry && index === hi }" @pointerdown="pressFood($event, food)" @click="pickFood($event, food)" @mouseenter="hi = index">
             <span class="col grow rtext">
               <span class="row gap6 nm"><span class="t-body ell">{{ food.name }}</span><span v-if="isMyFood(food)" class="mine t-capn">my food</span></span>
               <span class="t-label c2 ell">{{ rowSub(food) }}</span>
             </span>
           </button>
           <div v-if="off.results.length" class="row lhead"><span class="t-cap c2">Open Food Facts</span></div>
-          <button v-for="food in off.results" :key="food.id" type="button" class="rrow row" @click="openFoodRow(food)">
+          <button v-for="food in off.results" :key="food.id" type="button" class="rrow row" @pointerdown="pressFood($event, food)" @click="pickFood($event, food)">
             <span class="col grow rtext">
               <span class="t-body ell">{{ food.name }}</span>
               <span class="t-label c2 ell">{{ rowSub(food) }}</span>

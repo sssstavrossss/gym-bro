@@ -35,7 +35,7 @@ test("home, progress, pads, search, and recalculate preview on an iPhone", async
   const pad = await page.locator("main.today").evaluate((el) => parseFloat(getComputedStyle(el).paddingTop));
   const safe = await page.locator("[data-safe-top]").evaluate((el) => parseFloat(getComputedStyle(el).height));
   expect(pad).toBeGreaterThanOrEqual(62);
-  expect(safe).toBeGreaterThanOrEqual(62);
+  expect(safe).toBeCloseTo(54, 0);
   const title = page.getByRole("heading", { name: "Today", exact: true });
   await expect(title).toHaveClass(/sr-only/);
   const titleBox = await title.boundingBox();

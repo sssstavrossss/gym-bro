@@ -172,9 +172,7 @@ test("today empty, quick add, on target, edit, undo, and no sideways scroll", as
   await foodSheet(page).getByRole("button", { name: /Add · .*kcal/ }).click();
   await expect(page.getByText(/Added Fictional bar/)).toBeVisible();
   await foodSheet(page).getByRole("button", { name: "Close", exact: true }).click();
-  await expect(page.getByText("On target ±5 %")).toBeVisible();
-  await expect(page.getByText("kcal left").or(page.getByText("kcal over"))).toBeVisible();
-  await expect(page.getByRole("img", { name: /Calories/ })).toBeVisible();
+  await expect(page.getByRole("img", { name: /Calories.*on target/ })).toBeVisible();
   await expect(page.locator("button.frow").filter({ hasText: "Fictional bar" })).toBeVisible();
   await expectNoSideScroll(page);
   await expectClean(page);
@@ -189,7 +187,7 @@ test("today empty, quick add, on target, edit, undo, and no sideways scroll", as
   await expectTouchTarget(deleteButton);
   await macroField(page, "Calories").fill(String(target + 500));
   await foodSheet(page).getByRole("button", { name: /Save ·/ }).click();
-  await expect(page.getByText("Over target")).toBeVisible();
+  await expect(page.getByRole("img", { name: /Calories.*, over/ })).toBeVisible();
   await expect(page.getByText(/over/).first()).toBeVisible();
 
   await page.locator("button.frow").filter({ hasText: "Fictional bar" }).click();
@@ -264,7 +262,7 @@ test("kcal and macro numbers stay whole at the largest text size", async ({ page
     document.documentElement.style.fontSize = "53px";
     window.dispatchEvent(new Event("resize"));
   });
-  await expect(page.getByText("kcal left").or(page.getByText("kcal over"))).toBeVisible();
+  await expect(page.getByRole("img", { name: /Calories/ })).toBeVisible();
   await expectNumbersWhole(page);
   await expectNoSideScroll(page);
   await expectTouchTarget(page.locator("button.frow").filter({ hasText: "Quick add" }));
