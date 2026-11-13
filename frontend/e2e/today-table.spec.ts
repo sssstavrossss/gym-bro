@@ -92,13 +92,15 @@ test("the today log keeps its columns when a name and the calories are wide", as
 
     const measured = await rows.evaluateAll((nodes) => nodes.map((node) => {
       const name = node.querySelector(".name");
+      const block = node.querySelector(".two");
       const time = node.querySelector(".time");
       const kcal = node.querySelector(".kc");
-      if (!(name instanceof HTMLElement) || !(time instanceof HTMLElement) || !(kcal instanceof HTMLElement)) return null;
+      if (!(name instanceof HTMLElement) || !(block instanceof HTMLElement) || !(time instanceof HTMLElement) || !(kcal instanceof HTMLElement)) return null;
       const line = node.closest(".line");
       const dot = line?.querySelector(".dot");
       if (!(dot instanceof HTMLElement)) return null;
       const nameBox = name.getBoundingClientRect();
+      const blockBox = block.getBoundingClientRect();
       const timeBox = time.getBoundingClientRect();
       const kcalBox = kcal.getBoundingClientRect();
       const dotBox = dot.getBoundingClientRect();
@@ -112,9 +114,10 @@ test("the today log keeps its columns when a name and the calories are wide", as
         timeLeft: Math.round(timeBox.left),
         timeTop: Math.round(timeBox.top),
         timeMid: timeBox.top + timeBox.height / 2,
+        blockMid: blockBox.top + blockBox.height / 2,
         dotMid: dotBox.top + dotBox.height / 2,
         kcalRight: Math.round(kcalBox.right),
-        kcalTop: Math.round(kcalBox.top),
+        kcalMid: kcalBox.top + kcalBox.height / 2,
         nameTop: Math.round(nameBox.top),
         clipped: name.scrollWidth > name.clientWidth + 1,
         whiteSpace: nameStyle.whiteSpace,
@@ -126,8 +129,8 @@ test("the today log keeps its columns when a name and the calories are wide", as
     }));
     expect(measured.every((row) => row !== null)).toBe(true);
     const cast = measured as {
-      rowHeight: number; nameLeft: number; nameHeight: number; timeLeft: number; timeTop: number; timeMid: number; dotMid: number;
-      kcalRight: number; kcalTop: number; nameTop: number; clipped: boolean;
+      rowHeight: number; nameLeft: number; nameHeight: number; timeLeft: number; timeTop: number; timeMid: number; blockMid: number; dotMid: number;
+      kcalRight: number; kcalMid: number; nameTop: number; clipped: boolean;
       whiteSpace: string; overflowWrap: string; textOverflow: string; figures: string; align: string;
     }[];
     const [tall, short] = cast[0].nameHeight >= cast[1].nameHeight ? [cast[0], cast[1]] : [cast[1], cast[0]];
@@ -140,8 +143,8 @@ test("the today log keeps its columns when a name and the calories are wide", as
     expect(tall.whiteSpace).not.toBe("nowrap");
     expect(tall.overflowWrap).toBe("anywhere");
     expect(tall.textOverflow).not.toBe("ellipsis");
-    expect(Math.abs(tall.kcalTop - tall.nameTop)).toBeLessThanOrEqual(6);
-    expect(Math.abs(tall.timeTop - tall.nameTop)).toBeLessThanOrEqual(6);
+    expect(Math.abs(tall.kcalMid - tall.blockMid)).toBeLessThanOrEqual(2);
+    expect(Math.abs(tall.timeMid - tall.blockMid)).toBeLessThanOrEqual(2);
     expect(Math.abs(tall.dotMid - tall.timeMid)).toBeLessThanOrEqual(2);
     expect(cast.every((row) => row.figures.includes("tabular-nums"))).toBe(true);
     expect(cast.every((row) => row.align === "right")).toBe(true);

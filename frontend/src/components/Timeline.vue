@@ -225,13 +225,10 @@ function onMenu(event: Event) {
 .entries > .pending:not(:first-child),
 .entries > :deep(.swipe:not(:first-child)) { border-top: 1px solid var(--color-border); }
 .line {
-  position: relative; display: flex; align-items: center; gap: 2px;
+  position: relative; display: flex; align-items: center; gap: calc(var(--space-gap) / 2);
   width: 100%; min-height: 52px; min-width: 0; max-width: 100%; box-sizing: border-box;
   border-radius: 0; overflow: hidden; -webkit-touch-callout: none; user-select: none;
-  transition: gap .18s ease;
 }
-/* The mark already occupies its slot. A 100% row beside it would grow past the card. */
-.tl.selecting .line { gap: calc(var(--space-gap) / 2); }
 .line.sel { background: color-mix(in srgb, var(--text-primary) 7%, transparent); }
 .frow {
   min-height: 52px; flex: 1 1 0%; min-width: 0; width: auto; max-width: 100%; text-align: left;
@@ -257,20 +254,18 @@ function onMenu(event: Event) {
 .addrow { min-height: var(--control-hit); gap: var(--space-gap); align-items: center; text-align: left; margin-top: 8px; }
 .addc { pointer-events: none; }
 .mark { position: relative; width: 44px; height: 44px; flex: none; }
-/* The hit target stays 44px. The dot sits in the vertical centre of that target. */
+/* 16px outline in the 44px hit. Same diameter at rest, on hover, and in select mode. */
 .dot, .tick {
-  position: absolute; left: auto; right: 2px; top: 50%;
-  transform: translate(0, -50%);
-  transition: width .18s ease, height .18s ease, background .18s ease, box-shadow .18s ease, right .18s ease, left .18s ease, transform .18s ease;
+  position: absolute; left: 50%; top: 50%;
+  width: 16px; height: 16px;
+  transform: translate(-50%, -50%);
 }
-.dot { width: 8px; height: 8px; border-radius: 4px; background: var(--text-tertiary); }
-.tick { color: var(--color-on-action); opacity: 0; }
-/* In select mode the 22px circle owns the centre of the 44px slot, clear of the time. */
-.selecting .dot, .selecting .tick, .mark.on .dot, .mark.on .tick {
-  left: 50%; right: auto; transform: translate(-50%, -50%);
+.dot {
+  border-radius: 8px; background: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--text-tertiary);
+  transition: background .18s ease, box-shadow .18s ease;
 }
-.selecting .dot, .mark.on .dot { width: 22px; height: 22px; border-radius: 11px; }
-.selecting .dot { background: transparent; box-shadow: inset 0 0 0 1.5px var(--text-tertiary); }
+.tick { color: var(--color-on-action); opacity: 0; transition: opacity .18s ease; }
 .mark.on .dot { background: var(--color-action); box-shadow: none; }
 .mark.on .tick { opacity: 1; }
 .hacts { position: absolute; right: 0; top: 0; bottom: 0; gap: 4px; align-items: center; opacity: 0; pointer-events: none; }
@@ -289,9 +284,6 @@ function onMenu(event: Event) {
   .line:hover .hacts, .line:focus-within .hacts { opacity: 1; pointer-events: auto; }
   .line:hover .kc, .line:focus-within .kc { opacity: 0; }
   .line:hover .mark { cursor: pointer; }
-  .line:hover .dot, .line:hover .tick { left: 50%; right: auto; transform: translate(-50%, -50%); }
-  .line:hover .dot { width: 22px; height: 22px; border-radius: 11px; background: transparent; box-shadow: inset 0 0 0 1.5px var(--text-secondary); }
-  .line:hover .mark.on .dot { background: var(--color-action); box-shadow: none; }
 }
 .empty { align-items: center; text-align: center; gap: 8px; padding: 28px 16px; border-radius: var(--radius-card); border: 1px dashed var(--color-border); }
 .eic { width: var(--control-s); height: var(--control-s); border-radius: 50%; background: var(--color-surface-2); display: flex; align-items: center; justify-content: center; color: var(--text-secondary); }

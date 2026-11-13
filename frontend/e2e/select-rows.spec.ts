@@ -48,6 +48,7 @@ test("select mode keeps food rows inside the list and gives the check its own sl
   const resting = await frame(page);
   if (test.info().project.name === "chromium") {
     await page.screenshot({ path: "/opt/cursor/artifacts/iphone40-bars-tab.png", clip: { x: 0, y: 704, width: 390, height: 140 } });
+    await page.screenshot({ path: "/opt/cursor/artifacts/iphone40-row-rest.png" });
   }
 
   await page.getByRole("button", { name: "Select", exact: true }).click();
@@ -74,7 +75,7 @@ test("select mode keeps food rows inside the list and gives the check its own sl
   if (test.info().project.name === "chromium") {
     await page.screenshot({ path: "/opt/cursor/artifacts/iphone40-bars-select.png", clip: { x: 0, y: 704, width: 390, height: 140 } });
   }
-  await expect.poll(() => oats.locator(".dot").evaluate((el) => el.getBoundingClientRect().width)).toBeCloseTo(22, 0);
+  await expect.poll(() => oats.locator(".dot").evaluate((el) => el.getBoundingClientRect().width)).toBeCloseTo(16, 0);
 
   await expectRow(oats, roll, before);
   await expectCentered(oats);
@@ -82,6 +83,7 @@ test("select mode keeps food rows inside the list and gives the check its own sl
   await expectFlush(page.locator("main"));
   if (test.info().project.name === "chromium") {
     await page.screenshot({ path: "/opt/cursor/artifacts/iphone40-select-log.png" });
+    await page.screenshot({ path: "/opt/cursor/artifacts/iphone40-row-select.png" });
   }
 
   await page.getByRole("button", { name: "Cancel", exact: true }).click();
@@ -105,7 +107,7 @@ test("select mode keeps food rows inside the list and gives the check its own sl
   });
   await page.waitForTimeout(520);
   await expect(page.getByRole("toolbar", { name: "Selected entries" })).toBeVisible();
-  await expect.poll(() => homeOats.locator(".dot").evaluate((el) => el.getBoundingClientRect().width)).toBeCloseTo(22, 0);
+  await expect.poll(() => homeOats.locator(".dot").evaluate((el) => el.getBoundingClientRect().width)).toBeCloseTo(16, 0);
   const card = await page.locator("main.today .logc").boundingBox();
   const homeLine = await homeOats.boundingBox();
   expect(card).toBeTruthy();
@@ -233,8 +235,8 @@ async function expectRow(selected: Locator, other: Locator, previousRight?: numb
   if (box.otherW != null) expect(Math.abs(box.lineW - box.otherW)).toBeLessThanOrEqual(1);
   expect(box.markW).toBeGreaterThanOrEqual(44);
   expect(box.markH).toBeGreaterThanOrEqual(44);
-  expect(box.dotW).toBeCloseTo(22, 0);
-  expect(box.dotH).toBeCloseTo(22, 0);
+  expect(box.dotW).toBeCloseTo(16, 0);
+  expect(box.dotH).toBeCloseTo(16, 0);
   expect(box.timeL - box.dotR).toBeGreaterThanOrEqual(6);
   expect(box.bg).toBe("rgb(255, 255, 255)");
   expect(box.shadow).toBe("none");
@@ -243,7 +245,7 @@ async function expectRow(selected: Locator, other: Locator, previousRight?: numb
     const style = getComputedStyle(el);
     return { bg: style.backgroundColor, shadow: style.boxShadow, width: parseFloat(style.width) };
   });
-  expect(open.width).toBeCloseTo(22, 0);
+  expect(open.width).toBeCloseTo(16, 0);
   expect(open.bg).toBe("rgba(0, 0, 0, 0)");
   expect(open.shadow).toContain("inset");
 }
