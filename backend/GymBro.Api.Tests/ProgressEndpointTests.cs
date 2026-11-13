@@ -71,6 +71,8 @@ public sealed class ProgressEndpointTests(ApiFactory factory)
         Assert.Equal(400m, logged.GetProperty("kcal").GetDecimal());
         Assert.Equal(40m, logged.GetProperty("protein").GetDecimal());
         Assert.True(logged.GetProperty("targetKcal").GetInt32() > 0);
+        Assert.Equal(84.00m, logged.GetProperty("trendKg").GetDecimal());
+        Assert.Equal(83.94m, Day(days, "2026-11-10").GetProperty("trendKg").GetDecimal());
     }
 
     [Fact]

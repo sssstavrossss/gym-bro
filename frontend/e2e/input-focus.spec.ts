@@ -60,6 +60,7 @@ async function openFood(page: Page, width: number) {
     await page.getByRole("button", { name: "Add", exact: true }).click();
     await page.getByRole("dialog", { name: "Add" }).getByRole("button", { name: /Search or quick add/ }).click();
   }
+  await sheet(page).getByRole("searchbox", { name: "Search foods" }).blur();
   await expect(sheet(page).getByRole("heading", { name: "Add food" })).toBeVisible();
 }
 

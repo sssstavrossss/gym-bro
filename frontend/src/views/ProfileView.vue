@@ -14,6 +14,13 @@ import { unreadCount } from "../lib/recalculate";
 import { inbox, refreshInbox } from "../state/inbox";
 import { openRecalculate, openWeight } from "../ui";
 import { vp } from "../lib/viewport";
+import { applyTheme, readTheme, themes, type ThemeId } from "../lib/theme";
+
+const theme = ref<ThemeId>(readTheme());
+function chooseTheme(id: ThemeId) {
+  theme.value = id;
+  applyTheme(id);
+}
 
 const notes = ref<NotificationSettings | null>(null);
 const noteError = ref("");
@@ -153,6 +160,15 @@ async function onSignOut() {
 
     <div class="pgrid" :class="{ two: vp.tablet, desk: vp.desktop }">
       <div class="pcol">
+        <section class="card" aria-labelledby="theme-h">
+          <h2 id="theme-h" class="t-label c2">Theme</h2>
+          <div class="themes" role="radiogroup" aria-label="Theme">
+            <button v-for="item in themes" :key="item.id" type="button" role="radio" class="theme" :aria-checked="theme === item.id" @click="chooseTheme(item.id)">
+              <span class="swatch" :style="{ background: item.background }" aria-hidden="true"></span>
+              <span class="t-label">{{ item.label }}</span>
+            </button>
+          </div>
+        </section>
         <section class="card about">
           <span class="t-label c2 about-kicker">About you</span>
           <div class="frow sexrow">
@@ -311,9 +327,7 @@ async function onSignOut() {
           </div>
         </section>
 
-        <p v-if="profile.citation" class="t-label c2">{{ profile.citation }}</p>
-        <p v-if="profile.openFoodFacts" class="t-label c2">{{ profile.openFoodFacts }}</p>
-        <button v-if="boot.config" type="button" class="t-label c2 signout" @click="onSignOut">Sign out</button>
+        <button type="button" class="chip t-label signout" @click="onSignOut">Sign out</button>
       </div>
     </div>
     <p v-if="profile.error" class="alert" role="alert">{{ profile.error }}</p>
@@ -350,7 +364,15 @@ async function onSignOut() {
 .desk.pgrid { grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 24px; }
 .two .frow, .desk .frow { min-width: 0; }
 .two .tz, .desk .tz { width: min(180px, 100%); max-width: 100%; }
-.signout { align-self: flex-start; min-height: 44px; }
+.signout { align-self: flex-start; }
+.themes { display: flex; flex-wrap: wrap; gap: var(--space-gap); }
+.theme {
+  min-height: var(--control-hit); min-width: var(--control-hit);
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 0 var(--space-gap); border-radius: 12px; background: var(--color-surface-2); color: var(--text-primary);
+}
+.theme[aria-checked="true"] { box-shadow: inset 0 0 0 1.5px var(--text-primary); }
+.swatch { width: 14px; height: 14px; border-radius: 4px; box-shadow: inset 0 0 0 1px var(--color-border-strong); flex: none; }
 h2 { margin: 0; }
 /* xxxL and up: label on top, value under it, left-aligned. A value never splits from its unit. */
 .dt-l .about-kicker { font-size: 0.6471rem; line-height: 0.8235rem; font-weight: 500; letter-spacing: 0.04em; text-transform: uppercase; }

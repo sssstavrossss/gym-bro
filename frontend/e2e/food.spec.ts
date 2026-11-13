@@ -56,7 +56,7 @@ async function openToday(page: Page, oid: string, width: number) {
   await page.setViewportSize({ width, height: width >= 1024 ? 900 : 844 });
   await sign(page, oid);
   await page.goto("/today");
-  await expect(page.getByRole("heading", { name: "Today", exact: true })).toBeVisible();
+  await expect(page.getByRole("main", { name: "Today" })).toBeVisible();
 }
 
 async function expectClean(page: Page) {
@@ -126,6 +126,7 @@ async function openQuickAdd(page: Page, width: number) {
     await page.getByRole("dialog", { name: "Add" }).getByRole("button", { name: /Search or quick add/ }).click();
   }
   await expect(page.getByRole("dialog", { name: "Add", exact: true })).toBeHidden();
+  await foodSheet(page).getByRole("searchbox", { name: "Search foods" }).blur();
   await expect(page.getByRole("heading", { name: "Add food" })).toBeVisible();
   await foodSheet(page).getByRole("radio", { name: "Quick Add" }).click();
   await expect(page.getByRole("radio", { name: "Quick Add" })).toBeChecked();
@@ -200,7 +201,7 @@ test("today empty, quick add, on target, edit, undo, and no sideways scroll", as
 
   for (const width of widths) {
     await page.setViewportSize({ width, height: width >= 1024 ? 900 : 844 });
-    await expect(page.getByRole("heading", { name: "Today", exact: true })).toBeVisible();
+    await expect(page.getByRole("main", { name: "Today" })).toBeVisible();
     if (width < 600) await expect(page.locator(".wbig")).toHaveCount(0);
     else await expect(page.locator(".wbig")).toBeVisible();
     await expectNoSideScroll(page);

@@ -33,9 +33,9 @@ watch([() => ui.toast?.id ?? 0, parked], () => {
 .toast {
   position: absolute; left: 16px; right: 16px; bottom: calc(var(--tabbar-h) + 12px); z-index: 60;
   display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: 14px;
-  background: #1a1a1c; color: #fff; box-shadow: 0 10px 30px rgba(0,0,0,.5); max-width: calc(100% - 32px);
+  background: var(--color-surface); color: var(--text-primary); box-shadow: 0 10px 30px rgba(0,0,0,.5); max-width: calc(100% - 32px);
 }
-.msg { color: #fff; background: #1a1a1c; overflow-wrap: anywhere; }
+.msg { color: var(--text-primary); background: var(--color-surface); overflow-wrap: anywhere; }
 /* Above the sheet, in the gap the sheet header leaves open. Safe area stays below the clock. */
 .toast.top {
   bottom: auto; top: calc(var(--sat) + 8px); z-index: 70;
@@ -45,7 +45,7 @@ watch([() => ui.toast?.id ?? 0, parked], () => {
 .is-desktop .toast { left: 264px; right: auto; bottom: 24px; width: 420px; }
 .toast.lift { bottom: calc(140px + max(var(--sab), 12px)); }
 .is-desktop .toast.lift { bottom: 140px; }
-.undo { color: #fff; min-height: 44px; min-width: 44px; padding: 2px 4px; }
+.undo { color: var(--color-action); min-height: 44px; min-width: 44px; padding: 2px 4px; }
 .toast-enter-active, .toast-leave-active { transition: opacity .2s, transform .2s; }
 .toast-enter-from { opacity: 1; transform: translateY(8px); }
 .toast-leave-to { opacity: 0; transform: translateY(8px); }

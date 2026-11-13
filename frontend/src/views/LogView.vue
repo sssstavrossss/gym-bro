@@ -137,7 +137,7 @@ async function onFasting(event: Event) {
 .tline.notg { padding: 8px 12px; border: 1px dashed var(--color-border-strong); border-radius: 10px; }
 .dayline { min-height: 44px; gap: 0; padding-top: 4px; }
 .done { gap: 12px; padding: 12px 14px; border-radius: var(--radius-card); background: var(--color-surface); cursor: pointer; align-items: flex-start; }
-.done input { width: 22px; height: 22px; margin: 1px 0 0; accent-color: #fff; flex: none; }
+.done input { width: 22px; height: 22px; margin: 1px 0 0; accent-color: var(--color-action); flex: none; }
 .ask { gap: 12px; padding: 14px; border-radius: var(--radius-card); border: 1px solid var(--color-border); background: var(--color-surface); }
 .askb { gap: 8px; }
 </style>

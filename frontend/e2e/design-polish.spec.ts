@@ -74,7 +74,7 @@ async function openToday(page: Page, oid: string, width: number) {
   await page.setViewportSize({ width, height: width === 390 ? 844 : 900 });
   await sign(page, oid);
   await page.goto("/today");
-  await expect(page.getByRole("heading", { name: "Today", exact: true })).toBeVisible();
+  await expect(page.getByRole("main", { name: "Today" })).toBeVisible();
 }
 
 async function ax5(page: Page) {
@@ -112,11 +112,11 @@ test("tokens, sex control, starting-weight hint, profile dot, and tab labels", a
         tertiary,
       };
     });
-    expect(tokens.secondaryToken).toBe("#b3b3ba");
-    expect(tokens.tertiaryToken).toBe("#9c9ca4");
-    expect(tokens.borderStrong).toBe("#737379");
-    expect(tokens.secondary).toBe("rgb(179, 179, 186)");
-    expect(tokens.tertiary).toBe("rgb(156, 156, 164)");
+    expect(tokens.secondaryToken).toBe("#b4b8c2");
+    expect(tokens.tertiaryToken).toBe("#8e93a0");
+    expect(tokens.borderStrong).toBe("#6e7482");
+    expect(tokens.secondary).toBe("rgb(180, 184, 194)");
+    expect(tokens.tertiary).toBe("rgb(142, 147, 160)");
 
     const sex = page.getByRole("radiogroup", { name: "Sex" });
     const male = sex.getByRole("radio", { name: "Male", exact: true });
@@ -137,7 +137,7 @@ test("tokens, sex control, starting-weight hint, profile dot, and tab labels", a
     await expect(page.getByText("Until you have 2 weigh-ins within 7 days, the trend shows a small grey dot: it's less accurate. Weigh in 2+ times a week, ideally each morning.")).toBeVisible();
     const dot = page.locator(".hint .odot");
     await expect(dot).toBeVisible();
-    await expect(dot).toHaveCSS("background-color", "rgb(179, 179, 186)");
+    await expect(dot).toHaveCSS("background-color", "rgb(180, 184, 194)");
   }
 
   const birthYear = String(new Date().getFullYear() - 36);
@@ -159,7 +159,7 @@ test("tokens, sex control, starting-weight hint, profile dot, and tab labels", a
     await expect(row).toBeVisible();
     const marker = row.locator(".accdot.static .d");
     await expect(marker).toBeVisible();
-    await expect(marker).toHaveCSS("background-color", "rgb(179, 179, 186)");
+    await expect(marker).toHaveCSS("background-color", "rgb(180, 184, 194)");
     await expect(row.locator("button")).toHaveCount(0);
     const profileSex = page.getByRole("radiogroup", { name: "Sex" });
     for (const name of ["Male", "Female"]) {
@@ -245,7 +245,7 @@ test("day kilograms, autosized input, 1 kg axis, and the typo confirmation", asy
     await page.getByRole("button", { name: "Save weight" }).click();
     const guard = page.getByRole("alertdialog");
     await expect(guard.getByRole("button", { name: "Yes, save 38.6 kg", exact: true })).toBeVisible();
-    await expect(guard).toHaveCSS("border-top-color", "rgb(115, 115, 121)");
+    await expect(guard).toHaveCSS("border-top-color", "rgb(110, 116, 130)");
     await page.getByRole("button", { name: "Fix it" }).click();
     await page.getByRole("button", { name: "Close", exact: true }).click();
   }
@@ -261,7 +261,7 @@ test("sparkline, trend explanation, and fresh-start borders", async ({ page }) =
     await openToday(page, oid, width);
     const card = page.locator(".fs");
     await expect(card).toBeVisible();
-    await expect(card).toHaveCSS("border-top-color", "rgb(115, 115, 121)");
+    await expect(card).toHaveCSS("border-top-color", "rgb(110, 116, 130)");
     const info = page.getByRole("button", { name: "What is the trend?" });
     await expect(info).toBeVisible();
     const hit = await info.boundingBox();
@@ -315,10 +315,14 @@ test("only weigh-in offers Edit, and one reading labels its own kilogram", async
     await edit.click();
     const field = sheet.getByRole("textbox", { name: "Weight in kilograms" });
     await expect(field).toBeFocused();
-    const selectedAll = await field.evaluate((input: HTMLInputElement) => (
-      input.value.length > 0 && input.selectionStart === 0 && input.selectionEnd === input.value.length
-    ));
-    expect(selectedAll).toBe(true);
+    const caret = await field.evaluate((input: HTMLInputElement) => ({
+      start: input.selectionStart,
+      end: input.selectionEnd,
+      length: input.value.length,
+    }));
+    expect(caret.length).toBeGreaterThan(0);
+    expect(caret.start).toBe(caret.length);
+    expect(caret.end).toBe(caret.length);
     await page.getByRole("button", { name: "Close", exact: true }).click();
   }
 });

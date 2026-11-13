@@ -96,7 +96,7 @@ test("Open log and the manual mark follow the stored target", async ({ page }) =
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/today");
-  await expect(page.getByRole("heading", { name: "Today", exact: true })).toBeVisible();
+  await expect(page.getByRole("main", { name: "Today" })).toBeVisible();
   await expect(page.getByText("Open log")).toHaveCount(0);
   const mark = page.getByLabel("Manual target, my own number");
   await expect(mark).toBeVisible();

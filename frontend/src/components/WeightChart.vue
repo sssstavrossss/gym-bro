@@ -75,12 +75,12 @@ const summary = computed(() => {
   <div ref="root" class="wchart">
     <div class="row plot">
       <svg :width="width" :height="height" :viewBox="`0 0 ${width} ${height}`" role="img" :aria-label="summary">
-        <line v-for="mark in data.grid" :key="mark" x1="0" :x2="width" :y1="data.py(mark)" :y2="data.py(mark)" stroke="#fff" stroke-opacity="0.07" />
+        <line v-for="mark in data.grid" :key="mark" x1="0" :x2="width" :y1="data.py(mark)" :y2="data.py(mark)" stroke="var(--text-primary)" stroke-opacity="0.07" />
         <template v-for="(point, index) in data.pts" :key="point.date">
-          <circle v-if="point.weighInKg != null" :cx="data.px(index)" :cy="data.py(point.weighInKg)" r="3" fill="#7DB1FF" fill-opacity="0.3" />
+          <circle v-if="point.weighInKg != null" :cx="data.px(index)" :cy="data.py(point.weighInKg)" r="3" fill="var(--chart-line)" fill-opacity="0.3" />
         </template>
-        <path :d="data.line" fill="none" stroke="#7DB1FF" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
-        <circle v-if="data.lastIdx >= 0" :cx="data.px(data.lastIdx)" :cy="data.py(data.pts[data.lastIdx].trendKg!)" r="4.5" fill="#7DB1FF" stroke="#26262A" stroke-width="2" />
+        <path :d="data.line" fill="none" stroke="var(--chart-line)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+        <circle v-if="data.lastIdx >= 0" :cx="data.px(data.lastIdx)" :cy="data.py(data.pts[data.lastIdx].trendKg!)" r="4.5" fill="var(--chart-line)" stroke="var(--color-surface-2)" stroke-width="2" />
       </svg>
       <div class="ylabels" :style="{ height: height + 'px' }">
         <span v-for="mark in data.grid" :key="mark" class="t-capn c2 ymark" :data-kg="kg(mark)" :style="{ top: data.py(mark) - 7 + 'px' }">{{ kg(mark) }}</span>

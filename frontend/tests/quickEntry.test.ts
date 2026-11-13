@@ -52,6 +52,11 @@ describe("quick-add re-entry", () => {
     expect(nextQuickInput("25", "3,5", true, 6)).toBe("3.5");
   });
 
+  it("keeps the decimal when a new weight is typed onto a decimal value", () => {
+    expect(nextQuickInput("84.0", "84.038.6", true, 6)).toBe("38.6");
+    expect(nextQuickInput("84.0", "38.684.0", true, 6)).toBe("38.6");
+  });
+
   it("does not change the stored value when the typed text is unchanged", () => {
     expect(nextQuickInput("25", "25", true, 6)).toBe("25");
   });

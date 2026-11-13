@@ -3,12 +3,15 @@ import { computed, ref, watch } from "vue";
 import { getFood, listMyFoods, searchFoods, type FoodSearchRow, type RecipeIngredient } from "../api";
 import BottomSheet from "./BottomSheet.vue";
 import Icon from "./Icon.vue";
+import Keypad from "./Keypad.vue";
 import TimeChip from "./TimeChip.vue";
 import { dayMonth, todayInZone } from "../lib/dates";
 import { amountError, amountLabel, defaultAmount, parseAmount, unitsForFood, type CatalogFood } from "../lib/foodAmount";
 import { acceptSearchResult, preparedSearch, searchDebounceMs } from "../lib/foodSearch";
 import { addNeedsTime, logTimeForAdd } from "../lib/foodSheet";
-import { primeKeyboard, selectField } from "../lib/focusField";
+import { armReplace, primeKeyboard, selectField } from "../lib/focusField";
+import { afterInsertion, markWholeSelection, nextQuickInput, nextQuickNumber, tookWholeSelection } from "../lib/quickEntry";
+import { keyboardEntry } from "../lib/viewport";
 import {
   cleanRecipeName,
   finishedError,
@@ -278,8 +281,78 @@ function selectAmount(event: FocusEvent) {
   if (event.target instanceof HTMLInputElement) selectField(event.target);
 }
 
+const padReplace = ref(false);
+const padTarget = ref<"log" | "pick" | "portions" | "finished" | "line" | null>(null);
+const padLine = ref<string | null>(null);
+
+function readPad(): string {
+  if (padTarget.value === "log") return logAmount.value;
+  if (padTarget.value === "pick") return pickAmount.value;
+  if (padTarget.value === "portions") return portionsText.value;
+  if (padTarget.value === "finished") return finishedText.value;
+  if (padTarget.value === "line") return lines.value.find((line) => line.key === padLine.value)?.amountText ?? "";
+  return "";
+}
+
+function writePad(next: string) {
+  if (padTarget.value === "log") logAmount.value = next;
+  else if (padTarget.value === "pick") pickAmount.value = next;
+  else if (padTarget.value === "portions") portionsText.value = next;
+  else if (padTarget.value === "finished") finishedText.value = next;
+  else if (padTarget.value === "line") {
+    const line = lines.value.find((item) => item.key === padLine.value);
+    if (line) line.amountText = next;
+  }
+}
+
+function onPadFocus(target: "log" | "pick" | "portions" | "finished" | "line", event: FocusEvent, lineKey?: string) {
+  padTarget.value = target;
+  padLine.value = lineKey ?? null;
+  padReplace.value = true;
+  if (event.target instanceof HTMLInputElement) armReplace(event.target);
+}
+
+function onPadKey(key: string) {
+  writePad(nextQuickNumber(readPad(), key, padReplace.value, 5));
+  padReplace.value = false;
+}
+
+function onPadInput(event: Event) {
+  const input = event.target as HTMLInputElement;
+  const replace = padReplace.value;
+  afterInsertion(input, (raw) => {
+    const next = nextQuickInput(readPad(), raw, replace && !tookWholeSelection(input), 8);
+    padReplace.value = false;
+    writePad(next);
+    if (input.value !== next) input.value = next;
+  });
+}
+
+function sourceLabel(source: string): string {
+  if (source === "custom") return "Your food";
+  if (source === "matvaretabellen") return "Matvaretabellen";
+  if (source === "kassalapp") return "Open Food Facts";
+  return source;
+}
+
+function foodFacts(food: CatalogFood): string {
+  const bits: string[] = [];
+  if (food.brand) bits.push(food.brand);
+  if (food.nutrientBasis === "per_100" && (food.basis === "g" || food.basis === "ml")) {
+    bits.push(`${recipeFigure(food.kcalPer100)} kcal per 100 ${food.basis}`);
+    bits.push(`P ${recipeMacro(food.proteinPer100)} · F ${recipeMacro(food.fatPer100)} · C ${recipeMacro(food.carbsPer100)}`);
+  } else if (food.nutrientBasis === "per_serving") {
+    bits.push(`${recipeFigure(food.kcalPer100)} kcal per serving`);
+    bits.push(`P ${recipeMacro(food.proteinPer100)} · F ${recipeMacro(food.fatPer100)} · C ${recipeMacro(food.carbsPer100)}`);
+  }
+  if (food.servingQuantity != null && food.servingLabel) bits.push(`${food.servingQuantity} ${food.servingLabel}`);
+  if (food.source) bits.push(sourceLabel(food.source));
+  return bits.join(" · ");
+}
+
 function backStep() {
   primeKeyboard();
+  padTarget.value = null;
   step.value = step.value === "amount" ? "search" : "form";
 }
 
@@ -458,7 +531,7 @@ async function addLog() {
       </div>
       <label class="field row">
         <span class="t-label c2">Amount</span>
-        <input v-autofocus v-model="logAmount" class="t-body grow num" inputmode="decimal" autocomplete="off" aria-label="Amount to log" />
+        <input v-autofocus :value="logAmount" data-replace="1" class="t-body grow num" :inputmode="keyboardEntry ? 'decimal' : 'none'" autocomplete="off" aria-label="Amount to log" @focus="onPadFocus('log', $event)" @beforeinput="markWholeSelection" @input="onPadInput" />
         <span class="t-label c2">{{ logUnit === "g" ? "g" : "portion" }}</span>
       </label>
       <div class="row units" role="radiogroup" aria-label="Log by">
@@ -468,6 +541,7 @@ async function addLog() {
       <div class="row chips">
         <button v-for="amount in logChips" :key="amount" type="button" class="chip t-label" @click="logAmount = String(amount)">{{ amountLabel(amount, logUnit === "g" ? "g" : "portion") }}</button>
       </div>
+      <div v-if="!keyboardEntry" class="pad" @mousedown.prevent><Keypad @key="onPadKey" /></div>
       <p v-if="logPreview" class="t-bodys">{{ recipeMacro(logPreview.protein) }} g protein in this log</p>
       <p v-else-if="logUnit === 'g'" class="t-label" role="status">This recipe has no finished weight, so it can't be logged in grams.</p>
     </div>
@@ -480,8 +554,8 @@ async function addLog() {
       <p v-if="searching" class="t-label c2" role="status">Searching…</p>
       <button v-for="food in searchRows" :key="food.id" type="button" class="rrow row" @click="chooseFood(food)">
         <span class="col grow rtext">
-          <span class="t-body ell">{{ food.name }}</span>
-          <span class="t-label c2 ell">{{ food.brand || (food.nutrientBasis === "per_serving" ? "per serving" : `per 100 ${food.basis === "ml" ? "ml" : "g"}`) }}</span>
+          <span class="t-body name">{{ food.name }}</span>
+          <span class="t-label c2 facts">{{ foodFacts(food) }}</span>
         </span>
       </button>
       <p v-if="!searching && !searchRows.length" class="t-label c2">No foods to add yet.</p>
@@ -490,7 +564,7 @@ async function addLog() {
     <div v-else-if="step === 'amount' && picked" class="stack" @focusin="reveal">
       <label class="field row">
         <span class="t-label c2">Amount</span>
-        <input v-autofocus v-model="pickAmount" class="t-body grow num" inputmode="decimal" autocomplete="off" :aria-label="`Amount of ${picked.name}`" />
+        <input v-autofocus :value="pickAmount" data-replace="1" class="t-body grow num" :inputmode="keyboardEntry ? 'decimal' : 'none'" autocomplete="off" :aria-label="`Amount of ${picked.name}`" @focus="onPadFocus('pick', $event)" @beforeinput="markWholeSelection" @input="onPadInput" />
         <span class="t-label c2">{{ pickUnit }}</span>
       </label>
       <div class="row units" role="radiogroup" :aria-label="`Unit for ${picked.name}`">
@@ -505,6 +579,7 @@ async function addLog() {
           @click="pickUnit = choice.unit"
         >{{ choice.label }}</button>
       </div>
+      <div v-if="!keyboardEntry" class="pad" @mousedown.prevent><Keypad @key="onPadKey" /></div>
       <p v-if="pickMacros" class="t-bodys" aria-live="polite">{{ recipeMacro(pickMacros.protein) }} g protein · {{ recipeFigure(pickMacros.kcal) }} kcal</p>
       <p v-else-if="pickProblem" class="t-label err" role="status">{{ pickProblem }}</p>
     </div>
@@ -517,13 +592,14 @@ async function addLog() {
       </label>
       <label class="field row">
         <span class="t-label c2">Portions</span>
-        <input v-model="portionsText" class="t-body grow num" inputmode="decimal" autocomplete="off" aria-label="Portions" placeholder="e.g. 5" @focus="selectAmount" />
+        <input :value="portionsText" data-replace="1" class="t-body grow num" :inputmode="keyboardEntry ? 'decimal' : 'none'" autocomplete="off" aria-label="Portions" placeholder="e.g. 5" @focus="onPadFocus('portions', $event)" @beforeinput="markWholeSelection" @input="onPadInput" />
       </label>
       <label class="field row">
         <span class="t-label c2">Finished weight</span>
-        <input v-model="finishedText" class="t-body grow num" inputmode="decimal" autocomplete="off" aria-label="Finished weight in grams, optional" placeholder="Optional, grams" @focus="selectAmount" />
+        <input :value="finishedText" data-replace="1" class="t-body grow num" :inputmode="keyboardEntry ? 'decimal' : 'none'" autocomplete="off" aria-label="Finished weight in grams, optional" placeholder="Optional, grams" @focus="onPadFocus('finished', $event)" @beforeinput="markWholeSelection" @input="onPadInput" />
       </label>
       <p class="t-label c2">Calories and macros are worked out from the foods. They update as you change ingredients, amounts, or portions.</p>
+      <div v-if="!keyboardEntry && padTarget" class="pad" @mousedown.prevent><Keypad @key="onPadKey" /></div>
       <button type="button" class="add-btn t-bodys" @click="openSearch">
         <Icon name="plus" :size="16" :sw="2.4" /> Add ingredient
       </button>
@@ -540,7 +616,7 @@ async function addLog() {
               <span v-else class="t-label err" role="status">{{ lineError(line) }}</span>
             </span>
             <label class="amt">
-              <input v-model="line.amountText" class="t-body num" inputmode="decimal" autocomplete="off" :aria-label="`Amount of ${line.name}`" :readonly="!line.available && !line.stored" @focus="selectAmount" />
+              <input :value="line.amountText" data-replace="1" class="t-body num" :inputmode="keyboardEntry ? 'decimal' : 'none'" autocomplete="off" :aria-label="`Amount of ${line.name}`" :readonly="!line.available && !line.stored" @focus="onPadFocus('line', $event, line.key)" @beforeinput="markWholeSelection" @input="onPadInput" />
               <span class="t-label c2">{{ line.unit }}</span>
             </label>
             <button type="button" class="cbtn" :aria-label="`Remove ${line.name}`" @click="removeLine(line.key)">
@@ -629,7 +705,8 @@ async function addLog() {
 .units, .chips { gap: 8px; flex-wrap: wrap; }
 .rrow { min-height: 56px; width: 100%; gap: 8px; padding: 6px 0; border: 0; border-bottom: 1px solid var(--color-border); background: transparent; text-align: left; }
 .rtext { gap: 2px; min-width: 0; align-items: flex-start; }
-.ell { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+.name, .facts { min-width: 0; white-space: normal; overflow-wrap: anywhere; }
+.pad { margin-top: var(--space-gap); }
 .err, .note, .need { margin: 0; }
 .add-btn {
   min-height: 44px; width: 100%; border-radius: var(--radius-control);

@@ -28,15 +28,14 @@ test("the weekly reminder shows on Today and Profile until it is dismissed", asy
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/today");
-  const banner = page.getByRole("status").filter({ hasText: "Time to recalculate your target" });
-  await expect(banner).toBeVisible();
+  await expect(page.getByRole("status").filter({ hasText: "Time to recalculate your target" })).toHaveCount(0);
   await expect(page.getByRole("link", { name: /Profile\s+Unread/ })).toBeVisible();
   if (test.info().project.name === "chromium") {
     await page.screenshot({ path: "/opt/cursor/artifacts/banner-phone.png" });
   }
 
   await page.setViewportSize({ width: 1440, height: 900 });
-  await expect(banner).toBeVisible();
+  await expect(page.getByRole("status").filter({ hasText: "Time to recalculate your target" })).toHaveCount(0);
   await expect(page.getByRole("link", { name: /Profile\s+Unread/ })).toBeVisible();
   if (test.info().project.name === "chromium") {
     await page.screenshot({ path: "/opt/cursor/artifacts/banner-desktop.png" });
@@ -60,9 +59,7 @@ test("the weekly reminder shows on Today and Profile until it is dismissed", asy
     await page.screenshot({ path: "/opt/cursor/artifacts/inbox-desktop.png" });
   }
 
-  await page.goto("/today");
-  await page.getByRole("button", { name: "Dismiss reminder" }).click();
-  await expect(banner).toHaveCount(0);
+  await page.getByRole("button", { name: "Mark all read" }).click();
   await expect(page.getByRole("link", { name: /Unread/ })).toHaveCount(0);
 
   await page.getByRole("link", { name: "Profile" }).click();

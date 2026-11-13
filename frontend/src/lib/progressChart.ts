@@ -87,7 +87,40 @@ export interface WeightDot {
   kg: number;
 }
 
-/** Dots only on days that have a weigh-in. The path joins those dots and nothing else. */
+/** Trend is the line. Dots are logged weigh-ins only, on the same scale. */
+export function weightTrend(
+  days: { date: string; trendKg?: number | null }[],
+  weighIns: { date: string; kg: number }[],
+  width: number,
+  height: number,
+): { dots: WeightDot[]; line: string; low: number; high: number; flat: boolean } {
+  const byDate = new Map(weighIns.map((row) => [row.date, row.kg]));
+  const values = [
+    ...weighIns.map((row) => row.kg),
+    ...days.flatMap((day) => (day.trendKg != null ? [day.trendKg] : [])),
+  ];
+  const bounds = values.length ? axisBounds(values) : { lo: 0, hi: 1, flat: true };
+  const { lo, hi, flat } = bounds;
+  const dots: WeightDot[] = [];
+  days.forEach((day, index) => {
+    const kg = byDate.get(day.date);
+    if (kg == null) return;
+    dots.push({ x: slotX(index, days.length, width), y: valueY(kg, lo, hi, height), date: day.date, kg });
+  });
+  let pen = false;
+  const line = days.map((day, index) => {
+    if (day.trendKg == null) {
+      pen = false;
+      return "";
+    }
+    const command = `${pen ? "L" : "M"}${slotX(index, days.length, width).toFixed(1)},${valueY(day.trendKg, lo, hi, height).toFixed(1)}`;
+    pen = true;
+    return command;
+  }).join(" ");
+  return { dots, line, low: lo, high: hi, flat };
+}
+
+/** @deprecated Use weightTrend. Kept so older chart tests can still describe weigh-in dots. */
 export function weightDots(
   days: { date: string }[],
   weighIns: { date: string; kg: number }[],

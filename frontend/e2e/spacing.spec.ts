@@ -56,7 +56,7 @@ test("controls keep a compact face, a 44px hit, and clear gaps", async ({ page }
   for (const width of widths) {
     await page.setViewportSize({ width, height: width >= 1024 ? 900 : 844 });
     await page.goto("/today");
-    await expect(page.getByRole("heading", { name: "Today", exact: true })).toBeVisible();
+    await expect(page.getByRole("main", { name: "Today" })).toBeVisible();
 
     const overflow = await page.evaluate(() => {
       const scroller = document.querySelector(".scroller");
@@ -120,6 +120,7 @@ test("controls keep a compact face, a 44px hit, and clear gaps", async ({ page }
   await page.getByRole("button", { name: "Add", exact: true }).click();
   await page.getByRole("dialog", { name: "Add" }).getByRole("button", { name: /Search or quick add/ }).click();
   const food = page.getByRole("dialog", { name: "Add food" });
+  await food.getByRole("searchbox", { name: "Search foods" }).blur();
   await expect(food.getByRole("heading", { name: "Add food" })).toBeVisible();
   const close = food.getByRole("button", { name: "Close", exact: true });
   const closeBox = await boxOf(close);

@@ -81,7 +81,7 @@ async function openApp(page: Page, oid: string, width: number) {
   await page.setViewportSize({ width, height: width === 390 ? 844 : 900 });
   await sign(page, oid);
   await page.goto("/today");
-  await expect(page.getByRole("heading", { name: "Today", exact: true })).toBeVisible();
+  await expect(page.getByRole("main", { name: "Today" })).toBeVisible();
 }
 
 async function expectClean(page: Page) {
