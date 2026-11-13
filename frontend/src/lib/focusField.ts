@@ -105,7 +105,7 @@ export function primaryField(root: ParentNode): HTMLElement | null {
 }
 
 function isFocusable(el: HTMLElement): boolean {
-  if (el.getAttribute("aria-hidden") === "true") return false;
+  if (el.getAttribute("aria-hidden") === "true" || el.dataset.noAutofocus != null) return false;
   const type = el.getAttribute("type");
   if (type === "hidden" || type === "checkbox" || type === "radio" || type === "button") return false;
   if ((el as HTMLInputElement).disabled) return false;

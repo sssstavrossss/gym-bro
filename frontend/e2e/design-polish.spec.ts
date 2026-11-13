@@ -320,9 +320,10 @@ test("only weigh-in offers Edit, and one reading labels its own kilogram", async
       end: input.selectionEnd,
       length: input.value.length,
     }));
-    expect(caret.length).toBeGreaterThan(0);
-    expect(caret.start).toBe(caret.length);
-    expect(caret.end).toBe(caret.length);
+    expect(caret.length).toBe(0);
+    expect(caret.start).toBe(0);
+    expect(caret.end).toBe(0);
+    await expect(field).toHaveAttribute("placeholder", "83.6");
     await page.getByRole("button", { name: "Close", exact: true }).click();
   }
 });
