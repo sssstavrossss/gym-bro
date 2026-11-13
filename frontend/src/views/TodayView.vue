@@ -92,6 +92,7 @@ watch(
   },
   { immediate: true },
 );
+const manualSelected = computed(() => ready.value && viewed.date === selected.value && isManualTarget(viewed.target?.reasons));
 const weekHasManual = computed(() => weekRows.value.some((row) => !row.future && row.manual));
 const logHref = computed(() => `/log/${selected.value}`);
 const weekRows = computed(() => {
@@ -153,7 +154,7 @@ const weekRows = computed(() => {
           <span class="sk" />
         </section>
         <template v-else>
-          <MacroBars :target="goal" :totals="totalsOf(entries)" :label="selected === today ? 'Today\'s macros' : 'That day\'s macros'" />
+          <MacroBars :manual="manualSelected" :target="goal" :totals="totalsOf(entries)" :label="selected === today ? 'Today\'s macros' : 'That day\'s macros'" />
           <button v-if="layout === 'phone' && !hasDay" type="button" class="card prompt row" @click="openFood('search', selected)">
             <span class="pic"><Icon name="plus" :size="18" :sw="2.6" /></span>
             <span class="col grow">

@@ -94,7 +94,7 @@ test("range stays put, the safe strip is clear, rows tap cleanly, and home has n
   if (test.info().project.name === "chromium") await page.screenshot({ path: "/opt/cursor/artifacts/iphone37-log.png" });
 
   await page.goto("/progress");
-  await page.getByRole("radio", { name: "30 days" }).waitFor();
+  await expect(page.getByText("Current weight")).toBeVisible();
   const main = page.locator("main.progress");
   await main.evaluate((el) => { el.dataset.live = "1"; });
   const scroller = page.locator(".scroller");
