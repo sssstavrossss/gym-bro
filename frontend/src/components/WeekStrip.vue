@@ -35,16 +35,24 @@ const days = computed(() => weekDays(props.anchor, props.selected, props.today, 
 <style scoped>
 .week {
   justify-content: space-between; align-items: center;
-  padding: calc(var(--space-gap) / 2);
+  /* +2px on top offsets the cap sitting above the letter box, so the ink gap matches the space under the dot. */
+  padding: calc(var(--space-gap) / 2 + 2px) calc(var(--space-gap) / 2) calc(var(--space-gap) / 2);
   background: var(--color-surface);
   border-radius: var(--radius-card);
 }
-.day { width: 44px; min-height: 44px; display: flex; flex-direction: column; align-items: center; gap: 4px; color: var(--text-primary); }
+.day {
+  position: relative; width: 44px; min-height: 44px;
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  color: var(--text-primary);
+}
 .day:disabled { cursor: default; }
-.letter { font-size: min(0.6471rem, 15px); line-height: 1.2; color: var(--text-tertiary); }
+.letter { display: block; font-size: min(0.6471rem, 15px); line-height: 1; color: var(--text-tertiary); }
 .circle { width: 36px; height: 36px; border-radius: 18px; display: flex; align-items: center; justify-content: center; font-size: min(0.8824rem, 20px); line-height: 1; color: var(--text-primary); }
 .circle.on { background: var(--color-action); color: var(--color-on-action); }
 .circle.off { color: var(--text-tertiary); opacity: 0.72; }
-.dot { width: 4px; height: 4px; border-radius: 2px; }
+.dot {
+  position: absolute; left: 50%; bottom: 0; width: 4px; height: 4px;
+  border-radius: 2px; transform: translateX(-50%);
+}
 .dot.on { background: var(--text-tertiary); }
 </style>

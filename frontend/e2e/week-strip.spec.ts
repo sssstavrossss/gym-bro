@@ -63,8 +63,18 @@ test("the week strip is its own padded band", async ({ page }) => {
 });
 
 async function expectBand(week: ReturnType<Page["getByRole"]>, surface: string, muted: string) {
-  await expect(week).toHaveCSS("padding-top", "6px");
-  await expect(week).toHaveCSS("padding-bottom", "6px");
+  const gaps = await week.evaluate((el) => {
+    const band = el.getBoundingClientRect();
+    const letter = el.querySelector(".letter");
+    const range = document.createRange();
+    range.selectNodeContents(letter!);
+    const cap = range.getBoundingClientRect();
+    const dot = el.querySelector(".dot")!.getBoundingClientRect();
+    return { above: cap.top - band.top, below: band.bottom - dot.bottom };
+  });
+  expect(Math.abs(gaps.above - gaps.below), `above ${gaps.above} below ${gaps.below}`).toBeLessThanOrEqual(1);
+  expect(gaps.above).toBeGreaterThanOrEqual(6);
+  expect(gaps.above).toBeLessThanOrEqual(10);
   await expect(week).toHaveCSS("background-color", surface);
   await expect(week).toHaveCSS("border-radius", "16px");
   const selected = week.locator(".circle.on");
