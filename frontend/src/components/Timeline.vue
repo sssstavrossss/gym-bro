@@ -17,11 +17,6 @@ const props = defineProps<{ date: string; today: string; entries: LogEntry[]; pe
 const rows = computed(() => byTime(props.entries));
 const ordered = computed(() => rows.value.map((entry) => entry.id));
 const isToday = computed(() => props.date === props.today);
-const hint = computed(() => (
-  vp.hover
-    ? "Hover a food for Copy to… or Delete. Click the circle, or hold Ctrl or Shift and click, to select several."
-    : "Swipe left for Copy to… or Delete. Hold a food to select several, or use Select."
-));
 
 function amountOf(entry: LogEntry): string {
   if (entry.unit && entry.amount) return `${entry.amount} ${entry.unit}`;
@@ -214,7 +209,6 @@ function onMenu(event: Event) {
         <span class="cbtn fit addc" style="--s: var(--control-s-sm)" aria-hidden="true"><Icon name="plus" :size="13" :sw="2.4" /></span>
         <span class="t-body c2">{{ isToday ? "Add food" : `Add food to ${dayMonth(date)}` }}</span>
       </button>
-      <p v-if="rows.length && !ui.selecting && !home" class="t-capn c3 tip">{{ hint }}</p>
     </template>
   </div>
 </template>
@@ -303,5 +297,4 @@ function onMenu(event: Event) {
 .eic { width: var(--control-s); height: var(--control-s); border-radius: 50%; background: var(--color-surface-2); display: flex; align-items: center; justify-content: center; color: var(--text-secondary); }
 .ebtn { width: auto; padding: 0 22px; min-height: 44px; margin-top: 8px; }
 .gchips { gap: 8px; flex-wrap: wrap; justify-content: center; }
-.tip { margin: 8px 0 0; text-align: center; }
 </style>

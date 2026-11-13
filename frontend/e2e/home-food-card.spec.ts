@@ -68,6 +68,7 @@ test("home food card is quiet and hold still selects", async ({ page }) => {
 
   await page.goto("/log");
   await expect(page.getByRole("button", { name: "Select", exact: true })).toBeVisible();
-  await expect(page.getByText(/Swipe left/)).toBeVisible();
+  await expect(page.getByText(/Swipe left/)).toHaveCount(0);
+  await expect(page.getByText(/Target .* kcal/)).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "Foods today" })).toHaveCount(0);
 });
