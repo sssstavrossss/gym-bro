@@ -150,6 +150,7 @@ function onMenu(event: Event) {
         <span class="grow" />
         <button type="button" class="chip t-label" @click="startSelect()">Select</button>
       </div>
+      <div v-if="pending.length || rows.length" class="entries" data-log-entries>
       <div v-for="item in pending" :key="item.idempotencyKey" class="pending">
         <span class="time t-label c2">{{ item.time || "Now" }}</span>
         <span class="col two">
@@ -208,6 +209,7 @@ function onMenu(event: Event) {
           </span>
         </div>
       </SwipeRow>
+      </div>
       <button v-if="(rows.length || pending.length) && !ui.selecting" type="button" class="addrow row" @click="add">
         <span class="cbtn fit addc" style="--s: var(--control-s-sm)" aria-hidden="true"><Icon name="plus" :size="13" :sw="2.4" /></span>
         <span class="t-body c2">{{ isToday ? "Add food" : `Add food to ${dayMonth(date)}` }}</span>
@@ -220,7 +222,15 @@ function onMenu(event: Event) {
 <style scoped>
 .tl { display: flex; flex-direction: column; gap: 0; min-width: 0; max-width: 100%; overflow: hidden; }
 .selhead { min-height: 44px; }
-.line { position: relative; display: flex; align-items: flex-start; gap: 2px; min-height: 52px; min-width: 0; max-width: 100%; border-radius: 0; -webkit-touch-callout: none; user-select: none; border-top: 1px solid var(--color-border); border-bottom: 1px solid var(--color-border); margin-bottom: -1px; }
+.entries {
+  border-top: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-border);
+  padding-top: calc(var(--space-gap) / 2);
+  padding-bottom: calc(var(--space-gap) / 2);
+}
+.entries > .pending:not(:first-child),
+.entries > :deep(.swipe:not(:first-child)) { border-top: 1px solid var(--color-border); }
+.line { position: relative; display: flex; align-items: flex-start; gap: 2px; min-height: 52px; min-width: 0; max-width: 100%; border-radius: 0; -webkit-touch-callout: none; user-select: none; }
 .line.sel { background: rgba(255, 255, 255, .05); }
 .frow {
   min-height: 52px; flex: 1 1 auto; min-width: 0; width: 100%; text-align: left;
@@ -230,7 +240,7 @@ function onMenu(event: Event) {
 .pending {
   min-height: 52px; min-width: 0; max-width: 100%;
   display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto;
-  align-items: start; gap: 6px; border-top: 1px solid var(--color-border); border-bottom: 1px solid var(--color-border); border-radius: 0; padding: 8px 0; margin-bottom: -1px;
+  align-items: start; gap: 6px; border-radius: 0; padding: 8px 0;
 }
 .time { width: auto; min-width: 2.5rem; font-variant-numeric: tabular-nums; }
 .two { gap: 1px; min-width: 0; align-items: flex-start; }
