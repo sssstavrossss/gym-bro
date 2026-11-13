@@ -1,4 +1,12 @@
+import { execFileSync } from "node:child_process";
 import { expect, test, type Page } from "@playwright/test";
+
+function shift(iso: string, days: number) {
+  const [year, month, day] = iso.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
 
 function headers(oid: string) {
   return { "X-Test-Oid": oid, "X-Test-Name": "Test User", "Content-Type": "application/json" };
@@ -13,22 +21,34 @@ test("the week strip is its own padded band", async ({ page }) => {
     const today = new Intl.DateTimeFormat("en-CA", { timeZone: zone, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
     return { zone, today };
   });
+  const yesterday = shift(when.today, -1);
   expect((await page.request.put(`/api/weigh-ins/${when.today}`, { headers: headers(oid), data: { kg: 84, timeZone: when.zone } })).ok()).toBeTruthy();
-  expect((await page.request.put("/api/profile", {
+  const profile = await page.request.put("/api/profile", {
     headers: headers(oid),
     data: {
       sex: "male", birthYear: 1990, heightCm: 180, activity: "moderate", goal: "lose",
       rateKgPerWeek: 0.5, goalWeightKg: 80, proteinSetting: "normal", proteinGramsPerKg: 2,
       fatSetting: "normal", fatPercent: 25, timeZone: when.zone,
     },
-  })).ok()).toBeTruthy();
-  expect((await page.request.post("/api/log-entries", {
-    headers: headers(oid),
-    data: {
-      idempotencyKey: `${oid}-oats`, localDate: when.today, timeZone: when.zone, time: "08:15",
-      name: "Fictional week oats", kcal: 400, protein: 20, fat: 8, carbs: 40,
-    },
-  })).ok()).toBeTruthy();
+  });
+  expect(profile.ok(), await profile.text()).toBeTruthy();
+  execFileSync("psql", [
+    "-h", "127.0.0.1", "-U", "gymbro", "-d", "gymbro",
+    "-c", `UPDATE profiles SET created_at = created_at - interval '4 days' WHERE user_id = '${oid}'`,
+  ], { env: { ...process.env, PGPASSWORD: "gymbro" } });
+  for (const [date, key, name] of [
+    [when.today, "oats", "Fictional week oats"],
+    [yesterday, "roll", "Fictional week roll"],
+  ] as const) {
+    const saved = await page.request.post("/api/log-entries", {
+      headers: headers(oid),
+      data: {
+        idempotencyKey: `${oid}-${key}`, localDate: date, timeZone: when.zone, time: "08:15",
+        name, kcal: 400, protein: 20, fat: 8, carbs: 40,
+      },
+    });
+    expect(saved.ok(), await saved.text()).toBeTruthy();
+  }
   await page.addInitScript((id) => {
     sessionStorage.setItem("gymbro-e2e", "1");
     sessionStorage.setItem("gymbro-e2e-oid", id);
@@ -44,6 +64,7 @@ test("the week strip is its own padded band", async ({ page }) => {
   await expectBand(week, "rgb(32, 35, 42)", "rgb(142, 147, 160)");
   if (test.info().project.name === "chromium") {
     await page.screenshot({ path: "/opt/cursor/artifacts/iphone40-week-home.png" });
+    await page.screenshot({ path: "/opt/cursor/artifacts/iphone40-week-dots.png" });
   }
 
   await page.goto("/log");
@@ -69,12 +90,20 @@ async function expectBand(week: ReturnType<Page["getByRole"]>, surface: string, 
     const range = document.createRange();
     range.selectNodeContents(letter!);
     const cap = range.getBoundingClientRect();
-    const dot = el.querySelector(".dot")!.getBoundingClientRect();
-    return { above: cap.top - band.top, below: band.bottom - dot.bottom };
+    const circle = el.querySelector(".circle.on")!.getBoundingClientRect();
+    const dot = el.querySelector(".dotrow")!.getBoundingClientRect();
+    const lowest = Math.max(circle.bottom, dot.bottom);
+    return {
+      above: cap.top - band.top,
+      below: band.bottom - lowest,
+      circleInside: circle.bottom <= dot.top + 0.5,
+    };
   });
-  expect(Math.abs(gaps.above - gaps.below), `above ${gaps.above} below ${gaps.below}`).toBeLessThanOrEqual(1);
-  expect(gaps.above).toBeGreaterThanOrEqual(6);
-  expect(gaps.above).toBeLessThanOrEqual(10);
+  expect(gaps.above, `above ${gaps.above} below ${gaps.below}`).toBeGreaterThanOrEqual(8);
+  expect(gaps.above).toBeLessThanOrEqual(13);
+  expect(gaps.below).toBeGreaterThanOrEqual(11);
+  expect(gaps.below).toBeLessThanOrEqual(13);
+  expect(gaps.circleInside).toBe(true);
   await expect(week).toHaveCSS("background-color", surface);
   await expect(week).toHaveCSS("border-radius", "16px");
   const selected = week.locator(".circle.on");
