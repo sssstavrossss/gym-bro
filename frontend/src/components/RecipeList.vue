@@ -10,6 +10,11 @@ defineProps<{
   activeIndex?: number;
 }>();
 const emit = defineEmits<{ add: [recipe: Recipe]; edit: [recipe: Recipe]; remove: [recipe: Recipe]; create: [] }>();
+
+function beginCreate(event: PointerEvent) {
+  event.preventDefault();
+  emit("create");
+}
 </script>
 
 <template>
@@ -17,7 +22,7 @@ const emit = defineEmits<{ add: [recipe: Recipe]; edit: [recipe: Recipe]; remove
     <div class="row lhead">
       <span class="t-cap c3">{{ heading || "Recipes" }}</span>
       <span class="grow" />
-      <button type="button" class="chip t-label" @pointerdown="emit('create')" @click="emit('create')">
+      <button type="button" class="chip t-label" @pointerdown="beginCreate" @click="emit('create')">
         <Icon name="plus" :size="14" :sw="2.4" /> New recipe
       </button>
     </div>
