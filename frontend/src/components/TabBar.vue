@@ -36,6 +36,7 @@ const active = (to: string) => route.path === to || route.path.startsWith(to + "
 <style scoped>
 .tabbar {
   position: absolute; left: 0; right: 0; bottom: 0; z-index: 20;
+  /* Height already includes one safe-area-inset-bottom. Padding-bottom stays 0. */
   height: var(--tabbar-h); padding: 8px max(12px, calc(50% - 260px)) 0;
   display: flex; justify-content: space-between; align-items: flex-start;
   background: var(--color-bg); border-top: 1px solid var(--color-border);

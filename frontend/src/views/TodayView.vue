@@ -12,7 +12,7 @@ import Sparkline from "../components/Sparkline.vue";
 import Timeline from "../components/Timeline.vue";
 import WeekStrip from "../components/WeekStrip.vue";
 import WeightChart from "../components/WeightChart.vue";
-import { addDays, dayNum, longDate, todayInZone, weekday, weekdayShort, weekStart } from "../lib/dates";
+import { addDays, dayNum, todayInZone, weekday, weekdayShort, weekStart } from "../lib/dates";
 import { int, kg } from "../lib/format";
 import { screenLayoutFromFlags } from "../lib/layout";
 import { freshDismissed, goalDismissed, promptState } from "../lib/prompts";
@@ -143,9 +143,6 @@ const weekRows = computed(() => {
   <main class="screen today" :class="layout" :aria-label="title">
     <h1 class="sr-only">{{ title }}</h1>
     <div class="topbar">
-      <header class="col gap2">
-        <span class="t-cap c2">{{ longDate(selected) }}</span>
-      </header>
       <WeekStrip :anchor="today" :selected="selected" :today="today" :setup-date="viewed.setupDate" :logged-dates="viewed.loggedDates" @select="pick" />
     </div>
 

@@ -230,10 +230,17 @@ function onMenu(event: Event) {
 }
 .entries > .pending:not(:first-child),
 .entries > :deep(.swipe:not(:first-child)) { border-top: 1px solid var(--color-border); }
-.line { position: relative; display: flex; align-items: flex-start; gap: 2px; min-height: 52px; min-width: 0; max-width: 100%; border-radius: 0; -webkit-touch-callout: none; user-select: none; }
-.line.sel { background: rgba(255, 255, 255, .05); }
+.line {
+  position: relative; display: flex; align-items: flex-start; gap: 2px;
+  width: 100%; min-height: 52px; min-width: 0; max-width: 100%; box-sizing: border-box;
+  border-radius: 0; overflow: hidden; -webkit-touch-callout: none; user-select: none;
+  transition: gap .18s ease;
+}
+/* The mark already occupies its slot. A 100% row beside it would grow past the card. */
+.tl.selecting .line { gap: calc(var(--space-gap) / 2); }
+.line.sel { background: color-mix(in srgb, var(--text-primary) 7%, transparent); }
 .frow {
-  min-height: 52px; flex: 1 1 auto; min-width: 0; width: 100%; text-align: left;
+  min-height: 52px; flex: 1 1 0%; min-width: 0; width: auto; max-width: 100%; text-align: left;
   display: grid; grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: start; gap: 6px; background: transparent; border-radius: 10px; padding: 4px 0;
 }
@@ -260,11 +267,16 @@ function onMenu(event: Event) {
 .dot, .tick {
   position: absolute; left: auto; right: 2px; top: calc(4px + 0.4706rem);
   transform: translate(0, -50%);
+  transition: width .18s ease, height .18s ease, background .18s ease, box-shadow .18s ease, right .18s ease, left .18s ease, transform .18s ease;
 }
-.dot { width: 8px; height: 8px; border-radius: 4px; background: var(--text-tertiary); transition: width .15s, height .15s, background .15s, box-shadow .15s; }
+.dot { width: 8px; height: 8px; border-radius: 4px; background: var(--text-tertiary); }
 .tick { color: var(--color-on-action); opacity: 0; }
+/* In select mode the 22px circle owns the centre of the 44px slot, clear of the time. */
+.selecting .dot, .selecting .tick, .mark.on .dot, .mark.on .tick {
+  left: 50%; right: auto; transform: translate(-50%, -50%);
+}
 .selecting .dot, .mark.on .dot { width: 22px; height: 22px; border-radius: 11px; }
-.selecting .dot { background: var(--color-bg); box-shadow: inset 0 0 0 1.5px var(--text-tertiary); }
+.selecting .dot { background: transparent; box-shadow: inset 0 0 0 1.5px var(--text-tertiary); }
 .mark.on .dot { background: var(--color-action); box-shadow: none; }
 .mark.on .tick { opacity: 1; }
 .hacts { position: absolute; right: 0; top: 0; bottom: 0; gap: 4px; align-items: center; opacity: 0; pointer-events: none; }
@@ -283,7 +295,8 @@ function onMenu(event: Event) {
   .line:hover .hacts, .line:focus-within .hacts { opacity: 1; pointer-events: auto; }
   .line:hover .kc, .line:focus-within .kc { opacity: 0; }
   .line:hover .mark { cursor: pointer; }
-  .line:hover .dot { width: 22px; height: 22px; border-radius: 11px; background: var(--color-bg); box-shadow: inset 0 0 0 1.5px var(--text-secondary); }
+  .line:hover .dot, .line:hover .tick { left: 50%; right: auto; transform: translate(-50%, -50%); }
+  .line:hover .dot { width: 22px; height: 22px; border-radius: 11px; background: transparent; box-shadow: inset 0 0 0 1.5px var(--text-secondary); }
   .line:hover .mark.on .dot { background: var(--color-action); box-shadow: none; }
 }
 .empty { align-items: center; text-align: center; gap: 8px; padding: 28px 16px; border-radius: var(--radius-card); border: 1px dashed var(--color-border); }
