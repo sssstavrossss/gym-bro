@@ -2,13 +2,14 @@
 import { computed } from "vue";
 import Bar from "./Bar.vue";
 import Icon from "./Icon.vue";
+import ManualTag from "./ManualTag.vue";
 import { int } from "../lib/format";
 import { macroStatus, type MacroKind } from "../lib/macros";
 import { dayTotals, type DayTotals } from "../state/log";
 import { profile } from "../state/profile";
 import type { TargetsResponse } from "../api";
 
-const props = defineProps<{ target?: TargetsResponse | null; totals?: DayTotals | null; label?: string }>();
+const props = defineProps<{ target?: TargetsResponse | null; totals?: DayTotals | null; label?: string; manual?: boolean }>();
 const target = computed(() => (props.target === undefined ? profile.targets : props.target));
 const totals = computed(() => props.totals ?? dayTotals());
 const macros = computed(() => {
@@ -40,6 +41,7 @@ const macros = computed(() => {
     <div v-for="m in macros" :key="m.label" class="col gap6">
       <div class="row mrow">
         <span class="t-label" :class="m.st === 'under' ? 'c2' : ''">{{ m.label }}<span v-if="m.min" class="c3 t-capn"> · min</span></span>
+        <ManualTag v-if="manual && m.kind === 'kcal'" />
         <span class="grow" />
         <span class="t-bodys" data-num>{{ int(m.cur) }}</span>
         <span class="t-label c3">/ {{ int(m.tgt) }} {{ m.unit }}</span>

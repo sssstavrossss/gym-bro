@@ -109,7 +109,7 @@ test("layouts stay in one column of scrolling from 375 to 1,920", async ({ page 
     await page.goto("/today");
     await expect(page.getByRole("main", { name: "Today" })).toBeVisible();
     await expect(page.locator(".app")).toHaveAttribute("data-layout", layoutName(width));
-    const card = page.getByRole("group", { name: /kcal/ });
+    const card = page.getByRole("img", { name: /^Calories/ });
     await expect(card).toBeVisible();
     await expectNoSideScroll(page);
 

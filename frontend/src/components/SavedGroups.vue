@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref } from "vue";
 import Icon from "./Icon.vue";
+import { bindPick, clickPick } from "../lib/cleanTap";
 import { int } from "../lib/format";
 import { groupItemLine } from "../lib/groups";
 import { keyboardEntry } from "../lib/viewport";
@@ -19,6 +20,18 @@ const openId = ref<string | null>(null);
 function toggle(id: string) {
   openId.value = openId.value === id ? null : id;
 }
+function pressToggle(event: PointerEvent, id: string) {
+  bindPick(event, () => toggle(id));
+}
+function onToggle(event: MouseEvent, id: string) {
+  clickPick(event, () => toggle(id));
+}
+function pressAdd(event: PointerEvent, group: SavedGroup) {
+  bindPick(event, () => emit("add", group));
+}
+function onAdd(event: MouseEvent, group: SavedGroup) {
+  clickPick(event, () => emit("add", group));
+}
 </script>
 
 <template>
@@ -31,7 +44,7 @@ function toggle(id: string) {
     <div v-for="group in groups" :key="group.id" class="grow-row col">
       <div class="rrow row grp">
         <span class="gic" aria-hidden="true"><Icon name="layers" :size="16" /></span>
-        <button type="button" class="col grow rtext" :aria-expanded="openId === group.id" @click="toggle(group.id)">
+        <button type="button" class="col grow rtext" :aria-expanded="openId === group.id" @pointerdown="pressToggle($event, group.id)" @click="onToggle($event, group.id)">
           <span class="t-body ell">{{ group.name }}</span>
           <span class="t-label c2 gsum">
             <span class="gnum">{{ group.items.length }} items · {{ int(group.kcal) }} kcal</span>
@@ -47,7 +60,8 @@ function toggle(id: string) {
           class="ibtn"
           :aria-label="openId === group.id ? `Hide items in ${group.name}` : `Show items in ${group.name}`"
           :aria-expanded="openId === group.id"
-          @click="toggle(group.id)"
+          @pointerdown="pressToggle($event, group.id)"
+          @click="onToggle($event, group.id)"
         >
           <Icon name="down" :size="16" :class="{ flip: openId === group.id }" />
         </button>
@@ -56,7 +70,8 @@ function toggle(id: string) {
           class="cbtn filled"
           :aria-label="needTime ? `Pick a time to add group ${group.name}` : `Add group ${group.name}`"
           :disabled="saving || needTime"
-          @click="emit('add', group)"
+          @pointerdown="pressAdd($event, group)"
+          @click="onAdd($event, group)"
         >
           <Icon :name="addedId === group.id ? 'check' : 'plus'" :size="18" :sw="2.4" />
         </button>

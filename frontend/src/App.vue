@@ -125,8 +125,8 @@ function onKey(event: KeyboardEvent) {
   <SignInView v-else-if="!boot.signedIn" />
   <div v-else class="app" :data-layout="layoutName" :class="{ 'is-tablet': vp.tablet && !vp.desktop, 'is-desktop': vp.desktop, 'is-wide': vp.wide, 'can-hover': vp.hover, 'has-nav': showNav, 'no-nav': !showNav, selecting: ui.selecting }">
     <SideNav v-if="showNav && vp.desktop" :inert="sheetOpen" />
+    <div class="safe-top" data-safe-top aria-hidden="true"></div>
     <div class="scroller" :inert="sheetOpen">
-      <div class="safe-top" data-safe-top aria-hidden="true"></div>
       <RouterView />
     </div>
     <TabBar v-if="showNav && !vp.desktop && !ui.selecting" :inert="sheetOpen" />
@@ -166,8 +166,8 @@ function onKey(event: KeyboardEvent) {
 }
 .scroller { position: absolute; inset: 0; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; }
 .safe-top {
-  position: sticky; top: 0; z-index: 4; pointer-events: none;
-  height: calc(var(--sat) + 8px); margin-bottom: calc((var(--sat) + 8px) * -1);
+  position: fixed; top: 0; left: 0; right: 0; z-index: 15; pointer-events: none;
+  height: var(--sat);
   background: var(--color-bg);
 }
 .is-desktop .safe-top { display: none; }

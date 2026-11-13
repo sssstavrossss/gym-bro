@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import Icon from "./Icon.vue";
-import { recipeFigure, recipeMacro } from "../lib/recipes";
 import type { Recipe } from "../api";
+import { bindPick, clickPick } from "../lib/cleanTap";
+import { recipeFigure, recipeMacro } from "../lib/recipes";
 
 defineProps<{
   recipes: Recipe[];
@@ -14,6 +15,24 @@ const emit = defineEmits<{ add: [recipe: Recipe]; edit: [recipe: Recipe]; remove
 function beginCreate(event: PointerEvent) {
   event.preventDefault();
   emit("create");
+}
+function pressAdd(event: PointerEvent, recipe: Recipe) {
+  bindPick(event, () => emit("add", recipe));
+}
+function onAdd(event: MouseEvent, recipe: Recipe) {
+  clickPick(event, () => emit("add", recipe));
+}
+function pressEdit(event: PointerEvent, recipe: Recipe) {
+  bindPick(event, () => emit("edit", recipe));
+}
+function onEdit(event: MouseEvent, recipe: Recipe) {
+  clickPick(event, () => emit("edit", recipe));
+}
+function pressRemove(event: PointerEvent, recipe: Recipe) {
+  bindPick(event, () => emit("remove", recipe));
+}
+function onRemove(event: MouseEvent, recipe: Recipe) {
+  clickPick(event, () => emit("remove", recipe));
 }
 </script>
 
@@ -28,7 +47,7 @@ function beginCreate(event: PointerEvent) {
     </div>
     <div v-for="(recipe, index) in recipes" :key="recipe.id" class="rrow row" :class="{ hl: activeIndex === index }">
       <span class="gic" aria-hidden="true"><Icon name="food" :size="16" /></span>
-      <button type="button" class="col grow rtext" @pointerdown="emit('add', recipe)" @click="emit('add', recipe)">
+      <button type="button" class="col grow rtext" @pointerdown="pressAdd($event, recipe)" @click="onAdd($event, recipe)">
         <span class="row gap6 nm">
           <span class="t-body name" data-recipe-name>{{ recipe.name }}</span>
           <span class="mark t-capn">recipe</span>
@@ -38,13 +57,13 @@ function beginCreate(event: PointerEvent) {
           <span> P {{ recipeMacro(recipe.perPortion.protein) }} · F {{ recipeMacro(recipe.perPortion.fat) }} · C {{ recipeMacro(recipe.perPortion.carbs) }} per portion<template v-if="recipe.finishedGrams"> · {{ recipeFigure(recipe.finishedGrams) }} g finished</template></span>
         </span>
       </button>
-      <button type="button" class="cbtn" :aria-label="`Edit recipe ${recipe.name}`" :disabled="saving" @pointerdown="emit('edit', recipe)" @click="emit('edit', recipe)">
+      <button type="button" class="cbtn" :aria-label="`Edit recipe ${recipe.name}`" :disabled="saving" @pointerdown="pressEdit($event, recipe)" @click="onEdit($event, recipe)">
         <Icon name="edit" :size="16" />
       </button>
-      <button type="button" class="cbtn" :aria-label="`Delete recipe ${recipe.name}`" :disabled="saving" @pointerdown="emit('remove', recipe)" @click="emit('remove', recipe)">
+      <button type="button" class="cbtn" :aria-label="`Delete recipe ${recipe.name}`" :disabled="saving" @pointerdown="pressRemove($event, recipe)" @click="onRemove($event, recipe)">
         <Icon name="trash" :size="16" />
       </button>
-      <button type="button" class="cbtn filled" :aria-label="`Log recipe ${recipe.name}`" :disabled="saving" @pointerdown="emit('add', recipe)" @click="emit('add', recipe)">
+      <button type="button" class="cbtn filled" :aria-label="`Log recipe ${recipe.name}`" :disabled="saving" @pointerdown="pressAdd($event, recipe)" @click="onAdd($event, recipe)">
         <Icon name="plus" :size="18" :sw="2.4" />
       </button>
     </div>

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, nextTick, onMounted, ref, watch } from "vue";
 import Segmented from "../components/Segmented.vue";
 import { ApiError, getProgress, ServerUnreachable, type ProgressDay, type ProgressResponse } from "../api";
 import { dayMonth, spanLabel } from "../lib/dates";
@@ -23,18 +23,30 @@ const layout = computed(() => screenLayoutFromFlags({ tablet: vp.tablet, desktop
 
 const plot = { width: 320, height: 148 };
 
+let requestId = 0;
+
 async function load() {
-  loading.value = true;
+  const token = ++requestId;
+  const first = data.value == null;
+  if (first) loading.value = true;
   error.value = "";
+  const scroller = document.querySelector(".scroller");
+  const scrollTop = scroller instanceof HTMLElement ? scroller.scrollTop : 0;
   try {
-    data.value = await getProgress(range.value);
+    const next = await getProgress(range.value);
+    if (token !== requestId) return;
+    data.value = next;
   } catch (caught) {
-    data.value = null;
-    error.value = caught instanceof ServerUnreachable
-      ? "Server unreachable, try again."
-      : caught instanceof ApiError ? caught.message : "Couldn't load progress.";
+    if (token !== requestId) return;
+    if (!data.value) {
+      error.value = caught instanceof ServerUnreachable
+        ? "Server unreachable, try again."
+        : caught instanceof ApiError ? caught.message : "Couldn't load progress.";
+    }
   } finally {
-    loading.value = false;
+    if (token === requestId) loading.value = false;
+    await nextTick();
+    if (token === requestId && scroller instanceof HTMLElement) scroller.scrollTop = scrollTop;
   }
 }
 
@@ -141,15 +153,15 @@ function weighInOn(date: string): string {
       </div>
     </header>
     <div class="rangebar" data-range-bar>
-      <Segmented v-model="range" label="Range" :options="ranges" />
+      <Segmented v-model="range" label="Range" :options="ranges" @mousedown.prevent />
     </div>
 
-    <p v-if="loading" class="t-body c2" role="status">Loading…</p>
-    <div v-else-if="error" class="card" role="alert">
+    <p v-if="loading && !data" class="t-body c2" role="status">Loading…</p>
+    <div v-else-if="error && !data" class="card" role="alert">
       <p class="t-body">{{ error }}</p>
       <button type="button" class="chip on t-label" @click="retry">Try again</button>
     </div>
-    <template v-else-if="data">
+    <template v-if="data">
       <section class="stats" aria-label="Summary">
         <div class="stat">
           <span class="t-cap c2">Current weight</span>
