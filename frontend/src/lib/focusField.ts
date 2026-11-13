@@ -31,10 +31,28 @@ export function selectField(el: FocusableField | null | undefined): void {
   }
 }
 
+/**
+ * Numeric fields replace the current value on the first key, without painting
+ * a selection. The caret sits at the end and `data-replace-first` stays set
+ * until that first input is applied.
+ */
+export function armReplace(el: HTMLInputElement | null | undefined): void {
+  if (!el) return;
+  el.dataset.replaceFirst = "1";
+  el.dataset.replaceValue = el.value;
+  const length = el.value.length;
+  try {
+    el.setSelectionRange(length, length);
+  } catch {
+    // Some input types reject a caret range.
+  }
+}
+
 export function focusField(el: FocusableField | null | undefined): boolean {
   if (!el || el.disabled) return false;
   el.focus({ preventScroll: true });
-  selectField(el);
+  if (typeof HTMLInputElement !== "undefined" && el instanceof HTMLInputElement && el.dataset.replace === "1") armReplace(el);
+  else selectField(el);
   return true;
 }
 

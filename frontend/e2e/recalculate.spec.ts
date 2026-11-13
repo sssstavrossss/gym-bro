@@ -37,7 +37,8 @@ test("recalculate explains missing data and can save the formula", async ({ page
   if (test.info().project.name === "chromium") {
     await sheet.screenshot({ path: "/opt/cursor/artifacts/recalculate-phone.png" });
   }
-  await sheet.getByRole("button", { name: "Use the formula instead" }).click();
+  await expect(sheet.locator("[data-derivation]")).toContainText("Formula fallback");
+  await sheet.getByRole("button", { name: "Accept" }).click();
   await expect(page.getByText("Target recalculated from the formula.")).toBeVisible();
 
   await page.setViewportSize({ width: 1440, height: 900 });

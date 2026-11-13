@@ -157,6 +157,7 @@ function clearRecipe(): void {
 }
 
 export function openRecipeCreate(returnTo: "food" | null): void {
+  if (ui.sheet === "recipe" && ui.recipeMode === "create" && ui.recipeId == null) return;
   primeKeyboard();
   ui.recipeMode = "create";
   ui.recipeId = null;

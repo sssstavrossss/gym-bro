@@ -5,7 +5,7 @@ import { ApiError, getProgress, ServerUnreachable, type ProgressDay, type Progre
 import { dayMonth, spanLabel } from "../lib/dates";
 import { formatDecimal, int, kg, signed } from "../lib/format";
 import { screenLayoutFromFlags } from "../lib/layout";
-import { fewMarks, intakeBars, intakeMax, scaleTicks, targetLine, valueY, weightDots } from "../lib/progressChart";
+import { fewMarks, intakeBars, intakeMax, scaleTicks, targetLine, valueY, weightTrend } from "../lib/progressChart";
 import { vp } from "../lib/viewport";
 
 const ranges = [
@@ -77,7 +77,7 @@ const kcalBars = computed(() => intakeBars(kcalDays.value, plot.width, plot.heig
 const proteinBars = computed(() => intakeBars(proteinDays.value, plot.width, plot.height));
 const kcalTarget = computed(() => targetLine(kcalDays.value, plot.width, plot.height));
 const proteinTarget = computed(() => targetLine(proteinDays.value, plot.width, plot.height));
-const weights = computed(() => weightDots(
+const weights = computed(() => weightTrend(
   days.value,
   weight.value?.weighIns ?? [],
   plot.width,
@@ -106,7 +106,7 @@ const weightLabel = computed(() => {
   const rows = weight.value?.weighIns ?? [];
   if (!rows.length) return "No weigh-ins in this range. Missing days are not filled in.";
   const list = rows.map((row) => `${dayMonth(row.date)} ${kg(row.kg)} kg`).join(", ");
-  return `Weigh-ins, ${period.value}: ${list}. Days without a weigh-in are blank. The line only joins these weigh-ins.`;
+  return `Weight trend, ${period.value}. Weigh-ins: ${list}. The line is the trend. Dots are logged weigh-ins. Days without a weigh-in stay blank.`;
 });
 function intakeLabel(kind: "Calories" | "Protein", rows: ProgressDay[], key: "kcal" | "protein", unit: string): string {
   const logged = rows.filter((day) => day.logged && day[key] != null);
@@ -139,8 +139,10 @@ function weighInOn(date: string): string {
         <h1 class="t-title">Progress</h1>
         <span v-if="data" class="t-label c2">{{ period }}</span>
       </div>
-      <Segmented v-model="range" label="Range" :options="ranges" />
     </header>
+    <div class="rangebar" data-range-bar>
+      <Segmented v-model="range" label="Range" :options="ranges" />
+    </div>
 
     <p v-if="loading" class="t-body c2" role="status">Loading…</p>
     <div v-else-if="error" class="card" role="alert">
@@ -188,9 +190,9 @@ function weighInOn(date: string): string {
           <template v-else>
             <div class="plot">
             <svg :viewBox="`0 0 ${plot.width} ${plot.height}`" class="fig" role="img" :aria-label="weightLabel">
-              <line v-for="mark in weightTicks" :key="mark" x1="0" :x2="plot.width" :y1="weightY(mark)" :y2="weightY(mark)" stroke="#fff" stroke-opacity="0.08" />
-              <path :d="weights.line" fill="none" stroke="#7DB1FF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-              <circle v-for="dot in weights.dots" :key="dot.date" :cx="dot.x" :cy="dot.y" r="4" fill="#7DB1FF" />
+              <line v-for="mark in weightTicks" :key="mark" x1="0" :x2="plot.width" :y1="weightY(mark)" :y2="weightY(mark)" stroke="var(--text-primary)" stroke-opacity="0.08" />
+              <path :d="weights.line" fill="none" stroke="var(--chart-line)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+              <circle v-for="dot in weights.dots" :key="dot.date" :cx="dot.x" :cy="dot.y" r="3" fill="var(--chart-line)" fill-opacity="0.3" />
             </svg>
             <div class="ylabels" aria-hidden="true">
               <span v-for="mark in weightTicks" :key="'wy' + mark" class="t-capn c2" :style="{ top: tickTop(weightY(mark)) }">{{ kg(mark) }}</span>
@@ -199,7 +201,7 @@ function weighInOn(date: string): string {
             <div class="row xlabels">
               <span v-for="day in axisDates" :key="day.date" class="t-capn c2">{{ dayMonth(day.date) }}</span>
             </div>
-            <p class="t-capn c2">Each dot is a weigh-in. The line only joins them. It is not a weight for the days in between.</p>
+            <p class="t-capn c2">The line is your trend. Each dot is a weigh-in you logged.</p>
           </template>
         </section>
 
@@ -213,9 +215,9 @@ function weighInOn(date: string): string {
           <template v-else>
             <div class="plot">
             <svg :viewBox="`0 0 ${plot.width} ${plot.height}`" class="fig" role="img" :aria-label="kcalLabel">
-              <line v-for="mark in kcalTicks" :key="'kg' + mark" x1="0" :x2="plot.width" :y1="intakeY(mark, kcalMax)" :y2="intakeY(mark, kcalMax)" stroke="#fff" stroke-opacity="0.08" />
-              <path v-if="kcalTarget" :d="kcalTarget" fill="none" stroke="#737379" stroke-width="1.5" stroke-dasharray="4 4" />
-              <rect v-for="(bar, index) in kcalBars" :key="index" :x="bar.x - 3" :y="bar.y" width="6" :height="bar.h" fill="#ffffff" rx="1" />
+              <line v-for="mark in kcalTicks" :key="'kg' + mark" x1="0" :x2="plot.width" :y1="intakeY(mark, kcalMax)" :y2="intakeY(mark, kcalMax)" stroke="var(--text-primary)" stroke-opacity="0.08" />
+              <path v-if="kcalTarget" :d="kcalTarget" fill="none" stroke="var(--color-border-strong)" stroke-width="1.5" stroke-dasharray="4 4" />
+              <rect v-for="(bar, index) in kcalBars" :key="index" :x="bar.x - 3" :y="bar.y" width="6" :height="bar.h" fill="var(--color-action)" rx="1" />
             </svg>
             <div class="ylabels wide" aria-hidden="true">
               <span v-for="mark in kcalTicks" :key="'ky' + mark" class="t-capn c2" :style="{ top: tickTop(intakeY(mark, kcalMax)) }">{{ axisNumber(mark) }}</span>
@@ -238,9 +240,9 @@ function weighInOn(date: string): string {
           <template v-else>
             <div class="plot">
             <svg :viewBox="`0 0 ${plot.width} ${plot.height}`" class="fig" role="img" :aria-label="proteinLabel">
-              <line v-for="mark in proteinTicks" :key="'pg' + mark" x1="0" :x2="plot.width" :y1="intakeY(mark, proteinMax)" :y2="intakeY(mark, proteinMax)" stroke="#fff" stroke-opacity="0.08" />
-              <path v-if="proteinTarget" :d="proteinTarget" fill="none" stroke="#737379" stroke-width="1.5" stroke-dasharray="4 4" />
-              <rect v-for="(bar, index) in proteinBars" :key="index" :x="bar.x - 3" :y="bar.y" width="6" :height="bar.h" fill="#7DB1FF" rx="1" />
+              <line v-for="mark in proteinTicks" :key="'pg' + mark" x1="0" :x2="plot.width" :y1="intakeY(mark, proteinMax)" :y2="intakeY(mark, proteinMax)" stroke="var(--text-primary)" stroke-opacity="0.08" />
+              <path v-if="proteinTarget" :d="proteinTarget" fill="none" stroke="var(--color-border-strong)" stroke-width="1.5" stroke-dasharray="4 4" />
+              <rect v-for="(bar, index) in proteinBars" :key="index" :x="bar.x - 3" :y="bar.y" width="6" :height="bar.h" fill="var(--chart-line)" rx="1" />
             </svg>
             <div class="ylabels" aria-hidden="true">
               <span v-for="mark in proteinTicks" :key="'py' + mark" class="t-capn c2" :style="{ top: tickTop(intakeY(mark, proteinMax)) }">{{ axisNumber(mark) }}</span>
@@ -279,6 +281,10 @@ function weighInOn(date: string): string {
 <style scoped>
 .head { display: flex; flex-direction: column; gap: 12px; min-width: 0; max-width: 100%; }
 .progress { overflow-x: clip; }
+.rangebar {
+  position: sticky; top: calc(var(--sat) + 8px); z-index: 2;
+  background: var(--color-bg); padding: calc(var(--space-gap) / 2) 0;
+}
 .gap2 { gap: 2px; }
 .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; min-width: 0; }
 .stat { display: flex; flex-direction: column; gap: 2px; min-width: 0; padding: 12px; border-radius: var(--radius-card); background: var(--color-surface); }
@@ -291,7 +297,7 @@ function weighInOn(date: string): string {
 .ylabels.wide { width: 3.6rem; }
 .ylabels span { position: absolute; right: 0; transform: translateY(-50%); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .xlabels { justify-content: space-between; gap: 8px; min-width: 0; }
-.head :deep(.seg) { flex-wrap: wrap; }
+.head :deep(.seg), .rangebar :deep(.seg) { flex-wrap: wrap; }
 .tablet .head, .two .head, .three .head { flex-direction: row; align-items: flex-end; justify-content: space-between; }
 .tablet .head :deep(.seg), .two .head :deep(.seg), .three .head :deep(.seg) { width: auto; max-width: 520px; }
 .tablet .stats, .two .stats, .three .stats { grid-template-columns: repeat(5, minmax(0, 1fr)); }

@@ -26,6 +26,6 @@ function press(key: string) {
 .krow { display: flex; gap: 8px; }
 .key { flex: 1 1 0; min-width: 44px; height: 50px; border-radius: var(--radius-control); background: var(--color-surface-2); display: flex; align-items: center; justify-content: center; }
 .key .t-ns { font-size: min(1.2941rem, 30px); }
-.key:active { background: #34343a; }
+.key:active { background: var(--color-hover); }
 .key.dim { opacity: .3; }
 </style>

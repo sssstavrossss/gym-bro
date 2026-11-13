@@ -11,10 +11,14 @@ import { parseDecimal } from "../lib/numbers";
 import { earliestNewWeighInDate, gapLabel, isFreshStart, isLowAccuracy, newWeighInDates, trendChange } from "../lib/weightDisplay";
 import { profile, removeWeighIn, saveWeighIn } from "../state/profile";
 import { closeSheet, toast, ui } from "../ui";
-import { vp } from "../lib/viewport";
+import { keyboardEntry, vp } from "../lib/viewport";
+import { armReplace } from "../lib/focusField";
+import { afterInsertion, markWholeSelection, nextQuickInput, nextQuickNumber, tookWholeSelection } from "../lib/quickEntry";
+import Keypad from "./Keypad.vue";
 
 const open = computed(() => ui.sheet === "weight");
 const value = ref("");
+const replaceFirst = ref(true);
 const input = ref<HTMLInputElement | null>(null);
 const confirm = ref<ConfirmWeighInBody | null>(null);
 const confirmEl = ref<HTMLElement | null>(null);
@@ -201,19 +205,41 @@ async function save(force = false) {
   closeSheet();
 }
 
+function focusWeight(el: HTMLInputElement | null) {
+  if (!el) return;
+  replaceFirst.value = true;
+  el.focus();
+  armReplace(el);
+}
+
 function fix() {
   confirm.value = null;
-  void nextTick(() => {
-    input.value?.focus();
-    input.value?.select();
-  });
+  void nextTick(() => focusWeight(input.value));
 }
 
 function editOnly() {
-  void nextTick(() => {
-    input.value?.focus();
-    input.value?.select();
+  void nextTick(() => focusWeight(input.value));
+}
+
+function onWeightFocus(event: FocusEvent) {
+  replaceFirst.value = true;
+  if (event.target instanceof HTMLInputElement) armReplace(event.target);
+}
+
+function onWeightInput(event: Event) {
+  const field = event.target as HTMLInputElement;
+  const replace = replaceFirst.value;
+  afterInsertion(field, (raw) => {
+    const next = nextQuickInput(value.value, raw, replace && !tookWholeSelection(field), 6);
+    replaceFirst.value = false;
+    value.value = next;
+    if (field.value !== next) field.value = next;
   });
+}
+
+function weightKey(key: string) {
+  value.value = nextQuickNumber(value.value, key, replaceFirst.value, 3);
+  replaceFirst.value = false;
 }
 
 async function del() {
@@ -280,8 +306,8 @@ const diffText = computed(() => (
       <label class="base grow">
         <span class="sr-only">Weight in kilograms</span>
         <span class="autosize t-dxl">
-          <span class="mirror" aria-hidden="true">{{ value || "0" }}</span>
-          <input ref="input" v-autofocus v-model="value" class="t-dxl winput" size="1" inputmode="decimal" enterkeyhint="done" autocomplete="off" aria-label="Weight in kilograms" @focus="($event.target as HTMLInputElement).select()" />
+          <span class="mirror wfig" aria-hidden="true">{{ value || "0" }}</span>
+          <input ref="input" v-autofocus :value="value" data-replace="1" class="wfig winput" size="1" :inputmode="keyboardEntry ? 'decimal' : 'none'" enterkeyhint="done" autocomplete="off" aria-label="Weight in kilograms" @beforeinput="markWholeSelection" @focus="onWeightFocus" @input="onWeightInput" />
         </span>
         <span class="t-head c2">kg</span>
       </label>
@@ -294,6 +320,9 @@ const diffText = computed(() => (
         <button type="button" class="chip on t-label big" @click="fix">Fix it</button>
         <button type="button" class="chip t-label big" @click="save(true)">Yes, save {{ kg(confirm.kg) }} kg</button>
       </div>
+    </div>
+    <div v-if="!keyboardEntry" class="pad" @mousedown.prevent>
+      <Keypad @key="weightKey" />
     </div>
     <p v-if="invalid || localError" class="t-label m0" role="alert">{{ localError || "Enter a weight between 30 and 300 kg, e.g. 83,4 or 83.4" }}</p>
     <template v-else-if="onlyWeighIn">
@@ -367,10 +396,10 @@ const diffText = computed(() => (
 .daybtn { display: inline-flex; align-items: center; gap: 4px; min-height: 44px; max-width: 100%; padding: 0 10px 0 12px; border-radius: 16px; background: var(--color-surface-2); color: var(--text-primary); }
 .dayface { white-space: nowrap; overflow: hidden; min-width: 0; }
 .daychev { flex: none; width: 8px; height: 8px; margin-right: 2px; border-right: 1.5px solid var(--text-secondary); border-bottom: 1.5px solid var(--text-secondary); transform: translateY(-2px) rotate(45deg); }
-.daymenu { position: absolute; right: 0; top: calc(100% + 6px); z-index: 41; min-width: 220px; max-width: calc(100vw - 32px); max-height: min(70vh, 560px); overflow: auto; background: #2f2f34; border-radius: 14px; padding: 6px; box-shadow: 0 12px 32px rgba(0, 0, 0, .6); display: flex; flex-direction: column; }
+.daymenu { position: absolute; right: 0; top: calc(100% + 6px); z-index: 41; min-width: 220px; max-width: calc(100vw - 32px); max-height: min(70vh, 560px); overflow: auto; background: var(--color-surface-2); border: 1px solid var(--color-border); border-radius: 14px; padding: 6px; box-shadow: 0 12px 32px rgba(0, 0, 0, .6); display: flex; flex-direction: column; }
 .dayopt { flex: none; display: flex; align-items: center; gap: 10px; min-height: 44px; width: 100%; padding: 0 10px; border-radius: 10px; text-align: left; color: var(--text-primary); }
 .dayopt[aria-selected="true"] { background: transparent; }
-.dayopt:active { background: #3a3a40; }
+.dayopt:active { background: var(--color-hover); }
 .hdr.below .daymenu { left: 0; right: auto; }
 .dt-l .dayopt { padding: 6px 10px; }
 .dt-l .dayopt .grow { min-width: 0; overflow-wrap: anywhere; }
@@ -381,7 +410,9 @@ const diffText = computed(() => (
 .autosize { display: inline-grid; min-height: 44px; }
 .autosize > * { grid-area: 1 / 1; }
 .mirror { visibility: hidden; white-space: pre; padding-right: 4px; }
-.winput { width: 0; min-width: 100%; min-height: 44px; background: transparent; border: 0; padding: 0; caret-color: #fff; }
+.wfig { font-size: 2rem; line-height: 1.15; font-weight: 700; letter-spacing: -0.02em; }
+.winput { width: 0; min-width: 100%; min-height: 44px; background: transparent; border: 0; padding: 0; caret-color: var(--text-primary); font-size: 2rem; }
+.pad { margin-top: var(--space-gap); }
 .cbtn { font-size: 1.25rem; }
 .cbtn.filled { --s: 56px; width: 56px; height: 56px; min-width: 56px; min-height: 56px; }
 .cbtn.filled:disabled { opacity: .35; }
@@ -395,7 +426,7 @@ const diffText = computed(() => (
 .fresh { border-style: dashed; border-color: var(--text-tertiary); }
 .tguard { border-color: var(--color-border-strong); }
 .tgb { flex-wrap: wrap; }
-.tguard:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.tguard:focus-visible { outline: 2px solid var(--text-primary); outline-offset: 2px; }
 .chip.big { min-height: 44px; padding: 0 16px; border-radius: 22px; color: var(--text-primary); }
 .chip.big.on { color: var(--color-on-action); }
 .hrow { min-height: 44px; border-top: 1px solid var(--color-border); width: 100%; text-align: left; }

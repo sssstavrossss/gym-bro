@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { fewMarks, intakeBars, scaleTicks, slotX, targetLine, weightDots } from "../src/lib/progressChart";
+import { fewMarks, intakeBars, scaleTicks, slotX, targetLine, weightTrend } from "../src/lib/progressChart";
 
 const days = [
   { date: "2026-11-08", logged: true, value: 400, target: 2000 },
@@ -32,10 +32,19 @@ it("does not draw a target before one was saved", () => {
   expect(moves).toHaveLength(1);
 });
 
-it("plots weigh-ins only, and joins just those dots", () => {
-  const drawn = weightDots(days, [{ date: "2026-11-08", kg: 84 }, { date: "2026-11-10", kg: 83.6 }], 320, 140);
+it("draws the trend as the line and weigh-ins as dots", () => {
+  const drawn = weightTrend(
+    [
+      { date: "2026-11-08", trendKg: 84 },
+      { date: "2026-11-09", trendKg: 84 },
+      { date: "2026-11-10", trendKg: 83.6 },
+    ],
+    [{ date: "2026-11-08", kg: 84.4 }, { date: "2026-11-10", kg: 83.2 }],
+    320,
+    140,
+  );
   expect(drawn.dots.map((dot) => dot.date)).toEqual(["2026-11-08", "2026-11-10"]);
   expect(drawn.line.startsWith("M")).toBe(true);
-  expect(drawn.line.split("L")).toHaveLength(2);
+  expect(drawn.line.split("L")).toHaveLength(3);
   expect(drawn.dots[1].y).toBeGreaterThan(drawn.dots[0].y);
 });

@@ -7,29 +7,89 @@
   src: url("@fontsource-variable/inter/files/inter-latin-wght-normal.woff2") format("woff2-variations");
 }
 
-/* Tokens — same names as the Figma variables (collection "Gym Bro Tokens", mode Dark). */
-:root {
+/* Tokens. Theme blocks below override the surfaces. Chart blue stays the same in every theme. */
+:root,
+html[data-theme="graphite"] {
   color-scheme: dark;
-  --color-bg: #0b0b0c;
+  --color-bg: #16181d;
+  --color-surface: #20232a;
+  --color-surface-2: #2a2e37;
+  --color-border: #3a3f4a;
+  --color-track: #2c313b;
+  --color-hover: #343a46;
+  --color-progress: #7c7c84;
+  --color-hit: #e6e8ec;
+  --color-action: #ffffff;
+  --color-on-action: #16181d;
+  --text-primary: #e6e8ec;
+  --text-secondary: #b4b8c2;
+  --text-tertiary: #8e93a0;
+  --color-border-strong: #6e7482;
+  --chart-line: #7db1ff;
+  --shade-on-target: #e6e8ec;
+  --shade-close: #a8adb8;
+  --shade-off: #5c6270;
+  --shade-far: #2a2e37;
+}
+
+html[data-theme="midnight"] {
+  --color-bg: #121826;
+  --color-surface: #1b2233;
+  --color-surface-2: #263044;
+  --color-border: #33405a;
+  --color-track: #222a3c;
+  --color-hover: #2e3850;
+  --color-hit: #e4e8f1;
+  --color-on-action: #121826;
+  --text-primary: #e4e8f1;
+  --text-secondary: #b3bdd0;
+  --text-tertiary: #8b97b0;
+  --color-border-strong: #6c7a98;
+  --shade-on-target: #e4e8f1;
+  --shade-close: #aeb6c8;
+  --shade-off: #5c6a86;
+  --shade-far: #263044;
+}
+
+html[data-theme="charcoal"] {
+  --color-bg: #1a1816;
+  --color-surface: #24211e;
+  --color-surface-2: #302c28;
+  --color-border: #3e3934;
+  --color-track: #2c2925;
+  --color-hover: #3a352f;
+  --color-hit: #ece7e1;
+  --color-on-action: #1a1816;
+  --text-primary: #ece7e1;
+  --text-secondary: #c4bdb4;
+  --text-tertiary: #9a9188;
+  --color-border-strong: #7a7268;
+  --shade-on-target: #ece7e1;
+  --shade-close: #b7aea4;
+  --shade-off: #6e665e;
+  --shade-far: #302c28;
+}
+
+html[data-theme="black"] {
+  --color-bg: #000000;
   --color-surface: #1a1a1c;
   --color-surface-2: #26262a;
   --color-border: #2e2e33;
   --color-track: #2a2a2f;
-  --color-progress: #7c7c84;
+  --color-hover: #303036;
   --color-hit: #ffffff;
-  --color-action: #ffffff;
-  --color-on-action: #0b0b0c;
+  --color-on-action: #000000;
   --text-primary: #ffffff;
-  /* Secondary and tertiary match the prototype so body text stays above WCAG AA on every surface.
-     Tertiary was #5e5e66 (about 2–3:1). Outlines that identify a control use --color-border-strong. */
   --text-secondary: #b3b3ba;
   --text-tertiary: #9c9ca4;
   --color-border-strong: #737379;
-  --chart-line: #7db1ff;
   --shade-on-target: #ededef;
   --shade-close: #9c9ca3;
   --shade-off: #55555c;
   --shade-far: #333338;
+}
+
+:root {
   --radius-card: 16px;
   --radius-control: 12px;
   --radius-sheet: 24px;
@@ -48,7 +108,7 @@
 
   font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-feature-settings: "cv11", "ss01" 0;
-  background: #000;
+  background: var(--color-bg);
   color: var(--text-primary);
   -webkit-font-smoothing: antialiased;
   -webkit-tap-highlight-color: transparent;
@@ -67,7 +127,7 @@ html.demo-statusbar { --sat: 54px; --sab: 34px; }
 
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; overscroll-behavior: none; }
-body { background: #000; }
+body { background: var(--color-bg); }
 button { font: inherit; color: inherit; background: none; border: 0; padding: 0; margin: 0; cursor: pointer; touch-action: manipulation; }
 button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, [tabindex]:focus-visible {
   outline: 2px solid var(--color-action);
@@ -78,7 +138,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .is-desktop input:focus-visible,
 .is-desktop select:focus-visible,
 .is-desktop textarea:focus-visible {
-  outline: 2px solid #fff;
+  outline: 2px solid var(--text-primary);
   outline-offset: 2px;
 }
 input { font: inherit; color: inherit; }
@@ -109,7 +169,7 @@ svg { display: block; flex: none; }
 .card { background: var(--color-surface); border-radius: var(--radius-card); padding: var(--space-screen); display: flex; flex-direction: column; gap: var(--space-gap); }
 .divider { height: 1px; background: var(--color-border); }
 
-.screen { padding: calc(var(--sat) + 4px) var(--space-screen) calc(var(--tabbar-h) + 24px); display: flex; flex-direction: column; gap: var(--space-gap); min-width: 0; max-width: 100%; }
+.screen { padding: calc(var(--sat) + 8px) var(--space-screen) calc(var(--tabbar-h) + 24px); display: flex; flex-direction: column; gap: var(--space-gap); min-width: 0; max-width: 100%; }
 .screen-head { display: flex; align-items: center; min-height: 34px; }
 
 /* Circle buttons. The box is the 44px hit target. --s is the visible disc. .fit is a glyph inside a larger row. */
@@ -117,7 +177,7 @@ svg { display: block; flex: none; }
   position: relative; box-sizing: border-box;
   width: var(--control-hit); height: var(--control-hit); min-width: var(--control-hit); min-height: var(--control-hit);
   border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
-  background: transparent; color: #fff; flex: none; isolation: isolate; transition: transform .12s, opacity .12s;
+  background: transparent; color: var(--text-primary); flex: none; isolation: isolate; transition: transform .12s, opacity .12s;
 }
 .cbtn::before {
   content: ""; position: absolute; z-index: -1; width: var(--s, var(--control-s)); height: var(--s, var(--control-s));
@@ -169,12 +229,12 @@ svg { display: block; flex: none; }
 .is-desktop .screen { max-width: min(1200px, 100%); margin: 0 auto; padding: 32px 40px 48px; gap: 20px; }
 .is-desktop .t-title { font-size: 1.8824rem; line-height: 2.2353rem; }
 .can-hover .card.clickable { transition: background .15s; }
-.can-hover .card.clickable:hover { background: #202023; }
-.can-hover .cbtn:not(.filled):not(:disabled):hover::before { background: #303036; }
+.can-hover .card.clickable:hover { background: var(--color-hover); }
+.can-hover .cbtn:not(.filled):not(:disabled):hover::before { background: var(--color-hover); }
 .can-hover .cbtn.filled:hover { opacity: .88; }
 .can-hover .primary-btn:not(:disabled):hover { opacity: .9; }
 .can-hover .chip:not(.on):hover { color: var(--text-primary); }
-.can-hover .chip:not(.on):hover::before { background: #303036; }
+.can-hover .chip:not(.on):hover::before { background: var(--color-hover); }
 .can-hover .pressable:hover { opacity: .8; }
 kbd { font: 600 0.6471rem/1 "Inter", sans-serif; padding: 2px 5px; border-radius: 4px; border: 1px solid var(--color-border); color: var(--text-secondary); }
 .keyhint {

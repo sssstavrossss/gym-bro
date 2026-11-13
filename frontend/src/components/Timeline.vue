@@ -267,7 +267,7 @@ function onMenu(event: Event) {
   border-radius: 10px; background: var(--color-surface-2);
 }
 .hbtn > * { position: relative; }
-.hbtn:hover, .hbtn:focus-visible { color: #fff; }
+.hbtn:hover, .hbtn:focus-visible { color: var(--text-primary); }
 .hbtn:hover::before, .hbtn:focus-visible::before { background: var(--shade-off); }
 @media (hover: hover) and (pointer: fine) {
   .line:hover .hacts, .line:focus-within .hacts { opacity: 1; pointer-events: auto; }

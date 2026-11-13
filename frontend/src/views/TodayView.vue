@@ -12,14 +12,12 @@ import Sparkline from "../components/Sparkline.vue";
 import Timeline from "../components/Timeline.vue";
 import WeekStrip from "../components/WeekStrip.vue";
 import WeightChart from "../components/WeightChart.vue";
-import { dismissRecalculateBanner, getRecalculateBanner } from "../api";
 import { addDays, dayNum, longDate, shortDate, todayInZone, weekday, weekdayShort, weekStart } from "../lib/dates";
 import { int, kg } from "../lib/format";
 import { screenLayoutFromFlags } from "../lib/layout";
 import { macroStatus } from "../lib/macros";
 import { freshDismissed, goalDismissed, promptState } from "../lib/prompts";
 import { isManualTarget } from "../lib/manualTarget";
-import { recalculateBannerText } from "../lib/recalculate";
 import { judgeWeekDay } from "../lib/weekCard";
 import { vp } from "../lib/viewport";
 import { isFreshStart, isLowAccuracy, trendChange, weightSubtitle } from "../lib/weightDisplay";
@@ -32,34 +30,13 @@ import { useRoute } from "vue-router";
 import { openFood, openRecalculate, openWeight, ui } from "../ui";
 
 const route = useRoute();
-const showBanner = ref(false);
 onMounted(() => {
   if (route.query.recalculate === "1") openRecalculate();
-  void refreshBanner();
+  void refreshInbox();
 });
 watch(() => route.query.recalculate, (value) => {
   if (value === "1") openRecalculate();
 });
-watch(() => ui.sheet, (next, prev) => {
-  if (prev === "recalculate" && next !== "recalculate") void refreshBanner();
-});
-async function refreshBanner() {
-  try {
-    showBanner.value = (await getRecalculateBanner()).show;
-  } catch {
-    showBanner.value = false;
-  }
-  await refreshInbox();
-}
-async function dismissBanner() {
-  showBanner.value = false;
-  try {
-    await dismissRecalculateBanner();
-  } catch {
-    await refreshBanner();
-  }
-  await refreshInbox();
-}
 
 const weight = computed(() => profile.weight);
 const low = computed(() => isLowAccuracy(weight.value));
@@ -168,21 +145,14 @@ const weekRows = computed(() => {
 </script>
 
 <template>
-  <main class="screen today" :class="layout">
+  <main class="screen today" :class="layout" :aria-label="title">
+    <h1 class="sr-only">{{ title }}</h1>
     <div class="topbar">
       <header class="col gap2">
         <span class="t-cap c2">{{ longDate(selected) }}</span>
-        <h1 class="t-title">{{ title }}</h1>
-        <button type="button" class="chip t-label recalc" @click="openRecalculate">Recalculate</button>
       </header>
       <WeekStrip :anchor="today" :selected="selected" :today="today" :setup-date="viewed.setupDate" :logged-dates="viewed.loggedDates" @select="pick" />
     </div>
-
-    <section v-if="showBanner" class="card remind" role="status">
-      <p class="t-body grow msg">{{ recalculateBannerText }}</p>
-      <button type="button" class="chip t-label" @click="openRecalculate">Recalculate</button>
-      <button type="button" class="cbtn" aria-label="Dismiss reminder" @click="dismissBanner">×</button>
-    </section>
 
     <div class="grid">
       <div class="stack c-a">
@@ -195,13 +165,13 @@ const weekRows = computed(() => {
         </section>
         <template v-else>
           <section v-if="!goal" class="card kcal">
-            <span class="t-dxl num" data-num>{{ int(eaten.kcal) }}</span>
+            <span class="home-kcal num" data-num>{{ int(eaten.kcal) }}</span>
             <span class="t-label c2">kcal eaten · no target on this day</span>
           </section>
           <section v-else class="card kcal" :class="{ isover: kcalStatus === 'over' }" role="group" :aria-label="kcalLabel">
             <div class="row end">
               <div class="col">
-                <span class="t-dxl num" data-num>{{ int(Math.abs(left)) }}</span>
+                <span class="home-kcal num" data-num>{{ int(Math.abs(left)) }}</span>
                 <span class="row gap8 tags">
                   <span class="t-label c2">{{ left >= 0 ? "kcal left" : "kcal over" }}</span>
                   <span v-if="kcalStatus === 'over'" class="overtag t-capn">Over target</span>
@@ -349,7 +319,6 @@ const weekRows = computed(() => {
 .wk { width: 3.4rem; text-align: right; flex: none; }
 .barw { position: relative; min-width: 0; height: 10px; display: flex; align-items: center; }
 .tgt { position: absolute; left: calc(100% / 1.2); top: -3px; bottom: -3px; width: 1px; background: var(--text-tertiary); }
-.recalc { align-self: flex-start; }
 .remind { flex-direction: row; flex-wrap: wrap; align-items: center; gap: var(--space-gap); min-width: 0; max-width: 100%; }
 .msg { margin: 0; flex: 1 1 8rem; min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
 .gap2 { gap: 2px; }
@@ -357,6 +326,7 @@ const weekRows = computed(() => {
 .gap8 { gap: 8px; }
 .m0 { margin: 0; }
 .kcal { padding: 20px 16px; gap: 4px; min-width: 0; max-width: 100%; }
+.home-kcal { font-size: min(2.4rem, 48px); line-height: 1.08; font-weight: 700; letter-spacing: -0.03em; }
 .today { min-width: 0; max-width: 100%; }
 .end { align-items: flex-end; flex-wrap: wrap; }
 .right { align-items: flex-end; }
@@ -366,9 +336,9 @@ const weekRows = computed(() => {
 .prompt { flex-direction: row; align-items: center; gap: 12px; text-align: left; width: 100%; min-width: 0; }
 .pic { width: var(--control-s); height: var(--control-s); border-radius: 50%; background: var(--color-action); color: var(--color-on-action); display: flex; align-items: center; justify-content: center; flex: none; }
 .sk { display: block; height: 12px; width: 40%; border-radius: 6px; background: var(--color-surface-2); }
-.sk.tall { height: 64px; width: 55%; border-radius: 10px; }
+.sk.tall { height: 40px; width: 55%; border-radius: 10px; }
 .logc { min-width: 0; }
-.t-dxl, [data-num] { max-width: 100%; overflow-wrap: anywhere; }
+.home-kcal, [data-num] { max-width: 100%; overflow-wrap: anywhere; }
 .wcard, .wbig { position: relative; }
 .stretch { position: absolute; inset: 0; z-index: 1; }
 .wcard > :not(.stretch),

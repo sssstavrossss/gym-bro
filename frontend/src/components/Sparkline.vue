@@ -12,8 +12,8 @@ const layout = computed(() => sparklineLayout(props.series.map((point) => ({
 
 <template>
   <svg class="spark" :width="SPARK_WIDTH" :height="SPARK_HEIGHT" :viewBox="`0 0 ${SPARK_WIDTH} ${SPARK_HEIGHT}`" aria-hidden="true">
-    <circle v-for="(dot, index) in layout.dots" :key="index" :cx="dot.cx" :cy="dot.cy" r="3" fill="#7DB1FF" fill-opacity="0.35" />
-    <polyline :points="layout.line" fill="none" stroke="#7DB1FF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+    <circle v-for="(dot, index) in layout.dots" :key="index" :cx="dot.cx" :cy="dot.cy" r="3" fill="var(--chart-line)" fill-opacity="0.35" />
+    <polyline :points="layout.line" fill="none" stroke="var(--chart-line)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
   </svg>
 </template>
 

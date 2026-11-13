@@ -68,8 +68,10 @@ async function openAdd(page: Page, width: number) {
     await page.getByRole("dialog", { name: "Add" }).getByRole("button", { name: /Search or quick add/ }).click();
   }
   await expect(page.getByRole("dialog", { name: "Add", exact: true })).toBeHidden();
+  const search = sheet(page).getByRole("searchbox", { name: "Search foods" });
+  await expect(search).toBeVisible();
+  await search.blur();
   await expect(sheet(page).getByRole("heading", { name: "Add food" })).toBeVisible();
-  await expect(sheet(page).getByRole("searchbox", { name: "Search foods" })).toBeVisible();
   await expect(sheet(page).getByRole("radio", { name: "Search" })).toBeChecked();
 }
 
@@ -152,7 +154,7 @@ test("search, detail, multi-add, and stored-snapshot edit", async ({ page }) => 
   await sign(page, oid);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/today");
-  await expect(page.getByRole("heading", { name: "Today", exact: true })).toBeVisible();
+  await expect(page.getByRole("main", { name: "Today" })).toBeVisible();
   await openAdd(page, 390);
   await page.screenshot({ path: "/opt/cursor/artifacts/f2-search-empty.png" });
   await sheet(page).getByRole("searchbox", { name: "Search foods" }).fill("chicken");

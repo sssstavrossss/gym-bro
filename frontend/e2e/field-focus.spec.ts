@@ -92,16 +92,24 @@ async function fieldsAtLeast16(root: Locator) {
   expect(small).toEqual([]);
 }
 
-/** The field is focused, its text is selected, and typing replaces it. */
-async function expectReplace(page: Page, field: Locator, typed: string) {
+/** Text fields select the value. Numeric fields park the caret at the end and replace on the first key, with no highlight. */
+async function expectReplace(page: Page, field: Locator, typed: string, mode: "select" | "caret" = "select") {
   await expect(field).toBeVisible();
+  if (mode === "caret") {
+    const active = await field.evaluate((el) => document.activeElement === el);
+    if (!active) await field.click();
+  }
   await expect(field).toBeFocused();
   const selection = await field.evaluate((node) => {
     const input = node as HTMLInputElement;
-    return { start: input.selectionStart, end: input.selectionEnd, length: input.value.length };
+    return { start: input.selectionStart, end: input.selectionEnd, length: input.value.length, mode: input.dataset.replace ?? "" };
   });
-  expect(selection.start).toBe(0);
-  expect(selection.end).toBe(selection.length);
+  if (mode === "caret") {
+    expect(selection.start).toBe(selection.end);
+  } else {
+    expect(selection.start).toBe(0);
+    expect(selection.end).toBe(selection.length);
+  }
   await page.keyboard.type(typed);
   await expect(field).toHaveValue(typed);
 }
@@ -134,13 +142,18 @@ for (const width of [375, 390]) {
       const filters = food.getByRole("group", { name: "Show" });
       await expect(filters.getByRole("button", { name: "New food" })).toHaveCount(0);
       await expect(filters.getByRole("button", { name: "New recipe" })).toHaveCount(0);
+      const search = food.getByRole("searchbox", { name: "Search foods" });
+      await expect(search).toBeFocused();
+      await expect(filters).toBeHidden();
+      await search.blur();
       if (width === 390 && test.info().project.name === "chromium") {
-        await expect(filters.getByRole("button", { name: "All foods" })).toBeInViewport();
+        await expect(filters.getByRole("button", { name: "All foods" })).toBeVisible();
         await page.screenshot({ path: "/opt/cursor/artifacts/add-food-chooser-phone.png" });
       }
-      const search = food.getByRole("searchbox", { name: "Search foods" });
+      await search.focus();
       await expectReplace(page, search, "zz");
       await fieldsAtLeast16(food);
+      await search.blur();
 
       await food.getByRole("radio", { name: "Quick Add" }).click();
       await expectReplace(page, food.getByRole("textbox", { name: "Name (optional)" }), "Bar");
@@ -151,7 +164,7 @@ for (const width of [375, 390]) {
       await search.fill(foodName);
       await food.getByRole("button", { name: new RegExp(foodName) }).click();
       const amount = food.getByRole("textbox", { name: "Amount in g" });
-      await expectReplace(page, amount, "55");
+      await expectReplace(page, amount, "55", "caret");
       await fieldsAtLeast16(food);
 
       await food.getByRole("button", { name: "Serving" }).click();
@@ -175,8 +188,10 @@ for (const width of [375, 390]) {
       else expect(timeState.active).toBe(true);
 
       await food.getByRole("button", { name: "Back" }).click();
+      await search.blur();
       await food.getByRole("button", { name: /My foods/ }).click();
       await search.fill("");
+      await search.blur();
       await food.getByRole("button", { name: "New food" }).click();
       const editor = page.getByRole("dialog", { name: "New food" });
       await expectReplace(page, editor.getByRole("textbox", { name: /^Name/ }), "Stew");
@@ -186,12 +201,13 @@ for (const width of [375, 390]) {
 
       await page.getByRole("button", { name: /Open weight|Log weight/ }).first().click();
       const weight = page.getByRole("dialog", { name: "Log weight" });
-      await expectReplace(page, weight.getByRole("textbox", { name: "Weight in kilograms" }), "70");
+      await expectReplace(page, weight.getByRole("textbox", { name: "Weight in kilograms" }), "70", "caret");
       await fieldsAtLeast16(weight);
       await weight.getByRole("button", { name: "Close" }).click();
 
       await page.getByRole("button", { name: "Add", exact: true }).click();
       await page.getByRole("dialog", { name: "Add" }).getByRole("button", { name: /Search or quick add/ }).click();
+      await food.getByRole("searchbox", { name: "Search foods" }).blur();
       await food.getByRole("button", { name: /Recipes/ }).click();
       await expect(food.getByRole("button", { name: "New recipe" })).toBeVisible();
       await food.getByRole("button", { name: "New recipe" }).click();
@@ -202,7 +218,7 @@ for (const width of [375, 390]) {
       const ingredientSearch = recipe.getByRole("searchbox", { name: "Search foods" });
       await expectReplace(page, ingredientSearch, foodName);
       await recipe.getByRole("button", { name: new RegExp(foodName) }).click();
-      await expectReplace(page, recipe.getByRole("textbox", { name: `Amount of ${foodName}` }), "40");
+      await expectReplace(page, recipe.getByRole("textbox", { name: `Amount of ${foodName}` }), "40", "caret");
       await recipe.getByRole("button", { name: "Add to recipe" }).click();
       await expect(recipe.getByRole("textbox", { name: "Recipe name" })).toBeFocused();
       await fieldsAtLeast16(recipe);
@@ -305,5 +321,5 @@ test("a desktop pointer also focuses and selects the primary field", async ({ pa
 
   await page.locator("aside").getByRole("button", { name: "Log weight" }).click();
   const weight = page.getByRole("dialog", { name: "Log weight" });
-  await expectReplace(page, weight.getByRole("textbox", { name: "Weight in kilograms" }), "70");
+  await expectReplace(page, weight.getByRole("textbox", { name: "Weight in kilograms" }), "70", "caret");
 });

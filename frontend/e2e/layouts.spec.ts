@@ -107,7 +107,7 @@ test("layouts stay in one column of scrolling from 375 to 1,920", async ({ page 
   for (const width of widths) {
     await page.setViewportSize({ width, height: 900 });
     await page.goto("/today");
-    await expect(page.getByRole("heading", { name: "Today", exact: true })).toBeVisible();
+    await expect(page.getByRole("main", { name: "Today" })).toBeVisible();
     await expect(page.locator(".app")).toHaveAttribute("data-layout", layoutName(width));
     const card = page.getByRole("group", { name: /kcal/ });
     await expect(card).toBeVisible();
@@ -182,7 +182,7 @@ test("desktop shortcuts, escape, and the right-hand panel", async ({ page }) => 
   await sign(page, oid);
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto("/today");
-  await expect(page.getByRole("heading", { name: "Today", exact: true })).toBeVisible();
+  await expect(page.getByRole("main", { name: "Today" })).toBeVisible();
 
   const add = page.locator("aside.side").getByRole("button", { name: /Add food/ });
   await add.focus();
@@ -300,7 +300,7 @@ test("a touch screen at desktop width keeps swipe and the keypad", async ({ page
   await sign(page, oid);
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.goto("/today");
-  await expect(page.getByRole("heading", { name: "Today", exact: true })).toBeVisible();
+  await expect(page.getByRole("main", { name: "Today" })).toBeVisible();
   const coarse = await page.evaluate(() => ({
     hover: window.matchMedia("(hover: hover) and (pointer: fine)").matches,
     layout: document.querySelector(".app")?.getAttribute("data-layout"),
@@ -313,6 +313,7 @@ test("a touch screen at desktop width keeps swipe and the keypad", async ({ page
   await expect(page.getByRole("button", { name: "Copy Fictional touch bar to another day" })).toBeAttached();
 
   await page.locator("aside.side").getByRole("button", { name: /Add food/ }).click();
+  await page.getByRole("searchbox", { name: "Search foods" }).blur();
   await page.getByRole("radio", { name: "Quick Add" }).click();
   await expect(page.getByRole("group", { name: "Number keypad" })).toBeVisible();
   await expect(page.getByRole("textbox", { name: "Calories", exact: true })).toHaveCount(0);

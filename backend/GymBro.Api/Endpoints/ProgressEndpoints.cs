@@ -70,6 +70,8 @@ public static class ProgressEndpoints
         var from = ProgressMath.WindowStart(today, normalized, earliest);
         var byLog = logged.ToDictionary(row => row.Date);
         var targetRows = targets.Select(row => (row.EffectiveDate, row.Kcal, row.ProteinGrams)).ToList();
+        var trend = TrendWeight.Compute(weighIns.Select(row => (row.LocalDate, row.Kg)).ToList(), today);
+        var trendByDate = trend.Days.ToDictionary(day => day.Date);
         var days = new List<ProgressDay>(today.DayNumber - from.DayNumber + 1);
         decimal kcalSum = 0;
         decimal proteinSum = 0;
@@ -77,16 +79,17 @@ public static class ProgressEndpoints
         for (var date = from; date <= today; date = date.AddDays(1))
         {
             var target = ProgressMath.TargetAt(targetRows, date);
+            decimal? trendKg = trendByDate.TryGetValue(date, out var trendDay) && !trendDay.Gap ? trendDay.TrendKg : null;
             if (!byLog.TryGetValue(date, out var intake))
             {
-                days.Add(new ProgressDay(date, false, null, null, target?.Kcal, target?.Protein));
+                days.Add(new ProgressDay(date, false, null, null, target?.Kcal, target?.Protein, trendKg));
                 continue;
             }
 
             loggedDays++;
             kcalSum += intake.Kcal;
             proteinSum += intake.Protein;
-            days.Add(new ProgressDay(date, true, intake.Kcal, intake.Protein, target?.Kcal, target?.Protein));
+            days.Add(new ProgressDay(date, true, intake.Kcal, intake.Protein, target?.Kcal, target?.Protein, trendKg));
         }
 
         var inRange = weighIns.Where(row => row.LocalDate >= from && row.LocalDate <= today).ToList();
@@ -154,4 +157,5 @@ public sealed record ProgressDay(
     decimal? Kcal,
     decimal? Protein,
     int? TargetKcal,
-    int? TargetProtein);
+    int? TargetProtein,
+    decimal? TrendKg);

@@ -14,5 +14,5 @@ void props;
 .fill { height: 100%; border-radius: 2px; background: var(--color-progress); }
 .fill.hit { background: var(--color-hit); }
 .bar.over { height: 6px; border-radius: 3px; }
-.bar.over .fill { background: repeating-linear-gradient(-45deg, #d6d6da 0 3px, #55555c 3px 6px); }
+.bar.over .fill { background: repeating-linear-gradient(-45deg, var(--text-primary) 0 3px, var(--shade-off) 3px 6px); }
 </style>

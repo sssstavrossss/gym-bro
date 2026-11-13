@@ -1,5 +1,5 @@
 import type { ObjectDirective } from "vue";
-import { focusField, selectField, type FocusableField } from "./focusField";
+import { armReplace, focusField, selectField, type FocusableField } from "./focusField";
 
 /**
  * `v-autofocus` on the one primary field of a form.
@@ -11,12 +11,18 @@ export const vAutofocus: ObjectDirective<HTMLElement> = {
   mounted(el) {
     el.setAttribute("data-autofocus", "");
     const field = el as HTMLElement & FocusableField;
-    el.addEventListener("focus", () => selectField(field));
+    const replace = () => el.dataset.replace === "1";
+    el.addEventListener("focus", () => {
+      if (replace() && el instanceof HTMLInputElement) armReplace(el);
+      else selectField(field);
+    });
     // Focus in this turn. v-model may assign the value after this hook, which
-    // drops the selection, so select again once the other mount hooks have run.
+    // drops the caret, so place it again once the other mount hooks have run.
     focusField(field);
     queueMicrotask(() => {
-      if (typeof document !== "undefined" && document.activeElement === el) selectField(field);
+      if (typeof document === "undefined" || document.activeElement !== el) return;
+      if (replace() && el instanceof HTMLInputElement) armReplace(el);
+      else selectField(field);
     });
   },
 };

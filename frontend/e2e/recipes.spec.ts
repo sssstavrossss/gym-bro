@@ -110,6 +110,7 @@ test("create a recipe, see per-portion protein update, log it, and retire it", a
   await expect(page.getByRole("heading", { name: "Log" })).toBeVisible();
   await page.getByRole("button", { name: "Add food", exact: true }).click();
   const food = page.getByRole("dialog", { name: "Add food" });
+  await food.getByRole("searchbox", { name: "Search foods" }).blur();
   await food.getByRole("button", { name: /Recipes/ }).click();
   await food.getByRole("button", { name: "New recipe" }).first().click();
 

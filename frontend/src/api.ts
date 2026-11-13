@@ -444,6 +444,7 @@ export interface ProgressDay {
   protein: number | null;
   targetKcal: number | null;
   targetProtein: number | null;
+  trendKg: number | null;
 }
 
 export interface ProgressResponse {

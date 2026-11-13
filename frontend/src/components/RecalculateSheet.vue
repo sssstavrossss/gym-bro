@@ -16,7 +16,16 @@ const busy = ref(false);
 const error = ref("");
 
 const current = computed(() => profile.targets);
-const proposed = computed(() => review.value?.proposed ?? null);
+const proposed = computed(() => {
+  const value = review.value;
+  if (!value) return null;
+  return value.enough && value.proposed ? value.proposed : value.formula;
+});
+const excludedLabels = computed(() => {
+  const value = review.value;
+  if (!value) return [];
+  return value.days.filter((day) => excluded.value.includes(day.date)).map((day) => dayMonth(day.date));
+});
 
 watch(open, (isOpen) => {
   if (!isOpen) return;
@@ -45,12 +54,13 @@ function toggle(date: string, canExclude: boolean) {
   void load(true);
 }
 
-async function confirm(mode: "adaptive" | "formula") {
-  if (busy.value) return;
+async function accept() {
+  if (busy.value || !review.value) return;
+  const mode = review.value.enough && review.value.proposed ? "adaptive" : "formula";
   busy.value = true;
   error.value = "";
   try {
-    const days = review.value?.days ?? [];
+    const days = review.value.days;
     const ticked = new Set(excluded.value);
     await saveRecalculate(excludedDates(days, ticked), mode);
     await loadProfile();
@@ -62,6 +72,10 @@ async function confirm(mode: "adaptive" | "formula") {
   } finally {
     busy.value = false;
   }
+}
+
+function decline() {
+  closeSheet();
 }
 
 function line(numbers: { kcal: number; protein: number; fat: number; carbs: number } | null): string {
@@ -104,17 +118,22 @@ function line(numbers: { kcal: number; protein: number; fat: number; carbs: numb
             </label>
           </li>
         </ul>
-        <div class="compare">
+        <div class="compare" data-recalc-preview>
           <p class="t-label c2">Now</p>
           <p class="t-bodys">{{ line(current) }}</p>
           <p class="t-label c2">{{ proposed?.manualKept ? "Estimated burn, your number kept" : "New" }}</p>
           <p class="t-bodys">{{ proposed ? line(proposed) : "—" }}</p>
-          <p v-if="review.burn != null" class="t-capn c2">Estimated burn {{ int(Math.round(review.burn)) }} kcal</p>
+          <p v-if="review.enough && review.burn != null" class="t-body" data-derivation>
+            Adaptive. Estimated burn {{ int(Math.round(review.burn)) }} kcal is the average of the included days, adjusted for the trend change, then for your goal.
+          </p>
+          <p v-else class="t-body" data-derivation role="status">
+            Formula fallback. {{ review.blocked }} This preview uses Mifflin-St Jeor times your activity. Nothing is guessed.
+          </p>
           <p v-if="proposed?.floorApplied" class="t-capn">Raised to your BMR so the target does not go below it.</p>
+          <p class="t-label c2">{{ excludedLabels.length ? `Excluded: ${excludedLabels.join(", ")}` : "No days excluded." }}</p>
         </div>
-        <p v-if="review.blocked" class="t-body" role="status">{{ review.blocked }} The formula is still available. Nothing is guessed.</p>
-        <button v-if="review.enough" type="button" class="primary-btn t-bodys" :disabled="busy" @click="confirm('adaptive')">Save this target</button>
-        <button type="button" class="chip t-label" :disabled="busy" @click="confirm('formula')">Use the formula instead</button>
+        <button type="button" class="primary-btn t-bodys" :disabled="busy || !proposed" @click="accept">Accept</button>
+        <button type="button" class="chip t-label" :disabled="busy" @click="decline">Decline</button>
       </template>
       <p v-if="error" class="t-body" role="alert">{{ error }}</p>
     </div>

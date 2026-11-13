@@ -91,6 +91,7 @@ test("recipe chip detail wraps the full macros at iPhone width", async ({ page }
   await page.goto("/today");
   await page.getByRole("button", { name: "Log your first food today" }).click();
   const food = page.getByRole("dialog", { name: "Add food" });
+  await food.getByRole("searchbox", { name: "Search foods" }).blur();
   await food.getByRole("button", { name: /Recipes/ }).click();
   const row = food.locator(".rrow").filter({ hasText: name });
   const detail = row.locator("[data-recipe-detail]");

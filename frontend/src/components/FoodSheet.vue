@@ -60,7 +60,7 @@ import {
 } from "../lib/foodSheet";
 import { quickAddFoodWrite } from "../lib/customFood";
 import { kcalFromMacros, macroStatus } from "../lib/macros";
-import { nextQuickInput, nextQuickNumber } from "../lib/quickEntry";
+import { afterInsertion, markWholeSelection, nextQuickInput, nextQuickNumber, tookWholeSelection } from "../lib/quickEntry";
 import { keyboardEntry } from "../lib/viewport";
 import { deviceTimeZone, profile } from "../state/profile";
 import { findEntry, log, removeEntries, removeEntry, saveQuickAdd, totalsOf, updateFoodAmount, updateQuickAdd, viewed, type LogEntry } from "../state/log";
@@ -121,6 +121,7 @@ let justTimer = 0;
 let recentGen = 0;
 let detailGen = 0;
 const searchEl = ref<HTMLInputElement | null>(null);
+const searchFocused = ref(false);
 const amountEl = ref<HTMLInputElement | null>(null);
 const detailFood = ref<FoodSearchRow | null>(null);
 const amountText = ref("100");
@@ -177,11 +178,6 @@ function onQuickFocus(field: Field) {
   active.value = field;
   if (typing) return;
   armQuick(field);
-  if (!replace.value[field]) return;
-  queueMicrotask(() => {
-    const input = document.activeElement;
-    if (input instanceof HTMLInputElement && input.getAttribute("aria-label") === fieldLabel(field)) input.select();
-  });
 }
 function onQuickBlur(field: Field) {
   armQuick(field);
@@ -190,9 +186,6 @@ function onQuickTap(field: Field) {
   if (active.value !== field) armQuick(active.value);
   active.value = field;
   armQuick(field);
-}
-function fieldLabel(field: Field): string {
-  return fields.find((item) => item.key === field)?.label ?? "";
 }
 function qKey(key: string) {
   const field = active.value;
@@ -203,10 +196,12 @@ function qKey(key: string) {
 function qInput(key: Field, event: Event) {
   const input = event.target as HTMLInputElement;
   const armed = replace.value[key];
-  const value = nextQuickInput(qa.value[key], input.value, armed, 6);
-  qa.value[key] = value;
-  input.value = value;
-  if (armed) replace.value[key] = false;
+  afterInsertion(input, (raw) => {
+    const value = nextQuickInput(qa.value[key], raw, armed && !tookWholeSelection(input), 6);
+    qa.value[key] = value;
+    if (input.value !== value) input.value = value;
+    if (armed) replace.value[key] = false;
+  });
 }
 function limitMessage(): string | null {
   const kcal = qa.value.kcal !== "" ? num("kcal") : qKcalAuto.value;
@@ -434,16 +429,27 @@ function amountKey(key: string) {
   const next = typeInto(amountText.value === "0" && key !== "⌫" && key !== "." ? "0" : amountText.value, key, maxInt, decimals);
   amountText.value = next === "" ? "0" : next;
 }
+function queueSearchBlur() {
+  window.setTimeout(() => { searchFocused.value = false; }, 0);
+}
+function blurSearch() {
+  if (!searchFocused.value) return;
+  searchEl.value?.blur();
+}
 function amountInput(event: Event) {
   const input = event.target as HTMLInputElement;
-  let value = input.value.replace(",", ".").replace(/[^0-9.]/g, "");
-  const decimals = isCount.value ? 2 : 1;
-  const maxInt = unit.value === "g" || unit.value === "ml" ? 5 : 2;
-  const [whole, fraction] = value.split(".");
-  value = fraction === undefined ? (whole ?? "").slice(0, maxInt) : `${(whole ?? "").slice(0, maxInt)}.${fraction.slice(0, decimals)}`;
-  amountText.value = value;
-  input.value = value;
-  fresh.value = false;
+  const replace = fresh.value;
+  afterInsertion(input, (raw) => {
+    let text = replace && !tookWholeSelection(input) ? nextQuickInput(amountText.value, raw, true, 8) : raw;
+    fresh.value = false;
+    text = text.replace(",", ".").replace(/[^0-9.]/g, "");
+    const decimals = isCount.value ? 2 : 1;
+    const maxInt = unit.value === "g" || unit.value === "ml" ? 5 : 2;
+    const [whole, fraction] = text.split(".");
+    const value = fraction === undefined ? (whole ?? "").slice(0, maxInt) : `${(whole ?? "").slice(0, maxInt)}.${fraction.slice(0, decimals)}`;
+    amountText.value = value;
+    if (input.value !== value) input.value = value;
+  });
 }
 const trimmedQuery = computed(() => q.value.trim());
 const mineListed = computed(() => {
@@ -1140,9 +1146,9 @@ async function deleteEdited() {
         <button v-if="showDetail || showEditor" type="button" class="cbtn"  aria-label="Back" @click="back">
           <Icon name="left" :size="18" />
         </button>
-        <h2 v-else class="t-head">{{ editing ? "Edit food" : "Add food" }}</h2>
+        <h2 v-else-if="!searchFocused" class="t-head">{{ editing ? "Edit food" : "Add food" }}</h2>
         <span class="grow" />
-        <TimeChip v-if="!showEditor" v-model="time" :date="ui.foodDate" :today="foodToday" :allow-now="!pastDay && !editing" />
+        <TimeChip v-if="!showEditor && !searchFocused" v-model="time" :date="ui.foodDate" :today="foodToday" :allow-now="!pastDay && !editing" />
         <button type="button" class="cbtn"  aria-label="Close" @click="closeSheet">
           <Icon name="x" :size="18" />
         </button>
@@ -1150,7 +1156,7 @@ async function deleteEdited() {
       <p v-if="needTime && !showEditor" class="needt t-label" role="status">
         <Icon name="clock" :size="14" :sw="2.2" /> Logging to {{ dayMonth(ui.foodDate) }} — pick the time you ate it.
       </p>
-      <Segmented v-if="!showDetail && !editing && !showEditor" v-model="ui.foodTab" label="Add food" :options="[{ value: 'search', label: 'Search' }, { value: 'quick', label: 'Quick Add' }]" @pointerdown="onAddTabPointer" />
+      <Segmented v-if="!showDetail && !editing && !showEditor && !searchFocused" v-model="ui.foodTab" label="Add food" :options="[{ value: 'search', label: 'Search' }, { value: 'quick', label: 'Quick Add' }]" @pointerdown="onAddTabPointer" />
       </div>
     </template>
 
@@ -1171,8 +1177,8 @@ async function deleteEdited() {
       </div>
       <div class="col center gap8">
         <div class="base">
-          <input ref="amountEl" v-autofocus :value="amountText" class="t-dl num ginput" inputmode="decimal" autocomplete="off" :aria-label="`Amount in ${unit}`"
-            @input="amountInput" @keydown.enter.prevent="addDetail" />
+          <input ref="amountEl" v-autofocus :value="amountText" data-replace="1" class="t-dl num ginput" :inputmode="keyboardEntry ? 'decimal' : 'none'" autocomplete="off" :aria-label="`Amount in ${unit}`"
+            @beforeinput="markWholeSelection" @focus="fresh = true" @input="amountInput" @keydown.enter.prevent="addDetail" />
           <span class="t-head c2">{{ unitWord }}</span>
         </div>
         <span v-if="isCount && preview.grams != null && gramsEach" class="t-label c2" aria-live="polite">= {{ int(preview.grams) }} g · 1 {{ unit }} = {{ gramsEach }} g</span>
@@ -1248,15 +1254,15 @@ async function deleteEdited() {
     <template v-else-if="!editing && ui.foodTab === 'search'">
       <label class="field row">
         <Icon name="search" :size="18" class="c2" />
-        <input ref="searchEl" v-autofocus v-model="q" class="t-body grow" type="search" :placeholder="filter === 'mine' ? 'Search my foods' : filter === 'recipes' ? 'Search recipes' : 'Search foods'" :aria-label="filter === 'recipes' ? 'Search recipes' : 'Search foods'" autocomplete="off" enterkeyhint="search" @keydown="searchKey" />
+        <input ref="searchEl" v-autofocus v-model="q" class="t-body grow" type="search" :placeholder="filter === 'mine' ? 'Search my foods' : filter === 'recipes' ? 'Search recipes' : 'Search foods'" :aria-label="filter === 'recipes' ? 'Search recipes' : 'Search foods'" autocomplete="off" enterkeyhint="search" @focus="searchFocused = true" @blur="queueSearchBlur" @keydown="searchKey" />
         <button v-if="q" type="button" class="clr c2" aria-label="Clear search" @click="q = ''"><Icon name="x" :size="16" /></button>
       </label>
-      <div class="row fchips" role="group" aria-label="Show">
+      <div v-show="!searchFocused" class="row fchips" role="group" aria-label="Show">
         <button type="button" class="chip t-label" :class="{ on: filter === 'all' }" :aria-pressed="filter === 'all'" @click="filter = 'all'">All foods</button>
         <button type="button" class="chip t-label" :class="{ on: filter === 'mine' }" :aria-pressed="filter === 'mine'" @click="filter = 'mine'">My foods · {{ mine.length }}</button>
         <button type="button" class="chip t-label" :class="{ on: filter === 'recipes' }" :aria-pressed="filter === 'recipes'" @click="filter = 'recipes'">Recipes · {{ savedRecipes.list.length }}</button>
       </div>
-      <div class="list">
+      <div class="list" :class="{ compact: searchFocused }" @wheel.passive="blurSearch" @touchmove.passive="blurSearch">
         <RecipeList
           v-if="filter === 'recipes'"
           :recipes="visibleRecipes"
@@ -1268,7 +1274,7 @@ async function deleteEdited() {
           @remove="removeRecipe"
           @create="openRecipeCreate('food')"
         />
-        <template v-if="filter !== 'mine' && filter !== 'recipes'">
+        <template v-if="filter !== 'mine' && filter !== 'recipes' && !searchFocused">
         <SavedGroups
           :groups="visibleGroups"
           :note="groupNote"
@@ -1300,7 +1306,7 @@ async function deleteEdited() {
             <button type="button" class="chip on t-label" @click="openNewFood()"><Icon name="plus" :size="14" :sw="2.4" /> Create a food</button>
           </div>
           <div v-for="(food, index) in mineListed" :key="food.id" class="rrow row" :class="{ hl: keyboardEntry && index === hi }" @mouseenter="hi = index">
-            <button type="button" class="col grow rtext" @click="openFoodRow(food)">
+            <button type="button" class="col grow rtext" @pointerdown="openFoodRow(food)" @click="openFoodRow(food)">
               <span class="t-body ell">{{ food.name }}</span>
               <span class="t-label c2 ell">{{ rowSub(food) }}</span>
             </button>
@@ -1338,7 +1344,7 @@ async function deleteEdited() {
             <button v-if="trimmedQuery.length >= 2" type="button" class="chip" @click="runSearch(trimmedQuery)">Try again</button>
           </div>
           <div v-if="results.length" class="row lhead"><span class="t-cap c2">Results</span></div>
-          <button v-for="(food, index) in results" :key="food.id" type="button" class="rrow row" :class="{ hl: keyboardEntry && index === hi }" @click="openFoodRow(food)" @mouseenter="hi = index">
+          <button v-for="(food, index) in results" :key="food.id" type="button" class="rrow row" :class="{ hl: keyboardEntry && index === hi }" @pointerdown="openFoodRow(food)" @click="openFoodRow(food)" @mouseenter="hi = index">
             <span class="col grow rtext">
               <span class="row gap6 nm"><span class="t-body ell">{{ food.name }}</span><span v-if="isMyFood(food)" class="mine t-capn">my food</span></span>
               <span class="t-label c2 ell">{{ rowSub(food) }}</span>
@@ -1404,7 +1410,7 @@ async function deleteEdited() {
             <span class="base">
               <input :value="qa[field.key]" class="t-nm num qinput" inputmode="decimal" autocomplete="off" :aria-label="field.label"
                 :placeholder="field.key === 'kcal' && qKcalAuto ? String(qKcalAuto) : '0'"
-                @input="qInput(field.key, $event)" @focus="onQuickFocus(field.key)" @blur="onQuickBlur(field.key)" @keydown.enter.prevent="addQuick" />
+                @beforeinput="markWholeSelection" @input="qInput(field.key, $event)" @focus="onQuickFocus(field.key)" @blur="onQuickBlur(field.key)" @keydown.enter.prevent="addQuick" />
               <span class="t-label c2">{{ field.unit }}</span>
             </span>
           </label>
@@ -1468,6 +1474,8 @@ async function deleteEdited() {
 .list { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; overflow-y: auto; }
 .body { flex: 1 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
 .rrow { min-height: 56px; width: 100%; gap: 12px; padding: 6px 0; border-bottom: 1px solid var(--color-border); text-align: left; background: transparent; }
+.list.compact .rrow { min-height: 40px; padding: 2px 0; gap: 8px; }
+.list.compact .rtext { min-height: 0; }
 .rrow.hl { background: var(--color-surface-2); border-radius: 12px; }
 .rtext { gap: 2px; min-width: 0; align-items: flex-start; }
 .ell { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }

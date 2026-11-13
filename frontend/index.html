@@ -3,7 +3,18 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="theme-color" content="#0b0b0c" />
+    <meta name="theme-color" content="#16181D" />
+    <script>
+      (function () {
+        var allowed = { graphite: "#16181D", midnight: "#121826", charcoal: "#1A1816", black: "#000000" };
+        var stored = "";
+        try { stored = localStorage.getItem("gymbro-theme") || ""; } catch (e) { stored = ""; }
+        var theme = Object.prototype.hasOwnProperty.call(allowed, stored) ? stored : "graphite";
+        document.documentElement.dataset.theme = theme;
+        var meta = document.querySelector('meta[name="theme-color"]');
+        if (meta) meta.setAttribute("content", allowed[theme]);
+      })();
+    </script>
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <title>Gym Bro</title>
