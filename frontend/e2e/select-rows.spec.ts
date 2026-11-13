@@ -77,6 +77,8 @@ test("select mode keeps food rows inside the list and gives the check its own sl
   await expect.poll(() => oats.locator(".dot").evaluate((el) => el.getBoundingClientRect().width)).toBeCloseTo(22, 0);
 
   await expectRow(oats, roll, before);
+  await expectCentered(oats);
+  await expectCentered(roll);
   await expectFlush(page.locator("main"));
   if (test.info().project.name === "chromium") {
     await page.screenshot({ path: "/opt/cursor/artifacts/iphone40-select-log.png" });
@@ -92,6 +94,8 @@ test("select mode keeps food rows inside the list and gives the check its own sl
   const homeOats = page.locator("main.today .logc .line").filter({ hasText: "Fictional select oats" });
   const homeRoll = page.locator("main.today .logc .line").filter({ hasText: "Fictional select roll" });
   await expect(homeOats).toBeVisible();
+  await expectCentered(homeOats);
+  await expectCentered(homeRoll);
   await homeOats.evaluate((el) => {
     const box = el.getBoundingClientRect();
     el.dispatchEvent(new PointerEvent("pointerdown", {
@@ -109,6 +113,8 @@ test("select mode keeps food rows inside the list and gives the check its own sl
   expect(homeLine!.x).toBeGreaterThanOrEqual(card!.x + 12);
   expect(homeLine!.x + homeLine!.width).toBeLessThanOrEqual(card!.x + card!.width - 12);
   await expectRow(homeOats, homeRoll);
+  await expectCentered(homeOats);
+  await expectCentered(homeRoll);
   await expectFlush(page.locator("main.today .logc"));
   if (test.info().project.name === "chromium") {
     await page.screenshot({ path: "/opt/cursor/artifacts/iphone40-select-home.png" });
@@ -160,6 +166,31 @@ async function expectFlush(scope: Locator) {
     expect(metrics.selTop).toBeLessThanOrEqual(0.5);
     expect(metrics.selBottom).toBeLessThanOrEqual(0.5);
   }
+}
+
+async function expectCentered(line: Locator) {
+  const m = await line.evaluate((el) => {
+    const row = el.getBoundingClientRect();
+    const mid = (row.top + row.bottom) / 2;
+    const center = (sel: string) => {
+      const node = el.querySelector(sel);
+      if (!node) return null;
+      const box = node.getBoundingClientRect();
+      return (box.top + box.bottom) / 2;
+    };
+    return {
+      line: getComputedStyle(el).alignItems,
+      frow: getComputedStyle(el.querySelector(".frow")!).alignItems,
+      time: center(".time"),
+      block: center(".two"),
+      kcal: center(".kc"),
+      dot: center(".dot"),
+      mid,
+    };
+  });
+  expect(m.line).toBe("center");
+  expect(m.frow).toBe("center");
+  for (const y of [m.time, m.block, m.kcal, m.dot]) expect(Math.abs((y ?? 0) - m.mid)).toBeLessThanOrEqual(3);
 }
 
 async function edge(line: Locator) {

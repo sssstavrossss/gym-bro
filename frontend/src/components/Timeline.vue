@@ -231,7 +231,7 @@ function onMenu(event: Event) {
 .entries > .pending:not(:first-child),
 .entries > :deep(.swipe:not(:first-child)) { border-top: 1px solid var(--color-border); }
 .line {
-  position: relative; display: flex; align-items: flex-start; gap: 2px;
+  position: relative; display: flex; align-items: center; gap: 2px;
   width: 100%; min-height: 52px; min-width: 0; max-width: 100%; box-sizing: border-box;
   border-radius: 0; overflow: hidden; -webkit-touch-callout: none; user-select: none;
   transition: gap .18s ease;
@@ -242,12 +242,12 @@ function onMenu(event: Event) {
 .frow {
   min-height: 52px; flex: 1 1 0%; min-width: 0; width: auto; max-width: 100%; text-align: left;
   display: grid; grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: start; gap: 6px; background: transparent; border-radius: 10px; padding: 4px 0;
+  align-items: center; gap: 6px; background: transparent; border-radius: 10px; padding: 4px 0;
 }
 .pending {
   min-height: 52px; min-width: 0; max-width: 100%;
   display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto;
-  align-items: start; gap: 6px; border-radius: 0; padding: 8px 0;
+  align-items: center; gap: 6px; border-radius: 0; padding: 8px 0;
 }
 .time { width: auto; min-width: 2.5rem; font-variant-numeric: tabular-nums; }
 .two { gap: 1px; min-width: 0; align-items: flex-start; }
@@ -262,10 +262,10 @@ function onMenu(event: Event) {
 }
 .addrow { min-height: var(--control-hit); gap: var(--space-gap); align-items: center; text-align: left; margin-top: 8px; }
 .addc { pointer-events: none; }
-.mark { position: relative; width: 44px; height: 44px; flex: none; align-self: flex-start; }
-/* The hit target stays 44px. The dot sits on the first line, level with the time. */
+.mark { position: relative; width: 44px; height: 44px; flex: none; }
+/* The hit target stays 44px. The dot sits in the vertical centre of that target. */
 .dot, .tick {
-  position: absolute; left: auto; right: 2px; top: calc(4px + 0.4706rem);
+  position: absolute; left: auto; right: 2px; top: 50%;
   transform: translate(0, -50%);
   transition: width .18s ease, height .18s ease, background .18s ease, box-shadow .18s ease, right .18s ease, left .18s ease, transform .18s ease;
 }
