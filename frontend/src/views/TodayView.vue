@@ -150,7 +150,6 @@ const weekRows = computed(() => {
     <div class="topbar">
       <header class="col gap2">
         <span class="t-cap c2">{{ longDate(selected) }}</span>
-        <button type="button" class="chip t-label recalc" @click="openRecalculate">Recalculate</button>
       </header>
       <WeekStrip :anchor="today" :selected="selected" :today="today" :setup-date="viewed.setupDate" :logged-dates="viewed.loggedDates" @select="pick" />
     </div>
@@ -320,7 +319,6 @@ const weekRows = computed(() => {
 .wk { width: 3.4rem; text-align: right; flex: none; }
 .barw { position: relative; min-width: 0; height: 10px; display: flex; align-items: center; }
 .tgt { position: absolute; left: calc(100% / 1.2); top: -3px; bottom: -3px; width: 1px; background: var(--text-tertiary); }
-.recalc { align-self: flex-start; }
 .remind { flex-direction: row; flex-wrap: wrap; align-items: center; gap: var(--space-gap); min-width: 0; max-width: 100%; }
 .msg { margin: 0; flex: 1 1 8rem; min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
 .gap2 { gap: 2px; }

@@ -41,6 +41,11 @@ test("home, progress, pads, search, and recalculate preview on an iPhone", async
   const titleBox = await title.boundingBox();
   expect(titleBox?.height ?? 0).toBeLessThanOrEqual(1);
   await expect(page.getByRole("status").filter({ hasText: "Time to recalculate your target" })).toHaveCount(0);
+  for (const width of [390, 820, 1440]) {
+    await page.setViewportSize({ width, height: width === 390 ? 844 : 900 });
+    await expect(page.getByRole("main", { name: "Today" }).getByRole("button", { name: "Recalculate", exact: true })).toHaveCount(0);
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
 
   await page.goto("/progress");
   await expect(page.locator("[data-range-bar]")).toHaveCSS("position", "sticky");
