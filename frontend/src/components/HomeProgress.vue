@@ -302,12 +302,13 @@ function stopScroll(event: MouseEvent) {
 .pickers { display: flex; flex-direction: column; gap: calc(var(--space-gap) / 2); min-width: 0; width: 100%; }
 .picker-row {
   display: flex; flex-wrap: nowrap; gap: calc(var(--space-gap) / 2);
-  width: 100%; min-width: 0;
+  width: 100%; min-width: 0; overflow: hidden;
 }
 .pill, .quiet-pill {
-  flex: 1 1 0; min-width: 0; min-height: 44px; padding: 0 2px;
+  flex: 1 1 0; min-width: 44px; min-height: 44px; padding: 0 2px;
   display: inline-flex; align-items: center; justify-content: center;
   border-radius: 22px; color: var(--text-secondary); white-space: nowrap;
+  overflow: hidden; font-size: min(0.7647rem, 15px);
 }
 .pill { background: var(--color-surface-2); }
 .pill.on { background: var(--color-action); color: var(--color-on-action); }
