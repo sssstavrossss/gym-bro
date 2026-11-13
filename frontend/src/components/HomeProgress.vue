@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
 import Icon from "./Icon.vue";
-import InfoTip from "./InfoTip.vue";
 import { ApiError, getProgress, ServerUnreachable, type ProgressResponse } from "../api";
 import { dayMonth, spanLabel } from "../lib/dates";
 import { int, kg, signed } from "../lib/format";
@@ -200,13 +199,6 @@ const proteinTarget = computed(() => {
   const target = endTarget.value?.targetProtein;
   return target == null ? "no minimum" : `min ${int(target)}`;
 });
-const footer = computed(() => {
-  if (!data.value) return "";
-  const logged = data.value.intake.loggedDays;
-  const total = data.value.days.length;
-  return `Daily averages · ${logged} of ${total} days logged`;
-});
-const averageNote = "Averages use days you logged food. A day with no entry is left out, not treated as zero. Change is the trend on the last day of this range minus the trend on the first.";
 
 function stopScroll(event: MouseEvent) {
   event.preventDefault();
@@ -294,10 +286,6 @@ function stopScroll(event: MouseEvent) {
           <span class="t-capn c2">{{ proteinTarget }}</span>
         </div>
       </div>
-      <div class="foot row">
-        <span class="t-capn c2 grow">{{ footer }}</span>
-        <InfoTip label="How averages work">{{ averageNote }}</InfoTip>
-      </div>
     </section>
   </section>
 </template>
@@ -311,15 +299,15 @@ function stopScroll(event: MouseEvent) {
   display: inline-flex; align-items: center; justify-content: center; gap: calc(var(--space-gap) / 2);
   border-radius: 12px; background: var(--color-surface-2); color: var(--text-primary); flex: none;
 }
-.pickers { display: flex; flex-direction: column; gap: calc(var(--space-gap) / 2); min-width: 0; }
+.pickers { display: flex; flex-direction: column; gap: calc(var(--space-gap) / 2); min-width: 0; width: 100%; }
 .picker-row {
   display: flex; flex-wrap: nowrap; gap: calc(var(--space-gap) / 2);
-  overflow-x: auto; min-width: 0; padding-bottom: 2px;
+  width: 100%; min-width: 0;
 }
 .pill, .quiet-pill {
-  min-width: 44px; min-height: 44px; padding: 0 var(--space-gap); flex: none;
+  flex: 1 1 0; min-width: 0; min-height: 44px; padding: 0 2px;
   display: inline-flex; align-items: center; justify-content: center;
-  border-radius: 22px; color: var(--text-secondary);
+  border-radius: 22px; color: var(--text-secondary); white-space: nowrap;
 }
 .pill { background: var(--color-surface-2); }
 .pill.on { background: var(--color-action); color: var(--color-on-action); }
@@ -333,7 +321,7 @@ function stopScroll(event: MouseEvent) {
   font-size: min(0.6471rem, 15px); line-height: 1; color: var(--text-tertiary); white-space: nowrap;
 }
 .xlabels { justify-content: space-between; gap: var(--space-gap); min-width: 0; }
-.sum { gap: calc(var(--space-gap) / 2); }
+.sum { gap: 0; }
 .cells { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: calc(var(--space-gap) / 2); }
 .cell { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .cell + .cell { border-left: 1px solid var(--color-border); padding-left: calc(var(--space-gap) / 2); }
@@ -341,5 +329,4 @@ function stopScroll(event: MouseEvent) {
 .cell .num, .cell .t-capn { overflow-wrap: anywhere; }
 .dt-xl .cells { grid-template-columns: 1fr 1fr; }
 .dt-xl .cell:nth-child(odd) { border-left: 0; padding-left: 0; }
-.foot { align-items: center; gap: calc(var(--space-gap) / 2); min-width: 0; border-top: 1px solid var(--color-border); padding-top: calc(var(--space-gap) / 2); }
 </style>

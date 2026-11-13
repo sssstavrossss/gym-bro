@@ -460,15 +460,16 @@ test("trend info stays clear of the weight label at AX5", async ({ page }) => {
   await putProfile(page.request, oid, when.zone);
   await openToday(page, oid, 390);
   await ax5(page);
-  const label = page.locator("[data-home-summary]").getByText("Trend", { exact: true });
-  const info = page.getByRole("button", { name: "How averages work" });
-  await expect(label).toBeVisible();
-  await expect(info).toBeVisible();
-  const labelBox = await label.boundingBox();
-  const infoBox = await info.boundingBox();
-  expect(labelBox && infoBox && intersects(labelBox, infoBox)).toBe(false);
-  expect(infoBox?.width).toBeGreaterThanOrEqual(44);
-  expect(infoBox?.height).toBeGreaterThanOrEqual(44);
+  const cells = page.locator("[data-home-summary] .cell");
+  await expect(cells).toHaveCount(4);
+  await expect(page.getByText("Daily averages")).toHaveCount(0);
+  const boxes = [];
+  for (let index = 0; index < 4; index += 1) boxes.push(await cells.nth(index).boundingBox());
+  for (let index = 0; index < boxes.length; index += 1) {
+    for (let other = index + 1; other < boxes.length; other += 1) {
+      expect(boxes[index] && boxes[other] && intersects(boxes[index]!, boxes[other]!)).toBe(false);
+    }
+  }
 });
 
 async function setRoot(page: Page, px: number | null) {
@@ -495,22 +496,16 @@ test("large text keeps the close button, units, and the info hit target", async 
 
   for (const px of [17, 28, 53]) {
     await setRoot(page, px);
-    const label = page.locator("[data-home-summary]").getByText("Daily averages", { exact: false });
-    const info = page.getByRole("button", { name: "How averages work" });
-    await info.evaluate((el) => el.scrollIntoView({ block: "center", inline: "nearest" }));
-    await expect(info).toBeVisible();
-    const infoBox = await info.boundingBox();
-    expect(infoBox).toBeTruthy();
-    expect(Math.round(infoBox!.width)).toBe(44);
-    expect(Math.round(infoBox!.height)).toBe(44);
-    if (px >= 28) {
-      const labelBox = await label.boundingBox();
-      expect(labelBox && intersects(labelBox, infoBox!)).toBe(false);
-      const hits = await page.evaluate(([x, y]) => [[-21, -21], [21, -21], [-21, 21], [21, 21], [0, 0]].every(([dx, dy]) => (
-        !!document.elementFromPoint(x + dx, y + dy)?.closest(".ibtn")
-      )), [infoBox!.x + infoBox!.width / 2, infoBox!.y + infoBox!.height / 2]);
-      expect(hits).toBe(true);
+    const radios = page.getByRole("radiogroup", { name: "Chart metric" }).getByRole("radio");
+    await expect(radios).toHaveCount(5);
+    const widths: number[] = [];
+    for (let index = 0; index < 5; index += 1) {
+      const box = await radios.nth(index).boundingBox();
+      expect(box?.height).toBeGreaterThanOrEqual(44);
+      widths.push(box?.width ?? 0);
     }
+    expect(Math.max(...widths) - Math.min(...widths)).toBeLessThanOrEqual(1);
+    expect(widths.every((width) => width >= 44)).toBe(true);
   }
 
   for (const px of [17, 23, 53]) {

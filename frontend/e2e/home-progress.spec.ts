@@ -113,12 +113,44 @@ test("home title, progress pickers, and remembered metric", async ({ page }) => 
   const chart = page.getByRole("img", { name: "Weight chart" });
   await expect(chart).toBeVisible();
   await expect(page.locator("[data-home-summary]")).toContainText("latest 83.6");
-  await expect(page.locator("[data-home-summary]")).toContainText("of 30 days logged");
+  await expect(page.getByText("Daily averages")).toHaveCount(0);
+  const rows = await page.evaluate(() => {
+    const main = document.querySelector("main.today");
+    if (!main) return null;
+    const pad = parseFloat(getComputedStyle(main).paddingLeft);
+    const contentLeft = main.getBoundingClientRect().left + pad;
+    const contentWidth = main.clientWidth - pad * 2;
+    return ["Chart metric", "Chart range"].map((name) => {
+      const row = document.querySelector(`[aria-label="${name}"]`);
+      if (!row) return null;
+      const box = row.getBoundingClientRect();
+      const buttons = [...row.querySelectorAll("button")].map((button) => button.getBoundingClientRect());
+      return {
+        left: box.left,
+        width: box.width,
+        contentLeft,
+        contentWidth,
+        widths: buttons.map((button) => button.width),
+        heights: buttons.map((button) => button.height),
+      };
+    });
+  });
+  expect(rows).toHaveLength(2);
+  for (const row of rows ?? []) {
+    expect(row).toBeTruthy();
+    expect(Math.abs(row!.left - row!.contentLeft)).toBeLessThanOrEqual(1);
+    expect(Math.abs(row!.width - row!.contentWidth)).toBeLessThanOrEqual(1);
+    const widths = row!.widths;
+    expect(Math.max(...widths) - Math.min(...widths)).toBeLessThanOrEqual(1);
+    expect(widths.every((width) => width >= 44)).toBe(true);
+    expect(row!.heights.every((height) => height >= 44)).toBe(true);
+  }
   if (test.info().project.name === "chromium") {
     await page.screenshot({ path: "/opt/cursor/artifacts/iphone41-home-top.png" });
     const progress = page.getByRole("region", { name: "Progress", exact: true });
     await showInView(page, progress);
     await page.screenshot({ path: "/opt/cursor/artifacts/iphone41-progress-weight-30d.png" });
+    await page.screenshot({ path: "/opt/cursor/artifacts/iphone41-progress-section.png" });
     await page.getByRole("radio", { name: "Protein", exact: true }).click();
     await showInView(page, progress);
     await page.screenshot({ path: "/opt/cursor/artifacts/iphone41-progress-protein-30d.png" });
@@ -153,13 +185,16 @@ test("home title, progress pickers, and remembered metric", async ({ page }) => 
   await page.getByRole("radio", { name: "Protein", exact: true }).click();
   await expect(page.getByRole("img", { name: "Protein chart" })).toBeVisible();
   await expect(page.getByText("Loading progress…")).toHaveCount(0);
+  const period = page.locator(".home-progress .period");
+  const thirty = await period.innerText();
   const rangeButton = page.getByRole("radio", { name: "7d", exact: true });
   await rangeButton.scrollIntoViewIfNeeded();
   const before = await page.locator(".scroller").first().evaluate((node) => node.scrollTop);
   await rangeButton.click();
   await expect(page.getByText("Loading progress…")).toHaveCount(0);
   await expect(chartNode).toBeVisible();
-  await expect(page.locator("[data-home-summary]")).toContainText("of 7 days logged");
+  await expect(period).not.toHaveText(thirty);
+  await expect(page.getByText("Daily averages")).toHaveCount(0);
   const after = await page.locator(".scroller").first().evaluate((node) => node.scrollTop);
   expect(Math.abs(after - before)).toBeLessThanOrEqual(2);
 
