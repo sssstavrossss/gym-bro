@@ -168,12 +168,13 @@ function onKey(event: KeyboardEvent) {
 .safe-top {
   position: fixed; top: 0; left: 0; right: 0; z-index: 15; pointer-events: none;
   height: var(--sat);
-  background: var(--color-bg);
+  background-color: var(--color-bg);
+  opacity: 1;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 .is-desktop .safe-top { display: none; }
 .app:has(.sheet-root) .scroller { overflow: hidden; }
 .is-desktop.has-nav .scroller { left: 240px; }
 .no-nav { --tabbar-h: 0px; }
-.app.selecting { --tabbar-h: calc(128px + max(var(--sab), 12px)); }
-.app.selecting.is-desktop .screen { padding-bottom: 160px; }
 </style>

@@ -101,7 +101,8 @@ html[data-theme="black"] {
   --control-chip: 30px;
   --control-hit: 44px;
 
-  /* Safe areas (iPhone). In ?statusbar demo mode these are faked for screenshots. */
+  /* Safe areas (iPhone). In ?statusbar demo mode these are faked for screenshots.
+     The tab bar includes the home-indicator inset once. Do not add --sab again. */
   --sat: env(safe-area-inset-top, 0px);
   --sab: env(safe-area-inset-bottom, 0px);
   --tabbar-h: calc(50px + max(var(--sab), 14px));

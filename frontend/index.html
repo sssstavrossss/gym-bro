@@ -16,7 +16,16 @@
       })();
     </script>
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <!--
+      default, not black-translucent. On iOS 26+ a translucent status bar lays the
+      system blur over the top of the page (and a row or two below it) and shortens
+      the layout viewport by the status-bar inset, which paints a dead band under
+      the tab bar. default keeps an opaque bar tinted by theme-color, and the page
+      starts below it. iOS caches this with the Home Screen icon: delete the icon
+      and add it again before the change shows up.
+    -->
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <title>Gym Bro</title>
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="manifest" href="/manifest.webmanifest" />

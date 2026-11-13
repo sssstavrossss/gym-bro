@@ -86,6 +86,10 @@ export const viewed = reactive({
   loggedDates: [] as string[],
   loading: false,
   loaded: false,
+  /** Day the user asked for while an older day is still on screen. */
+  pendingDate: "",
+  /** True only after a day switch has already been waiting ~150ms. */
+  dim: false,
 });
 
 export interface DayTotals {
@@ -175,6 +179,7 @@ function place(entry: LogEntry): void {
   sortInto(log.entries, entry, log.date === entry.localDate);
   sortInto(viewed.entries, entry, viewed.date === entry.localDate);
   noteLogged(entry.localDate);
+  rememberViewed();
 }
 
 export function findEntry(id: string | null): LogEntry | null {
@@ -230,6 +235,92 @@ export async function loadToday(): Promise<void> {
   }
 }
 
+interface CachedDay {
+  date: string;
+  entries: LogEntry[];
+  target: TargetsResponse | null;
+  firstTargetDate: string | null;
+  complete: boolean;
+  fasting: boolean;
+}
+
+const dayCache = new Map<string, CachedDay>();
+const prefetching = new Map<string, Promise<void>>();
+let dimTimer = 0;
+
+function rememberViewed(): void {
+  if (!viewed.loaded || !viewed.date) return;
+  dayCache.set(viewed.date, {
+    date: viewed.date,
+    entries: viewed.entries,
+    target: viewed.target,
+    firstTargetDate: viewed.firstTargetDate,
+    complete: viewed.complete,
+    fasting: viewed.fasting,
+  });
+}
+
+function showCached(snap: CachedDay): void {
+  window.clearTimeout(dimTimer);
+  viewed.date = snap.date;
+  viewed.entries = snap.entries;
+  viewed.target = snap.target;
+  viewed.firstTargetDate = snap.firstTargetDate;
+  viewed.complete = snap.complete;
+  viewed.fasting = snap.fasting;
+  viewed.loaded = true;
+  viewed.pendingDate = "";
+  viewed.dim = false;
+  if (snap.date === viewed.today) {
+    log.date = snap.date;
+    log.entries = snap.entries.map((row) => ({ ...row }));
+    log.loaded = true;
+  }
+}
+
+function holdPrevious(date: string): void {
+  window.clearTimeout(dimTimer);
+  viewed.pendingDate = date;
+  viewed.dim = false;
+  dimTimer = window.setTimeout(() => {
+    if (viewed.pendingDate === date && viewed.date !== date) viewed.dim = true;
+  }, 150);
+}
+
+function clearHold(): void {
+  window.clearTimeout(dimTimer);
+  viewed.pendingDate = "";
+  viewed.dim = false;
+}
+
+async function fetchDay(date: string, zone: string): Promise<CachedDay> {
+  const [list, targets, status] = await Promise.all([
+    listLogEntries(date),
+    getTargets(date),
+    getDayStatus(date, zone),
+  ]);
+  return {
+    date: list.localDate,
+    entries: list.entries.map(fromResponse),
+    target: targets.targets,
+    firstTargetDate: targets.firstTargetDate,
+    complete: status.complete,
+    fasting: status.fasting,
+  };
+}
+
+function prefetchDay(date: string, zone: string, today: string): void {
+  if (!date || date > today || dayCache.has(date) || prefetching.has(date)) return;
+  const job = fetchDay(date, zone).then((snap) => {
+    if (!dayCache.has(snap.date)) dayCache.set(snap.date, snap);
+  }).catch(() => {
+    // The next visit loads it itself.
+  }).finally(() => {
+    prefetching.delete(date);
+  });
+  prefetching.set(date, job);
+}
+
 let viewGeneration = 0;
 
 export async function loadDay(date: string): Promise<void> {
@@ -237,41 +328,34 @@ export async function loadDay(date: string): Promise<void> {
   const zone = deviceTimeZone();
   const clientToday = todayInZone(zone);
   const asked = date > clientToday ? clientToday : date;
-  viewed.loading = true;
+  const cached = dayCache.get(asked);
+  if (cached) showCached(cached);
+  else if (viewed.loaded) holdPrevious(asked);
+  else viewed.loading = true;
   try {
     const days = await listLogDays(weekStart(asked), addDays(weekStart(asked), 6), zone);
     if (gen !== viewGeneration) return;
     const today = days.today || clientToday;
     const day = asked > today ? today : days.setupDate && asked < days.setupDate ? days.setupDate : asked;
-    const [list, targets, status] = await Promise.all([
-      listLogEntries(day),
-      getTargets(day),
-      getDayStatus(day, zone),
-    ]);
+    const snap = await fetchDay(day, zone);
     if (gen !== viewGeneration) return;
-    const entries = list.entries.map(fromResponse);
-    viewed.date = list.localDate;
-    viewed.entries = entries;
-    viewed.target = targets.targets;
-    viewed.firstTargetDate = targets.firstTargetDate;
-    viewed.complete = status.complete;
-    viewed.fasting = status.fasting;
     viewed.setupDate = days.setupDate;
     viewed.today = today;
     viewed.loggedDates = days.loggedDates;
-    viewed.loaded = true;
-    if (list.localDate === today) {
-      log.date = list.localDate;
-      log.entries = entries.map((row) => ({ ...row }));
-      log.loaded = true;
-    }
+    dayCache.set(snap.date, snap);
+    showCached(snap);
+    prefetchDay(addDays(snap.date, -1), zone, today);
+    prefetchDay(addDays(snap.date, 1), zone, today);
   } catch (error) {
     if (gen !== viewGeneration) return;
     viewed.loaded = true;
     if (error instanceof ServerUnreachable) log.unreachable = true;
     else if (error instanceof ApiError) toast(error.message);
   } finally {
-    if (gen === viewGeneration) viewed.loading = false;
+    if (gen === viewGeneration) {
+      viewed.loading = false;
+      clearHold();
+    }
   }
 }
 
@@ -281,6 +365,7 @@ export async function setFasting(date: string, fasting: boolean): Promise<boolea
     if (viewed.date === saved.localDate) {
       viewed.complete = saved.complete;
       viewed.fasting = saved.fasting;
+      rememberViewed();
     }
     return true;
   } catch (error) {
@@ -419,6 +504,7 @@ export async function removeEntries(entries: LogEntry[], options?: { announce?: 
     viewed.entries = viewed.entries.filter((row) => row.id !== entry.id);
     noteIfEmpty(entry.localDate);
   }
+  rememberViewed();
   if (announce) {
     toast(removed.length === 1 ? `Deleted ${removed[0].name}` : `Deleted ${removed.length} items`, {
       label: "Undo",

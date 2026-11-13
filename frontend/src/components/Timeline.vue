@@ -17,11 +17,6 @@ const props = defineProps<{ date: string; today: string; entries: LogEntry[]; pe
 const rows = computed(() => byTime(props.entries));
 const ordered = computed(() => rows.value.map((entry) => entry.id));
 const isToday = computed(() => props.date === props.today);
-const hint = computed(() => (
-  vp.hover
-    ? "Hover a food for Copy to… or Delete. Click the circle, or hold Ctrl or Shift and click, to select several."
-    : "Swipe left for Copy to… or Delete. Hold a food to select several, or use Select."
-));
 
 function amountOf(entry: LogEntry): string {
   if (entry.unit && entry.amount) return `${entry.amount} ${entry.unit}`;
@@ -214,7 +209,6 @@ function onMenu(event: Event) {
         <span class="cbtn fit addc" style="--s: var(--control-s-sm)" aria-hidden="true"><Icon name="plus" :size="13" :sw="2.4" /></span>
         <span class="t-body c2">{{ isToday ? "Add food" : `Add food to ${dayMonth(date)}` }}</span>
       </button>
-      <p v-if="rows.length && !ui.selecting && !home" class="t-capn c3 tip">{{ hint }}</p>
     </template>
   </div>
 </template>
@@ -225,22 +219,26 @@ function onMenu(event: Event) {
 .entries {
   border-top: 1px solid var(--color-border);
   border-bottom: 1px solid var(--color-border);
-  padding-top: calc(var(--space-gap) / 2);
-  padding-bottom: calc(var(--space-gap) / 2);
+  padding-top: 0;
+  padding-bottom: 0;
 }
 .entries > .pending:not(:first-child),
 .entries > :deep(.swipe:not(:first-child)) { border-top: 1px solid var(--color-border); }
-.line { position: relative; display: flex; align-items: flex-start; gap: 2px; min-height: 52px; min-width: 0; max-width: 100%; border-radius: 0; -webkit-touch-callout: none; user-select: none; }
-.line.sel { background: rgba(255, 255, 255, .05); }
+.line {
+  position: relative; display: flex; align-items: center; gap: calc(var(--space-gap) / 2);
+  width: 100%; min-height: 52px; min-width: 0; max-width: 100%; box-sizing: border-box;
+  border-radius: 0; overflow: hidden; -webkit-touch-callout: none; user-select: none;
+}
+.line.sel { background: color-mix(in srgb, var(--text-primary) 7%, transparent); }
 .frow {
-  min-height: 52px; flex: 1 1 auto; min-width: 0; width: 100%; text-align: left;
+  min-height: 52px; flex: 1 1 0%; min-width: 0; width: auto; max-width: 100%; text-align: left;
   display: grid; grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: start; gap: 6px; background: transparent; border-radius: 10px; padding: 4px 0;
+  align-items: center; gap: 6px; background: transparent; border-radius: 10px; padding: 4px 0;
 }
 .pending {
   min-height: 52px; min-width: 0; max-width: 100%;
   display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto;
-  align-items: start; gap: 6px; border-radius: 0; padding: 8px 0;
+  align-items: center; gap: 6px; border-radius: 0; padding: 8px 0;
 }
 .time { width: auto; min-width: 2.5rem; font-variant-numeric: tabular-nums; }
 .two { gap: 1px; min-width: 0; align-items: flex-start; }
@@ -255,16 +253,19 @@ function onMenu(event: Event) {
 }
 .addrow { min-height: var(--control-hit); gap: var(--space-gap); align-items: center; text-align: left; margin-top: 8px; }
 .addc { pointer-events: none; }
-.mark { position: relative; width: 44px; height: 44px; flex: none; align-self: flex-start; }
-/* The hit target stays 44px. The dot sits on the first line, level with the time. */
+.mark { position: relative; width: 44px; height: 44px; flex: none; }
+/* 16px outline in the 44px hit. Same diameter at rest, on hover, and in select mode. */
 .dot, .tick {
-  position: absolute; left: auto; right: 2px; top: calc(4px + 0.4706rem);
-  transform: translate(0, -50%);
+  position: absolute; left: 50%; top: 50%;
+  width: 16px; height: 16px;
+  transform: translate(-50%, -50%);
 }
-.dot { width: 8px; height: 8px; border-radius: 4px; background: var(--text-tertiary); transition: width .15s, height .15s, background .15s, box-shadow .15s; }
-.tick { color: var(--color-on-action); opacity: 0; }
-.selecting .dot, .mark.on .dot { width: 22px; height: 22px; border-radius: 11px; }
-.selecting .dot { background: var(--color-bg); box-shadow: inset 0 0 0 1.5px var(--text-tertiary); }
+.dot {
+  border-radius: 8px; background: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--text-tertiary);
+  transition: background .18s ease, box-shadow .18s ease;
+}
+.tick { color: var(--color-on-action); opacity: 0; transition: opacity .18s ease; }
 .mark.on .dot { background: var(--color-action); box-shadow: none; }
 .mark.on .tick { opacity: 1; }
 .hacts { position: absolute; right: 0; top: 0; bottom: 0; gap: 4px; align-items: center; opacity: 0; pointer-events: none; }
@@ -283,12 +284,9 @@ function onMenu(event: Event) {
   .line:hover .hacts, .line:focus-within .hacts { opacity: 1; pointer-events: auto; }
   .line:hover .kc, .line:focus-within .kc { opacity: 0; }
   .line:hover .mark { cursor: pointer; }
-  .line:hover .dot { width: 22px; height: 22px; border-radius: 11px; background: var(--color-bg); box-shadow: inset 0 0 0 1.5px var(--text-secondary); }
-  .line:hover .mark.on .dot { background: var(--color-action); box-shadow: none; }
 }
 .empty { align-items: center; text-align: center; gap: 8px; padding: 28px 16px; border-radius: var(--radius-card); border: 1px dashed var(--color-border); }
 .eic { width: var(--control-s); height: var(--control-s); border-radius: 50%; background: var(--color-surface-2); display: flex; align-items: center; justify-content: center; color: var(--text-secondary); }
 .ebtn { width: auto; padding: 0 22px; min-height: 44px; margin-top: 8px; }
 .gchips { gap: 8px; flex-wrap: wrap; justify-content: center; }
-.tip { margin: 8px 0 0; text-align: center; }
 </style>

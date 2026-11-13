@@ -13,7 +13,6 @@ import {
   nextFasting,
   shiftLogDate,
   summaryCells,
-  targetLine,
 } from "../lib/dayLog";
 import { shortDate, todayInZone } from "../lib/dates";
 import { isManualTarget } from "../lib/manualTarget";
@@ -32,13 +31,13 @@ const requested = computed(() => {
   return /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : today.value;
 });
 const date = computed(() => clampLogDate(requested.value, today.value, setup.value));
-const ready = computed(() => viewed.loaded && viewed.date === date.value && !viewed.loading);
+const ready = computed(() => viewed.loaded);
+const shown = computed(() => (viewed.loaded && viewed.date ? viewed.date : date.value));
 const entries = computed(() => (ready.value ? viewed.entries : []));
-const pending = computed(() => pendingFor(date.value));
+const pending = computed(() => pendingFor(shown.value));
 const totals = computed(() => totalsOf(entries.value));
 const target = computed(() => (ready.value ? viewed.target : null));
 const cells = computed(() => summaryCells(totals.value, target.value));
-const line = computed(() => (ready.value ? targetLine(viewed.target, viewed.firstTargetDate) : ""));
 const manual = computed(() => ready.value && isManualTarget(viewed.target?.reasons));
 const totalLine = computed(() => dayTotalText(totals.value.kcal, entries.value.length));
 const canPrev = computed(() => shiftLogDate(date.value, -1, today.value, setup.value) !== null);
@@ -92,20 +91,19 @@ async function onFasting(event: Event) {
     <WeekStrip :anchor="date" :selected="date" :today="today" :setup-date="setup" :logged-dates="viewed.loggedDates" @select="pick" />
 
     <p v-if="!ready" class="t-label c2" role="status">Loading this day…</p>
-    <div v-else class="body" :class="{ desk: vp.desktop }">
+    <div v-else class="body" :class="{ desk: vp.desktop, stale: viewed.dim }" data-day-cards>
       <section class="summary" :aria-label="target ? 'Day total against that day\'s target' : 'Day total, no target'">
         <div v-for="cell in cells" :key="cell.key" class="col">
-          <span class="t-ns" :class="{ overv: cell.over }" data-num>{{ cell.value }}<span v-if="cell.over" class="sr-only"> over</span></span>
+          <span class="row gap6"><span class="t-ns" :class="{ overv: cell.over }" data-num>{{ cell.value }}<span v-if="cell.over" class="sr-only"> over</span></span><ManualTag v-if="manual && cell.key === 'kcal'" short /></span>
           <span class="t-capn c3">{{ cell.caption }}</span>
         </div>
       </section>
-      <p class="t-capn c2 tline row" :class="{ notg: !target }">{{ line }}<ManualTag v-if="manual" /></p>
       <div class="maincol">
         <div class="row dayline">
           <span class="t-bodys">Day total</span>
           <span class="t-body c2">&nbsp;· {{ totalLine }}</span>
         </div>
-        <Timeline :date="date" :today="today" :entries="entries" :pending="pending" show-empty />
+        <Timeline :date="shown" :today="today" :entries="entries" :pending="pending" show-empty />
       </div>
       <label class="done row">
         <input :checked="viewed.fasting" type="checkbox" :disabled="saving" aria-describedby="fast-hint" @change="onFasting" />
@@ -121,11 +119,13 @@ async function onFasting(event: Event) {
 <style scoped>
 .log { gap: 8px; min-width: 0; }
 .body { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.body.stale { opacity: 0.55; }
 .summary { display: flex; flex-direction: row; justify-content: space-between; }
+.gap6 { gap: 6px; }
 .maincol { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .desk.body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 340px); column-gap: 32px; row-gap: 12px; align-items: start; }
 .desk .maincol { grid-column: 1; grid-row: 1 / span 4; }
-.desk .summary, .desk .tline, .desk .done, .desk .ask { grid-column: 2; }
+.desk .summary, .desk .done, .desk .ask { grid-column: 2; }
 .desk .summary { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 16px; }
 .nav { gap: 6px; }
 .nav .cbtn:disabled { opacity: 1; color: var(--text-tertiary); }
@@ -133,8 +133,6 @@ async function onFasting(event: Event) {
 .summary { padding: 12px 16px; border-radius: var(--radius-card); background: var(--color-surface); min-width: 0; }
 .is-tablet .summary { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px 16px; }
 .overv { text-decoration: underline dashed var(--text-secondary); text-underline-offset: 4px; }
-.tline { margin: 0; padding: 0 4px; }
-.tline.notg { padding: 8px 12px; border: 1px dashed var(--color-border-strong); border-radius: 10px; }
 .dayline { min-height: 44px; gap: 0; padding-top: 4px; }
 .done { gap: 12px; padding: 12px 14px; border-radius: var(--radius-card); background: var(--color-surface); cursor: pointer; align-items: flex-start; }
 .done input { width: 22px; height: 22px; margin: 1px 0 0; accent-color: var(--color-action); flex: none; }
