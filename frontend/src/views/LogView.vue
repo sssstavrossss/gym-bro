@@ -32,9 +32,10 @@ const requested = computed(() => {
   return /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : today.value;
 });
 const date = computed(() => clampLogDate(requested.value, today.value, setup.value));
-const ready = computed(() => viewed.loaded && viewed.date === date.value && !viewed.loading);
+const ready = computed(() => viewed.loaded);
+const shown = computed(() => (viewed.loaded && viewed.date ? viewed.date : date.value));
 const entries = computed(() => (ready.value ? viewed.entries : []));
-const pending = computed(() => pendingFor(date.value));
+const pending = computed(() => pendingFor(shown.value));
 const totals = computed(() => totalsOf(entries.value));
 const target = computed(() => (ready.value ? viewed.target : null));
 const cells = computed(() => summaryCells(totals.value, target.value));
@@ -92,7 +93,7 @@ async function onFasting(event: Event) {
     <WeekStrip :anchor="date" :selected="date" :today="today" :setup-date="setup" :logged-dates="viewed.loggedDates" @select="pick" />
 
     <p v-if="!ready" class="t-label c2" role="status">Loading this day…</p>
-    <div v-else class="body" :class="{ desk: vp.desktop }">
+    <div v-else class="body" :class="{ desk: vp.desktop, stale: viewed.dim }" data-day-cards>
       <section class="summary" :aria-label="target ? 'Day total against that day\'s target' : 'Day total, no target'">
         <div v-for="cell in cells" :key="cell.key" class="col">
           <span class="t-ns" :class="{ overv: cell.over }" data-num>{{ cell.value }}<span v-if="cell.over" class="sr-only"> over</span></span>
@@ -105,7 +106,7 @@ async function onFasting(event: Event) {
           <span class="t-bodys">Day total</span>
           <span class="t-body c2">&nbsp;· {{ totalLine }}</span>
         </div>
-        <Timeline :date="date" :today="today" :entries="entries" :pending="pending" show-empty />
+        <Timeline :date="shown" :today="today" :entries="entries" :pending="pending" show-empty />
       </div>
       <label class="done row">
         <input :checked="viewed.fasting" type="checkbox" :disabled="saving" aria-describedby="fast-hint" @change="onFasting" />
@@ -121,6 +122,7 @@ async function onFasting(event: Event) {
 <style scoped>
 .log { gap: 8px; min-width: 0; }
 .body { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.body.stale { opacity: 0.55; }
 .summary { display: flex; flex-direction: row; justify-content: space-between; }
 .maincol { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .desk.body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 340px); column-gap: 32px; row-gap: 12px; align-items: start; }

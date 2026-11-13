@@ -67,18 +67,19 @@ watch(today, (value) => {
   if (selected.value > value) selected.value = value;
 });
 watch(selected, (value) => { void loadDay(value); }, { immediate: true });
-const ready = computed(() => viewed.loaded && viewed.date === selected.value && !viewed.loading);
+const shownDay = computed(() => (viewed.loaded && viewed.date ? viewed.date : selected.value));
+const ready = computed(() => viewed.loaded);
 const entries = computed(() => (ready.value ? viewed.entries : []));
-const pending = computed(() => pendingFor(selected.value));
+const pending = computed(() => pendingFor(shownDay.value));
 const goal = computed(() => (ready.value ? viewed.target : null));
 const hasDay = computed(() => entries.value.length > 0 || pending.value.length > 0);
 const title = computed(() => (
-  selected.value === today.value ? "Today" : selected.value === addDays(today.value, -1) ? "Yesterday" : weekday(selected.value)
+  shownDay.value === today.value ? "Today" : shownDay.value === addDays(today.value, -1) ? "Yesterday" : weekday(shownDay.value)
 ));
 const foodTitle = computed(() => {
-  if (selected.value === today.value) return "Foods today";
-  if (selected.value === addDays(today.value, -1)) return "Foods yesterday";
-  return `Foods ${weekday(selected.value)}`;
+  if (shownDay.value === today.value) return "Foods today";
+  if (shownDay.value === addDays(today.value, -1)) return "Foods yesterday";
+  return `Foods ${weekday(shownDay.value)}`;
 });
 function pick(day: string) {
   selected.value = day;
@@ -97,7 +98,7 @@ watch(
   },
   { immediate: true },
 );
-const manualSelected = computed(() => ready.value && viewed.date === selected.value && isManualTarget(viewed.target?.reasons));
+const manualSelected = computed(() => ready.value && isManualTarget(viewed.target?.reasons));
 const weekHasManual = computed(() => weekRows.value.some((row) => !row.future && row.manual));
 const logHref = computed(() => `/log/${selected.value}`);
 const weekRows = computed(() => {
@@ -155,21 +156,21 @@ const weekRows = computed(() => {
           <span class="sk" />
           <span class="sk" />
         </section>
-        <template v-else>
-          <MacroBars :manual="manualSelected" :target="goal" :totals="totalsOf(entries)" :label="selected === today ? 'Today\'s macros' : 'That day\'s macros'" />
-          <button v-if="layout === 'phone' && !hasDay" type="button" class="card prompt row" @click="openFood('search', selected)">
+        <div v-else class="daycards" :class="{ stale: viewed.dim }" data-day-cards>
+          <MacroBars :manual="manualSelected" :target="goal" :totals="totalsOf(entries)" :label="shownDay === today ? 'Today\'s macros' : 'That day\'s macros'" />
+          <button v-if="layout === 'phone' && !hasDay" type="button" class="card prompt row" @click="openFood('search', shownDay)">
             <span class="pic"><Icon name="plus" :size="18" :sw="2.6" /></span>
             <span class="col grow">
-              <span class="t-bodys">{{ selected === today ? "Log your first food today" : "Nothing logged this day" }}</span>
+              <span class="t-bodys">{{ shownDay === today ? "Log your first food today" : "Nothing logged this day" }}</span>
               <span class="t-capn c2">Search, pick a recent food or add a saved group</span>
             </span>
             <Icon name="right" :size="16" class="c3" />
           </button>
           <section v-if="layout === 'phone' && hasDay" class="card logc">
             <h2 class="foods t-label c2">{{ foodTitle }}</h2>
-            <Timeline home compact :date="selected" :today="today" :entries="entries" :pending="pending" />
+            <Timeline home compact :date="shownDay" :today="today" :entries="entries" :pending="pending" />
           </section>
-        </template>
+        </div>
 
         <div v-if="layout === 'phone'" class="card wcard row">
           <button type="button" class="stretch" :aria-label="aria" @click="openWeight()" />
@@ -255,14 +256,15 @@ const weekRows = computed(() => {
           <span class="grow" />
           <RouterLink :to="logHref" class="t-label c2 more">Open log <Icon name="right" :size="14" /></RouterLink>
         </div>
-        <Timeline home compact show-empty :date="selected" :today="today" :entries="entries" :pending="pending" />
+        <Timeline home compact show-empty :date="shownDay" :today="today" :entries="entries" :pending="pending" />
       </section>
     </div>
   </main>
 </template>
 
 <style scoped>
-.grid, .stack, .topbar { display: flex; flex-direction: column; gap: var(--space-gap); min-width: 0; }
+.grid, .stack, .topbar, .daycards { display: flex; flex-direction: column; gap: var(--space-gap); min-width: 0; }
+.daycards.stale { opacity: 0.55; }
 .tablet .grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start; }
 .tablet .c-c { grid-column: 1 / -1; }
 .two .topbar, .three .topbar { flex-direction: row; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
