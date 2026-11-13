@@ -69,8 +69,15 @@ test("home, progress, pads, search, and recalculate preview on an iPhone", async
   await search.focus();
   await expect(food.getByRole("heading", { name: "Add food" })).toBeHidden();
   await expect(food.getByRole("group", { name: "Show" })).toBeHidden();
-  await food.locator(".list").dispatchEvent("wheel", { deltaY: 80 });
-  await expect(search).not.toBeFocused();
+  const list = food.locator(".list");
+  await list.evaluate((el) => { el.scrollTop = 40; });
+  await list.dispatchEvent("wheel", { deltaY: 80 });
+  await expect(search).toBeFocused();
+  const maxHeight = await list.evaluate((el) => getComputedStyle(el).maxHeight);
+  expect(maxHeight).not.toBe("none");
+  if (test.info().project.name === "chromium") {
+    await food.screenshot({ path: "/opt/cursor/artifacts/iphone38-search-focused.png" });
+  }
   await food.getByRole("button", { name: "Close", exact: true }).click();
 
   await page.goto("/profile");

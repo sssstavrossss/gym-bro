@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { ApiError, createCustomFood, createServing, deleteServing, getFood, listMyFoods, listRecentFoods, searchFoods, searchOpenFoodFacts, ServerUnreachable, updateServing, type FoodSearchRow, type OffFoodRow, type RecentFood, type SavedGroup } from "../api";
 import BottomSheet from "./BottomSheet.vue";
 import FoodEditor from "./FoodEditor.vue";
@@ -122,7 +122,9 @@ let justTimer = 0;
 let recentGen = 0;
 let detailGen = 0;
 const searchEl = ref<HTMLInputElement | null>(null);
+const listEl = ref<HTMLElement | null>(null);
 const searchFocused = ref(false);
+const resultsMax = ref("");
 const amountEl = ref<HTMLInputElement | null>(null);
 const detailFood = ref<FoodSearchRow | null>(null);
 const amountText = ref("100");
@@ -337,8 +339,13 @@ function pickFood(event: MouseEvent, food: FoodSearchRow, preset?: { amount: num
 function pressFood(event: PointerEvent, food: FoodSearchRow, preset?: { amount: number; unit: string }) {
   bindPick(event, () => { void openFoodRow(food, preset); });
 }
+function closeSearchKeyboard() {
+  searchEl.value?.blur();
+  if (!keyboardEntry.value) document.querySelector<HTMLElement>(".kb-proxy")?.blur();
+}
 async function openFoodRow(food: FoodSearchRow, preset?: { amount: number; unit: string }) {
-  primeKeyboard();
+  if (keyboardEntry.value) primeKeyboard();
+  else closeSearchKeyboard();
   const gen = ++detailGen;
   let current = food;
   if (food.source === "off") {
@@ -439,9 +446,24 @@ function amountKey(key: string) {
 function queueSearchBlur() {
   window.setTimeout(() => { searchFocused.value = false; }, 0);
 }
-function blurSearch() {
+function fitResults() {
+  const list = listEl.value;
+  const viewport = window.visualViewport;
+  if (!list || !searchFocused.value || !viewport) {
+    resultsMax.value = "";
+    return;
+  }
+  const top = list.getBoundingClientRect().top;
+  const visibleBottom = viewport.offsetTop + viewport.height;
+  resultsMax.value = `${Math.max(120, Math.floor(visibleBottom - top))}px`;
+}
+function outsideSearch(event: PointerEvent) {
   if (!searchFocused.value) return;
-  searchEl.value?.blur();
+  const target = event.target;
+  if (!(target instanceof Node)) return;
+  if (searchEl.value?.closest("label")?.contains(target)) return;
+  if (listEl.value?.contains(target)) return;
+  closeSearchKeyboard();
 }
 function amountInput(event: Event) {
   const input = event.target as HTMLInputElement;
@@ -487,6 +509,11 @@ function isRecent(food: FoodSearchRow): food is RecentFood {
   return typeof (food as RecentFood).amount === "number" && typeof (food as RecentFood).unit === "string" && !trimmedQuery.value;
 }
 function searchKey(event: KeyboardEvent) {
+  if (event.key === "Enter" && !keyboardEntry.value) {
+    event.preventDefault();
+    closeSearchKeyboard();
+    return;
+  }
   if (filter.value === "recipes") {
     const rows = visibleRecipes.value;
     if (!rows.length || !keyboardEntry.value) return;
@@ -499,7 +526,7 @@ function searchKey(event: KeyboardEvent) {
     } else if (event.key === "Enter") {
       event.preventDefault();
       const recipe = rows[Math.min(hi.value, rows.length - 1)];
-      if (recipe) openRecipeLog(recipe.id);
+      if (recipe) pickRecipe(recipe.id);
     }
     return;
   }
@@ -542,6 +569,7 @@ function listedPreset(food: FoodSearchRow) {
   return recent ? amountForRecent(food, recent.amount, recent.unit) : defaultAmount(food);
 }
 function addListed(food: FoodSearchRow) {
+  closeSearchKeyboard();
   const picked = listedPreset(food);
   void addRecent({ ...food, amount: Number(picked.amount), unit: picked.unit });
 }
@@ -598,6 +626,7 @@ function useQuickAdd() {
   ui.foodTab = "quick";
 }
 async function addRecent(food: RecentFood) {
+  closeSearchKeyboard();
   if (saving.value) return;
   if (needTime.value) {
     formError.value = "Pick a time to add";
@@ -714,6 +743,10 @@ async function prepareEdit(entry: LogEntry) {
     if (ui.editEntryId === entry.id) foodChanged.value = true;
   }
 }
+function pickRecipe(id: string) {
+  closeSearchKeyboard();
+  openRecipeLog(id);
+}
 function focusFor() {
   if (ui.sheet !== "food" || ui.foodEditor) return;
   void nextTick(() => {
@@ -726,6 +759,23 @@ function onAddTabPointer(event: PointerEvent) {
   const next = label === "Quick Add" ? "quick" : label === "Search" ? "search" : null;
   if (next && next !== ui.foodTab) primeKeyboard();
 }
+watch(searchFocused, (focused) => {
+  if (!focused) {
+    resultsMax.value = "";
+    return;
+  }
+  void nextTick(fitResults);
+});
+onMounted(() => {
+  window.visualViewport?.addEventListener("resize", fitResults);
+  window.visualViewport?.addEventListener("scroll", fitResults);
+  window.addEventListener("pointerdown", outsideSearch, true);
+});
+onBeforeUnmount(() => {
+  window.visualViewport?.removeEventListener("resize", fitResults);
+  window.visualViewport?.removeEventListener("scroll", fitResults);
+  window.removeEventListener("pointerdown", outsideSearch, true);
+});
 watch(q, (value) => {
   if (filter.value === "mine" || filter.value === "recipes") {
     window.clearTimeout(searchTimer);
@@ -804,6 +854,7 @@ async function removeRecipe(recipe: { id: string; name: string }) {
   else toast("Couldn't delete that recipe.");
 }
 async function addGroup(group: SavedGroup) {
+  closeSearchKeyboard();
   if (saving.value) return;
   const when = logTimeForAdd(ui.foodDate, foodToday.value, time.value);
   if (!when.ok) {
@@ -1269,14 +1320,14 @@ async function deleteEdited() {
         <button type="button" class="chip t-label" :class="{ on: filter === 'mine' }" :aria-pressed="filter === 'mine'" @click="filter = 'mine'">My foods · {{ mine.length }}</button>
         <button type="button" class="chip t-label" :class="{ on: filter === 'recipes' }" :aria-pressed="filter === 'recipes'" @click="filter = 'recipes'">Recipes · {{ savedRecipes.list.length }}</button>
       </div>
-      <div class="list" :class="{ compact: searchFocused }" @wheel.passive="blurSearch" @touchmove.passive="blurSearch">
+      <div ref="listEl" class="list" :class="{ compact: searchFocused }" :style="resultsMax ? { maxHeight: resultsMax } : undefined">
         <RecipeList
           v-if="filter === 'recipes'"
           :recipes="visibleRecipes"
           heading="Recipes"
           :active-index="keyboardEntry ? hi : -1"
           :saving="saving"
-          @add="(recipe) => openRecipeLog(recipe.id)"
+          @add="(recipe) => pickRecipe(recipe.id)"
           @edit="(recipe) => openRecipeEdit(recipe.id)"
           @remove="removeRecipe"
           @create="openRecipeCreate('food')"
@@ -1294,7 +1345,7 @@ async function deleteEdited() {
         <RecipeList
           :recipes="visibleRecipes"
           :saving="saving"
-          @add="(recipe) => openRecipeLog(recipe.id)"
+          @add="(recipe) => pickRecipe(recipe.id)"
           @edit="(recipe) => openRecipeEdit(recipe.id)"
           @remove="removeRecipe"
           @create="openRecipeCreate('food')"
@@ -1478,7 +1529,7 @@ async function deleteEdited() {
 .field input { border: 0; outline: 0; background: transparent; min-width: 0; width: 100%; padding: 0; }
 .field input::placeholder { color: var(--text-tertiary); }
 .field input::-webkit-search-cancel-button { display: none; }
-.list { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+.list { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
 .body { flex: 1 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
 .rrow { min-height: 56px; width: 100%; gap: 12px; padding: 6px 0; border-bottom: 1px solid var(--color-border); text-align: left; background: transparent; }
 .list.compact .rrow { min-height: 40px; padding: 2px 0; gap: 8px; }
