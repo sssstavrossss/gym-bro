@@ -11,10 +11,9 @@ import { parseDecimal } from "../lib/numbers";
 import { earliestNewWeighInDate, gapLabel, isFreshStart, isLowAccuracy, newWeighInDates, trendChange } from "../lib/weightDisplay";
 import { profile, removeWeighIn, saveWeighIn } from "../state/profile";
 import { closeSheet, toast, ui } from "../ui";
-import { keyboardEntry, vp } from "../lib/viewport";
+import { vp } from "../lib/viewport";
 import { armReplace } from "../lib/focusField";
-import { afterInsertion, markWholeSelection, nextQuickInput, nextQuickNumber, tookWholeSelection } from "../lib/quickEntry";
-import Keypad from "./Keypad.vue";
+import { afterInsertion, markWholeSelection, nextQuickInput, tookWholeSelection } from "../lib/quickEntry";
 
 const open = computed(() => ui.sheet === "weight");
 const value = ref("");
@@ -121,10 +120,17 @@ onBeforeUnmount(() => {
 const canDelete = computed(() => selected.value?.canDelete === true);
 const onlyWeighIn = computed(() => selected.value != null && selected.value.canDelete === false);
 
-function prefill() {
+const placeholder = computed(() => {
   const own = ownKg.value;
   const latest = profile.weight?.latestKg;
-  value.value = own != null ? kg(own) : latest != null ? kg(latest) : "";
+  if (own != null) return kg(own);
+  if (latest != null) return kg(latest);
+  return "";
+});
+
+function clearEntry() {
+  value.value = "";
+  replaceFirst.value = true;
 }
 
 watch(open, async (isOpen) => {
@@ -144,15 +150,14 @@ watch(open, async (isOpen) => {
     return;
   }
   ui.weightDate = today.value;
-  prefill();
+  clearEntry();
   await nextTick();
   watchDayFit();
-  input.value?.focus({ preventScroll: true });
 });
 watch(() => ui.weightDate, () => {
   if (!open.value) return;
   confirm.value = null;
-  prefill();
+  clearEntry();
 });
 
 const parsed = computed(() => {
@@ -237,11 +242,6 @@ function onWeightInput(event: Event) {
   });
 }
 
-function weightKey(key: string) {
-  value.value = nextQuickNumber(value.value, key, replaceFirst.value, 3);
-  replaceFirst.value = false;
-}
-
 async function del() {
   if (!canDelete.value) return;
   const date = ui.weightDate;
@@ -305,9 +305,9 @@ const diffText = computed(() => (
     <form class="row wfield" @submit.prevent="save(false)">
       <label class="base grow">
         <span class="sr-only">Weight in kilograms</span>
-        <span class="autosize t-dxl">
-          <span class="mirror wfig" aria-hidden="true">{{ value || "0" }}</span>
-          <input ref="input" v-autofocus :value="value" data-replace="1" class="wfig winput" size="1" :inputmode="keyboardEntry ? 'decimal' : 'none'" enterkeyhint="done" autocomplete="off" aria-label="Weight in kilograms" @beforeinput="markWholeSelection" @focus="onWeightFocus" @input="onWeightInput" />
+        <span class="autosize">
+          <span class="mirror wfig" aria-hidden="true">{{ value || placeholder || "0" }}</span>
+          <input ref="input" data-no-autofocus :value="value" :placeholder="placeholder" data-replace="1" class="wfig winput" size="1" inputmode="decimal" enterkeyhint="done" autocomplete="off" aria-label="Weight in kilograms" @beforeinput="markWholeSelection" @focus="onWeightFocus" @input="onWeightInput" />
         </span>
         <span class="t-head c2">kg</span>
       </label>
@@ -320,9 +320,6 @@ const diffText = computed(() => (
         <button type="button" class="chip on t-label big" @click="fix">Fix it</button>
         <button type="button" class="chip t-label big" @click="save(true)">Yes, save {{ kg(confirm.kg) }} kg</button>
       </div>
-    </div>
-    <div v-if="!keyboardEntry" class="pad" @mousedown.prevent>
-      <Keypad @key="weightKey" />
     </div>
     <p v-if="invalid || localError" class="t-label m0" role="alert">{{ localError || "Enter a weight between 30 and 300 kg, e.g. 83,4 or 83.4" }}</p>
     <template v-else-if="onlyWeighIn">
@@ -410,9 +407,17 @@ const diffText = computed(() => (
 .autosize { display: inline-grid; min-height: 44px; }
 .autosize > * { grid-area: 1 / 1; }
 .mirror { visibility: hidden; white-space: pre; padding-right: 4px; }
-.wfig { font-size: 2rem; line-height: 1.15; font-weight: 700; letter-spacing: -0.02em; }
-.winput { width: 0; min-width: 100%; min-height: 44px; background: transparent; border: 0; padding: 0; caret-color: var(--text-primary); font-size: 2rem; }
-.pad { margin-top: var(--space-gap); }
+.wfig { font-size: 3rem; line-height: 1.1; font-weight: 700; letter-spacing: -0.03em; }
+.winput {
+  width: 0; min-width: 100%; min-height: 44px; background: transparent;
+  border: 0; outline: none; box-shadow: none; padding: 0 4px; border-radius: 12px;
+  caret-color: var(--text-primary); font-size: 3rem;
+}
+.winput::placeholder { color: var(--text-tertiary); opacity: 1; }
+.winput:focus, .winput:focus-visible {
+  outline: none; border: 0; box-shadow: none;
+  background: var(--color-surface-2);
+}
 .cbtn { font-size: 1.25rem; }
 .cbtn.filled { --s: 56px; width: 56px; height: 56px; min-width: 56px; min-height: 56px; }
 .cbtn.filled:disabled { opacity: .35; }

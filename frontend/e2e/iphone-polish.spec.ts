@@ -54,11 +54,26 @@ test("home, progress, pads, search, and recalculate preview on an iPhone", async
   await page.getByRole("button", { name: /Open weight|Log weight/ }).first().click();
   const weight = page.getByRole("dialog", { name: "Log weight" });
   const field = weight.getByRole("textbox", { name: "Weight in kilograms" });
-  await expect(field).toHaveAttribute("inputmode", "none");
+  await expect(field).toHaveAttribute("inputmode", "decimal");
+  await expect(field).not.toBeFocused();
+  await expect(field).toHaveValue("");
+  await expect(field).toHaveAttribute("placeholder", "83.6");
+  await expect(weight.getByRole("group", { name: "Number keypad" })).toHaveCount(0);
+  if (test.info().project.name === "chromium") {
+    await weight.screenshot({ path: "/opt/cursor/artifacts/iphone38-weight-unfocused.png" });
+  }
+  await field.click();
   await expect(field).toBeFocused();
-  const caret = await field.evaluate((input: HTMLInputElement) => ({ start: input.selectionStart, end: input.selectionEnd, length: input.value.length }));
-  expect(caret.start).toBe(caret.length);
-  expect(caret.end).toBe(caret.length);
+  const look = await field.evaluate((input) => {
+    const style = getComputedStyle(input);
+    return { background: style.backgroundColor, outline: style.outlineStyle, border: style.borderTopWidth };
+  });
+  expect(look.outline).toBe("none");
+  expect(look.border).toBe("0px");
+  expect(look.background).toBe("rgb(42, 46, 55)");
+  if (test.info().project.name === "chromium") {
+    await weight.screenshot({ path: "/opt/cursor/artifacts/iphone38-weight-focused.png" });
+  }
   await page.keyboard.type("70");
   await expect(field).toHaveValue("70");
   await weight.getByRole("button", { name: "Close", exact: true }).click();
@@ -69,8 +84,15 @@ test("home, progress, pads, search, and recalculate preview on an iPhone", async
   await search.focus();
   await expect(food.getByRole("heading", { name: "Add food" })).toBeHidden();
   await expect(food.getByRole("group", { name: "Show" })).toBeHidden();
-  await food.locator(".list").dispatchEvent("wheel", { deltaY: 80 });
-  await expect(search).not.toBeFocused();
+  const list = food.locator(".list");
+  await list.evaluate((el) => { el.scrollTop = 40; });
+  await list.dispatchEvent("wheel", { deltaY: 80 });
+  await expect(search).toBeFocused();
+  const maxHeight = await list.evaluate((el) => getComputedStyle(el).maxHeight);
+  expect(maxHeight).not.toBe("none");
+  if (test.info().project.name === "chromium") {
+    await food.screenshot({ path: "/opt/cursor/artifacts/iphone38-search-focused.png" });
+  }
   await food.getByRole("button", { name: "Close", exact: true }).click();
 
   await page.goto("/profile");

@@ -81,17 +81,38 @@ test("range stays put, the safe strip is clear, rows tap cleanly, and home has n
   if (test.info().project.name === "chromium") {
     await page.screenshot({ path: "/opt/cursor/artifacts/iphone37-home.png" });
     await page.screenshot({ path: "/opt/cursor/artifacts/iphone37-safe-strip.png", clip: { x: 0, y: 0, width: 390, height: 120 } });
+    await page.screenshot({ path: "/opt/cursor/artifacts/iphone38-today.png" });
   }
 
   await page.goto("/log");
   const line = page.locator(".line").first();
   await expect(line).toBeVisible();
-  await expect(line).toHaveCSS("border-top-width", "1px");
-  await expect(line).toHaveCSS("border-bottom-width", "1px");
-  await expect(line).toHaveCSS("border-top-color", "rgb(58, 63, 74)");
+  const list = page.locator("[data-log-entries]");
+  await expect(list).toHaveCSS("border-top-width", "1px");
+  await expect(list).toHaveCSS("border-bottom-width", "1px");
+  await expect(list).toHaveCSS("border-bottom-color", "rgb(58, 63, 74)");
+  await expect(list.locator(".swipe").nth(1)).toHaveCSS("border-top-width", "1px");
+  const framed = await list.evaluate((el) => {
+    const style = getComputedStyle(el);
+    const box = el.getBoundingClientRect();
+    const rows = [...el.querySelectorAll(".line, .pending")];
+    const first = rows[0].getBoundingClientRect();
+    const last = rows[rows.length - 1].getBoundingClientRect();
+    return {
+      padTop: parseFloat(style.paddingTop),
+      padBottom: parseFloat(style.paddingBottom),
+      above: first.top - box.top,
+      below: box.bottom - last.bottom,
+    };
+  });
+  expect(framed.padTop).toBeGreaterThanOrEqual(4);
+  expect(framed.padTop).toBeLessThanOrEqual(8);
+  expect(framed.padBottom).toBe(framed.padTop);
+  expect(framed.above).toBeGreaterThanOrEqual(4);
+  expect(framed.below).toBeGreaterThanOrEqual(4);
   const gap = await line.locator(".frow").evaluate((el) => parseFloat(getComputedStyle(el).columnGap || getComputedStyle(el).gap));
   expect(gap).toBeLessThanOrEqual(6);
-  if (test.info().project.name === "chromium") await page.screenshot({ path: "/opt/cursor/artifacts/iphone37-log.png" });
+  if (test.info().project.name === "chromium") await page.screenshot({ path: "/opt/cursor/artifacts/iphone38-log.png" });
 
   await page.goto("/progress");
   await expect(page.getByText("Current weight")).toBeVisible();
