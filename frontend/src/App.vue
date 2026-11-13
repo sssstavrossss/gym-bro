@@ -177,6 +177,4 @@ function onKey(event: KeyboardEvent) {
 .app:has(.sheet-root) .scroller { overflow: hidden; }
 .is-desktop.has-nav .scroller { left: 240px; }
 .no-nav { --tabbar-h: 0px; }
-.app.selecting { --tabbar-h: calc(128px + max(var(--sab), 12px)); }
-.app.selecting.is-desktop .screen { padding-bottom: 160px; }
 </style>

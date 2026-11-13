@@ -87,10 +87,10 @@ test("select, copy to today, and hover-delete with undo", async ({ page }) => {
   await expect(complete).toBeChecked();
 
   await select.click();
-  await expect(page.getByRole("toolbar", { name: "Selected entries" })).toContainText("Select entries");
+  await expect(page.getByRole("toolbar", { name: "Selected entries" })).toContainText("0 · 0");
   await page.locator("button.frow").filter({ hasText: "Fictional oats" }).click();
   await page.locator("button.frow").filter({ hasText: "Fictional broth" }).click({ modifiers: ["Shift"] });
-  await expect(page.getByRole("toolbar", { name: "Selected entries" })).toContainText("2 selected");
+  await expect(page.getByRole("toolbar", { name: "Selected entries" })).toContainText("2 ·");
 
   await page.getByRole("button", { name: "Copy to…" }).click();
   const sheet = page.getByRole("dialog", { name: "Copy to" });

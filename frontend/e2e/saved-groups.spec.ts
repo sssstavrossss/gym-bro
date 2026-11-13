@@ -110,7 +110,7 @@ test("save a group from a selection, expand it, and re-add it on today", async (
   await page.getByRole("button", { name: "Select", exact: true }).click();
   await page.locator("button.frow").filter({ hasText: "Fictional group oats" }).click();
   await page.locator("button.frow").filter({ hasText: "Fictional group bar" }).click({ modifiers: ["Shift"] });
-  await expect(page.getByRole("toolbar", { name: "Selected entries" })).toContainText("3 selected");
+  await expect(page.getByRole("toolbar", { name: "Selected entries" })).toContainText("3 ·");
 
   const saveAs = page.getByRole("button", { name: "Save as group" });
   const saveBox = await saveAs.boundingBox();

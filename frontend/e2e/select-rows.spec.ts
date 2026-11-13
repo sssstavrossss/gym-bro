@@ -38,14 +38,42 @@ test("select mode keeps food rows inside the list and gives the check its own sl
   }, oid);
 
   await page.goto("/log");
+  await page.evaluate(() => document.documentElement.classList.add("demo-statusbar"));
   const oats = page.locator(".line").filter({ hasText: "Fictional select oats" });
   const roll = page.locator(".line").filter({ hasText: "Fictional select roll" });
   await expect(oats).toBeVisible();
   const before = await edge(oats);
+  const tab = page.locator("nav.tabbar");
+  const tabBox = await tab.boundingBox();
+  const resting = await frame(page);
+  if (test.info().project.name === "chromium") {
+    await page.screenshot({ path: "/opt/cursor/artifacts/iphone40-bars-tab.png", clip: { x: 0, y: 704, width: 390, height: 140 } });
+  }
 
   await page.getByRole("button", { name: "Select", exact: true }).click();
   await oats.getByRole("button", { name: "Select Fictional select oats" }).click();
-  await expect(page.getByRole("toolbar", { name: "Selected entries" })).toBeVisible();
+  const bar = page.getByRole("toolbar", { name: "Selected entries" });
+  await expect(bar).toBeVisible();
+  const barBox = await bar.boundingBox();
+  const selecting = await frame(page);
+  expect(tabBox).toBeTruthy();
+  expect(barBox).toBeTruthy();
+  expect(barBox!.height).toBeCloseTo(tabBox!.height, 0);
+  expect(barBox!.y).toBeCloseTo(tabBox!.y, 0);
+  expect(barBox!.height).toBeCloseTo(84, 0);
+  expect(selecting.pad).toBe(resting.pad);
+  expect(selecting.scroll).toBe(resting.scroll);
+  expect(selecting.head).toBeCloseTo(resting.head, 0);
+  await expect(bar.getByRole("button", { name: "Save as group" })).toBeDisabled();
+  await expect(bar.getByRole("button", { name: "Copy to…" })).toBeEnabled();
+  for (const name of ["Cancel", "Select all", "Copy to…", "Save as group", "Save as recipe", "Delete"]) {
+    const hit = await bar.getByRole("button", { name }).boundingBox();
+    expect(hit!.width).toBeGreaterThanOrEqual(44);
+    expect(hit!.height).toBeGreaterThanOrEqual(44);
+  }
+  if (test.info().project.name === "chromium") {
+    await page.screenshot({ path: "/opt/cursor/artifacts/iphone40-bars-select.png", clip: { x: 0, y: 704, width: 390, height: 140 } });
+  }
   await expect.poll(() => oats.locator(".dot").evaluate((el) => el.getBoundingClientRect().width)).toBeCloseTo(22, 0);
 
   await expectRow(oats, roll, before);
@@ -86,6 +114,19 @@ test("select mode keeps food rows inside the list and gives the check its own sl
     await page.screenshot({ path: "/opt/cursor/artifacts/iphone40-select-home.png" });
   }
 });
+
+async function frame(page: Page) {
+  return page.evaluate(() => {
+    const screen = document.querySelector("main.screen");
+    const scroller = document.querySelector(".scroller");
+    const head = document.querySelector("h1");
+    return {
+      pad: screen ? getComputedStyle(screen).paddingBottom : "",
+      scroll: scroller ? scroller.scrollTop : 0,
+      head: head ? head.getBoundingClientRect().top : 0,
+    };
+  });
+}
 
 async function expectFlush(scope: Locator) {
   const metrics = await scope.locator("[data-log-entries]").evaluate((el) => {
