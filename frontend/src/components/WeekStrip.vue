@@ -25,7 +25,7 @@ const days = computed(() => weekDays(props.anchor, props.selected, props.today, 
       :aria-label="day.label"
       @click="emit('select', day.date)"
     >
-      <span class="t-cap letter" :class="day.disabled ? 'c3' : 'c2'" aria-hidden="true">{{ day.letter }}</span>
+      <span class="t-cap letter c3" aria-hidden="true">{{ day.letter }}</span>
       <span class="circle t-bodys" :class="{ on: day.date === selected, off: day.disabled }">{{ day.number }}</span>
       <span class="dot" :class="{ on: day.logged && day.date !== selected }" />
     </button>
@@ -33,13 +33,18 @@ const days = computed(() => weekDays(props.anchor, props.selected, props.today, 
 </template>
 
 <style scoped>
-.week { justify-content: space-between; }
-.day { width: 44px; min-height: 44px; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.week {
+  justify-content: space-between; align-items: center;
+  padding: calc(var(--space-gap) / 2);
+  background: var(--color-surface);
+  border-radius: var(--radius-card);
+}
+.day { width: 44px; min-height: 44px; display: flex; flex-direction: column; align-items: center; gap: 4px; color: var(--text-primary); }
 .day:disabled { cursor: default; }
-.letter { font-size: min(0.6471rem, 15px); line-height: 1.2; }
-.circle { width: 36px; height: 36px; border-radius: 18px; display: flex; align-items: center; justify-content: center; font-size: min(0.8824rem, 20px); line-height: 1; }
+.letter { font-size: min(0.6471rem, 15px); line-height: 1.2; color: var(--text-tertiary); }
+.circle { width: 36px; height: 36px; border-radius: 18px; display: flex; align-items: center; justify-content: center; font-size: min(0.8824rem, 20px); line-height: 1; color: var(--text-primary); }
 .circle.on { background: var(--color-action); color: var(--color-on-action); }
-.circle.off { color: var(--text-tertiary); }
+.circle.off { color: var(--text-tertiary); opacity: 0.72; }
 .dot { width: 4px; height: 4px; border-radius: 2px; }
-.dot.on { background: var(--text-secondary); }
+.dot.on { background: var(--text-tertiary); }
 </style>
