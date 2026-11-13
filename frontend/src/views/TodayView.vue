@@ -3,6 +3,7 @@ import { computed, onMounted, ref, watch } from "vue";
 import AccuracyDot from "../components/AccuracyDot.vue";
 import Bar from "../components/Bar.vue";
 import FreshStart from "../components/FreshStart.vue";
+import HomeProgress from "../components/HomeProgress.vue";
 import GoalReached from "../components/GoalReached.vue";
 import Icon from "../components/Icon.vue";
 import InfoTip from "../components/InfoTip.vue";
@@ -12,7 +13,7 @@ import Sparkline from "../components/Sparkline.vue";
 import Timeline from "../components/Timeline.vue";
 import WeekStrip from "../components/WeekStrip.vue";
 import WeightChart from "../components/WeightChart.vue";
-import { addDays, dayNum, todayInZone, weekday, weekdayShort, weekStart } from "../lib/dates";
+import { addDays, dayNum, diffDays, shortDate, todayInZone, weekday, weekdayShort, weekStart } from "../lib/dates";
 import { int, kg } from "../lib/format";
 import { screenLayoutFromFlags } from "../lib/layout";
 import { freshDismissed, goalDismissed, promptState } from "../lib/prompts";
@@ -73,9 +74,13 @@ const entries = computed(() => (ready.value ? viewed.entries : []));
 const pending = computed(() => pendingFor(shownDay.value));
 const goal = computed(() => (ready.value ? viewed.target : null));
 const hasDay = computed(() => entries.value.length > 0 || pending.value.length > 0);
-const title = computed(() => (
-  shownDay.value === today.value ? "Today" : shownDay.value === addDays(today.value, -1) ? "Yesterday" : weekday(shownDay.value)
-));
+const title = computed(() => pageTitle(selected.value, today.value));
+function pageTitle(day: string, now: string) {
+  if (!day || day === now) return "Today";
+  if (day === addDays(now, -1)) return "Yesterday";
+  if (Math.abs(diffDays(now, day)) <= 6) return weekday(day);
+  return shortDate(day);
+}
 const foodTitle = computed(() => {
   if (shownDay.value === today.value) return "Foods today";
   if (shownDay.value === addDays(today.value, -1)) return "Foods yesterday";
@@ -142,7 +147,9 @@ const weekRows = computed(() => {
 
 <template>
   <main class="screen today" :class="layout" :aria-label="title">
-    <h1 class="sr-only">{{ title }}</h1>
+    <header class="screen-head homehead">
+      <h1 class="t-title">{{ title }}</h1>
+    </header>
     <div class="topbar">
       <WeekStrip :anchor="today" :selected="selected" :today="today" :setup-date="viewed.setupDate" :logged-dates="viewed.loggedDates" @select="pick" />
     </div>
@@ -172,26 +179,7 @@ const weekRows = computed(() => {
           </section>
         </div>
 
-        <div v-if="layout === 'phone'" class="card wcard row">
-          <button type="button" class="stretch" :aria-label="aria" @click="openWeight()" />
-          <div v-if="shown && weight" class="col gap2">
-            <span class="row trendline"><span class="t-cap c2">Weight · trend</span><InfoTip label="What is the trend?">{{ tip }}</InfoTip></span>
-            <span class="row gap8 numrow">
-              <span class="base"><span class="t-nm">{{ kg(weight.trendKg!) }}</span><span class="t-label c2">kg</span></span>
-              <AccuracyDot v-if="low" />
-            </span>
-            <span class="t-capn c2 nowrap wsub">{{ subtitle }}</span>
-          </div>
-          <div v-else class="col gap2">
-            <span class="t-cap c2">Weight</span>
-            <span class="t-head">No weigh-ins yet</span>
-            <span class="t-capn c2">Log your weight to start a trend</span>
-          </div>
-          <span class="grow" />
-          <Sparkline v-if="shown && profile.chart" :series="profile.chart.series" />
-          <span v-else class="chip t-label">Weigh in</span>
-          <Icon name="right" :size="16" class="c3" />
-        </div>
+        <HomeProgress v-if="layout === 'phone'" :selected="selected" />
       </div>
 
       <div v-if="layout !== 'phone'" class="stack c-b">
@@ -300,6 +288,8 @@ const weekRows = computed(() => {
 .gap8 { gap: 8px; }
 .m0 { margin: 0; }
 .today { min-width: 0; max-width: 100%; }
+.homehead { height: 44px; min-height: 44px; max-height: 44px; overflow: hidden; }
+.homehead .t-title { margin: 0; white-space: nowrap; line-height: 1.2; }
 .prompt { flex-direction: row; align-items: center; gap: 12px; text-align: left; width: 100%; min-width: 0; }
 .pic { width: var(--control-s); height: var(--control-s); border-radius: 50%; background: var(--color-action); color: var(--color-on-action); display: flex; align-items: center; justify-content: center; flex: none; }
 .sk { display: block; height: 12px; width: 40%; border-radius: 6px; background: var(--color-surface-2); }

@@ -37,9 +37,11 @@ test("home, progress, pads, search, and recalculate preview on an iPhone", async
   expect(pad).toBeGreaterThanOrEqual(62);
   expect(safe).toBeCloseTo(54, 0);
   const title = page.getByRole("heading", { name: "Today", exact: true });
-  await expect(title).toHaveClass(/sr-only/);
+  await expect(title).toBeVisible();
+  await expect(title).toHaveClass(/t-title/);
   const titleBox = await title.boundingBox();
-  expect(titleBox?.height ?? 0).toBeLessThanOrEqual(1);
+  expect(titleBox?.height ?? 0).toBeGreaterThanOrEqual(20);
+  expect(titleBox?.y ?? 0).toBeGreaterThanOrEqual(54);
   await expect(page.getByRole("status").filter({ hasText: "Time to recalculate your target" })).toHaveCount(0);
   for (const width of [390, 820, 1440]) {
     await page.setViewportSize({ width, height: width === 390 ? 844 : 900 });
@@ -51,7 +53,7 @@ test("home, progress, pads, search, and recalculate preview on an iPhone", async
   await expect(page.locator("[data-range-bar]")).toHaveCSS("position", "sticky");
 
   await page.goto("/today");
-  await page.getByRole("button", { name: /Open weight|Log weight/ }).first().click();
+  await page.getByRole("button", { name: "Weigh in" }).click();
   const weight = page.getByRole("dialog", { name: "Log weight" });
   const field = weight.getByRole("textbox", { name: "Weight in kilograms" });
   await expect(field).toHaveAttribute("inputmode", "decimal");

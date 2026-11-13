@@ -199,7 +199,7 @@ for (const width of [375, 390]) {
       await editor.getByRole("button", { name: "Back" }).click();
       await food.getByRole("button", { name: "Close" }).click();
 
-      await page.getByRole("button", { name: /Open weight|Log weight/ }).first().click();
+      await page.getByRole("button", { name: /Open weight|Log weight|Weigh in/ }).first().click();
       const weight = page.getByRole("dialog", { name: "Log weight" });
       await expectReplace(page, weight.getByRole("textbox", { name: "Weight in kilograms" }), "70", "caret");
       await fieldsAtLeast16(weight);

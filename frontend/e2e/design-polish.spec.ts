@@ -210,7 +210,7 @@ test("day kilograms, autosized input, 1 kg axis, and the typo confirmation", asy
   await putProfile(page.request, oid, when.zone);
   for (const width of widths) {
     await openToday(page, oid, width);
-    await page.getByRole("button", { name: /Open weight|Log weight/ }).first().click();
+    await page.getByRole("button", { name: /Open weight|Log weight|Weigh in/ }).first().click();
     await expect(page.getByRole("heading", { name: "Log weight" })).toBeVisible();
     await page.getByRole("button", { name: "Weigh-in day" }).click();
     const labels = await page.getByRole("listbox", { name: "Weigh-in day" }).getByRole("option").allTextContents();
@@ -262,29 +262,27 @@ test("sparkline, trend explanation, and fresh-start borders", async ({ page }) =
     const card = page.locator(".fs");
     await expect(card).toBeVisible();
     await expect(card).toHaveCSS("border-top-color", "rgb(110, 116, 130)");
-    const info = page.getByRole("button", { name: "What is the trend?" });
-    await expect(info).toBeVisible();
-    const hit = await info.boundingBox();
-    expect(hit?.width).toBeGreaterThanOrEqual(44);
-    expect(hit?.height).toBeGreaterThanOrEqual(44);
-    const note = page.getByRole("note");
-    await expect(note).toBeHidden();
-    await info.click();
-    await expect(note).toBeVisible();
-    await expect(note).toContainText("smooths out day-to-day swings");
-    await expect(page.getByRole("dialog", { name: "Log weight" })).toHaveCount(0);
-    await page.keyboard.press("Escape");
-    await expect(note).toBeHidden();
     if (width < 600) {
-      const spark = page.locator(".wcard svg.spark");
-      await expect(spark).toBeVisible();
-      const box = await spark.boundingBox();
-      expect(box?.width).toBeCloseTo(132, 0);
-      expect(await spark.locator("circle").count()).toBeGreaterThan(0);
+      await expect(page.locator(".wcard")).toHaveCount(0);
+      await expect(page.getByRole("button", { name: "Weigh in" })).toBeVisible();
+      await expect(page.getByRole("img", { name: "Weight chart" })).toBeVisible();
     } else {
+      const info = page.getByRole("button", { name: "What is the trend?" });
+      await expect(info).toBeVisible();
+      const hit = await info.boundingBox();
+      expect(hit?.width).toBeGreaterThanOrEqual(44);
+      expect(hit?.height).toBeGreaterThanOrEqual(44);
+      const note = page.getByRole("note");
+      await expect(note).toBeHidden();
+      await info.click();
+      await expect(note).toBeVisible();
+      await expect(note).toContainText("smooths out day-to-day swings");
+      await expect(page.getByRole("dialog", { name: "Log weight" })).toHaveCount(0);
+      await page.keyboard.press("Escape");
+      await expect(note).toBeHidden();
       await expect(page.locator(".wbig .wchart")).toBeVisible();
     }
-    await page.getByRole("button", { name: /Open weight|Log weight/ }).first().click();
+    await page.getByRole("button", { name: /Open weight|Log weight|Weigh in/ }).first().click();
     await expect(page.getByRole("heading", { name: "Log weight" })).toBeVisible();
     const fresh = page.locator(".fresh");
     await expect(fresh).toBeVisible();
@@ -300,7 +298,7 @@ test("only weigh-in offers Edit, and one reading labels its own kilogram", async
   await putProfile(page.request, oid, when.zone);
   for (const width of widths) {
     await openToday(page, oid, width);
-    await page.getByRole("button", { name: /Open weight|Log weight/ }).first().click();
+    await page.getByRole("button", { name: /Open weight|Log weight|Weigh in/ }).first().click();
     const sheet = page.getByRole("dialog", { name: "Log weight" });
     await expect(sheet.getByText("Today's weigh-in is 83.6 kg · saving replaces it")).toBeVisible();
     const line = sheet.getByText("This is your only weigh-in, so it can't be deleted.");
@@ -336,7 +334,7 @@ test("closed weigh-in day shows the day, and kilograms only in the open list", a
   await putProfile(page.request, oid, when.zone);
   for (const width of widths) {
     await openToday(page, oid, width);
-    await page.getByRole("button", { name: /Open weight|Log weight/ }).first().click();
+    await page.getByRole("button", { name: /Open weight|Log weight|Weigh in/ }).first().click();
     const sheet = page.getByRole("dialog", { name: "Log weight" });
     const face = sheet.locator(".dayface");
     await expect(face).toHaveText(/^Today,/);
@@ -371,6 +369,11 @@ test("no weigh-ins in the last 7 days holds the trend where it was", async ({ pa
   await putProfile(page.request, oid, when.zone);
   for (const width of widths) {
     await openToday(page, oid, width);
+    if (width < 600) {
+      await expect(page.locator(".wcard")).toHaveCount(0);
+      await expect(page.locator("[data-home-summary]")).toContainText("83.6");
+      continue;
+    }
     await page.getByRole("button", { name: /Low accuracy/ }).first().click();
     const sheet = page.getByRole("dialog", { name: "Trend accuracy" });
     await expect(sheet.getByText(
@@ -428,7 +431,7 @@ test("closed day label stays visible at AX5, and the open list meets contrast", 
   for (const width of widths) {
     await openToday(page, oid, width);
     await ax5(page);
-    await page.getByRole("button", { name: /Open weight|Log weight/ }).first().click();
+    await page.getByRole("button", { name: /Open weight|Log weight|Weigh in/ }).first().click();
     const sheet = page.getByRole("dialog", { name: "Log weight" });
     const face = sheet.locator(".dayface");
     await expect.poll(async () => face.evaluate((node) => {
@@ -457,8 +460,8 @@ test("trend info stays clear of the weight label at AX5", async ({ page }) => {
   await putProfile(page.request, oid, when.zone);
   await openToday(page, oid, 390);
   await ax5(page);
-  const label = page.locator(".wcard .trendline .t-cap");
-  const info = page.getByRole("button", { name: "What is the trend?" });
+  const label = page.locator("[data-home-summary]").getByText("Trend", { exact: true });
+  const info = page.getByRole("button", { name: "How averages work" });
   await expect(label).toBeVisible();
   await expect(info).toBeVisible();
   const labelBox = await label.boundingBox();
@@ -492,8 +495,8 @@ test("large text keeps the close button, units, and the info hit target", async 
 
   for (const px of [17, 28, 53]) {
     await setRoot(page, px);
-    const label = page.locator(".wcard .trendline .t-cap");
-    const info = page.getByRole("button", { name: "What is the trend?" });
+    const label = page.locator("[data-home-summary]").getByText("Daily averages", { exact: false });
+    const info = page.getByRole("button", { name: "How averages work" });
     await info.evaluate((el) => el.scrollIntoView({ block: "center", inline: "nearest" }));
     await expect(info).toBeVisible();
     const infoBox = await info.boundingBox();
@@ -512,7 +515,7 @@ test("large text keeps the close button, units, and the info hit target", async 
 
   for (const px of [17, 23, 53]) {
     await setRoot(page, px);
-    await page.getByRole("button", { name: /Open weight|Log weight/ }).first().click();
+    await page.getByRole("button", { name: /Open weight|Log weight|Weigh in/ }).first().click();
     const sheet = page.getByRole("dialog", { name: "Log weight" });
     await expect(sheet.getByRole("heading", { name: "Log weight" })).toBeVisible();
     await expect.poll(async () => {

@@ -41,6 +41,24 @@ public static class ProgressMath
         return decimal.Round(sum / count, digits, MidpointRounding.AwayFromZero);
     }
 
+    /// <summary>Last trend minus the first trend in the window. One trend day has no change.</summary>
+    public static decimal? TrendChange(IReadOnlyList<decimal?> ordered)
+    {
+        decimal? first = null;
+        decimal? last = null;
+        var count = 0;
+        foreach (var value in ordered)
+        {
+            if (value is not decimal kg) continue;
+            first ??= kg;
+            last = kg;
+            count++;
+        }
+
+        if (count < 2 || first is null || last is null) return null;
+        return decimal.Round(last.Value - first.Value, 2, MidpointRounding.AwayFromZero);
+    }
+
     /// <summary>Last weigh-in minus the first, in date order. One reading has no change.</summary>
     public static decimal? Change(IReadOnlyList<decimal> orderedKg)
     {
@@ -49,6 +67,20 @@ public static class ProgressMath
     }
 
     /// <summary>The target saved on or before <paramref name="day"/>. Rows must be oldest first.</summary>
+    public static (int Kcal, int Protein, int Fat, int Carbs)? TargetMacrosAt(
+        IReadOnlyList<(DateOnly Date, int Kcal, int Protein, int Fat, int Carbs)> rows,
+        DateOnly day)
+    {
+        (int Kcal, int Protein, int Fat, int Carbs)? value = null;
+        foreach (var row in rows)
+        {
+            if (row.Date > day) break;
+            value = (row.Kcal, row.Protein, row.Fat, row.Carbs);
+        }
+
+        return value;
+    }
+
     public static (int Kcal, int Protein)? TargetAt(IReadOnlyList<(DateOnly Date, int Kcal, int Protein)> rows, DateOnly day)
     {
         (int Kcal, int Protein)? value = null;

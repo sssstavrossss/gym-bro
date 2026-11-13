@@ -87,15 +87,17 @@ test("controls keep a compact face, a 44px hit, and clear gaps", async ({ page }
     expect(overflow).toBe(true);
     await expect(page.getByRole("button", { name: "Select", exact: true })).toHaveCount(0);
 
-    const info = page.getByRole("button", { name: "What is the trend?" });
-    await info.scrollIntoViewIfNeeded();
-    const infoBox = await boxOf(info);
-    expect(infoBox.width).toBeGreaterThanOrEqual(44);
-    expect(infoBox.height).toBeGreaterThanOrEqual(44);
-    const number = page.locator(".wcard .t-nm, .wbig .t-nm").first();
-    expect(overlaps(infoBox, await boxOf(number))).toBe(false);
-    const weightChip = page.locator(".wbig .chip, .wcard .chip").first();
-    if (await weightChip.count()) expect(overlaps(infoBox, await boxOf(weightChip))).toBe(false);
+    if (width >= 768) {
+      const info = page.getByRole("button", { name: "What is the trend?" });
+      await info.scrollIntoViewIfNeeded();
+      const infoBox = await boxOf(info);
+      expect(infoBox.width).toBeGreaterThanOrEqual(44);
+      expect(infoBox.height).toBeGreaterThanOrEqual(44);
+      const number = page.locator(".wcard .t-nm, .wbig .t-nm").first();
+      expect(overlaps(infoBox, await boxOf(number))).toBe(false);
+      const weightChip = page.locator(".wbig .chip, .wcard .chip").first();
+      if (await weightChip.count()) expect(overlaps(infoBox, await boxOf(weightChip))).toBe(false);
+    }
 
     if (width >= 1024) {
       const aside = page.locator("aside.side");

@@ -102,20 +102,25 @@ test("low accuracy dot, sheet, and profile", async ({ page }) => {
     await openApp(page, oid, width);
     await expect(page.getByText("not ready")).toHaveCount(0);
     await expect(page.getByText("provisional")).toHaveCount(0);
-    const dot = page.getByRole("button", { name: /Low accuracy/ }).first();
-    await expect(dot).toBeVisible();
-    const box = await dot.boundingBox();
-    expect(box!.width).toBeGreaterThanOrEqual(44);
-    expect(box!.height).toBeGreaterThanOrEqual(44);
-    await expect(page.getByText(/latest 83\.6 · low accuracy/)).toBeVisible();
-    await expectClean(page);
-    await dot.click();
-    await expect(page.getByRole("heading", { name: "Low accuracy" })).toBeVisible();
-    await expect(page.getByText("Only 1 weigh-in this week, so the trend is less accurate.")).toBeVisible();
-    await expect(page.getByRole("dialog").getByRole("button", { name: "Log weight", exact: true })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Got it" })).toBeVisible();
-    await expectClean(page);
-    await page.getByRole("button", { name: "Got it" }).click();
+    if (width < 600) {
+      await expect(page.locator(".wcard")).toHaveCount(0);
+      await expect(page.locator("[data-home-summary]")).toContainText("latest 83.6");
+    } else {
+      const dot = page.getByRole("button", { name: /Low accuracy/ }).first();
+      await expect(dot).toBeVisible();
+      const box = await dot.boundingBox();
+      expect(box!.width).toBeGreaterThanOrEqual(44);
+      expect(box!.height).toBeGreaterThanOrEqual(44);
+      await expect(page.getByText(/latest 83\.6 · low accuracy/)).toBeVisible();
+      await expectClean(page);
+      await dot.click();
+      await expect(page.getByRole("heading", { name: "Low accuracy" })).toBeVisible();
+      await expect(page.getByText("Only 1 weigh-in this week, so the trend is less accurate.")).toBeVisible();
+      await expect(page.getByRole("dialog").getByRole("button", { name: "Log weight", exact: true })).toBeVisible();
+      await expect(page.getByRole("button", { name: "Got it" })).toBeVisible();
+      await expectClean(page);
+      await page.getByRole("button", { name: "Got it" }).click();
+    }
     await page.getByRole("link", { name: "Profile" }).click();
     const trendButton = page.getByRole("button", { name: /trend · low accuracy/i });
     await expect(trendButton).toContainText("83.6");
@@ -138,7 +143,7 @@ test("fresh start asks, and Not now writes nothing", async ({ page }) => {
     await expect(page.getByRole("heading", { name: "Fresh start" })).toBeVisible();
     await expect(page.getByText("Recalculate your targets from today's weight?")).toBeVisible();
     await expect(page.getByText(/\d[\d,]* → \d[\d,]* kcal/)).toBeVisible();
-    await page.getByRole("button", { name: /Open weight/ }).first().click();
+    await page.getByRole("button", { name: /Open weight|Weigh in/ }).first().click();
     await expect(page.locator(".stats")).toContainText("—");
     await expect(page.getByRole("dialog", { name: "Log weight" }).getByText("This week")).toBeVisible();
     await expect(page.getByText("30 days", { exact: true })).toBeVisible();
@@ -178,7 +183,7 @@ test("typo guard asks inline and Fix it saves nothing", async ({ page }) => {
   await putProfile(page.request, oid, when.zone, 80);
   for (const width of widths) {
     await openApp(page, oid, width);
-    await page.getByRole("button", { name: /Open weight|Log weight/ }).first().click();
+    await page.getByRole("button", { name: /Open weight|Log weight|Weigh in/ }).first().click();
     await expect(page.getByRole("heading", { name: "Log weight" })).toBeVisible();
     await expect(page.getByText("Last 30 days")).toBeVisible();
     await expect(page.getByText("weigh-in").first()).toBeVisible();
@@ -196,7 +201,7 @@ test("typo guard asks inline and Fix it saves nothing", async ({ page }) => {
     expect(listed.weighIns.some((row: { kg: number }) => row.kg === 38.6)).toBeFalsy();
     await page.getByRole("button", { name: "Close", exact: true }).click();
   }
-  await page.getByRole("button", { name: /Open weight|Log weight/ }).first().click();
+  await page.getByRole("button", { name: /Open weight|Log weight|Weigh in/ }).first().click();
   await page.getByRole("textbox", { name: "Weight in kilograms" }).fill("38.6");
   await page.getByRole("button", { name: "Save weight" }).click();
   await page.getByRole("button", { name: "Yes, save 38.6 kg", exact: true }).click();
@@ -214,7 +219,7 @@ test("a back-dated weigh-in is checked against the day before it", async ({ page
   await putWeighIn(page.request, oid, when.today, 83.6, when.zone);
   await putProfile(page.request, oid, when.zone, 80);
   await openApp(page, oid, 390);
-  await page.getByRole("button", { name: /Open weight|Log weight/ }).first().click();
+  await page.getByRole("button", { name: /Open weight|Log weight|Weigh in/ }).first().click();
   await page.getByRole("button", { name: "Weigh-in day" }).click();
   await page.getByRole("option").nth(1).click();
   await page.getByRole("textbox", { name: "Weight in kilograms" }).fill("90");
@@ -251,7 +256,7 @@ test("35.2a the only weigh-in explains why delete is blocked and offers Edit", a
   await putWeighIn(page.request, oid, when.today, 83.6, when.zone);
   await putProfile(page.request, oid, when.zone, 80);
   await openApp(page, oid, 390);
-  await page.getByRole("button", { name: /Open weight|Log weight/ }).first().click();
+  await page.getByRole("button", { name: /Open weight|Log weight|Weigh in/ }).first().click();
   await expect(page.getByRole("button", { name: "Delete" })).toHaveCount(0);
   await expect(page.getByText("Today's weigh-in is 83.6 kg · saving replaces it")).toBeVisible();
   await expect(page.getByText("This is your only weigh-in, so it can't be deleted.")).toBeVisible();
@@ -271,11 +276,11 @@ test("35.2b editing the only weigh-in updates the trend", async ({ page }) => {
   await putWeighIn(page.request, oid, when.today, 80, when.zone);
   await putProfile(page.request, oid, when.zone, 70);
   await openApp(page, oid, 390);
-  await page.getByRole("button", { name: /Open weight|Log weight/ }).first().click();
+  await page.getByRole("button", { name: /Open weight|Log weight|Weigh in/ }).first().click();
   await page.getByRole("textbox", { name: "Weight in kilograms" }).fill("84");
   await page.getByRole("button", { name: "Save weight" }).click();
   await expect(page.getByRole("heading", { name: "Log weight" })).toHaveCount(0);
-  await expect(page.locator(".t-nm")).toHaveText("84.0");
+  await expect(page.locator("[data-home-summary]")).toContainText("84.0");
   const trend = await (await page.request.get("/api/weight/trend", { headers: headers(oid) })).json();
   expect(trend.trendKg).toBe(84);
   expect(trend.latestKg).toBe(84);
@@ -286,7 +291,7 @@ test("35.3a dot copy when the last weigh-in was 9 days ago", async ({ page }) =>
   const when = await clock(page);
   await seedPastWeighIn(page.request, oid, when.ago9, 83.6);
   await putProfile(page.request, oid, when.zone, 80);
-  await openApp(page, oid, 390);
+  await openApp(page, oid, 820);
   await page.getByRole("button", { name: /Low accuracy/ }).first().click();
   await expect(page.getByText(
     "No weigh-ins in the last 7 days (last one 9 days ago), so the trend is held where it was then.",
@@ -299,7 +304,7 @@ test("35.7b weights outside 30 to 300 kg are rejected in the sheet", async ({ pa
   await putWeighIn(page.request, oid, when.yesterday, 83.6, when.zone);
   await putProfile(page.request, oid, when.zone, 80);
   await openApp(page, oid, 390);
-  await page.getByRole("button", { name: /Open weight|Log weight/ }).first().click();
+  await page.getByRole("button", { name: /Open weight|Log weight|Weigh in/ }).first().click();
   const field = page.getByRole("textbox", { name: "Weight in kilograms" });
   await field.fill("29.9");
   await expect(page.getByRole("alert")).toContainText("between 30 and 300");
@@ -317,7 +322,7 @@ test("35.11b the weight sheet earliest date is today minus 7", async ({ page }) 
   await putWeighIn(page.request, oid, when.today, 83.6, when.zone);
   await putProfile(page.request, oid, when.zone, 80);
   await openApp(page, oid, 390);
-  await page.getByRole("button", { name: /Open weight|Log weight/ }).first().click();
+  await page.getByRole("button", { name: /Open weight|Log weight|Weigh in/ }).first().click();
   await page.getByRole("button", { name: "Weigh-in day" }).click();
   const values = await page.getByRole("listbox", { name: "Weigh-in day" }).getByRole("option").evaluateAll((options) =>
     options.map((option) => (option as HTMLElement).dataset.date ?? ""));
@@ -334,7 +339,7 @@ test("undo restores the deleted weigh-in", async ({ page }) => {
   await putWeighIn(page.request, oid, when.today, 84, when.zone);
   await putProfile(page.request, oid, when.zone, 80);
   await openApp(page, oid, 390);
-  await page.getByRole("button", { name: /Open weight|Log weight/ }).first().click();
+  await page.getByRole("button", { name: /Open weight|Log weight|Weigh in/ }).first().click();
   await page.getByRole("button", { name: "Delete" }).click();
   await expect(page.getByRole("button", { name: "Undo" })).toBeVisible();
   const gone = await (await page.request.get("/api/weigh-ins", { headers: headers(oid) })).json();
@@ -355,50 +360,29 @@ async function tapCenter(page: Page, locator: Locator) {
   await page.mouse.click(box!.x + box!.width / 2, box!.y + box!.height / 2);
 }
 
-test("weight card opens from the number and the subtitle", async ({ page }) => {
+test("the weigh-in chip opens the sheet and the summary shows the latest weigh-in", async ({ page }) => {
   const oid = `e2e-card-${Date.now()}`;
   const when = await clock(page);
   await putWeighIn(page.request, oid, when.today, 83.6, when.zone);
   await putProfile(page.request, oid, when.zone, 80);
   await openApp(page, oid, 390);
-  const card = page.locator(".wcard");
-  await expect(card.locator(".t-nm")).toHaveText("83.6");
-  await expect(card.locator(".wsub")).toContainText("latest 83.6");
-  await expect(card).not.toContainText("83.60");
+  await expect(page.locator(".wcard")).toHaveCount(0);
+  const summary = page.locator("[data-home-summary]");
+  await expect(summary).toContainText("83.6");
+  await expect(summary).toContainText("latest 83.6");
+  await expect(summary).not.toContainText("83.60");
   for (const rootPx of [null, 53] as const) {
     await page.evaluate((size) => {
       document.documentElement.style.fontSize = size == null ? "" : `${size}px`;
       window.dispatchEvent(new Event("resize"));
     }, rootPx);
-    const layout = await card.evaluate((node) => {
-      const style = getComputedStyle(node);
-      const number = node.querySelector(".t-nm")?.getBoundingClientRect();
-      const spark = node.querySelector("svg.spark")?.getBoundingClientRect();
-      return {
-        direction: style.flexDirection,
-        wrap: style.flexWrap,
-        number,
-        spark,
-      };
-    });
-    expect(layout.direction).toBe("row");
-    expect(layout.wrap).toBe("nowrap");
-    expect(layout.number).toBeTruthy();
-    expect(layout.spark).toBeTruthy();
-    expect(layout.spark!.x).toBeGreaterThan(layout.number!.x + layout.number!.width / 2);
-    await tapCenter(page, card.locator(".t-nm"));
+    const chip = page.getByRole("button", { name: "Weigh in" });
+    const box = await chip.boundingBox();
+    expect(box!.height).toBeGreaterThanOrEqual(44);
+    await chip.click();
     await expect(page.getByRole("dialog", { name: "Log weight" })).toBeVisible();
+    await expect(page.getByRole("textbox", { name: "Weight in kilograms" })).not.toBeFocused();
     await page.keyboard.press("Escape");
     await expect(page.getByRole("dialog", { name: "Log weight" })).toHaveCount(0);
-    await tapCenter(page, card.locator(".wsub"));
-    await expect(page.getByRole("dialog", { name: "Log weight" })).toBeVisible();
-    await page.keyboard.press("Escape");
-    await expect(page.getByRole("dialog", { name: "Log weight" })).toHaveCount(0);
-    await card.getByRole("button", { name: /Low accuracy/ }).click();
-    await expect(page.getByRole("dialog", { name: "Trend accuracy" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Low accuracy" })).toBeVisible();
-    await expect(page.getByRole("dialog", { name: "Log weight" })).toHaveCount(0);
-    await page.keyboard.press("Escape");
-    await expect(page.getByRole("dialog", { name: "Trend accuracy" })).toHaveCount(0);
   }
 });
