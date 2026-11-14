@@ -184,7 +184,11 @@ test("search, detail, multi-add, and stored-snapshot edit", async ({ page }) => 
 
   await expect(page.getByText(/Added 150 g Fictional chicken breast · 300 kcal/)).toBeVisible();
   await expect(sheet(page)).toBeVisible();
-  await expect(sheet(page).getByRole("searchbox", { name: "Search foods" })).toHaveValue("");
+  const searchAfter = sheet(page).getByRole("searchbox", { name: "Search foods" });
+  await expect(searchAfter).toHaveValue("chicken");
+  await expect(searchAfter).not.toBeFocused();
+  await expect(sheet(page).getByRole("heading", { name: "Add food" })).toHaveCount(0);
+  await expect(sheet(page).getByText("Results")).toBeVisible();
   await expect(sheet(page).getByText(/Today · 300 kcal/)).toBeVisible();
   await expect(sheet(page).getByText(/1 added · 300 kcal/)).toBeVisible();
   await page.screenshot({ path: "/opt/cursor/artifacts/f2-after-add.png" });
