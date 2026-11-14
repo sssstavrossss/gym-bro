@@ -1613,11 +1613,11 @@ async function deleteEdited() {
 .dname { margin: 0; overflow-wrap: anywhere; }
 .preview { display: block; padding: 8px 8px 0; border-radius: var(--radius-card); background: var(--color-surface-2); flex: none; width: 100%; max-width: 358px; box-sizing: border-box; }
 .preview .title { color: var(--text-secondary); }
-.preview .cols, .preview .nrow { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; column-gap: 12px; align-items: baseline; }
-.preview .num, .preview .cols span { text-align: right; }
-.preview .name, .preview .cols span:first-child { text-align: left; }
-.preview .nrow { min-height: 28px; }
-html.dt-xl .preview .cols, html.dt-xl .preview .nrow { grid-template-columns: minmax(0, 1fr); row-gap: 2px; }
+.preview .panel, .preview .cols, .preview .nrow, .preview :deep(.panel), .preview :deep(.list), .preview :deep(.heads), .preview :deep(.nrow) { width: 100%; box-sizing: border-box; }
+.preview .cols, .preview .nrow { display: grid; grid-template-columns: minmax(0, 1fr) max-content max-content; column-gap: 16px; align-items: baseline; }
+.preview .num, .preview .cols span:not(:first-child) { text-align: right; justify-self: end; }
+.preview .name, .preview .cols span:first-child { text-align: left; justify-self: start; }
+.preview .nrow { min-height: 0; }
 .units, .chips { gap: 8px; flex-wrap: wrap; justify-content: center; max-width: 100%; }
 .unit-radios { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; max-width: 100%; }
 .uchip {
@@ -1653,7 +1653,7 @@ html.dt-xl .preview .cols, html.dt-xl .preview .nrow { grid-template-columns: mi
 .sbtns { gap: 8px; flex: 0 0 auto; margin-left: auto; }
 .dt-l .units, .dt-l .chips { justify-content: center; }
 .dt-l .uchip { min-height: 44px; }
-.dt-xl .preview { display: block; }
+html.dt-xl .preview { display: block; }
 .dt-xl .qgrid { grid-template-columns: 1fr; }
 .fchips { gap: var(--space-gap); flex-wrap: wrap; flex: none; }
 .mine { display: inline-flex; align-items: center; gap: 3px; padding: 1px 6px; border-radius: 6px; border: 1px solid var(--color-border); color: var(--text-secondary); white-space: nowrap; flex: none; }

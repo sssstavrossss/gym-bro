@@ -51,6 +51,44 @@ async function ready(request: APIRequestContext, oid: string, date: string, zone
 
 test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
 
+/** The last row's ink, including a descender such as µ, stays inside the track and above the dots. */
+async function expectRowsClear(page: Page, root: string) {
+  const report = await page.locator(root).evaluate((card) => {
+    const track = card.querySelector(".track")!;
+    const dots = card.querySelector(".strip");
+    const clip = track.getBoundingClientRect();
+    const dotsTop = dots ? dots.getBoundingClientRect().top : clip.bottom;
+    const canvas = document.createElement("canvas").getContext("2d")!;
+    const panels = [...card.querySelectorAll("[data-panel]")];
+    return panels.map((panel) => {
+      const row = panel.querySelector(".nrow:last-child, .mrow:last-of-type");
+      if (!row) return { id: panel.getAttribute("data-panel"), ok: true, reason: "no row" };
+      const text = row.querySelector(".num, .vals") ?? row;
+      const cs = getComputedStyle(text);
+      canvas.font = cs.font;
+      const sample = text.textContent ?? "";
+      const measured = canvas.measureText(sample);
+      const descent = measured.actualBoundingBoxDescent || 0;
+      const fontSize = parseFloat(cs.fontSize);
+      const lineHeight = parseFloat(cs.lineHeight);
+      const box = text.getBoundingClientRect();
+      const inkBottom = box.bottom - Math.max(0, (lineHeight - fontSize) / 2) + Math.max(0, descent - fontSize * 0.2);
+      return {
+        id: panel.getAttribute("data-panel"),
+        ok: lineHeight + 0.5 >= fontSize && box.bottom <= clip.bottom + 0.5 && inkBottom <= dotsTop - 1,
+        lineHeight,
+        fontSize,
+        bottom: box.bottom,
+        clip: clip.bottom,
+        inkBottom,
+        dotsTop,
+      };
+    });
+  });
+  const clipped = report.filter((row) => !row.ok);
+  expect(clipped, JSON.stringify(clipped)).toEqual([]);
+}
+
 test("the home nutrient card is 358 by 212 on every panel", async ({ page }) => {
   const oid = `e2e-nutrients-${Date.now()}`;
   const when = await clock(page);
@@ -93,6 +131,8 @@ test("the home nutrient card is 358 by 212 on every panel", async ({ page }) => 
   });
   expect(aligned).toBe(true);
 
+  await expectRowsClear(page, "[data-nutrient-card]");
+
   const pip = await card.locator("button.dot.on .pip").evaluate((node) => node.getBoundingClientRect().width);
   const idle = await card.locator("button.dot:not(.on) .pip").first().evaluate((node) => node.getBoundingClientRect().width);
   expect(pip).toBeGreaterThan(idle);
@@ -117,4 +157,45 @@ test("the home nutrient card is 358 by 212 on every panel", async ({ page }) => 
     heights.push(Math.round((await card.boundingBox())!.height));
   }
   expect(new Set(heights).size).toBe(1);
+
+  await page.evaluate(() => {
+    document.documentElement.style.fontSize = "";
+    window.dispatchEvent(new Event("resize"));
+  });
+  await page.getByRole("button", { name: "Add", exact: true }).click();
+  await page.getByRole("button", { name: /Search or quick add/ }).click();
+  await page.getByRole("searchbox", { name: "Search foods" }).fill("Oats");
+  await page.getByRole("button", { name: /^Oats/ }).first().click();
+  const preview = page.locator(".preview");
+  await expect(preview).toBeVisible();
+  await expectRowsClear(page, ".preview");
+  await expectAmountFlush(page);
+  await page.evaluate(() => {
+    document.documentElement.style.fontSize = "53px";
+    window.dispatchEvent(new Event("resize"));
+  });
+  await expectAmountFlush(page);
 });
+
+/** Amount's right edge matches the panel's inner right edge. Per 100 g sits just before it. */
+async function expectAmountFlush(page: Page) {
+  const gaps = await page.locator(".preview").evaluate((root) => {
+    const panel = root.querySelector("[data-panel]")!;
+    const right = panel.getBoundingClientRect().right;
+    return [...root.querySelectorAll(".nrow, .heads")].map((row) => {
+      const amount = row.querySelector(":scope > .amt") ?? row.querySelector(":scope > .num:last-child") ?? row.querySelector(":scope > span:last-child");
+      const per = row.querySelector(":scope > .per") ?? row.querySelector(":scope > span:nth-child(2)");
+      if (!amount) return 0;
+      const amountBox = amount.getBoundingClientRect();
+      const perBox = per ? per.getBoundingClientRect() : null;
+      return {
+        gap: Math.round(right - amountBox.right),
+        order: perBox ? perBox.right <= amountBox.left + 1 : true,
+      };
+    });
+  });
+  for (const row of gaps) {
+    expect(row.gap).toBeLessThanOrEqual(1);
+    expect(row.order).toBe(true);
+  }
+}

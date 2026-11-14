@@ -30,14 +30,16 @@ const rows = computed(() => props.panel.keys.map((key) => {
 <template>
   <div class="panel" :data-panel="panel.id">
     <span class="t-label title">{{ panel.title }}</span>
-    <div v-if="per100" class="heads t-capn c2"><span></span><span>Per 100 g</span><span>Amount</span><span></span></div>
+    <div v-if="per100" class="heads t-capn c2"><span></span><span>Per 100 g</span><span>Amount</span></div>
     <div class="list" :class="{ grid: panel.grid && !per100, paired: per100 }">
       <div v-for="row in rows" :key="row.key" class="nrow" :class="{ miss: row.missing }">
         <span class="t-label name" :class="{ indent: row.indent }">{{ row.label }}</span>
         <template v-if="per100">
           <span class="t-bodys num per" data-num>{{ row.per }}</span>
-          <span class="t-bodys num" data-num>{{ row.text }}</span>
-          <span v-if="row.percent != null" class="t-label pct">{{ row.percent }}%</span>
+          <span class="amt">
+            <span v-if="row.percent != null" class="t-label pct">{{ row.percent }}%</span>
+            <span class="t-bodys num" data-num>{{ row.text }}</span>
+          </span>
         </template>
         <span v-else class="nums">
           <span class="t-bodys num" data-num>{{ row.text }}</span>
@@ -49,8 +51,8 @@ const rows = computed(() => props.panel.keys.map((key) => {
 </template>
 
 <style scoped>
-.panel { display: flex; flex-direction: column; gap: 4px; min-width: 0; height: 100%; }
-.title { color: var(--text-secondary); }
+.panel { display: flex; flex-direction: column; gap: 2px; min-width: 0; height: 100%; box-sizing: border-box; padding-bottom: 2px; }
+.title { color: var(--text-secondary); line-height: 0.9412rem; }
 .list { display: flex; flex-direction: column; min-width: 0; }
 .list.grid {
   display: grid;
@@ -65,9 +67,12 @@ const rows = computed(() => props.panel.keys.map((key) => {
   align-items: baseline;
   column-gap: 8px;
   min-width: 0;
+  line-height: 0.9412rem;
 }
-.heads, .list.paired .nrow { display: grid; grid-template-columns: minmax(0, 1fr) auto auto 44px; column-gap: 12px; align-items: baseline; }
-.heads span, .nums, .list.paired .num, .list.paired .pct { text-align: right; }
+.name, .num, .pct { line-height: 0.9412rem; }
+.heads, .list.paired .nrow { display: grid; grid-template-columns: minmax(0, 1fr) max-content max-content; column-gap: 16px; align-items: baseline; width: 100%; }
+.heads span:not(:first-child), .per, .amt { justify-self: end; text-align: right; }
+.amt { display: inline-flex; align-items: baseline; justify-content: flex-end; gap: 8px; }
 .nums { display: flex; justify-content: flex-end; align-items: baseline; gap: 8px; white-space: nowrap; }
 .name { min-width: 0; overflow-wrap: anywhere; }
 .name.indent { padding-left: 12px; }
@@ -75,6 +80,4 @@ const rows = computed(() => props.panel.keys.map((key) => {
 .miss .num { color: var(--text-tertiary); }
 .pct { color: var(--text-secondary); }
 html.dt-xl .nums { flex-direction: column; align-items: flex-end; gap: 0; }
-html.dt-xl .heads, html.dt-xl .list.paired .nrow { grid-template-columns: minmax(0, 1fr); row-gap: 2px; }
-html.dt-xl .heads span:empty { display: none; }
 </style>
