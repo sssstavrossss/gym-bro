@@ -8,7 +8,7 @@ const props = withDefaults(defineProps<{
   remember?: boolean;
   storageKey?: string;
   label?: string;
-}>(), { remember: false, lockIndex: 0 });
+}>(), { remember: false, lockIndex: -1 });
 
 const track = ref<HTMLElement | null>(null);
 const root = ref<HTMLElement | null>(null);
@@ -69,12 +69,19 @@ async function measure() {
   const trackEl = track.value;
   if (!trackEl) return;
   width.value = trackEl.clientWidth;
-  if (props.height) return;
+  if (props.height || props.lockIndex < 0) {
+    if (props.lockIndex < 0 && !props.height) locked.value = null;
+    return;
+  }
   const panel = trackEl.children.item(props.lockIndex) as HTMLElement | null;
   if (!panel) return;
   const previous = trackEl.style.height;
   trackEl.style.height = "auto";
-  locked.value = panel.offsetHeight;
+  panel.style.flex = "0 0 auto";
+  panel.style.height = "auto";
+  locked.value = panel.scrollHeight;
+  panel.style.flex = "";
+  panel.style.height = "";
   trackEl.style.height = previous;
 }
 
@@ -91,7 +98,7 @@ onBeforeUnmount(() => {
   observer?.disconnect();
   window.removeEventListener("resize", measure);
 });
-watch(() => props.count, () => { void measure(); });
+watch(() => [props.count, props.lockIndex, props.height], () => { void measure(); });
 
 defineExpose({ go, index });
 </script>
@@ -125,9 +132,11 @@ defineExpose({ go, index });
 </template>
 
 <style scoped>
-.panels { position: relative; min-width: 0; outline: none; }
+.panels { position: relative; min-width: 0; outline: none; display: flex; flex-direction: column; flex: 1; min-height: 0; }
 .track {
   display: flex;
+  flex: 1;
+  min-height: 0;
   overflow-x: auto;
   overflow-y: hidden;
   scroll-snap-type: x mandatory;
@@ -137,13 +146,14 @@ defineExpose({ go, index });
 .track::-webkit-scrollbar { display: none; }
 .track > :deep(*) {
   flex: 0 0 100%;
+  height: 100%;
   scroll-snap-align: start;
   scroll-snap-stop: always;
   min-width: 0;
   overflow: auto;
   box-sizing: border-box;
 }
-.strip { display: flex; justify-content: center; min-height: 44px; position: relative; }
+.strip { display: flex; justify-content: center; flex: none; height: 44px; position: relative; }
 .dot {
   width: 44px;
   height: 44px;
@@ -155,8 +165,12 @@ defineExpose({ go, index });
   padding: 0;
   color: var(--text-tertiary);
 }
-.pip { width: 6px; height: 6px; border-radius: 99px; background: currentColor; }
+.pip { width: 6px; height: 6px; border-radius: 99px; background: currentColor; transition: width 160ms ease; }
 .dot.on { color: var(--text); }
+.dot.on .pip { width: 16px; }
+@media (prefers-reduced-motion: reduce) {
+  .pip { transition: none; }
+}
 .halves .dot { pointer-events: none; }
 .half {
   position: absolute;

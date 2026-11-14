@@ -43,9 +43,14 @@ describe("NNR percents", () => {
   });
 
   it("splits a long panel at the largest text size and hides an empty one", () => {
-    const entries = [{ nutrients: { thiamin: 1, riboflavin: 1, niacin: 1, vitaminB6: 1, folate: 1, vitaminB12: 1 } }];
-    expect(panelsForSize(entries, false).map((panel) => panel.id)).toEqual(["b"]);
-    expect(panelsForSize(entries, true).map((panel) => panel.keys.length)).toEqual([4, 2]);
+    const entries = [{ fat: 7, nutrients: { thiamin: 1, riboflavin: 1, niacin: 1, vitaminB6: 1, folate: 1, vitaminB12: 1, saturatedFat: 1 } }];
+    const small = panelsForSize(entries, false);
+    expect(small.map((panel) => panel.id)).toEqual(["fats", "b"]);
+    expect(small[0].keys[0]).toBe("fat");
+    expect(small[0].indent).toEqual(["saturatedFat"]);
+    const large = panelsForSize(entries, true);
+    expect(large.map((panel) => panel.id)).toEqual(["fats-0", "fats-1", "b-0", "b-4"]);
+    expect(large[0].keys).toEqual(["fat", "saturatedFat", "monoFat", "polyFat"]);
     expect(panelsForSize([{ nutrients: {} }], false)).toEqual([]);
   });
 });

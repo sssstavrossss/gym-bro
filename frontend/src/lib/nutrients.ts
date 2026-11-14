@@ -12,9 +12,12 @@ export interface NutrientPanelDef {
   title: string;
   keys: string[];
   grid?: boolean;
+  /** Names that sit in from the left edge, such as Saturated under Fat. */
+  indent?: string[];
 }
 
 const ROWS: Record<string, NutrientRow> = {
+  fat: { key: "fat", label: "Fat", unit: "g" },
   saturatedFat: { key: "saturatedFat", label: "Saturated", unit: "g" },
   monoFat: { key: "monoFat", label: "Mono", unit: "g" },
   polyFat: { key: "polyFat", label: "Poly", unit: "g" },
@@ -46,8 +49,11 @@ const ROWS: Record<string, NutrientRow> = {
   iodine: { key: "iodine", label: "Iodine", unit: "µg" },
 };
 
+const FATS_LEFT = ["fat", "saturatedFat", "monoFat", "polyFat"];
+const FATS_RIGHT = ["transFat", "omega3", "omega6", "cholesterol"];
+
 export const NUTRIENT_PANELS: NutrientPanelDef[] = [
-  { id: "fats", title: "Fats", grid: true, keys: ["saturatedFat", "monoFat", "polyFat", "transFat", "omega3", "omega6", "cholesterol"] },
+  { id: "fats", title: "Fats", grid: true, indent: ["saturatedFat"], keys: [...FATS_LEFT, ...FATS_RIGHT] },
   { id: "carbs", title: "Carbs & sodium", keys: ["sugars", "addedSugars", "fiber", "sodium"] },
   { id: "vitamins", title: "Vitamins", keys: ["vitaminA", "vitaminD", "vitaminE", "vitaminC"] },
   { id: "b", title: "B vitamins", keys: ["thiamin", "riboflavin", "niacin", "vitaminB6", "folate", "vitaminB12"] },
@@ -73,6 +79,7 @@ export function completeSum(values: readonly (number | null | undefined)[]): num
 }
 
 export interface NutrientSource {
+  fat?: number | null;
   saturatedFat?: number | null;
   sugars?: number | null;
   fiber?: number | null;
@@ -81,6 +88,7 @@ export interface NutrientSource {
 }
 
 function rawOf(source: NutrientSource, key: string): number | null {
+  if (key === "fat") return source.fat ?? null;
   if (key === "sodium") return sodiumMg(source.nutrients?.sodium, source.salt);
   if (key === "saturatedFat") return source.saturatedFat ?? null;
   if (key === "sugars") return source.sugars ?? null;
@@ -112,6 +120,11 @@ export function panelsForSize(entries: readonly NutrientSource[], large: boolean
   const shown: NutrientPanelDef[] = [];
   for (const panel of NUTRIENT_PANELS) {
     if (!panelHasData(entries, panel.keys)) continue;
+    if (panel.id === "fats" && large) {
+      shown.push({ id: "fats-0", title: panel.title, keys: FATS_LEFT, indent: ["saturatedFat"] });
+      shown.push({ id: "fats-1", title: panel.title, keys: FATS_RIGHT });
+      continue;
+    }
     if (large && panel.keys.length > 4) {
       for (let index = 0; index < panel.keys.length; index += 4) {
         const keys = panel.keys.slice(index, index + 4);

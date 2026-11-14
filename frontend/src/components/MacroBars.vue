@@ -55,15 +55,16 @@ const macros = computed(() => {
       <span class="t-bodys" data-num>{{ int(totals.c) }}</span><span class="t-capn c2">C</span>
     </div>
   </section>
-  <section v-else class="card macros" :aria-label="label || 'Today\'s macros'">
-    <SwipePanels :count="panels.length + 1" :lock-index="0" :label="label || 'Today\'s macros'">
+  <section v-else class="card macros fit" data-nutrient-card :aria-label="label || 'Today\'s macros'">
+    <SwipePanels :count="panels.length + 1" :lock-index="large ? 0 : -1" :label="label || 'Today\'s macros'">
     <div class="macropane" data-panel="macros">
     <div v-for="m in macros" :key="m.label" class="col gap6">
-      <div class="row mrow">
-        <span class="t-label" :class="m.st === 'under' ? 'c2' : ''">{{ m.label }}<span v-if="m.min" class="c3 t-capn"> · min</span></span>
-        <ManualTag v-if="manual && m.kind === 'kcal'" />
-        <span v-if="m.st === 'over'" class="overtag t-capn">+{{ int(m.cur - m.tgt) }} over</span>
-        <span class="grow" />
+      <div class="mrow">
+        <span class="left">
+          <span class="t-label" :class="m.st === 'under' ? 'c2' : ''">{{ m.label }}<span v-if="m.min" class="c3 t-capn"> · min</span></span>
+          <ManualTag v-if="manual && m.kind === 'kcal'" />
+          <span v-if="m.st === 'over'" class="overtag t-capn">+{{ int(m.cur - m.tgt) }} over</span>
+        </span>
         <span class="vals">
           <span class="t-bodys" data-num>{{ int(m.cur) }}</span>
           <span class="t-label c3">/ {{ int(m.tgt) }} {{ m.unit }}</span>
@@ -81,11 +82,17 @@ const macros = computed(() => {
 
 <style scoped>
 .macros { gap: 14px; }
-.gap6 { gap: 6px; }
-.mrow { gap: 4px; align-items: baseline; flex-wrap: wrap; min-width: 0; max-width: 100%; }
+.macros.fit { height: 212px; box-sizing: border-box; gap: 0; overflow: hidden; }
+.macropane { display: flex; flex-direction: column; gap: 6px; min-height: 0; }
+.gap6 { gap: 2px; }
+html.dt-xl .macros.fit { height: auto; overflow: visible; }
+html.dt-xl .mrow { grid-template-columns: minmax(0, 1fr); row-gap: 0; }
+html.dt-xl .vals { justify-content: flex-end; width: 100%; }
+.mrow { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; column-gap: 8px; min-width: 0; }
+.left { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px; min-width: 0; }
 .vals {
   display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: baseline; gap: 4px;
-  margin-left: auto; max-width: 100%;
+  max-width: 100%;
 }
 .vals > * { flex: none; white-space: nowrap; }
 .tick { width: 14px; height: 14px; display: inline-flex; align-items: center; justify-content: center; align-self: center; }

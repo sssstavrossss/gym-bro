@@ -299,6 +299,7 @@ const sheetSource = computed(() => {
   const food = shownFood.value;
   if (food && !editingFood.value) {
     return {
+      fat: food.fatPer100,
       saturatedFat: food.saturatedFatPer100,
       sugars: food.sugarsPer100,
       fiber: food.fiberPer100,
