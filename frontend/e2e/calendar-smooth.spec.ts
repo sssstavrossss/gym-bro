@@ -49,6 +49,7 @@ test("calendar motion, home gap, compact profile controls, and a lean notificati
   const macros = page.locator("main.today .macros");
   await expect(macros).toBeVisible();
   await expect(page.locator(".homeweek .grab")).toBeVisible();
+  await expect(page.locator(".homeweek .cal")).toHaveAttribute("aria-hidden", "true");
   if (test.info().project.name === "chromium") {
     await page.screenshot({ path: "/opt/cursor/artifacts/iphone43-home-gap.png" });
   }
@@ -69,6 +70,13 @@ test("calendar motion, home gap, compact profile controls, and a lean notificati
   await expect.poll(async () => page.locator(".homeweek .stage").evaluate((node) => node.style.height)).toBe("auto");
   const calendar = page.getByRole("group", { name: "Last 4 weeks" });
   await expect(calendar).toBeVisible();
+  const legend = calendar.locator(".legend");
+  await expect(legend).toBeVisible();
+  await expect(legend).toContainText("±5%");
+  await expect(legend).toContainText("not logged");
+  await expect(legend).toContainText("today");
+  const legendFit = await legend.evaluate((node) => node.scrollWidth <= node.clientWidth + 1);
+  expect(legendFit).toBe(true);
   if (test.info().project.name === "chromium") {
     await strip.screenshot({ path: "/opt/cursor/artifacts/iphone43-calendar-open.png" });
     await page.evaluate(() => { document.documentElement.dataset.theme = "charcoal"; });
@@ -77,6 +85,7 @@ test("calendar motion, home gap, compact profile controls, and a lean notificati
   }
   await page.getByRole("button", { name: "Hide the calendar" }).click();
   await expect(calendar).toBeHidden();
+  await expect(page.locator(".homeweek .cal")).toHaveAttribute("aria-hidden", "true");
 
   await page.goto("/profile");
   for (const name of ["Male", "Female", "Lose", "Maintain", "Gain"]) {

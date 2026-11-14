@@ -319,6 +319,16 @@ onBeforeUnmount(() => {
           <span v-else-if="day.date < today && day.over" class="corner" aria-hidden="true" />
         </button>
       </div>
+      <div class="legend t-capn c2">
+        <span><i class="sw on"><Icon name="check" :size="8" :sw="3.4" /></i> ±5%</span>
+        <span><i class="sw close" /> ±10%</span>
+        <span><i class="sw off" /> ±20%</span>
+        <span><i class="sw far" /> &gt;20%</span>
+        <span><i class="sw over" /> over</span>
+        <span><i class="sw none" /> not logged</span>
+        <span><i class="sw notarget" /> no target</span>
+        <span><i class="sw today" /> today</span>
+      </div>
     </div>
   </div>
   <button type="button" class="grab" :aria-expanded="expanded" :aria-label="expanded ? 'Hide the calendar' : 'Show the last 4 weeks'" @click="setExpanded(!expanded)">
@@ -382,6 +392,20 @@ onBeforeUnmount(() => {
 .tile.over { background-image: repeating-linear-gradient(-45deg, rgba(255,255,255,.28) 0 2px, transparent 2px 6px); }
 .tile .mark { position: absolute; top: 4px; right: 4px; }
 .corner { position: absolute; top: 4px; right: 4px; width: 0; height: 0; border-left: 7px solid transparent; border-top: 7px solid var(--text-secondary); }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 10px; margin-top: 6px; min-width: 0; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; min-height: 16px; white-space: nowrap; }
+.sw {
+  width: 12px; height: 12px; border-radius: 3px; flex: none;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.sw.on { background: var(--shade-on-target); color: var(--color-on-action); }
+.sw.close { background: var(--shade-close); }
+.sw.off { background: var(--shade-off); }
+.sw.far { background: var(--shade-far); }
+.sw.over { background-color: var(--shade-off); background-image: repeating-linear-gradient(-45deg, rgba(255,255,255,.28) 0 2px, transparent 2px 6px); }
+.sw.none { background: transparent; outline: 1px dashed var(--color-border); outline-offset: -2px; }
+.sw.notarget { background: transparent; box-shadow: inset 0 0 0 1px var(--text-secondary); }
+.sw.today { background: transparent; box-shadow: inset 0 0 0 2px var(--color-action); }
 .grab {
   position: relative; z-index: 1;
   min-width: 44px; min-height: var(--control-hit); align-self: center;

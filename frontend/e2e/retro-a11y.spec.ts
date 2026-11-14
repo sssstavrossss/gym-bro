@@ -47,7 +47,7 @@ test("setup, profile, weight sheet, and placeholders", async ({ page }, info) =>
   await page.getByRole("textbox", { name: "Goal weight in kilograms" }).fill("80");
   await page.getByRole("textbox", { name: "Starting weight in kilograms" }).fill("83,6");
   await page.getByRole("button", { name: "Save and see targets" }).click();
-  await expect(page.locator("[data-field=kcal]")).toHaveText("2218");
+  await expect(page.locator("[data-field=kcal]")).toHaveText("2,218");
   await check(page, `${info.project.name} profile`);
 
   await page.getByRole("button", { name: "Customise" }).click();

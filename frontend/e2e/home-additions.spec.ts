@@ -98,7 +98,7 @@ test("phone home calendar, history, sex, and notification circles", async ({ pag
   const notes = page.getByRole("region", { name: "Notifications" });
   await notes.scrollIntoViewIfNeeded();
   const toggle = notes.getByRole("button", { name: "Weekly recalculate" });
-  await expect(toggle).toHaveAttribute("aria-pressed", "true");
+  await expect(toggle).toHaveAttribute("aria-pressed", "false");
   const mark = await toggle.locator(".dot").boundingBox();
   expect(mark!.width).toBeCloseTo(16, 0);
   expect(mark!.height).toBeCloseTo(16, 0);

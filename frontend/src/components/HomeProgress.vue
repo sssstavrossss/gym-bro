@@ -4,7 +4,7 @@ import Icon from "./Icon.vue";
 import { ApiError, getProgress, ServerUnreachable, type ProgressResponse } from "../api";
 import { dayMonth, spanLabel } from "../lib/dates";
 import { int, kg, signed } from "../lib/format";
-import { fewMarks, intakeBars, intakeMax, slotX, targetLine, valueY, weightTrend } from "../lib/progressChart";
+import { evenAxisLabels, fewMarks, intakeBars, intakeMax, slotX, targetLine, valueY, weightTrend } from "../lib/progressChart";
 import { profile } from "../state/profile";
 import { openWeight, toast } from "../ui";
 
@@ -109,7 +109,7 @@ const weights = computed(() => weightTrend(
   plot.width,
   plot.height,
 ));
-const weightTicks = computed(() => fewMarks(weights.value.low, weights.value.high, weights.value.flat));
+const weightTicks = computed(() => evenAxisLabels(weights.value.low, weights.value.high, weights.value.flat));
 
 function intakeOf(kind: Exclude<Metric, "weight">) {
   return days.value.map((day) => {
@@ -229,11 +229,7 @@ function stopScroll(event: MouseEvent) {
     </div>
 
     <section class="card chart" :aria-label="metricLabels[metric]">
-      <div class="row">
-        <h3 class="t-head">{{ metricLabels[metric] }}</h3>
-        <span class="grow" />
-        <span class="t-capn c2">{{ metric === "weight" ? "Line = trend · dots = weigh-ins" : "Bars = logged days · dashed = target" }}</span>
-      </div>
+      <p v-if="metric === 'weight'" class="t-capn c2 cap">Line = trend · dots = weigh-ins</p>
       <p v-if="!data && !failed" class="t-body c2">Loading progress…</p>
       <p v-else-if="failed && !data" class="t-body c2">Progress couldn't be loaded.</p>
       <p v-else-if="metric === 'weight' && !weights.dots.length && !weights.line" class="t-body c2">No weigh-ins in this range.</p>
@@ -297,7 +293,8 @@ function stopScroll(event: MouseEvent) {
 .weigh {
   min-width: 44px; min-height: 44px; padding: 0 var(--space-gap);
   display: inline-flex; align-items: center; justify-content: center; gap: calc(var(--space-gap) / 2);
-  border-radius: 12px; background: var(--color-surface-2); color: var(--text-primary); flex: none;
+  border-radius: 22px; background: var(--color-surface-2); color: var(--text-primary); flex: none;
+  white-space: nowrap;
 }
 .pickers { display: flex; flex-direction: column; gap: calc(var(--space-gap) / 2); min-width: 0; width: 100%; }
 .picker-row {
@@ -313,6 +310,7 @@ function stopScroll(event: MouseEvent) {
 }
 .pill.on { background: var(--color-action); color: var(--color-on-action); }
 .chart { min-width: 0; min-height: 220px; }
+.cap { margin: 0; }
 .plot { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr) 40px; align-items: stretch; }
 .fig { width: 100%; height: auto; display: block; }
 .ylabs { position: relative; }

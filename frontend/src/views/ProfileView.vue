@@ -6,6 +6,7 @@ import Segmented from "../components/Segmented.vue";
 import SelectMark from "../components/SelectMark.vue";
 import TargetHistory from "../components/TargetHistory.vue";
 import { ACTIVITY, FAT_PRESETS, PROTEIN_PRESETS, RATES, type ActivityKey, type Goal, type MacroSetting, type Sex } from "../lib/nutrition";
+import { int } from "../lib/format";
 import { parseDecimal } from "../lib/numbers";
 import { boot } from "../state/boot";
 import { clearAllDrafts, commitProfile, profile, shownTargets, weightCaption } from "../state/profile";
@@ -55,7 +56,11 @@ async function onReadAll() {
     noteBusy.value = false;
   }
 }
-const typeOn = computed(() => notes.value?.types?.find((item) => item.id === "recalculate")?.enabled ?? true);
+const typeOn = computed(() => {
+  const settings = notes.value;
+  if (!settings?.configured) return false;
+  return settings.types?.find((item) => item.id === "recalculate")?.enabled ?? false;
+});
 async function onType() {
   if (!notes.value || noteBusy.value) return;
   noteBusy.value = true;
@@ -81,14 +86,6 @@ const age = computed(() => {
 });
 const shown = computed(() => shownTargets());
 const caption = computed(() => weightCaption(profile.weight));
-const gap = computed(() => {
-  const current = shown.value;
-  if (!current) return "";
-  const diff = current.tdee - current.kcal;
-  if (diff === 0) return "Eat what you burn.";
-  if (diff > 0) return `About ${diff} kcal a day below burn.`;
-  return `About ${-diff} kcal a day above burn.`;
-});
 
 function setSex(value: string) {
   profile.form.sex = value as Sex;
@@ -153,8 +150,6 @@ async function onSignOut() {
   <main class="screen">
     <header class="screen-head">
       <h1 class="t-title">Profile</h1>
-      <span class="grow" />
-      <span class="t-label c2">Metric · kg, cm</span>
     </header>
 
     <div class="pgrid" :class="{ two: vp.tablet, desk: vp.desktop }">
@@ -234,27 +229,22 @@ async function onSignOut() {
               <span class="t-label c2">kg</span>
             </span>
           </label>
-          <p v-if="gap" class="t-label c2">{{ gap }}</p>
         </section>
       </div>
 
       <div class="pcol">
         <section v-if="shown" class="card">
-          <div class="row">
-            <h2 class="t-label c2">Your targets</h2>
-            <span class="grow" />
-            <span class="t-label c2">updates live</span>
-          </div>
+          <h2 class="t-label c2">Your targets</h2>
           <div class="stats">
-            <div><span class="t-label c2">BMR</span><span class="t-ns" data-field="bmr">{{ shown.bmr }}</span><span class="t-label c2">kcal</span></div>
-            <div><span class="t-label c2">Daily burn</span><span class="t-ns" data-field="tdee">{{ shown.tdee }}</span><span class="t-label c2">kcal</span></div>
-            <div><span class="t-label c2">Eat</span><span class="t-nm" data-field="kcal">{{ shown.kcal }}</span><span class="t-label c2">kcal</span></div>
+            <div><span class="t-label c2">BMR</span><span class="figure"><span class="t-ns" data-field="bmr">{{ int(shown.bmr) }}</span><span class="t-label c2">kcal</span></span></div>
+            <div><span class="t-label c2">Daily burn</span><span class="figure"><span class="t-ns" data-field="tdee">{{ int(shown.tdee) }}</span><span class="t-label c2">kcal</span></span></div>
+            <div><span class="t-label c2">Eat</span><span class="figure"><span class="t-nm" data-field="kcal">{{ int(shown.kcal) }}</span><span class="t-label c2">kcal</span></span></div>
           </div>
           <div class="divider" />
           <div class="stats">
-            <div><span class="t-label c2">Protein</span><span class="t-ns" data-field="protein">{{ shown.protein }}</span><span class="t-label c2">g</span></div>
-            <div><span class="t-label c2">Fat</span><span class="t-ns" data-field="fat">{{ shown.fat }}</span><span class="t-label c2">g</span></div>
-            <div><span class="t-label c2">Carbs</span><span class="t-ns" data-field="carbs">{{ shown.carbs }}</span><span class="t-label c2">g</span></div>
+            <div><span class="t-label c2">Protein</span><span class="figure"><span class="t-ns" data-field="protein">{{ int(shown.protein) }}</span><span class="t-label c2">g</span></span></div>
+            <div><span class="t-label c2">Fat</span><span class="figure"><span class="t-ns" data-field="fat">{{ int(shown.fat) }}</span><span class="t-label c2">g</span></span></div>
+            <div><span class="t-label c2">Carbs</span><span class="figure"><span class="t-ns" data-field="carbs">{{ int(shown.carbs) }}</span><span class="t-label c2">g</span></span></div>
           </div>
           <p v-if="shown.floorApplied" class="t-body" data-floor="true">Raised to your BMR so the target does not go below it.</p>
           <button type="button" class="chip t-label recalc" @click="openRecalculate">Recalculate</button>
@@ -335,6 +325,7 @@ async function onSignOut() {
 html:not(.dt-xl) .compact-seg :deep(.seg-btn) {
   min-width: 44px; min-height: 24px; padding: 2px 8px; border-radius: 8px;
 }
+html:not(.dt-xl) .sexrow :deep(.seg-btn) { padding: 2px var(--space-gap); }
 html:not(.dt-xl) .compact-seg :deep(.seg-btn)::after {
   content: ""; position: absolute; inset: min(0px, calc((100% - 44px) / 2)) 0;
 }
@@ -352,6 +343,7 @@ html:not(.dt-xl) .compact-seg :deep(.seg-btn)::after {
 .nrow .mark { position: relative; width: 44px; height: 44px; flex: none; }
 .status { margin: 0; }
 .notes { gap: var(--space-gap); }
+.notes .head { min-height: 0; align-items: flex-start; }
 .notes p { margin: 0; overflow-wrap: anywhere; }
 .head { gap: var(--space-gap); align-items: center; min-height: var(--control-hit); }
 .feed { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: calc(var(--space-gap) / 2); }
@@ -365,18 +357,20 @@ html:not(.dt-xl) .compact-seg :deep(.seg-btn)::after {
 .rate { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .stats { display: flex; gap: 12px; }
 .stats > div { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.figure { display: inline-flex; align-items: baseline; gap: 4px; flex-wrap: nowrap; white-space: nowrap; min-width: 0; }
 .pgrid, .pcol { display: flex; flex-direction: column; gap: var(--space-gap); min-width: 0; }
 .two.pgrid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start; }
 .desk.pgrid { grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 24px; }
 .two .frow, .desk .frow { min-width: 0; }
 .two .tz, .desk .tz { width: min(180px, 100%); max-width: 100%; }
 .signout { align-self: flex-start; }
-.themes { display: flex; flex-wrap: wrap; gap: var(--space-gap); }
+.themes { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-gap); }
 .theme {
-  min-height: var(--control-hit); min-width: var(--control-hit);
+  min-height: var(--control-hit); min-width: 0; width: 100%;
   display: inline-flex; align-items: center; gap: 8px;
   padding: 0 var(--space-gap); border-radius: 12px; background: var(--color-surface-2); color: var(--text-primary);
 }
+.dt-xl .themes { grid-template-columns: 1fr; }
 .theme[aria-checked="true"] { box-shadow: inset 0 0 0 1.5px var(--text-primary); }
 .swatch { width: 14px; height: 14px; border-radius: 4px; box-shadow: inset 0 0 0 1px var(--color-border-strong); flex: none; }
 h2 { margin: 0; }
@@ -395,9 +389,6 @@ h2 { margin: 0; }
 .dt-l .sexrow :deep(.seg) { flex: 1 1 auto; width: 100%; max-width: 100%; min-width: 0; align-self: stretch; }
 .dt-l .lowrow { white-space: normal; max-width: 100%; }
 .dt-l .tz { width: 100%; max-width: 100%; margin-left: 0; text-align: left; min-width: 0; }
-.dt-xl .screen-head { align-items: flex-start; }
-.dt-xl .screen-head .grow { display: none; }
-.dt-xl .screen-head .t-label { flex: 1 1 100%; max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
 .dt-xl .stats { flex-direction: column; align-items: stretch; }
 .dt-xl .stats > div { width: 100%; max-width: 100%; }
 .dt-xl .pcol > p { max-width: 100%; overflow-wrap: anywhere; }

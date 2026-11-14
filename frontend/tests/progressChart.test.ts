@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { fewMarks, intakeBars, scaleTicks, slotX, targetLine, weightTrend } from "../src/lib/progressChart";
+import { evenAxisLabels, fewMarks, intakeBars, scaleTicks, slotX, targetLine, weightTrend } from "../src/lib/progressChart";
 
 const days = [
   { date: "2026-11-08", logged: true, value: 400, target: 2000 },
@@ -12,6 +12,14 @@ it("labels a scale with the top, middle, and bottom", () => {
   expect(scaleTicks(83, 83)).toEqual([83]);
   expect(fewMarks(70, 90).length).toBeLessThanOrEqual(4);
   expect(fewMarks(83, 84.5)).toEqual([84.5, 84, 83.5, 83]);
+});
+
+it("spaces a crowded weight axis in equal steps", () => {
+  const marks = evenAxisLabels(74.5, 77);
+  expect(marks).toEqual([77, 76, 75]);
+  const gaps = marks.slice(1).map((mark, index) => Math.round((marks[index] - mark) * 10) / 10);
+  expect(new Set(gaps)).toEqual(new Set([1]));
+  expect(marks).not.toEqual([77, 76, 75.5, 74.5]);
 });
 
 it("keeps an empty day as a gap instead of a zero bar", () => {

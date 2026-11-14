@@ -42,12 +42,14 @@ const macros = computed(() => {
       <div class="row mrow">
         <span class="t-label" :class="m.st === 'under' ? 'c2' : ''">{{ m.label }}<span v-if="m.min" class="c3 t-capn"> · min</span></span>
         <ManualTag v-if="manual && m.kind === 'kcal'" />
+        <span v-if="m.st === 'over'" class="overtag t-capn">+{{ int(m.cur - m.tgt) }} over</span>
         <span class="grow" />
-        <span class="t-bodys" data-num>{{ int(m.cur) }}</span>
-        <span class="t-label c3">/ {{ int(m.tgt) }} {{ m.unit }}</span>
-        <Icon v-if="m.st === 'hit'" name="check" :size="14" :sw="3" aria-hidden="true" />
+        <span class="vals">
+          <span class="t-bodys" data-num>{{ int(m.cur) }}</span>
+          <span class="t-label c3">/ {{ int(m.tgt) }} {{ m.unit }}</span>
+          <span class="tick" aria-hidden="true"><Icon v-if="m.st === 'hit'" name="check" :size="14" :sw="3" /></span>
+        </span>
         <span v-if="m.st === 'hit'" class="sr-only">on target</span>
-        <span v-else-if="m.st === 'over'" class="overtag t-capn">+{{ int(m.cur - m.tgt) }} over</span>
       </div>
       <Bar :pct="m.tgt ? m.cur / m.tgt : 0" :hit="m.st === 'hit'" :over="m.st === 'over'" :aria-label="`${m.label} ${int(m.cur)} of ${int(m.tgt)} ${m.unit}${m.st === 'hit' ? ', on target' : m.st === 'over' ? ', over' : ''}`" />
     </div>
@@ -58,6 +60,12 @@ const macros = computed(() => {
 .macros { gap: 14px; }
 .gap6 { gap: 6px; }
 .mrow { gap: 4px; align-items: baseline; flex-wrap: wrap; min-width: 0; max-width: 100%; }
+.vals {
+  display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: baseline; gap: 4px;
+  margin-left: auto; max-width: 100%;
+}
+.vals > * { flex: none; white-space: nowrap; }
+.tick { width: 14px; height: 14px; display: inline-flex; align-items: center; justify-content: center; align-self: center; }
 .m0 { margin: 0; }
 .nt { gap: 4px; align-items: baseline; flex-wrap: wrap; }
 .nt .t-capn { margin-right: 10px; }
