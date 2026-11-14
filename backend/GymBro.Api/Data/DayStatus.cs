@@ -14,6 +14,6 @@ public sealed class DayStatus
     /// <summary>Retired. Left in place so old rows are not destroyed.</summary>
     public bool Complete { get; set; }
 
-    /// <summary>The person marked this day as fasting. Counts as 0 kcal in a recalculation.</summary>
+    /// <summary>The person marked this day as fasting. The recalculate review does not treat it differently.</summary>
     public bool Fasting { get; set; }
 }

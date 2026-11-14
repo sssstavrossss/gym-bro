@@ -54,13 +54,14 @@ public sealed record AdaptiveReview(
     ProposedTarget Formula);
 
 /// <summary>
-/// On-demand target review. Under-target days are the ones under 90% of that
-/// day's own target. Fasting days stay in the average at 0 kcal. Days with no
-/// log are left out. Nothing is filled in when a number was not stored.
+/// On-demand target review. A logged day is listed when its calories are 80%
+/// or less of that day's own target. A day with no log is left out. A fasting
+/// mark does not add the day, remove it, or replace its logged calories.
+/// Nothing is filled in when a number was not stored.
 /// </summary>
 public static class AdaptiveTarget
 {
-    public const decimal UnderRatio = 0.9m;
+    public const decimal UnderRatio = 0.8m;
 
     public const int MinimumIncludedDays = 7;
 
@@ -69,7 +70,7 @@ public static class AdaptiveTarget
     public const string NeedWeighIns = "There is no weigh-in at the start of this period and another inside it, so the trend change is not measurable.";
 
     public static bool IsUnderTarget(decimal loggedKcal, int targetKcal) =>
-        targetKcal > 0 && loggedKcal < UnderRatio * targetKcal;
+        targetKcal > 0 && loggedKcal <= UnderRatio * targetKcal;
 
     public static AdaptiveReview Review(
         DateOnly from,
@@ -94,25 +95,23 @@ public static class AdaptiveTarget
             }
 
             var under = fact.HasLog && fact.TargetKcal is int target && IsUnderTarget(fact.LoggedKcal, target);
-            var show = fact.Fasting || under;
-            var canExclude = under && !fact.Fasting;
-            var include = fact.Fasting || (fact.HasLog && fact.TargetKcal is not null && !(canExclude && excluded.Contains(fact.Date)));
+            var include = fact.HasLog && fact.TargetKcal is not null && !(under && excluded.Contains(fact.Date));
             if (include)
             {
-                includedKcal.Add(fact.Fasting ? 0m : fact.LoggedKcal);
+                includedKcal.Add(fact.LoggedKcal);
             }
 
-            if (!show)
+            if (!under)
             {
                 continue;
             }
 
             listed.Add(new ReviewDay(
                 fact.Date,
-                (int)decimal.Round(fact.Fasting ? 0m : fact.LoggedKcal, 0, MidpointRounding.AwayFromZero),
+                (int)decimal.Round(fact.LoggedKcal, 0, MidpointRounding.AwayFromZero),
                 fact.TargetKcal,
-                fact.Fasting,
-                canExclude,
+                false,
+                true,
                 include));
         }
 

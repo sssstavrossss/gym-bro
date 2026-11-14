@@ -235,7 +235,6 @@ public static class RecalculateEndpoints
         var to = today.AddDays(-1);
 
         var logs = new List<(DateOnly Date, decimal Kcal)>();
-        var fasting = new HashSet<DateOnly>();
         if (from <= to)
         {
             var rawLogs = await db.LogEntries.AsNoTracking()
@@ -246,10 +245,6 @@ public static class RecalculateEndpoints
                 .GroupBy(row => row.LocalDate)
                 .Select(group => (group.Key, group.Sum(row => row.Kcal)))
                 .ToList();
-            fasting = (await db.DayStatuses.AsNoTracking()
-                .Where(row => row.UserId == userId && row.Fasting && row.LocalDate >= from && row.LocalDate <= to)
-                .Select(row => row.LocalDate)
-                .ToListAsync(cancellationToken)).ToHashSet();
         }
 
         var byDay = logs.ToDictionary(row => row.Date, row => row.Kcal);
@@ -260,7 +255,7 @@ public static class RecalculateEndpoints
             {
                 var target = history.LastOrDefault(row => row.EffectiveDate <= day);
                 byDay.TryGetValue(day, out var kcal);
-                facts.Add(new DayFact(day, kcal, byDay.ContainsKey(day), fasting.Contains(day), target?.Kcal));
+                facts.Add(new DayFact(day, kcal, byDay.ContainsKey(day), false, target?.Kcal));
             }
         }
 

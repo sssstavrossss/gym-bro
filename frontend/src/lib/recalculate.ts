@@ -18,7 +18,7 @@ export interface ReviewDay {
   included: boolean;
 }
 
-/** Excluded dates are the under-target days the person ticked. Fasting cannot be excluded. */
+/** Excluded dates are the listed days the person unticked. */
 export function excludedDates(days: readonly ReviewDay[], ticked: ReadonlySet<string>): string[] {
   return days.filter((day) => day.canExclude && ticked.has(day.date)).map((day) => day.date);
 }

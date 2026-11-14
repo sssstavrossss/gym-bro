@@ -100,7 +100,7 @@ function line(numbers: { kcal: number; protein: number; fat: number; carbs: numb
           <template v-if="review.trendChangeKg != null"> · trend {{ kg(review.trendChangeKg) }} kg</template>
         </p>
         <p v-else class="t-body">No finished day since the last recalculation. Today is not included.</p>
-        <p v-if="review.days.length === 0" class="t-label c2">No day in this period was under 90% of its target.</p>
+        <p v-if="review.days.length === 0" class="t-label c2">No logged day in this period was 80% or less of its target.</p>
         <ul v-else class="days">
           <li v-for="day in review.days" :key="day.date" class="row day">
             <label class="row grow hit">
@@ -108,11 +108,11 @@ function line(numbers: { kcal: number; protein: number; fat: number; carbs: numb
                 type="checkbox"
                 :checked="!excluded.includes(day.date)"
                 :disabled="!day.canExclude || busy"
-                :aria-label="day.fasting ? `${dayMonth(day.date)} fasting, included` : `Include ${dayMonth(day.date)}`"
+                :aria-label="`Include ${dayMonth(day.date)}`"
                 @change="toggle(day.date, day.canExclude)"
               />
               <span class="col grow">
-                <span class="t-bodys">{{ dayMonth(day.date) }}<template v-if="day.fasting"> · fasting</template></span>
+                <span class="t-bodys">{{ dayMonth(day.date) }}</span>
                 <span class="t-capn c2">{{ int(day.kcal) }} kcal<template v-if="day.targetKcal != null"> · target {{ int(day.targetKcal) }}</template></span>
               </span>
             </label>

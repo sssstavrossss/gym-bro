@@ -65,51 +65,63 @@ public sealed class AdaptiveTargetTests
     }
 
     [Fact]
-    public void Days_under_90_percent_are_listed_and_can_be_excluded()
+    public void Days_at_80_percent_or_less_are_listed_and_can_be_excluded()
     {
-        var day = new DateOnly(2026, 10, 2);
+        var from = new DateOnly(2026, 10, 1);
+        var exact = from;
+        var justOver = from.AddDays(1);
         var facts = new List<DayFact>
         {
-            new(new DateOnly(2026, 10, 1), 1800m, true, false, 2000),
-            new(day, 1799m, true, false, 2000),
+            new(exact, 1600m, true, false, 2000),
+            new(justOver, 1602m, true, false, 2000),
         };
         for (var i = 0; i < 6; i++)
         {
-            facts.Add(new DayFact(new DateOnly(2026, 10, 3 + i), 2000m, true, false, 2000));
+            facts.Add(new DayFact(from.AddDays(2 + i), 2000m, true, false, 2000));
         }
 
         var open = AdaptiveTarget.Review(
-            facts[0].Date, facts[^1].Date, facts, new HashSet<DateOnly>(), 80m, 80m, true, true, Person, null);
+            from, facts[^1].Date, facts, new HashSet<DateOnly>(), 80m, 80m, true, true, Person, null);
         var listed = Assert.Single(open.Days);
-        Assert.Equal(day, listed.Date);
+        Assert.Equal(exact, listed.Date);
+        Assert.Equal(1600, listed.Kcal);
         Assert.True(listed.CanExclude);
         Assert.True(listed.Included);
+        Assert.False(listed.Fasting);
+        Assert.DoesNotContain(open.Days, day => day.Date == justOver);
         Assert.Equal(8, open.IncludedDays);
 
         var closed = AdaptiveTarget.Review(
-            facts[0].Date, facts[^1].Date, facts, new HashSet<DateOnly> { day }, 80m, 80m, true, true, Person, null);
+            from, facts[^1].Date, facts, new HashSet<DateOnly> { exact }, 80m, 80m, true, true, Person, null);
         Assert.False(closed.Days.Single().Included);
         Assert.Equal(7, closed.IncludedDays);
-        Assert.DoesNotContain(1799m, ClosedAverage(closed));
+        Assert.DoesNotContain(1600m, ClosedAverage(closed));
     }
 
     [Fact]
-    public void A_fasting_day_stays_included_at_zero_and_cannot_be_excluded()
+    public void A_fasting_day_counts_only_when_it_has_a_log_and_only_at_that_log()
     {
         var from = new DateOnly(2026, 10, 1);
-        var facts = Enumerable.Range(0, 6).Select(offset =>
+        var facts = Enumerable.Range(0, 5).Select(offset =>
             new DayFact(from.AddDays(offset), 2000m, true, false, 2000)).ToList();
-        var fast = from.AddDays(6);
-        facts.Add(new DayFact(fast, 900m, true, true, 2000));
+        var loggedAbove = from.AddDays(5);
+        var loggedLow = from.AddDays(6);
+        var empty = from.AddDays(7);
+        facts.Add(new DayFact(loggedAbove, 1700m, true, true, 2000));
+        facts.Add(new DayFact(loggedLow, 1600m, true, true, 2000));
+        facts.Add(new DayFact(empty, 0m, false, true, 2000));
+
         var review = AdaptiveTarget.Review(
-            from, fast, facts, new HashSet<DateOnly> { fast }, 80m, 80m, true, true, Person, null);
+            from, empty, facts, new HashSet<DateOnly> { loggedLow }, 80m, 80m, true, true, Person, null);
         var row = Assert.Single(review.Days);
-        Assert.True(row.Fasting);
-        Assert.False(row.CanExclude);
-        Assert.True(row.Included);
-        Assert.Equal(0, row.Kcal);
-        Assert.Equal(7, review.IncludedDays);
-        Assert.True(review.Enough);
+        Assert.Equal(loggedLow, row.Date);
+        Assert.Equal(1600, row.Kcal);
+        Assert.False(row.Fasting);
+        Assert.True(row.CanExclude);
+        Assert.False(row.Included);
+        Assert.Equal(6, review.IncludedDays);
+        Assert.DoesNotContain(review.Days, day => day.Date == empty || day.Date == loggedAbove);
+        Assert.DoesNotContain(0m, ClosedAverage(review));
     }
 
     [Fact]
