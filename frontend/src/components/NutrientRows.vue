@@ -66,13 +66,17 @@ const halves = computed(() => props.panel.halves === true);
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   grid-template-rows: repeat(var(--half), auto);
   grid-auto-flow: column;
-  column-gap: var(--space-gap);
+  column-gap: calc(var(--space-gap) / 6);
   row-gap: 2px;
 }
-.list.grid .nrow { column-gap: calc(var(--space-gap) / 3); }
-.list.grid .fig { grid-template-columns: 3ch 1.35em; column-gap: 0.2em; }
-.list.grid .pct { width: 4ch; overflow: hidden; white-space: nowrap; text-align: right; }
-.list.grid .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.list.grid .nrow {
+  grid-template-columns: minmax(0, 1fr) max-content;
+  column-gap: 0.08em;
+}
+.list.grid .nums { gap: 0.08em; min-width: 0; }
+.list.grid .fig { grid-template-columns: 3ch 1.55em; column-gap: 0.12em; }
+.list.grid .pct { width: 4.6ch; overflow: visible; white-space: nowrap; text-align: right; flex: none; }
+.list.grid .name { overflow: visible; text-overflow: clip; white-space: nowrap; }
 .nrow {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
