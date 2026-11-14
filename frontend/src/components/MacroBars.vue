@@ -82,7 +82,7 @@ const macros = computed(() => {
 
 <style scoped>
 .macros { gap: 14px; }
-.macros.fit { height: 212px; box-sizing: border-box; gap: 0; overflow: hidden; }
+.macros.fit { height: 212px; box-sizing: border-box; gap: 0; overflow: hidden; padding-bottom: 8px; }
 .macropane { display: flex; flex-direction: column; gap: 6px; min-height: 0; }
 .gap6 { gap: 2px; }
 html.dt-xl .macros.fit { height: auto; overflow: visible; }

@@ -1617,7 +1617,7 @@ async function deleteEdited() {
 .preview .cols, .preview .nrow { display: grid; grid-template-columns: minmax(0, 1fr) max-content max-content; column-gap: 16px; align-items: baseline; }
 .preview .num, .preview .cols span:not(:first-child) { text-align: right; justify-self: end; }
 .preview .name, .preview .cols span:first-child { text-align: left; justify-self: start; }
-.preview .nrow { min-height: 0; }
+.preview .title, .preview .nrow, .preview .name, .preview .num { line-height: 1.3; }
 .units, .chips { gap: 8px; flex-wrap: wrap; justify-content: center; max-width: 100%; }
 .unit-radios { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; max-width: 100%; }
 .uchip {

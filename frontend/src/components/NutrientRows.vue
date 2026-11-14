@@ -51,9 +51,9 @@ const rows = computed(() => props.panel.keys.map((key) => {
 </template>
 
 <style scoped>
-.panel { display: flex; flex-direction: column; gap: 2px; min-width: 0; height: 100%; box-sizing: border-box; padding-bottom: 2px; }
-.title { color: var(--text-secondary); line-height: 0.9412rem; }
-.list { display: flex; flex-direction: column; min-width: 0; }
+.panel { display: flex; flex-direction: column; gap: 4px; min-width: 0; height: 100%; box-sizing: border-box; }
+.title { color: var(--text-secondary); line-height: 1.3; }
+.list { display: flex; flex-direction: column; flex: 1; min-height: 0; justify-content: flex-start; }
 .list.grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -67,9 +67,9 @@ const rows = computed(() => props.panel.keys.map((key) => {
   align-items: baseline;
   column-gap: 8px;
   min-width: 0;
-  line-height: 0.9412rem;
+  line-height: 1.3;
 }
-.name, .num, .pct { line-height: 0.9412rem; }
+.name, .num, .pct, .nums { line-height: 1.3; }
 .heads, .list.paired .nrow { display: grid; grid-template-columns: minmax(0, 1fr) max-content max-content; column-gap: 16px; align-items: baseline; width: 100%; }
 .heads span:not(:first-child), .per, .amt { justify-self: end; text-align: right; }
 .amt { display: inline-flex; align-items: baseline; justify-content: flex-end; gap: 8px; }

@@ -75,7 +75,7 @@ async function expectRowsClear(page: Page, root: string) {
       const inkBottom = box.bottom - Math.max(0, (lineHeight - fontSize) / 2) + Math.max(0, descent - fontSize * 0.2);
       return {
         id: panel.getAttribute("data-panel"),
-        ok: lineHeight + 0.5 >= fontSize && box.bottom <= clip.bottom + 0.5 && inkBottom <= dotsTop - 1,
+        ok: Math.round((lineHeight / fontSize) * 100) / 100 >= 1.3 && box.bottom <= clip.bottom + 0.5 && inkBottom <= dotsTop - 1,
         lineHeight,
         fontSize,
         bottom: box.bottom,
