@@ -16,9 +16,10 @@ public static class NutrientPanel
         food.CholesterolPer100 = Take(list, "Kolest", "mg");
         food.AddedSugarsPer100 = Take(list, "Sukker", "g");
         food.SodiumPer100 = Take(list, "Na", "mg");
-        // foods.json / nutrients.json: "Vit A" is "RAE", "Vit A RE" is "RE", "Vit E" is "mg-ATE".
-        // Stored as published. RAE wins when both vitamin A figures are present.
-        food.VitaminAPer100 = TakeVitaminA(list, warn);
+        // NNR 2023: "The RIs were set to 700 RE/day (females) and 800 RE/day (males)."
+        // Store Matvaretabellen "Vit A RE" ("RE") only. "Vit A" ("RAE") is a different unit and is left unused.
+        // A missing RE figure stays null. Vit E is "mg-ATE". No conversion.
+        food.VitaminAPer100 = TakeExact(list, "Vit A RE", "RE", "vitamin A", warn);
         food.VitaminDPer100 = Take(list, "Vit D", "ug");
         food.VitaminEPer100 = TakeExact(list, "Vit E", "mg-ATE", "vitamin E", warn);
         food.ThiaminPer100 = Take(list, "Vit B1", "mg");
@@ -482,26 +483,6 @@ public static class NutrientPanel
         }
 
         return null;
-    }
-
-    private static decimal? TakeVitaminA(IReadOnlyList<MatvareConstituent> rows, Action<string>? warn)
-    {
-        decimal? rae = null;
-        decimal? re = null;
-        foreach (var row in rows)
-        {
-            var id = row.NutrientId?.Trim();
-            if (id == "Vit A")
-            {
-                rae ??= Accepted(row, "RAE", "vitamin A", warn);
-            }
-            else if (id == "Vit A RE")
-            {
-                re ??= Accepted(row, "RE", "vitamin A", warn);
-            }
-        }
-
-        return rae ?? re;
     }
 
     private static decimal? TakeExact(

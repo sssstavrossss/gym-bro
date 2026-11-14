@@ -185,9 +185,10 @@ export function referenceAmount(key: string, sex: string, age: number): number |
   const male = sex === "male";
   switch (key) {
     case "vitaminA":
-      // NNR 2023 RI is µg RE/day, not IOM RAE: 800/700 for men/women 18–70, 750/650 above 70.
+      // NNR 2023: "The RIs were set to 700 RE/day (females) and 800 RE/day (males)."
       // https://pub.norden.org/nord2023-003/vitamin-a-.html
-      // Helsedirektoratet, Referanseverdier for energi og næringsstoffer, tabell 8. Shown as µg.
+      // Helsedirektoratet tabell 8, column "Vitamin A RE": 700/800 (women/men 18–70), 650/750 above 70.
+      // The importer stores Matvaretabellen "Vit A RE". Shown as µg.
       if (group === "71") return male ? 750 : 650;
       return male ? 800 : 700;
     case "vitaminD":
