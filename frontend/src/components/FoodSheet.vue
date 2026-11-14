@@ -1662,7 +1662,7 @@ async function deleteEdited() {
 .detail .preview { padding-top: 0; padding-bottom: 0; }
 .preview .panel, .preview .cols, .preview .nrow, .preview :deep(.panel), .preview :deep(.heads), .preview :deep(.nrow) { width: 100%; box-sizing: border-box; }
 .preview .panel, .preview :deep(.panel) { padding: calc(var(--space-gap) / 3) calc(var(--space-gap) / 3) 0; }
-.preview .cols, .preview .nrow { display: grid; grid-template-columns: minmax(0, 1fr) 5.6rem 5.6rem; column-gap: 12px; align-items: baseline; }
+.preview .cols, .preview .nrow { display: grid; grid-template-columns: minmax(0, 1fr) 4.6rem 4.6rem; column-gap: 12px; align-items: baseline; }
 .preview .num, .preview .cols span:not(:first-child) { text-align: right; justify-self: stretch; font-variant-numeric: tabular-nums; }
 .preview .name, .preview .cols span:first-child { text-align: left; justify-self: start; }
 .preview .num { font-variant-numeric: tabular-nums; text-align: right; }

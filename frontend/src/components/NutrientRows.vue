@@ -137,8 +137,8 @@ const rightRows = computed(() => rows.value.slice(mid.value));
   padding: 0;
   flex: none;
 }
-.heads, .list.paired .nrow { display: grid; grid-template-columns: minmax(0, 1fr) 5.6rem 5.6rem; column-gap: 12px; align-items: baseline; width: 100%; }
-.heads.pcts, .list.paired.pcts .nrow { grid-template-columns: minmax(0, 1fr) 5.6rem 2.2rem 5.6rem; }
+.heads, .list.paired .nrow { display: grid; grid-template-columns: minmax(0, 1fr) 4.6rem 4.6rem; column-gap: 12px; align-items: baseline; width: 100%; }
+.heads.pcts, .list.paired.pcts .nrow { grid-template-columns: minmax(0, 1fr) 4.6rem 2.2rem 4.6rem; }
 .heads span:not(:first-child) { justify-self: stretch; text-align: right; }
 .per, .amt { justify-self: end; }
 .pct { justify-self: end; text-align: right; }
