@@ -294,6 +294,7 @@ public static class OpenFoodFactsParser
         TryDecimal(nutriments, "proteins_100g", out var protein);
         TryDecimal(nutriments, "fat_100g", out var fat);
         TryDecimal(nutriments, "carbohydrates_100g", out var carbs);
+        var panel = NutrientPanel.ReadOff(nutriments);
         var saturated = OptionalPer100(nutriments, "saturated-fat_100g");
         var sugars = OptionalPer100(nutriments, "sugars_100g");
         var fiber = OptionalPer100(nutriments, "fiber_100g");
@@ -325,7 +326,10 @@ public static class OpenFoodFactsParser
             saturated,
             sugars,
             fiber,
-            salt);
+            salt)
+        {
+            Panel = panel,
+        };
     }
 
     private static decimal? OptionalPer100(JsonElement element, string name) =>

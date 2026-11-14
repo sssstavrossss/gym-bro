@@ -23,7 +23,7 @@ public static class NutrientBases
 /// <see cref="OwnerKey"/> is <see cref="UserId"/>, or an empty string for a shared catalogue row,
 /// so a log entry can foreign-key either kind of food.
 /// </summary>
-public sealed class Food
+public sealed partial class Food
 {
     public const string CatalogueOwnerKey = "";
 

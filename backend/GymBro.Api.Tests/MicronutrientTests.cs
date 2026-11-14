@@ -71,6 +71,41 @@ public sealed class MicronutrientMapTests
         Assert.Equal(50.0m, Micronutrients.Percent(1, 2));
         Assert.Null(Micronutrients.Percent(0, 0));
     }
+
+    [Fact]
+    public void The_panel_keeps_a_published_zero_and_drops_a_unit_mismatch()
+    {
+        var food = new Food();
+        NutrientPanel.ApplyMatvare(food,
+        [
+            new MatvareConstituent("Enumet", "g", 1.2m),
+            new MatvareConstituent("Omega-3", "g", 0),
+            new MatvareConstituent("Kolest", "mg", 12),
+            new MatvareConstituent("Na", "mg", 80),
+            new MatvareConstituent("Vit C", "mg", 4),
+            new MatvareConstituent("Vit A", "g", 50),
+            new MatvareConstituent("NIAEQ", "mg", 3),
+        ]);
+
+        Assert.Equal(1.2m, food.MonoFatPer100);
+        Assert.Equal(0, food.Omega3Per100);
+        Assert.Equal(12, food.CholesterolPer100);
+        Assert.Equal(80, food.SodiumPer100);
+        Assert.Equal(4, food.VitaminCPer100);
+        Assert.Null(food.VitaminAPer100);
+        Assert.Equal(3, food.NiacinPer100);
+        Assert.Null(food.VitaminDPer100);
+    }
+
+    [Fact]
+    public void Open_food_facts_sodium_and_cholesterol_are_stored_in_milligrams()
+    {
+        using var doc = JsonDocument.Parse("""{"sodium_100g":0.08,"cholesterol_100g":0.012,"vitamin-c_100g":4}""");
+        var panel = NutrientPanel.ReadOff(doc.RootElement);
+        Assert.Equal(80m, panel["sodium"]);
+        Assert.Equal(12m, panel["cholesterol"]);
+        Assert.Equal(4m, panel["vitaminC"]);
+    }
 }
 
 [Collection(ApiCollection.Name)]
@@ -154,7 +189,32 @@ public sealed class MicronutrientLogTests(ApiFactory factory)
                     { "nutrientId": "Mono+Di", "quantity": 2, "unit": "g" },
                     { "nutrientId": "Fiber", "quantity": 4, "unit": "g" },
                     { "nutrientId": "NaCl", "quantity": 0.2, "unit": "g" },
-                    { "nutrientId": "Na", "quantity": 80, "unit": "mg" }
+                    { "nutrientId": "Na", "quantity": 80, "unit": "mg" },
+                    { "nutrientId": "Enumet", "quantity": 0.4, "unit": "g" },
+                    { "nutrientId": "Flerum", "quantity": 0.3, "unit": "g" },
+                    { "nutrientId": "Omega-3", "quantity": 0.1, "unit": "g" },
+                    { "nutrientId": "Omega-6", "quantity": 0.2, "unit": "g" },
+                    { "nutrientId": "Trans", "quantity": 0, "unit": "g" },
+                    { "nutrientId": "Kolest", "quantity": 12, "unit": "mg" },
+                    { "nutrientId": "Sukker", "quantity": 1, "unit": "g" },
+                    { "nutrientId": "Vit A", "quantity": 40, "unit": "µg" },
+                    { "nutrientId": "Vit D", "quantity": 1.5, "unit": "µg" },
+                    { "nutrientId": "Vit E", "quantity": 0.8, "unit": "mg" },
+                    { "nutrientId": "Vit B1", "quantity": 0.1, "unit": "mg" },
+                    { "nutrientId": "Vit B2", "quantity": 0.2, "unit": "mg" },
+                    { "nutrientId": "NIAEQ", "quantity": 3, "unit": "mg" },
+                    { "nutrientId": "Vit B6", "quantity": 0.3, "unit": "mg" },
+                    { "nutrientId": "Folat", "quantity": 20, "unit": "µg" },
+                    { "nutrientId": "Vit B12", "quantity": 0.5, "unit": "µg" },
+                    { "nutrientId": "Vit C", "quantity": 4, "unit": "mg" },
+                    { "nutrientId": "Ca", "quantity": 50, "unit": "mg" },
+                    { "nutrientId": "Fe", "quantity": 1, "unit": "mg" },
+                    { "nutrientId": "Zn", "quantity": 0.6, "unit": "mg" },
+                    { "nutrientId": "Mg", "quantity": 18, "unit": "mg" },
+                    { "nutrientId": "K", "quantity": 200, "unit": "mg" },
+                    { "nutrientId": "P", "quantity": 90, "unit": "mg" },
+                    { "nutrientId": "Se", "quantity": 8, "unit": "µg" },
+                    { "nutrientId": "I", "quantity": 6, "unit": "µg" }
                   ],
                   "portions": []
                 },
@@ -182,11 +242,17 @@ public sealed class MicronutrientLogTests(ApiFactory factory)
             catalogue.Count(row => row.SaturatedFatPer100 is not null),
             catalogue.Count(row => row.SugarsPer100 is not null),
             catalogue.Count(row => row.FiberPer100 is not null),
-            catalogue.Count(row => row.SaltPer100 is not null)), result.Coverage);
+            catalogue.Count(row => row.SaltPer100 is not null)) + " " + Micronutrients.PanelCoverage(catalogue), result.Coverage);
         var full = await db.Foods.SingleAsync(row => row.SourceId == "micro.full");
         var gap = await db.Foods.SingleAsync(row => row.SourceId == "micro.gap");
         Assert.Equal(0, full.SaturatedFatPer100);
         Assert.Equal(0.2m, full.SaltPer100);
+        Assert.Equal(80m, full.SodiumPer100);
+        Assert.Equal(0m, full.TransFatPer100);
+        Assert.Equal(3m, full.NiacinPer100);
+        Assert.Equal(4m, full.VitaminCPer100);
+        Assert.Null(gap.SodiumPer100);
+        Assert.Null(gap.VitaminCPer100);
         Assert.Equal(0, gap.SaturatedFatPer100);
         Assert.Null(gap.SugarsPer100);
         Assert.Null(gap.FiberPer100);

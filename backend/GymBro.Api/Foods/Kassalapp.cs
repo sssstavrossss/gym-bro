@@ -258,6 +258,7 @@ public sealed class KassalappImporter(AppDbContext db, TimeProvider clock, ILogg
             row.SugarsPer100 = item.Micros.Sugars;
             row.FiberPer100 = item.Micros.Fiber;
             row.SaltPer100 = item.Micros.Salt;
+            NutrientPanel.ApplyKassalapp(row, item.Extra);
             row.RetiredAt = null;
             row.UpdatedAt = item.Updated ?? now;
         }
@@ -340,7 +341,7 @@ public sealed class KassalappImporter(AppDbContext db, TimeProvider clock, ILogg
             rows[ean] = state;
         }
 
-        if (!TryNutrition(product, out var kcal, out var protein, out var fat, out var carbs, out var micros, out var bound))
+        if (!TryNutrition(product, out var kcal, out var protein, out var fat, out var carbs, out var micros, out var extra, out var bound))
         {
             if (state.Chosen is null && !state.Conflict)
             {
@@ -359,7 +360,7 @@ public sealed class KassalappImporter(AppDbContext db, TimeProvider clock, ILogg
             return;
         }
 
-        var listing = new AcceptedListing(ean, Trim(name), kcal, protein, fat, carbs, stamp, updated, bound, micros);
+        var listing = new AcceptedListing(ean, Trim(name), kcal, protein, fat, carbs, stamp, updated, bound, micros, extra);
         if (state.Conflict && (state.ChosenAt is null || updated is null || updated <= state.ChosenAt))
         {
             return;
@@ -388,10 +389,12 @@ public sealed class KassalappImporter(AppDbContext db, TimeProvider clock, ILogg
         out decimal fat,
         out decimal carbs,
         out Micronutrients micros,
+        out IReadOnlyList<KassalNutrient> extraRows,
         out NutritionBound bound)
     {
         kcal = protein = fat = carbs = 0;
         micros = Micronutrients.Empty;
+        extraRows = [];
         bound = NutritionBound.Ok;
         if (!product.TryGetProperty("nutrition", out var nutrition) || nutrition.ValueKind != JsonValueKind.Array)
         {
@@ -447,6 +450,7 @@ public sealed class KassalappImporter(AppDbContext db, TimeProvider clock, ILogg
         fat = decimal.Round(fatValue.Value, 2, MidpointRounding.AwayFromZero);
         carbs = decimal.Round(carbValue.Value, 2, MidpointRounding.AwayFromZero);
         micros = Micronutrients.FromKassalapp(extra);
+        extraRows = extra;
         if (energy > Kassalapp.MaxKcal || kcal > Kassalapp.MaxKcal)
         {
             bound = NutritionBound.Kcal;
@@ -605,7 +609,8 @@ public sealed class KassalappImporter(AppDbContext db, TimeProvider clock, ILogg
         string Stamp,
         DateTimeOffset? Updated,
         NutritionBound Bound,
-        Micronutrients Micros);
+        Micronutrients Micros,
+        IReadOnlyList<KassalNutrient> Extra);
 
     private sealed class Counters
     {

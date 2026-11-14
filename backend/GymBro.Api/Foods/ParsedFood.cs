@@ -17,7 +17,10 @@ public sealed record ParsedFood(
     decimal? SaturatedFatPer100 = null,
     decimal? SugarsPer100 = null,
     decimal? FiberPer100 = null,
-    decimal? SaltPer100 = null);
+    decimal? SaltPer100 = null)
+{
+    public Dictionary<string, decimal?> Panel { get; init; } = [];
+}
 
 public enum OffStatus
 {

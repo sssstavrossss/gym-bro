@@ -6,7 +6,7 @@ namespace GymBro.Api.Data;
 /// change this row until the recipe is saved again, and a logged entry keeps
 /// its own copy. <see cref="RetiredAt"/> hides it from Add food. Past logs stay.
 /// </summary>
-public sealed class Recipe
+public sealed partial class Recipe
 {
     public Guid Id { get; set; }
 

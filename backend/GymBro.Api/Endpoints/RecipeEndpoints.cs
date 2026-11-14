@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using System.Text.Json;
 using GymBro.Api.Data;
+using GymBro.Api.Foods;
 using GymBro.Api.Logging;
 using GymBro.Api.Users;
 using Microsoft.EntityFrameworkCore;
@@ -101,7 +102,8 @@ public static class RecipeEndpoints
             UpdatedAt = now,
         };
         db.Recipes.Add(recipe);
-        AddIngredients(db, userId, recipe.Id, built.Lines!);
+        AddIngredients(db, userId, recipe.Id, built.Lines!, built.Foods);
+        NutrientPanel.SumOnto(recipe, db.RecipeIngredients.Local.Where(row => row.RecipeId == recipe.Id));
         await db.SaveChangesAsync(cancellationToken);
         var saved = await Load(db, userId, recipe.Id, cancellationToken);
         return Results.Json(saved[0], statusCode: StatusCodes.Status201Created);
@@ -164,7 +166,8 @@ public static class RecipeEndpoints
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
         db.RecipeIngredients.RemoveRange(existing);
         await db.SaveChangesAsync(cancellationToken);
-        AddIngredients(db, userId, recipe.Id, built.Lines!);
+        AddIngredients(db, userId, recipe.Id, built.Lines!, built.Foods);
+        NutrientPanel.SumOnto(recipe, db.RecipeIngredients.Local.Where(row => row.RecipeId == recipe.Id));
         await db.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         var saved = await Load(db, userId, recipe.Id, cancellationToken);
@@ -316,7 +319,7 @@ public static class RecipeEndpoints
         return Results.Json(ToLog(entry), statusCode: StatusCodes.Status201Created);
     }
 
-    private static void AddIngredients(AppDbContext db, string userId, Guid recipeId, IReadOnlyList<RecipeRules.BuiltLine> lines)
+    private static void AddIngredients(AppDbContext db, string userId, Guid recipeId, IReadOnlyList<RecipeRules.BuiltLine> lines, IReadOnlyDictionary<Guid, Food>? foods)
     {
         for (var i = 0; i < lines.Count; i++)
         {
@@ -342,6 +345,10 @@ public static class RecipeEndpoints
                 Fiber = line.Nutrients.Fiber,
                 Salt = line.Nutrients.Salt,
             });
+            if (foods is not null && foods.TryGetValue(line.FoodId, out var food) && line.Factor > 0)
+            {
+                NutrientPanel.ScaleOnto(db.RecipeIngredients.Local.Last(), food, line.Factor);
+            }
         }
     }
 
@@ -431,7 +438,7 @@ public static class RecipeEndpoints
             return Built.Fail(RecipeRules.TooLarge, StatusCodes.Status400BadRequest);
         }
 
-        return new Built(null, StatusCodes.Status200OK, lines, totals);
+        return new Built(null, StatusCodes.Status200OK, lines, totals, byId);
     }
 
     private static RecipeIngredient? TakeKept(List<RecipeIngredient> pool, Guid foodId, decimal amount, string unit, bool exactAmount)
@@ -651,7 +658,8 @@ public static class RecipeEndpoints
         string? Error,
         int Status,
         List<RecipeRules.BuiltLine>? Lines,
-        RecipeRules.Totals? Totals)
+        RecipeRules.Totals? Totals,
+        Dictionary<Guid, Food>? Foods = null)
     {
         public static Built Fail(string error, int status) => new(error, status, null, null);
     }

@@ -104,6 +104,7 @@ public sealed class MatvaretabellenImporter(
             if (existing.TryGetValue(parsed.Food.SourceId, out var row))
             {
                 Copy(parsed, row);
+                NutrientPanel.ApplyMatvare(row, Constituents(food));
                 row.RetiredAt = null;
                 row.UpdatedAt = started;
             }
@@ -117,6 +118,7 @@ public sealed class MatvaretabellenImporter(
                     UpdatedAt = started,
                 };
                 Copy(parsed, row);
+                NutrientPanel.ApplyMatvare(row, Constituents(food));
                 db.Foods.Add(row);
                 existing[parsed.Food.SourceId] = row;
             }
@@ -166,7 +168,8 @@ public sealed class MatvaretabellenImporter(
             live.Count(row => row.SaturatedFatPer100 is not null),
             live.Count(row => row.SugarsPer100 is not null),
             live.Count(row => row.FiberPer100 is not null),
-            live.Count(row => row.SaltPer100 is not null));
+            live.Count(row => row.SaltPer100 is not null))
+            + " " + Micronutrients.PanelCoverage(live);
         return new MatvaretabellenImportResult(upserted, retired, skipped, coverage);
     }
 
@@ -243,6 +246,12 @@ public sealed class MatvaretabellenImporter(
                 micros.Salt),
             CleanName(food.FoodNameEn));
     }
+
+    private static IEnumerable<MatvareConstituent> Constituents(MvtFood food) =>
+        food.Constituents.Select(constituent => new MatvareConstituent(
+            constituent.NutrientId,
+            constituent.Unit,
+            TryQuantity(constituent.Quantity, out var quantity) ? quantity : null));
 
     private static decimal Nutrient(MvtFood food, string id)
     {

@@ -272,7 +272,8 @@ public static class RecipeRules
         decimal Amount,
         string Unit,
         decimal? Grams,
-        Totals Nutrients)
+        Totals Nutrients,
+        decimal Factor = 0)
     {
         public static BuiltLine Missing() => new(BuildStatus.NotFound, MissingFood, "", Guid.Empty, "", 0, "", null, default);
 
@@ -449,7 +450,8 @@ public static class RecipeRules
             amount,
             snapshot.Unit,
             snapshot.Grams,
-            totals);
+            totals,
+            snapshot.Factor);
     }
 
     private static bool Fits(Totals totals) =>

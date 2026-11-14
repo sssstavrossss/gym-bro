@@ -33,6 +33,8 @@ public sealed class CustomFoodRequest
 
     public decimal? SaltPer100 { get; set; }
 
+    public Dictionary<string, decimal?>? Nutrients { get; set; }
+
     public string? Basis { get; set; }
 
     /// <summary><c>per_100</c> (default) or <c>per_serving</c>. Per serving, the nutrient fields are for one serving.</summary>
@@ -399,6 +401,17 @@ public static class FoodEndpoints
     private static string? ValidateCustom(CustomFoodRequest request, bool upgradingPerServing, out CustomFoodRequest normalized)
     {
         normalized = request;
+        if (request.Nutrients is not null)
+        {
+            foreach (var pair in request.Nutrients)
+            {
+                if (pair.Value is < 0 or > 100000)
+                {
+                    return "A nutrient has to be between 0 and 100,000.";
+                }
+            }
+        }
+
         var name = (request.Name ?? "").Trim();
         if (name.Length is < 1 or > 200)
         {
@@ -523,6 +536,7 @@ public static class FoodEndpoints
             SugarsPer100 = request.SugarsPer100,
             FiberPer100 = request.FiberPer100,
             SaltPer100 = request.SaltPer100,
+            Nutrients = request.Nutrients,
             Basis = basis,
             NutrientBasis = nutrientBasis,
             Barcode = barcode.Length == 0 ? null : barcode,
@@ -558,6 +572,7 @@ public static class FoodEndpoints
             SugarsPer100 = ScaleOptional(request.SugarsPer100, grams),
             FiberPer100 = ScaleOptional(request.FiberPer100, grams),
             SaltPer100 = ScaleOptional(request.SaltPer100, grams),
+            Nutrients = ScaleMap(request.Nutrients, grams),
             Basis = "g",
             NutrientBasis = NutrientBases.Per100,
             Barcode = request.Barcode,
@@ -574,6 +589,16 @@ public static class FoodEndpoints
     private static decimal? ScaleOptional(decimal? perServing, decimal grams) =>
         perServing is decimal value ? Scale(value, grams) : null;
 
+    private static Dictionary<string, decimal?>? ScaleMap(Dictionary<string, decimal?>? source, decimal grams)
+    {
+        if (source is null)
+        {
+            return null;
+        }
+
+        return source.ToDictionary(pair => pair.Key, pair => ScaleOptional(pair.Value, grams));
+    }
+
     private static bool OutOfRange(decimal? value, decimal max) => value is < 0 || value > max;
 
     private static void Apply(Food food, CustomFoodRequest request)
@@ -588,6 +613,10 @@ public static class FoodEndpoints
         food.SugarsPer100 = request.SugarsPer100;
         food.FiberPer100 = request.FiberPer100;
         food.SaltPer100 = request.SaltPer100;
+        if (request.Nutrients is not null)
+        {
+            NutrientPanel.ApplyDictionary(food, request.Nutrients);
+        }
         food.Basis = request.Basis ?? "g";
         food.NutrientBasis = string.IsNullOrWhiteSpace(request.NutrientBasis)
             ? NutrientBases.Per100
@@ -695,6 +724,7 @@ public static class FoodEndpoints
         sugarsPer100 = food.SugarsPer100,
         fiberPer100 = food.FiberPer100,
         saltPer100 = food.SaltPer100,
+        nutrients = NutrientPanel.Per100(food),
         servingQuantity = food.ServingQuantity,
         servingLabel = food.ServingLabel,
         pieceQuantity = food.PieceQuantity,
@@ -723,6 +753,7 @@ public static class FoodEndpoints
         sugarsPer100 = food.SugarsPer100,
         fiberPer100 = food.FiberPer100,
         saltPer100 = food.SaltPer100,
+        nutrients = NutrientPanel.Per100(food),
         servingQuantity = food.ServingQuantity,
         servingLabel = food.ServingLabel,
         pieceQuantity = food.PieceQuantity,
@@ -752,6 +783,7 @@ public static class FoodEndpoints
         sugarsPer100 = food.SugarsPer100,
         fiberPer100 = food.FiberPer100,
         saltPer100 = food.SaltPer100,
+        nutrients = food.Panel,
         servingQuantity = food.ServingQuantity,
         servingLabel = food.ServingLabel,
         pieceQuantity = food.PieceQuantity,

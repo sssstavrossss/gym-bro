@@ -1,4 +1,5 @@
 using System.Globalization;
+using GymBro.Api.Data;
 
 namespace GymBro.Api.Foods;
 
@@ -145,6 +146,43 @@ public readonly record struct Micronutrients(decimal? SaturatedFat, decimal? Sug
         return string.Create(
             CultureInfo.InvariantCulture,
             $"{label}: {total} foods, saturated fat {Format(Percent(saturated, total))} ({saturated}), sugars {Format(Percent(sugars, total))} ({sugars}), fiber {Format(Percent(fiber, total))} ({fiber}), salt {Format(Percent(salt, total))} ({salt}).");
+    }
+
+    public static string PanelCoverage(IReadOnlyList<Food> foods)
+    {
+        string Part(string name, Func<Food, decimal?> pick)
+        {
+            var count = foods.Count(row => pick(row) is not null);
+            return $"{name} {Format(Percent(count, foods.Count))} ({count})";
+        }
+
+        return "Panel: " + string.Join(", ",
+            Part("mono", row => row.MonoFatPer100),
+            Part("poly", row => row.PolyFatPer100),
+            Part("omega-3", row => row.Omega3Per100),
+            Part("omega-6", row => row.Omega6Per100),
+            Part("trans", row => row.TransFatPer100),
+            Part("cholesterol", row => row.CholesterolPer100),
+            Part("added sugar", row => row.AddedSugarsPer100),
+            Part("sodium", row => row.SodiumPer100),
+            Part("vitamin A", row => row.VitaminAPer100),
+            Part("vitamin D", row => row.VitaminDPer100),
+            Part("vitamin E", row => row.VitaminEPer100),
+            Part("thiamin", row => row.ThiaminPer100),
+            Part("riboflavin", row => row.RiboflavinPer100),
+            Part("niacin", row => row.NiacinPer100),
+            Part("vitamin B6", row => row.VitaminB6Per100),
+            Part("folate", row => row.FolatePer100),
+            Part("vitamin B12", row => row.VitaminB12Per100),
+            Part("vitamin C", row => row.VitaminCPer100),
+            Part("calcium", row => row.CalciumPer100),
+            Part("iron", row => row.IronPer100),
+            Part("zinc", row => row.ZincPer100),
+            Part("magnesium", row => row.MagnesiumPer100),
+            Part("potassium", row => row.PotassiumPer100),
+            Part("phosphorus", row => row.PhosphorusPer100),
+            Part("selenium", row => row.SeleniumPer100),
+            Part("iodine", row => row.IodinePer100)) + ".";
     }
 
     private static string Format(decimal? percent) =>

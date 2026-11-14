@@ -499,6 +499,7 @@ public static class LogEntryRules
             Sugars = Micronutrients.Scale(entry.Sugars, factor),
             Fiber = Micronutrients.Scale(entry.Fiber, factor),
             Salt = Micronutrients.Scale(entry.Salt, factor),
+            Factor = factor,
         };
     }
 
@@ -576,6 +577,8 @@ public readonly record struct FoodSnapshot(
 
     public decimal? Salt { get; init; }
 
+    public decimal Factor { get; init; }
+
     public static FoodSnapshot Fail(string error) => new("", null, 0, 0, 0, 0, error);
 
     public FoodSnapshot With(Food food, decimal factor) => this with
@@ -584,6 +587,7 @@ public readonly record struct FoodSnapshot(
         Sugars = Micronutrients.Scale(food.SugarsPer100, factor),
         Fiber = Micronutrients.Scale(food.FiberPer100, factor),
         Salt = Micronutrients.Scale(food.SaltPer100, factor),
+        Factor = factor,
     };
 }
 
@@ -602,6 +606,8 @@ public readonly record struct StoredScale(
     public decimal? Fiber { get; init; }
 
     public decimal? Salt { get; init; }
+
+    public decimal Factor { get; init; }
 
     public static StoredScale Fail(string error) => new(0, 0, 0, 0, null, error);
 }

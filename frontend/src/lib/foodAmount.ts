@@ -17,6 +17,7 @@ export interface CatalogFood {
   sugarsPer100?: number | null;
   fiberPer100?: number | null;
   saltPer100?: number | null;
+  nutrients?: Record<string, number | null> | null;
   servingQuantity: number | null;
   servingLabel: string | null;
   pieceQuantity: number | null;

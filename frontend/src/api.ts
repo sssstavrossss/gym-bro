@@ -233,6 +233,7 @@ export interface LogEntryResponse {
   sugars: number | null;
   fiber: number | null;
   salt: number | null;
+  nutrients?: Record<string, number | null> | null;
   idempotencyKey: string;
   deletedAt: string | null;
 }
@@ -248,6 +249,7 @@ export interface LogListResponse {
     sugars: number | null;
     fiber: number | null;
     salt: number | null;
+    nutrients?: Record<string, number | null> | null;
   };
   entries: LogEntryResponse[];
 }

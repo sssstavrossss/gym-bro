@@ -7,7 +7,7 @@ namespace GymBro.Api.Data;
 /// The name and kcal/P/F/C columns are a snapshot so later food edits do not
 /// rewrite history. <see cref="IdempotencyKey"/> is unique per user.
 /// </summary>
-public sealed class LogEntry
+public sealed partial class LogEntry
 {
     public Guid Id { get; set; }
 

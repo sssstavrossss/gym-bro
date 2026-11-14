@@ -226,6 +226,7 @@ public static class FoodCatalog
             row.SugarsPer100 = parsed.SugarsPer100;
             row.FiberPer100 = parsed.FiberPer100;
             row.SaltPer100 = parsed.SaltPer100;
+            NutrientPanel.ApplyDictionary(row, parsed.Panel);
             row.ServingQuantity = parsed.ServingQuantity;
             row.ServingLabel = TrimOrNull(parsed.ServingLabel, 80);
             row.PieceQuantity = parsed.PieceQuantity;

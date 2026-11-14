@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using System.Text.Json;
 using GymBro.Api.Data;
+using GymBro.Api.Foods;
 using GymBro.Api.Logging;
 using Microsoft.EntityFrameworkCore;
 
@@ -123,6 +124,7 @@ public static class GroupEndpoints
                 Fiber = entry.Fiber,
                 Salt = entry.Salt,
             });
+            NutrientPanel.Copy(db.EntryGroupItems.Local.Last(), entry);
         }
 
         await db.SaveChangesAsync(cancellationToken);
@@ -257,6 +259,15 @@ public static class GroupEndpoints
                     Salt = plan.Salt,
                     IdempotencyKey = GroupRules.ItemKey(draft.IdempotencyKey, item.Position),
                 };
+                if (item.FoodId is null)
+                {
+                    NutrientPanel.Copy(entry, item);
+                }
+                else if (context.Food(item.FoodId.Value) is Food food)
+                {
+                    var factor = food.KcalPer100 == 0 ? 0 : entry.Kcal / food.KcalPer100;
+                    NutrientPanel.ScaleOnto(entry, food, factor);
+                }
                 db.LogEntries.Add(entry);
                 created.Add(entry);
                 byKey[entry.IdempotencyKey] = entry;
@@ -475,6 +486,8 @@ public static class GroupEndpoints
 
     private sealed class PlanContext(Dictionary<Guid, Food> foods, List<UserServing> servings)
     {
+        public Food? Food(Guid id) => foods.TryGetValue(id, out var food) ? food : null;
+
         public PlannedItem Plan(EntryGroupItem item)
         {
             Food? food = null;

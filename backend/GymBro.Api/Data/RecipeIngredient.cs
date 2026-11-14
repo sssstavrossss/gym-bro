@@ -6,7 +6,7 @@ namespace GymBro.Api.Data;
 /// ingredient. A retired food leaves this row in place so the recipe total
 /// can stay.
 /// </summary>
-public sealed class RecipeIngredient
+public sealed partial class RecipeIngredient
 {
     public Guid Id { get; set; }
 

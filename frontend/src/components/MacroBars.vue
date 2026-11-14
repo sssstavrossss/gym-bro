@@ -1,15 +1,33 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import Bar from "./Bar.vue";
 import Icon from "./Icon.vue";
 import ManualTag from "./ManualTag.vue";
+import NutrientRows from "./NutrientRows.vue";
+import SwipePanels from "./SwipePanels.vue";
 import { int } from "../lib/format";
 import { macroStatus, type MacroKind } from "../lib/macros";
+import { dayNutrients, osloYear, panelsForSize, type NutrientSource } from "../lib/nutrients";
 import { dayTotals, type DayTotals } from "../state/log";
 import { profile } from "../state/profile";
 import type { TargetsResponse } from "../api";
 
-const props = defineProps<{ target?: TargetsResponse | null; totals?: DayTotals | null; label?: string; manual?: boolean }>();
+const props = defineProps<{ target?: TargetsResponse | null; totals?: DayTotals | null; label?: string; manual?: boolean; entries?: NutrientSource[] }>();
+const large = ref(false);
+function readSize() { large.value = document.documentElement.classList.contains("dt-xl"); }
+onMounted(() => {
+  readSize();
+  window.addEventListener("resize", readSize);
+});
+onBeforeUnmount(() => window.removeEventListener("resize", readSize));
+const sources = computed(() => props.entries ?? []);
+const nutrientValues = computed(() => dayNutrients(sources.value));
+const panels = computed(() => panelsForSize(sources.value, large.value));
+const age = computed(() => {
+  const year = profile.saved?.birthYear;
+  return typeof year === "number" ? osloYear() - year : 0;
+});
+const kcalTarget = computed(() => target.value?.kcal ?? null);
 const target = computed(() => (props.target === undefined ? profile.targets : props.target));
 const totals = computed(() => props.totals ?? dayTotals());
 const macros = computed(() => {
@@ -38,6 +56,8 @@ const macros = computed(() => {
     </div>
   </section>
   <section v-else class="card macros" :aria-label="label || 'Today\'s macros'">
+    <SwipePanels :count="panels.length + 1" :lock-index="0" :label="label || 'Today\'s macros'">
+    <div class="macropane" data-panel="macros">
     <div v-for="m in macros" :key="m.label" class="col gap6">
       <div class="row mrow">
         <span class="t-label" :class="m.st === 'under' ? 'c2' : ''">{{ m.label }}<span v-if="m.min" class="c3 t-capn"> · min</span></span>
@@ -53,6 +73,9 @@ const macros = computed(() => {
       </div>
       <Bar :pct="m.tgt ? m.cur / m.tgt : 0" :hit="m.st === 'hit'" :over="m.st === 'over'" :aria-label="`${m.label} ${int(m.cur)} of ${int(m.tgt)} ${m.unit}${m.st === 'hit' ? ', on target' : m.st === 'over' ? ', over' : ''}`" />
     </div>
+    </div>
+    <NutrientRows v-for="panel in panels" :key="panel.id" :panel="panel" :values="nutrientValues" :sex="profile.saved?.sex ?? ''" :age="age" :kcal-target="kcalTarget" />
+    </SwipePanels>
   </section>
 </template>
 
