@@ -60,8 +60,12 @@ const macros = computed(() => {
 .macros { gap: 14px; }
 .gap6 { gap: 6px; }
 .mrow { gap: 4px; align-items: baseline; flex-wrap: wrap; min-width: 0; max-width: 100%; }
-.vals { display: inline-flex; align-items: baseline; gap: 4px; flex: none; margin-left: auto; white-space: nowrap; }
-.tick { width: 14px; height: 14px; flex: none; display: inline-flex; align-items: center; justify-content: center; align-self: center; }
+.vals {
+  display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: baseline; gap: 4px;
+  margin-left: auto; max-width: 100%;
+}
+.vals > * { flex: none; white-space: nowrap; }
+.tick { width: 14px; height: 14px; display: inline-flex; align-items: center; justify-content: center; align-self: center; }
 .m0 { margin: 0; }
 .nt { gap: 4px; align-items: baseline; flex-wrap: wrap; }
 .nt .t-capn { margin-right: 10px; }
