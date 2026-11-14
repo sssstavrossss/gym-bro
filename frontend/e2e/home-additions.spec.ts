@@ -46,6 +46,7 @@ test("phone home calendar, history, sex, and notification circles", async ({ pag
   await grab.click();
   const calendar = page.getByRole("group", { name: "Last 4 weeks" });
   await expect(calendar).toBeVisible();
+  await expect.poll(async () => page.locator(".homeweek .stage").evaluate((node) => node.style.height)).toBe("auto");
   await expect.poll(async () => (await calendar.getByRole("button").first().boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(40);
   if (test.info().project.name === "chromium") {
     const block = page.locator(".homeweek");
@@ -68,9 +69,19 @@ test("phone home calendar, history, sex, and notification circles", async ({ pag
   expect(sexBox!.width).toBeLessThan((row!.width) * 0.8);
   expect(sexBox!.x).toBeGreaterThan(row!.x + 40);
   for (const name of ["Male", "Female"]) {
-    const box = await sex.getByRole("radio", { name, exact: true }).boundingBox();
-    expect(box!.width).toBeGreaterThanOrEqual(44);
-    expect(box!.height).toBeGreaterThanOrEqual(44);
+    const hit = await sex.getByRole("radio", { name, exact: true }).evaluate((node) => {
+      const box = node.getBoundingClientRect();
+      const after = getComputedStyle(node, "::after");
+      let height = box.height;
+      if (after.content !== "none" && after.position !== "static") {
+        const extra = Math.abs(Math.min(0, parseFloat(after.top) || 0)) + Math.abs(Math.min(0, parseFloat(after.bottom) || 0));
+        height += extra;
+      }
+      return { width: box.width, height, visual: box.height };
+    });
+    expect(hit.width).toBeGreaterThanOrEqual(44);
+    expect(hit.height).toBeGreaterThanOrEqual(44);
+    expect(hit.visual).toBeLessThan(40);
   }
   if (test.info().project.name === "chromium") {
     await page.screenshot({ path: "/opt/cursor/artifacts/iphone42-sex-after.png" });
