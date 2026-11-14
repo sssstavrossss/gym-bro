@@ -98,6 +98,66 @@ public sealed class MicronutrientMapTests
     }
 
     [Fact]
+    public void Matvaretabellen_vitamin_A_and_E_keep_the_published_equivalent_and_drop_an_unknown_unit()
+    {
+        var both = new Food();
+        var notes = new List<string>();
+        NutrientPanel.ApplyMatvare(both,
+        [
+            new MatvareConstituent("Vit A", "RAE", 40),
+            new MatvareConstituent("Vit A RE", "RE", 90),
+            new MatvareConstituent("Vit E", "mg-ATE", 0.8m),
+        ], notes.Add);
+
+        Assert.Equal(40m, both.VitaminAPer100);
+        Assert.Equal(0.8m, both.VitaminEPer100);
+        Assert.Empty(notes);
+
+        var onlyRe = new Food();
+        NutrientPanel.ApplyMatvare(onlyRe, [new MatvareConstituent("Vit A RE", "RE", 12)]);
+        Assert.Equal(12m, onlyRe.VitaminAPer100);
+
+        var publishedZero = new Food();
+        NutrientPanel.ApplyMatvare(publishedZero,
+        [
+            new MatvareConstituent("Vit A", "RAE", 0),
+            new MatvareConstituent("Vit E", "mg-ATE", 0),
+        ]);
+        Assert.Equal(0m, publishedZero.VitaminAPer100);
+        Assert.Equal(0m, publishedZero.VitaminEPer100);
+
+        var unknown = new Food();
+        notes.Clear();
+        NutrientPanel.ApplyMatvare(unknown,
+        [
+            new MatvareConstituent("Vit A", "IU", 9),
+            new MatvareConstituent("Vit A RE", "µg", 8),
+            new MatvareConstituent("Vit E", "mg", 1),
+        ], notes.Add);
+
+        Assert.Null(unknown.VitaminAPer100);
+        Assert.Null(unknown.VitaminEPer100);
+        Assert.Equal(
+            [
+                "vitamin A unit 'IU' was not accepted.",
+                "vitamin A unit 'µg' was not accepted.",
+                "vitamin E unit 'mg' was not accepted.",
+            ],
+            notes);
+
+        var missing = new Food();
+        notes.Clear();
+        NutrientPanel.ApplyMatvare(missing,
+        [
+            new MatvareConstituent("Vit A", null, null),
+            new MatvareConstituent("Vit E", null, null),
+        ], notes.Add);
+        Assert.Null(missing.VitaminAPer100);
+        Assert.Null(missing.VitaminEPer100);
+        Assert.Empty(notes);
+    }
+
+    [Fact]
     public void Open_food_facts_sodium_and_cholesterol_are_stored_in_milligrams()
     {
         using var doc = JsonDocument.Parse("""{"sodium_100g":0.08,"cholesterol_100g":0.012,"vitamin-c_100g":4}""");
@@ -197,9 +257,10 @@ public sealed class MicronutrientLogTests(ApiFactory factory)
                     { "nutrientId": "Trans", "quantity": 0, "unit": "g" },
                     { "nutrientId": "Kolest", "quantity": 12, "unit": "mg" },
                     { "nutrientId": "Sukker", "quantity": 1, "unit": "g" },
-                    { "nutrientId": "Vit A", "quantity": 40, "unit": "µg" },
+                    { "nutrientId": "Vit A", "quantity": 40, "unit": "RAE" },
+                    { "nutrientId": "Vit A RE", "quantity": 90, "unit": "RE" },
                     { "nutrientId": "Vit D", "quantity": 1.5, "unit": "µg" },
-                    { "nutrientId": "Vit E", "quantity": 0.8, "unit": "mg" },
+                    { "nutrientId": "Vit E", "quantity": 0.8, "unit": "mg-ATE" },
                     { "nutrientId": "Vit B1", "quantity": 0.1, "unit": "mg" },
                     { "nutrientId": "Vit B2", "quantity": 0.2, "unit": "mg" },
                     { "nutrientId": "NIAEQ", "quantity": 3, "unit": "mg" },
@@ -226,7 +287,9 @@ public sealed class MicronutrientLogTests(ApiFactory factory)
                     { "nutrientId": "Protein", "quantity": 1, "unit": "g" },
                     { "nutrientId": "Fett", "quantity": 0, "unit": "g" },
                     { "nutrientId": "Karbo", "quantity": 8, "unit": "g" },
-                    { "nutrientId": "Mettet", "quantity": 0, "unit": "g" }
+                    { "nutrientId": "Mettet", "quantity": 0, "unit": "g" },
+                    { "nutrientId": "Vit A", "quantity": 9, "unit": "IU" },
+                    { "nutrientId": "Vit E", "quantity": 1, "unit": "mg" }
                   ],
                   "portions": []
                 }
@@ -251,8 +314,14 @@ public sealed class MicronutrientLogTests(ApiFactory factory)
         Assert.Equal(0m, full.TransFatPer100);
         Assert.Equal(3m, full.NiacinPer100);
         Assert.Equal(4m, full.VitaminCPer100);
+        Assert.Equal(40m, full.VitaminAPer100);
+        Assert.Equal(0.8m, full.VitaminEPer100);
+        Assert.Contains("vitamin A", result.Coverage, StringComparison.Ordinal);
+        Assert.Contains("vitamin E", result.Coverage, StringComparison.Ordinal);
         Assert.Null(gap.SodiumPer100);
         Assert.Null(gap.VitaminCPer100);
+        Assert.Null(gap.VitaminAPer100);
+        Assert.Null(gap.VitaminEPer100);
         Assert.Equal(0, gap.SaturatedFatPer100);
         Assert.Null(gap.SugarsPer100);
         Assert.Null(gap.FiberPer100);
