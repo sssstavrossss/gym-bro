@@ -167,7 +167,7 @@ const weekRows = computed(() => {
           <span class="sk" />
         </section>
         <div v-else class="daycards" :class="{ stale: viewed.dim }" data-day-cards>
-          <MacroBars :manual="manualSelected" :target="goal" :totals="totalsOf(entries)" :label="shownDay === today ? 'Today\'s macros' : 'That day\'s macros'" />
+          <MacroBars :manual="manualSelected" :target="goal" :totals="totalsOf(entries)" :entries="entries" :label="shownDay === today ? 'Today\'s macros' : 'That day\'s macros'" />
           <button v-if="layout === 'phone' && !hasDay" type="button" class="card prompt row" @click="openFood('search', shownDay)">
             <span class="pic"><Icon name="plus" :size="18" :sw="2.6" /></span>
             <span class="col grow">

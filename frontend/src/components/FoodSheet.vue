@@ -8,9 +8,12 @@ import Icon from "./Icon.vue";
 import Keypad from "./Keypad.vue";
 import Segmented from "./Segmented.vue";
 import TimeChip from "./TimeChip.vue";
+import NutrientRows from "./NutrientRows.vue";
+import SwipePanels from "./SwipePanels.vue";
 import { dayMonth, todayInZone } from "../lib/dates";
 import { focusField, primeKeyboard } from "../lib/focusField";
 import { int } from "../lib/format";
+import { osloYear, panelsForSize, scaleMap, valuesOf, type NutrientMap } from "../lib/nutrients";
 import {
   amountError,
   amountLabel,
@@ -292,6 +295,41 @@ const previewItems = computed(() => [
   { label: "FAT", value: preview.value.fat },
   { label: "CARBS", value: preview.value.carbs },
 ]);
+const sheetSource = computed(() => {
+  const food = shownFood.value;
+  if (food && !editingFood.value) {
+    return {
+      fat: food.fatPer100,
+      saturatedFat: food.saturatedFatPer100,
+      sugars: food.sugarsPer100,
+      fiber: food.fiberPer100,
+      salt: food.saltPer100,
+      nutrients: food.nutrients,
+    };
+  }
+  return editingFood.value;
+});
+const sheetFactor = computed(() => {
+  const grams = preview.value.grams;
+  if (grams != null && grams > 0) return grams / 100;
+  const base = editingFood.value?.amount || 1;
+  return amountNumber.value / base;
+});
+const sheetPer100 = computed<NutrientMap>(() => {
+  const source = sheetSource.value;
+  if (!source) return {};
+  if (shownFood.value && !editingFood.value) return valuesOf(source);
+  const entry = editingFood.value;
+  const perUnit = entry?.grams && entry.grams > 0 ? 100 / entry.grams : 1 / (entry?.amount || 1);
+  return scaleMap(valuesOf(source), perUnit);
+});
+const sheetAmount = computed<NutrientMap>(() => scaleMap(sheetPer100.value, sheetFactor.value));
+const sheetLarge = ref(false);
+const sheetPanels = computed(() => panelsForSize(sheetSource.value ? [sheetSource.value] : [], sheetLarge.value));
+const sheetAge = computed(() => {
+  const year = profile.saved?.birthYear;
+  return typeof year === "number" ? osloYear() - year : 0;
+});
 const after = computed(() => {
   const goal = foodTarget.value ?? (ui.foodDate === foodToday.value ? profile.targets : null);
   if (!goal || !keyboardEntry.value) return null;
@@ -766,12 +804,16 @@ watch(searchFocused, (focused) => {
   }
   void nextTick(fitResults);
 });
+function readSheetSize() { sheetLarge.value = document.documentElement.classList.contains("dt-xl"); }
 onMounted(() => {
+  readSheetSize();
+  window.addEventListener("resize", readSheetSize);
   window.visualViewport?.addEventListener("resize", fitResults);
   window.visualViewport?.addEventListener("scroll", fitResults);
   window.addEventListener("pointerdown", outsideSearch, true);
 });
 onBeforeUnmount(() => {
+  window.removeEventListener("resize", readSheetSize);
   window.visualViewport?.removeEventListener("resize", fitResults);
   window.visualViewport?.removeEventListener("scroll", fitResults);
   window.removeEventListener("pointerdown", outsideSearch, true);
@@ -1269,9 +1311,18 @@ async function deleteEdited() {
         </div>
       </div>
       <div class="preview" aria-live="polite">
-        <div v-for="item in previewItems" :key="item.label" class="col center gap2">
-          <span class="t-nm num" data-num>{{ int(item.value) }}</span><span class="t-cap c2">{{ item.label }}</span>
-        </div>
+        <SwipePanels :count="sheetPanels.length + 1" :height="282" label="Food nutrients">
+          <div class="panel" data-panel="macros">
+            <span class="t-label title">Macros</span>
+            <div class="cols t-capn c2"><span></span><span>Per 100 g</span><span>Amount</span></div>
+            <div v-for="item in previewItems" :key="item.label" class="nrow">
+              <span class="t-label name">{{ item.label }}</span>
+              <span class="t-bodys num" data-num>{{ int(sheetFactor ? item.value / sheetFactor : item.value) }}</span>
+              <span class="t-bodys num" data-num>{{ int(item.value) }}</span>
+            </div>
+          </div>
+          <NutrientRows v-for="panel in sheetPanels" :key="panel.id" :panel="panel" :values="sheetAmount" :per100="sheetPer100" :sex="profile.saved?.sex ?? ''" :age="sheetAge" :kcal-target="profile.targets?.kcal ?? null" />
+        </SwipePanels>
       </div>
       <div v-if="after" class="after col">
         <div class="row">
@@ -1560,7 +1611,14 @@ async function deleteEdited() {
 .del-btn { min-height: 52px; min-width: 44px; padding: 0 18px; border-radius: 26px; background: var(--color-surface-2); display: inline-flex; align-items: center; justify-content: center; gap: 8px; flex: none; }
 .base { min-width: 0; max-width: 100%; display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
 .dname { margin: 0; overflow-wrap: anywhere; }
-.preview { display: flex; justify-content: space-around; gap: 8px; padding: 14px 8px; border-radius: var(--radius-card); background: var(--color-surface-2); flex: none; }
+.preview { display: block; padding: 8px 8px 0; border-radius: var(--radius-card); background: var(--color-surface-2); flex: none; width: 100%; max-width: 358px; box-sizing: border-box; }
+.preview .title { color: var(--text-secondary); }
+.preview .panel, .preview .cols, .preview .nrow, .preview :deep(.panel), .preview :deep(.list), .preview :deep(.heads), .preview :deep(.nrow) { width: 100%; box-sizing: border-box; }
+.preview .panel, .preview :deep(.panel) { padding: calc(var(--space-gap) / 3) calc(var(--space-gap) / 3) 0; }
+.preview .cols, .preview .nrow { display: grid; grid-template-columns: minmax(0, 1fr) 5.6rem 5.6rem; column-gap: 12px; align-items: baseline; }
+.preview .num, .preview .cols span:not(:first-child) { text-align: right; justify-self: stretch; font-variant-numeric: tabular-nums; }
+.preview .name, .preview .cols span:first-child { text-align: left; justify-self: start; }
+.preview .num { font-variant-numeric: tabular-nums; text-align: right; }
 .units, .chips { gap: 8px; flex-wrap: wrap; justify-content: center; max-width: 100%; }
 .unit-radios { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; max-width: 100%; }
 .uchip {
@@ -1596,7 +1654,7 @@ async function deleteEdited() {
 .sbtns { gap: 8px; flex: 0 0 auto; margin-left: auto; }
 .dt-l .units, .dt-l .chips { justify-content: center; }
 .dt-l .uchip { min-height: 44px; }
-.dt-xl .preview { display: grid; grid-template-columns: 1fr 1fr; row-gap: 12px; }
+html.dt-xl .preview { display: block; }
 .dt-xl .qgrid { grid-template-columns: 1fr; }
 .fchips { gap: var(--space-gap); flex-wrap: wrap; flex: none; }
 .mine { display: inline-flex; align-items: center; gap: 3px; padding: 1px 6px; border-radius: 6px; border: 1px solid var(--color-border); color: var(--text-secondary); white-space: nowrap; flex: none; }

@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using System.Text.Json;
 using GymBro.Api.Data;
+using GymBro.Api.Foods;
 using GymBro.Api.Logging;
 using GymBro.Api.Users;
 using Microsoft.EntityFrameworkCore;
@@ -93,6 +94,11 @@ public static class LogEntryEndpoints
         var amount = draft.Amount;
         var unit = draft.Unit;
         decimal? grams = null;
+        decimal? saturated = null;
+        decimal? sugars = null;
+        decimal? fiber = null;
+        decimal? salt = null;
+        FoodSnapshot? taken = null;
         var snapshotUnit = draft.Unit;
         decimal? ownGrams = null;
         if (food is not null && LogEntryRules.NormalizeUnit(draft.Unit) is null && draft.Unit.Length > 0)
@@ -129,6 +135,11 @@ public static class LogEntryEndpoints
             carbs = snapshot.Carbs;
             unit = snapshot.Unit;
             grams = snapshot.Grams;
+            saturated = snapshot.SaturatedFat;
+            sugars = snapshot.Sugars;
+            fiber = snapshot.Fiber;
+            salt = snapshot.Salt;
+            taken = snapshot;
         }
 
         var entry = new LogEntry
@@ -151,8 +162,16 @@ public static class LogEntryEndpoints
             Protein = protein,
             Fat = fat,
             Carbs = carbs,
+            SaturatedFat = saturated,
+            Sugars = sugars,
+            Fiber = fiber,
+            Salt = salt,
             IdempotencyKey = draft.IdempotencyKey,
         };
+        if (food is not null && taken is FoodSnapshot takenSnapshot)
+        {
+            NutrientPanel.ScaleOnto(entry, food, takenSnapshot.Factor);
+        }
         db.LogEntries.Add(entry);
         try
         {
@@ -292,6 +311,11 @@ public static class LogEntryEndpoints
             fat = stored.Fat;
             carbs = stored.Carbs;
             grams = stored.Grams;
+            entry.SaturatedFat = stored.SaturatedFat;
+            entry.Sugars = stored.Sugars;
+            entry.Fiber = stored.Fiber;
+            entry.Salt = stored.Salt;
+            NutrientPanel.ScaleExisting(entry, stored.Factor);
         }
         else if (entry.Source == LogEntryRules.QuickSource)
         {
@@ -500,7 +524,7 @@ public static class LogEntryEndpoints
     private static LogEntry Clone(LogEntry source, string userId, DateOnly localDate, string timeZone, string idempotencyKey)
     {
         var time = TimeOnly.FromDateTime(source.LoggedAt);
-        return new LogEntry
+        var copy = new LogEntry
         {
             Id = Guid.NewGuid(),
             UserId = userId,
@@ -520,8 +544,14 @@ public static class LogEntryEndpoints
             Protein = source.Protein,
             Fat = source.Fat,
             Carbs = source.Carbs,
+            SaturatedFat = source.SaturatedFat,
+            Sugars = source.Sugars,
+            Fiber = source.Fiber,
+            Salt = source.Salt,
             IdempotencyKey = idempotencyKey,
         };
+        NutrientPanel.Copy(copy, source);
+        return copy;
     }
 
     private static async Task<(string? Error, Food? Food, Guid? GroupId)> OwnFoodAndGroup(
@@ -563,6 +593,11 @@ public static class LogEntryEndpoints
         protein = rows.Sum(row => row.Protein),
         fat = rows.Sum(row => row.Fat),
         carbs = rows.Sum(row => row.Carbs),
+        saturatedFat = Micronutrients.CompleteSum(rows.Select(row => row.SaturatedFat)),
+        sugars = Micronutrients.CompleteSum(rows.Select(row => row.Sugars)),
+        fiber = Micronutrients.CompleteSum(rows.Select(row => row.Fiber)),
+        salt = Micronutrients.CompleteSum(rows.Select(row => row.Salt)),
+        nutrients = NutrientPanel.Day(rows),
     };
 
     private static object ToResponse(LogEntry entry) => new
@@ -584,6 +619,11 @@ public static class LogEntryEndpoints
         protein = entry.Protein,
         fat = entry.Fat,
         carbs = entry.Carbs,
+        saturatedFat = entry.SaturatedFat,
+        sugars = entry.Sugars,
+        fiber = entry.Fiber,
+        salt = entry.Salt,
+        nutrients = NutrientPanel.Amount(entry),
         idempotencyKey = entry.IdempotencyKey,
         deletedAt = entry.DeletedAt,
     };

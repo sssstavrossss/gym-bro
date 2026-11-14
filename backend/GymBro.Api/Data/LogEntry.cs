@@ -7,7 +7,7 @@ namespace GymBro.Api.Data;
 /// The name and kcal/P/F/C columns are a snapshot so later food edits do not
 /// rewrite history. <see cref="IdempotencyKey"/> is unique per user.
 /// </summary>
-public sealed class LogEntry
+public sealed partial class LogEntry
 {
     public Guid Id { get; set; }
 
@@ -57,6 +57,15 @@ public sealed class LogEntry
     public decimal Fat { get; set; }
 
     public decimal Carbs { get; set; }
+
+    /// <summary>Snapshot of saturated fat for this amount. Null when it was unknown at log time. Not rewritten later.</summary>
+    public decimal? SaturatedFat { get; set; }
+
+    public decimal? Sugars { get; set; }
+
+    public decimal? Fiber { get; set; }
+
+    public decimal? Salt { get; set; }
 
     public string IdempotencyKey { get; set; } = "";
 

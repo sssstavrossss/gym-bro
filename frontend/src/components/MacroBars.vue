@@ -1,15 +1,33 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import Bar from "./Bar.vue";
 import Icon from "./Icon.vue";
 import ManualTag from "./ManualTag.vue";
+import NutrientRows from "./NutrientRows.vue";
+import SwipePanels from "./SwipePanels.vue";
 import { int } from "../lib/format";
 import { macroStatus, type MacroKind } from "../lib/macros";
+import { dayNutrients, osloYear, panelsForSize, type NutrientSource } from "../lib/nutrients";
 import { dayTotals, type DayTotals } from "../state/log";
 import { profile } from "../state/profile";
 import type { TargetsResponse } from "../api";
 
-const props = defineProps<{ target?: TargetsResponse | null; totals?: DayTotals | null; label?: string; manual?: boolean }>();
+const props = defineProps<{ target?: TargetsResponse | null; totals?: DayTotals | null; label?: string; manual?: boolean; entries?: NutrientSource[] }>();
+const large = ref(false);
+function readSize() { large.value = document.documentElement.classList.contains("dt-xl"); }
+onMounted(() => {
+  readSize();
+  window.addEventListener("resize", readSize);
+});
+onBeforeUnmount(() => window.removeEventListener("resize", readSize));
+const sources = computed(() => props.entries ?? []);
+const nutrientValues = computed(() => dayNutrients(sources.value));
+const panels = computed(() => panelsForSize(sources.value, large.value));
+const age = computed(() => {
+  const year = profile.saved?.birthYear;
+  return typeof year === "number" ? osloYear() - year : 0;
+});
+const kcalTarget = computed(() => target.value?.kcal ?? null);
 const target = computed(() => (props.target === undefined ? profile.targets : props.target));
 const totals = computed(() => props.totals ?? dayTotals());
 const macros = computed(() => {
@@ -37,13 +55,16 @@ const macros = computed(() => {
       <span class="t-bodys" data-num>{{ int(totals.c) }}</span><span class="t-capn c2">C</span>
     </div>
   </section>
-  <section v-else class="card macros" :aria-label="label || 'Today\'s macros'">
+  <section v-else class="card macros fit" data-nutrient-card :aria-label="label || 'Today\'s macros'">
+    <SwipePanels tight :count="panels.length + 1" :lock-index="large ? 0 : -1" :label="label || 'Today\'s macros'">
+    <div class="macropane" data-panel="macros">
     <div v-for="m in macros" :key="m.label" class="col gap6">
-      <div class="row mrow">
-        <span class="t-label" :class="m.st === 'under' ? 'c2' : ''">{{ m.label }}<span v-if="m.min" class="c3 t-capn"> · min</span></span>
-        <ManualTag v-if="manual && m.kind === 'kcal'" />
-        <span v-if="m.st === 'over'" class="overtag t-capn">+{{ int(m.cur - m.tgt) }} over</span>
-        <span class="grow" />
+      <div class="mrow">
+        <span class="left">
+          <span class="t-label" :class="m.st === 'under' ? 'c2' : ''">{{ m.label }}<span v-if="m.min" class="c3 t-capn"> · min</span></span>
+          <ManualTag v-if="manual && m.kind === 'kcal'" />
+          <span v-if="m.st === 'over'" class="overtag t-capn">+{{ int(m.cur - m.tgt) }} over</span>
+        </span>
         <span class="vals">
           <span class="t-bodys" data-num>{{ int(m.cur) }}</span>
           <span class="t-label c3">/ {{ int(m.tgt) }} {{ m.unit }}</span>
@@ -53,16 +74,25 @@ const macros = computed(() => {
       </div>
       <Bar :pct="m.tgt ? m.cur / m.tgt : 0" :hit="m.st === 'hit'" :over="m.st === 'over'" :aria-label="`${m.label} ${int(m.cur)} of ${int(m.tgt)} ${m.unit}${m.st === 'hit' ? ', on target' : m.st === 'over' ? ', over' : ''}`" />
     </div>
+    </div>
+    <NutrientRows v-for="panel in panels" :key="panel.id" :panel="panel" :values="nutrientValues" :sex="profile.saved?.sex ?? ''" :age="age" :kcal-target="kcalTarget" />
+    </SwipePanels>
   </section>
 </template>
 
 <style scoped>
 .macros { gap: 14px; }
-.gap6 { gap: 6px; }
-.mrow { gap: 4px; align-items: baseline; flex-wrap: wrap; min-width: 0; max-width: 100%; }
+.macros.fit { height: 212px; box-sizing: border-box; gap: 0; overflow: hidden; padding-bottom: 12px; }
+.macropane { display: flex; flex-direction: column; gap: 6px; min-height: 0; }
+.gap6 { gap: 2px; }
+html.dt-xl .macros.fit { height: auto; overflow: visible; }
+html.dt-xl .mrow { grid-template-columns: minmax(0, 1fr); row-gap: 0; }
+html.dt-xl .vals { justify-content: flex-end; width: 100%; }
+.mrow { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; column-gap: 8px; min-width: 0; }
+.left { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px; min-width: 0; }
 .vals {
   display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: baseline; gap: 4px;
-  margin-left: auto; max-width: 100%;
+  max-width: 100%;
 }
 .vals > * { flex: none; white-space: nowrap; }
 .tick { width: 14px; height: 14px; display: inline-flex; align-items: center; justify-content: center; align-self: center; }

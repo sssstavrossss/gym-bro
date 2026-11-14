@@ -294,6 +294,11 @@ public static class OpenFoodFactsParser
         TryDecimal(nutriments, "proteins_100g", out var protein);
         TryDecimal(nutriments, "fat_100g", out var fat);
         TryDecimal(nutriments, "carbohydrates_100g", out var carbs);
+        var panel = NutrientPanel.ReadOff(nutriments);
+        var saturated = OptionalPer100(nutriments, "saturated-fat_100g");
+        var sugars = OptionalPer100(nutriments, "sugars_100g");
+        var fiber = OptionalPer100(nutriments, "fiber_100g");
+        var salt = OptionalPer100(nutriments, "salt_100g");
         var basis = string.Equals(Text(product, "nutrition_data_per"), "100ml", StringComparison.OrdinalIgnoreCase)
             ? "ml"
             : "g";
@@ -317,8 +322,18 @@ public static class OpenFoodFactsParser
             serving,
             string.IsNullOrWhiteSpace(servingLabel) ? null : servingLabel.Trim(),
             null,
-            null);
+            null,
+            saturated,
+            sugars,
+            fiber,
+            salt)
+        {
+            Panel = panel,
+        };
     }
+
+    private static decimal? OptionalPer100(JsonElement element, string name) =>
+        TryDecimal(element, name, out var value) ? Micronutrients.Grams("g", value) : null;
 
     private static string? Text(JsonElement element, string name)
     {

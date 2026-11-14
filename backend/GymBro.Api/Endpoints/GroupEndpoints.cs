@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using System.Text.Json;
 using GymBro.Api.Data;
+using GymBro.Api.Foods;
 using GymBro.Api.Logging;
 using Microsoft.EntityFrameworkCore;
 
@@ -118,7 +119,12 @@ public static class GroupEndpoints
                 Protein = entry.Protein,
                 Fat = entry.Fat,
                 Carbs = entry.Carbs,
+                SaturatedFat = entry.SaturatedFat,
+                Sugars = entry.Sugars,
+                Fiber = entry.Fiber,
+                Salt = entry.Salt,
             });
+            NutrientPanel.Copy(db.EntryGroupItems.Local.Last(), entry);
         }
 
         await db.SaveChangesAsync(cancellationToken);
@@ -247,8 +253,21 @@ public static class GroupEndpoints
                     Protein = plan.Protein,
                     Fat = plan.Fat,
                     Carbs = plan.Carbs,
+                    SaturatedFat = plan.SaturatedFat,
+                    Sugars = plan.Sugars,
+                    Fiber = plan.Fiber,
+                    Salt = plan.Salt,
                     IdempotencyKey = GroupRules.ItemKey(draft.IdempotencyKey, item.Position),
                 };
+                if (item.FoodId is null)
+                {
+                    NutrientPanel.Copy(entry, item);
+                }
+                else if (context.Food(item.FoodId.Value) is Food food)
+                {
+                    var factor = food.KcalPer100 == 0 ? 0 : entry.Kcal / food.KcalPer100;
+                    NutrientPanel.ScaleOnto(entry, food, factor);
+                }
                 db.LogEntries.Add(entry);
                 created.Add(entry);
                 byKey[entry.IdempotencyKey] = entry;
@@ -370,7 +389,11 @@ public static class GroupEndpoints
                 show ? plan.Fat : item.Fat,
                 show ? plan.Carbs : item.Carbs,
                 item.FoodId is null,
-                show);
+                show,
+                show ? plan.SaturatedFat : item.SaturatedFat,
+                show ? plan.Sugars : item.Sugars,
+                show ? plan.Fiber : item.Fiber,
+                show ? plan.Salt : item.Salt);
         }).ToList();
         return new GroupResponse(group.Id, group.Name, group.CreatedAt, rows.Sum(row => row.Kcal), rows);
     }
@@ -394,7 +417,11 @@ public static class GroupEndpoints
         entry.Fat,
         entry.Carbs,
         entry.IdempotencyKey,
-        entry.DeletedAt);
+        entry.DeletedAt,
+        entry.SaturatedFat,
+        entry.Sugars,
+        entry.Fiber,
+        entry.Salt);
 
     private sealed record GroupListResponse(IReadOnlyList<GroupResponse> Groups);
 
@@ -417,7 +444,11 @@ public static class GroupEndpoints
         decimal Fat,
         decimal Carbs,
         bool Quick,
-        bool Available);
+        bool Available,
+        decimal? SaturatedFat = null,
+        decimal? Sugars = null,
+        decimal? Fiber = null,
+        decimal? Salt = null);
 
     private sealed record SkippedItemResponse(string Name, string Notice);
 
@@ -447,10 +478,16 @@ public static class GroupEndpoints
         decimal Fat,
         decimal Carbs,
         string IdempotencyKey,
-        DateTimeOffset? DeletedAt);
+        DateTimeOffset? DeletedAt,
+        decimal? SaturatedFat = null,
+        decimal? Sugars = null,
+        decimal? Fiber = null,
+        decimal? Salt = null);
 
     private sealed class PlanContext(Dictionary<Guid, Food> foods, List<UserServing> servings)
     {
+        public Food? Food(Guid id) => foods.TryGetValue(id, out var food) ? food : null;
+
         public PlannedItem Plan(EntryGroupItem item)
         {
             Food? food = null;

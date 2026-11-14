@@ -74,7 +74,11 @@ public static class GroupRules
                 item.Kcal,
                 item.Protein,
                 item.Fat,
-                item.Carbs);
+                item.Carbs,
+                item.SaturatedFat,
+                item.Sugars,
+                item.Fiber,
+                item.Salt);
         }
 
         var label = ItemLabel(item, food);
@@ -132,7 +136,11 @@ public static class GroupRules
             snapshot.Kcal,
             snapshot.Protein,
             snapshot.Fat,
-            snapshot.Carbs);
+            snapshot.Carbs,
+            snapshot.SaturatedFat,
+            snapshot.Sugars,
+            snapshot.Fiber,
+            snapshot.Salt);
     }
 
     /// <summary>A stored gram weight can stand in for a missing serving only on a per-100 g food.</summary>
@@ -172,7 +180,11 @@ public readonly record struct PlannedItem(
     decimal Kcal,
     decimal Protein,
     decimal Fat,
-    decimal Carbs)
+    decimal Carbs,
+    decimal? SaturatedFat = null,
+    decimal? Sugars = null,
+    decimal? Fiber = null,
+    decimal? Salt = null)
 {
     public static PlannedItem Ready(
         string name,
@@ -186,8 +198,12 @@ public readonly record struct PlannedItem(
         decimal kcal,
         decimal protein,
         decimal fat,
-        decimal carbs) =>
-        new(true, "", name, source, sourceId, foodId, foodOwnerKey, amount, unit, grams, kcal, protein, fat, carbs);
+        decimal carbs,
+        decimal? saturatedFat = null,
+        decimal? sugars = null,
+        decimal? fiber = null,
+        decimal? salt = null) =>
+        new(true, "", name, source, sourceId, foodId, foodOwnerKey, amount, unit, grams, kcal, protein, fat, carbs, saturatedFat, sugars, fiber, salt);
 
     public static PlannedItem Skip(string name, string notice) =>
         new(false, notice, name, "", null, null, "", 0, "", null, 0, 0, 0, 0);

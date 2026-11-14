@@ -23,7 +23,7 @@ public static class NutrientBases
 /// <see cref="OwnerKey"/> is <see cref="UserId"/>, or an empty string for a shared catalogue row,
 /// so a log entry can foreign-key either kind of food.
 /// </summary>
-public sealed class Food
+public sealed partial class Food
 {
     public const string CatalogueOwnerKey = "";
 
@@ -69,6 +69,18 @@ public sealed class Food
     public decimal FatPer100 { get; set; }
 
     public decimal CarbsPer100 { get; set; }
+
+    /// <summary>Saturated fat, grams per 100 g or per serving. Null when the source did not publish it.</summary>
+    public decimal? SaturatedFatPer100 { get; set; }
+
+    /// <summary>Total sugars, grams. Null when unknown. Not added sugar alone.</summary>
+    public decimal? SugarsPer100 { get; set; }
+
+    /// <summary>Fibre, grams. Null when unknown.</summary>
+    public decimal? FiberPer100 { get; set; }
+
+    /// <summary>Salt, grams. Null when unknown. Never derived from sodium.</summary>
+    public decimal? SaltPer100 { get; set; }
 
     public decimal? ServingQuantity { get; set; }
 

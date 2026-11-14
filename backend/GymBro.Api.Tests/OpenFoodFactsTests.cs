@@ -42,6 +42,33 @@ public sealed class OpenFoodFactsTests
         Assert.Equal(100, food.KcalPer100);
         Assert.NotEqual(170, food.KcalPer100);
         Assert.Equal(40, food.ServingQuantity);
+        Assert.Null(food.SaturatedFatPer100);
+
+        var detailed = Assert.Single(OpenFoodFactsParser.Read("""
+            {
+              "products": [
+                {
+                  "code": "0000000000093",
+                  "product_name": "Fictional salted oats",
+                  "nutriments": {
+                    "energy-kcal_100g": 80,
+                    "proteins_100g": 3,
+                    "fat_100g": 2,
+                    "carbohydrates_100g": 12,
+                    "saturated-fat_100g": 0,
+                    "sugars_100g": 1.5,
+                    "fiber_100g": 4,
+                    "salt_100g": 0.2,
+                    "sodium_100g": 0.08
+                  }
+                }
+              ]
+            }
+            """));
+        Assert.Equal(0, detailed.SaturatedFatPer100);
+        Assert.Equal(1.5m, detailed.SugarsPer100);
+        Assert.Equal(4, detailed.FiberPer100);
+        Assert.Equal(0.2m, detailed.SaltPer100);
 
         var report = OpenFoodFactsParser.ReadReport("""
             {

@@ -213,6 +213,7 @@ if (args.Contains("--import-matvaretabellen"))
         var result = await importer.ImportOfficialAsync(CancellationToken.None);
         Console.WriteLine(
             $"Matvaretabellen: {result.Upserted} foods upserted, {result.Retired} retired, {result.Skipped} skipped.");
+        Console.WriteLine(result.Coverage);
         Console.WriteLine(Matvaretabellen.Citation);
         if (result.Upserted == 0)
         {
@@ -248,6 +249,7 @@ if (args.Contains("--import-kassalapp"))
         Console.WriteLine(Kassalapp.Citation);
         Console.WriteLine(
             $"Kassalapp: complete={report.Complete} dryRun={report.DryRun} sha256={report.Sha256} rows={report.RowsRead} accepted={report.Accepted} upserted={report.Upserted} unchanged={report.Unchanged} reconfirm={report.Reconfirm}.");
+        Console.WriteLine(report.Coverage);
         foreach (var reason in report.SkipReasons.OrderBy(pair => pair.Key))
         {
             if (reason.Key == "rows")

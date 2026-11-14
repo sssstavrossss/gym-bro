@@ -34,6 +34,11 @@ export interface LogEntry {
   protein: number;
   fat: number;
   carbs: number;
+  saturatedFat?: number | null;
+  sugars?: number | null;
+  fiber?: number | null;
+  salt?: number | null;
+  nutrients?: Record<string, number | null> | null;
   source: string;
   foodId: string | null;
   groupId: string | null;
@@ -139,6 +144,11 @@ function fromResponse(row: LogEntryResponse): LogEntry {
     protein: row.protein,
     fat: row.fat,
     carbs: row.carbs,
+    saturatedFat: row.saturatedFat,
+    sugars: row.sugars,
+    fiber: row.fiber,
+    salt: row.salt,
+    nutrients: row.nutrients,
     source: row.source,
     foodId: row.foodId,
     groupId: row.groupId,

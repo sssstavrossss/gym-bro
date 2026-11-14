@@ -6,7 +6,7 @@ namespace GymBro.Api.Data;
 /// equivalent. Quick-add rows have no food and keep the typed calories and macros.
 /// A group is not a recipe; re-adding writes separate log entries.
 /// </summary>
-public sealed class EntryGroupItem
+public sealed partial class EntryGroupItem
 {
     public Guid Id { get; set; }
 
@@ -40,4 +40,12 @@ public sealed class EntryGroupItem
     public decimal Fat { get; set; }
 
     public decimal Carbs { get; set; }
+
+    public decimal? SaturatedFat { get; set; }
+
+    public decimal? Sugars { get; set; }
+
+    public decimal? Fiber { get; set; }
+
+    public decimal? Salt { get; set; }
 }

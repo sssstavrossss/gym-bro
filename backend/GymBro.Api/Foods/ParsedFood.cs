@@ -13,7 +13,14 @@ public sealed record ParsedFood(
     decimal? ServingQuantity,
     string? ServingLabel,
     decimal? PieceQuantity,
-    string? PieceLabel);
+    string? PieceLabel,
+    decimal? SaturatedFatPer100 = null,
+    decimal? SugarsPer100 = null,
+    decimal? FiberPer100 = null,
+    decimal? SaltPer100 = null)
+{
+    public Dictionary<string, decimal?> Panel { get; init; } = [];
+}
 
 public enum OffStatus
 {
