@@ -434,7 +434,8 @@ function back() {
   ui.detailFoodId = null;
   detailFood.value = null;
   formError.value = "";
-  if (searchView.value) restoreSearchList();
+  searchView.value = false;
+  keepSearch = false;
 }
 function openNewFood(seedName?: string) {
   primeKeyboard();
@@ -1285,7 +1286,7 @@ async function deleteEdited() {
         </button>
         <h2 v-else-if="!searchView" class="t-head">{{ editing ? "Edit food" : "Add food" }}</h2>
         <span class="grow" />
-        <TimeChip v-if="!showEditor && !searchView" v-model="time" :date="ui.foodDate" :today="foodToday" :allow-now="!pastDay && !editing" />
+        <TimeChip v-if="!showEditor && (showDetail || !searchView)" v-model="time" :date="ui.foodDate" :today="foodToday" :allow-now="!pastDay && !editing" />
         <button type="button" class="cbtn"  aria-label="Close" @click="closeSheet">
           <Icon name="x" :size="18" />
         </button>
