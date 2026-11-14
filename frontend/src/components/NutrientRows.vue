@@ -29,13 +29,30 @@ const rows = computed(() => props.panel.keys.map((key) => {
 }));
 const showPercent = computed(() => rows.value.some((row) => row.percent != null));
 const halves = computed(() => props.panel.halves === true);
+const mid = computed(() => Math.ceil(rows.value.length / 2));
+const leftRows = computed(() => rows.value.slice(0, mid.value));
+const rightRows = computed(() => rows.value.slice(mid.value));
 </script>
 
 <template>
   <div class="panel" :data-panel="panel.id">
     <span class="section-title panel-title">{{ panel.title }}</span>
     <div v-if="per100 && !halves" class="heads t-capn c2" :class="{ pcts: showPercent }"><span></span><span>Per 100 g</span><span v-if="showPercent"></span><span>Amount</span></div>
-    <div class="list" :class="{ grid: halves || (panel.grid && !per100), paired: Boolean(per100) && !halves, pcts: showPercent }" :style="halves || (panel.grid && !per100) ? { '--half': String(Math.ceil(rows.length / 2)) } : undefined">
+    <div v-if="halves" class="list halves">
+      <div v-for="(side, index) in [leftRows, rightRows]" :key="index" class="half" :class="{ pcts: showPercent }">
+        <div v-for="row in side" :key="row.key" class="nrow" :class="{ miss: row.missing }">
+          <span class="t-label name">{{ row.label }}</span>
+          <span class="nums">
+            <span class="fig t-bodys" data-num>
+              <span class="num">{{ row.amount.whole }}{{ row.amount.frac }}</span>
+              <span class="unit"><span>{{ row.amount.unit }}</span><span class="sizer" aria-hidden="true">mg</span></span>
+            </span>
+            <span v-if="showPercent" class="t-label pct">{{ row.percent != null ? `${row.percent}%` : "" }}</span>
+          </span>
+        </div>
+      </div>
+    </div>
+    <div v-else class="list" :class="{ grid: panel.grid && !per100, paired: Boolean(per100), pcts: showPercent }" :style="panel.grid && !per100 ? { '--half': String(Math.ceil(rows.length / 2)) } : undefined">
       <div v-for="row in rows" :key="row.key" class="nrow" :class="{ miss: row.missing }">
         <span class="t-label name" :class="{ indent: row.indent }">{{ row.label }}</span>
         <template v-if="per100 && !halves">
@@ -66,17 +83,44 @@ const halves = computed(() => props.panel.halves === true);
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   grid-template-rows: repeat(var(--half), auto);
   grid-auto-flow: column;
-  column-gap: calc(var(--space-gap) / 6);
+  column-gap: var(--space-gap);
   row-gap: 2px;
 }
-.list.grid .nrow {
-  grid-template-columns: minmax(0, 1fr) max-content;
-  column-gap: 0.08em;
+.list.halves { display: flex; flex-direction: row; align-items: start; column-gap: var(--space-gap); }
+.half {
+  display: grid;
+  grid-template-columns: max-content 3ch max-content;
+  column-gap: 0;
+  row-gap: 2px;
+  align-items: baseline;
 }
-.list.grid .nums { gap: 0.08em; min-width: 0; }
-.list.grid .fig { grid-template-columns: 3ch 1.55em; column-gap: 0.12em; }
-.list.grid .pct { width: 4.6ch; overflow: visible; white-space: nowrap; text-align: right; flex: none; }
-.list.grid .name { overflow: visible; text-overflow: clip; white-space: nowrap; }
+.half.pcts { grid-template-columns: max-content 3ch max-content max-content; }
+.list.halves .nrow,
+.list.halves .nums,
+.list.halves .fig { display: contents; }
+.list.halves .name {
+  margin-right: 6px;
+  white-space: nowrap;
+  overflow: visible;
+  text-overflow: clip;
+  font-size: calc(0.7647rem - 1px);
+}
+.list.halves .num { text-align: right; margin-right: 0.15em; }
+.list.halves .unit {
+  display: inline-grid;
+  justify-items: start;
+  margin: 0;
+  white-space: nowrap;
+}
+.list.halves .unit > * { grid-area: 1 / 1; }
+.list.halves .sizer { visibility: hidden; }
+.list.halves .pct {
+  display: block;
+  width: auto;
+  margin: 0;
+  text-align: right;
+  white-space: nowrap;
+}
 .nrow {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -108,5 +152,5 @@ const halves = computed(() => props.panel.halves === true);
 .num { white-space: nowrap; }
 .miss .fig { color: var(--text-tertiary); }
 .pct { color: var(--text-secondary); }
-html.dt-xl .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+html.dt-xl .list.halves .name { font-size: 14px; }
 </style>
