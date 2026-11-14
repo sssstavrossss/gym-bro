@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { expect, test, type Page } from "@playwright/test";
 
 function headers(oid: string) {
@@ -12,48 +13,54 @@ async function clock(page: Page) {
   });
 }
 
-async function gaps(page: Page) {
-  return page.evaluate(() => {
-    const chev = document.querySelector(".chev")!.getBoundingClientRect();
+/** Lowest painted chevron pixel to the macro card, versus the gap under that card. */
+async function paintedGap(page: Page) {
+  const box = await page.evaluate(() => {
+    const svg = document.querySelector(".chev")!.getBoundingClientRect();
+    const stage = document.querySelector(".homeweek .stage")!.getBoundingClientRect();
+    const grip = document.querySelector(".grip")!.getBoundingClientRect();
+    const grab = document.querySelector(".grab")!.getBoundingClientRect();
     const macros = document.querySelector("main.today .macros")!.getBoundingClientRect();
-    const blocks = [...document.querySelectorAll("main.today .macros, main.today .prompt, main.today .home-progress")]
-      .map((node) => node.getBoundingClientRect())
-      .sort((a, b) => a.top - b.top);
-    const between = [];
-    for (let i = 1; i < blocks.length; i += 1) between.push(blocks[i].top - blocks[i - 1].bottom);
-    const grab = document.querySelector(".grab") as HTMLElement;
-    const box = grab.getBoundingClientRect();
-    const extra = getComputedStyle(grab, "::after");
+    const prompt = document.querySelector("main.today .prompt")!.getBoundingClientRect();
+    const bg = getComputedStyle(document.body).backgroundColor.match(/\d+/g)!.map(Number);
     return {
-      visual: macros.top - chev.bottom,
-      blocks: between,
-      hit: extra.position === "absolute" ? parseFloat(extra.height) : box.height,
-      face: box.height,
+      x: svg.left - 4,
+      y: svg.top,
+      w: svg.width + 8,
+      h: macros.top - svg.top,
+      macrosTop: macros.top,
+      svgTop: svg.top,
+      block: prompt.top - macros.bottom,
+      gripBelow: grip.top - stage.bottom,
+      grabH: grab.height,
+      dpr: window.devicePixelRatio,
+      bg,
     };
   });
+  const png = await page.screenshot({
+    clip: { x: Math.max(0, box.x), y: box.y, width: box.w, height: Math.max(1, box.h) },
+  });
+  const scan = JSON.parse(execFileSync("python3", ["-c", `
+import json, sys
+from PIL import Image
+im = Image.open(sys.stdin.buffer).convert("RGB")
+bg = tuple(int(n) for n in sys.argv[1].split(","))
+last = None
+for y in range(im.height):
+    for x in range(im.width):
+        p = im.getpixel((x, y))
+        if max(abs(p[0] - bg[0]), abs(p[1] - bg[1]), abs(p[2] - bg[2])) > 28:
+            last = y
+            break
+print(json.dumps({"last": last}))
+`, box.bg.join(",")], { input: png, encoding: "utf8" }));
+  const inkBottom = box.svgTop + ((scan.last ?? -1) + 1) / box.dpr;
+  return { painted: box.macrosTop - inkBottom, block: box.block, gripBelow: box.gripBelow, grabH: box.grabH };
 }
 
-async function stamp(page: Page, label: string) {
-  await page.evaluate((title) => {
-    document.querySelector("[data-gap-stamp]")?.remove();
-    const chev = document.querySelector(".chev")!.getBoundingClientRect();
-    const macros = document.querySelector("main.today .macros")!.getBoundingClientRect();
-    const blocks = [...document.querySelectorAll("main.today .macros, main.today .prompt, main.today .home-progress")]
-      .map((node) => node.getBoundingClientRect())
-      .sort((a, b) => a.top - b.top);
-    const visual = Math.round(macros.top - chev.bottom);
-    const other = blocks.length > 1 ? Math.round(blocks[1].top - blocks[0].bottom) : visual;
-    const note = document.createElement("div");
-    note.dataset.gapStamp = title;
-    note.textContent = `${title}: grabber to next block ${visual}px, other blocks ${other}px`;
-    note.style.cssText = "position:fixed;left:8px;right:8px;top:8px;z-index:50;padding:6px 8px;border-radius:8px;background:#fff;color:#000;font:600 13px/1.2 Inter,sans-serif;";
-    document.body.appendChild(note);
-  }, label);
-}
+test.use({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, hasTouch: true, isMobile: true });
 
-test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
-
-test("the grabber sits one standard gap above the next Home block", async ({ page }) => {
+test("the painted chevron sits one block gap above the macro card", async ({ page }) => {
   const oid = `e2e-gap-${Date.now()}-${test.info().project.name}`;
   const when = await clock(page);
   expect((await page.request.put(`/api/weigh-ins/${when.today}`, { headers: headers(oid), data: { kg: 83.6, timeZone: when.zone } })).ok()).toBeTruthy();
@@ -73,30 +80,27 @@ test("the grabber sits one standard gap above the next Home block", async ({ pag
   }, oid);
   await page.goto("/today");
   await page.evaluate(() => document.documentElement.classList.add("demo-statusbar"));
-  await expect(page.locator("main.today .macros")).toBeVisible();
-  await expect(page.locator("main.today .home-progress")).toBeVisible();
+  await expect(page.locator("main.today .prompt")).toBeVisible();
 
-  const closed = await gaps(page);
-  expect(closed.hit).toBeGreaterThanOrEqual(44);
-  expect(closed.face).toBeLessThan(44);
-  expect(closed.blocks.length).toBeGreaterThan(0);
-  expect(closed.visual).toBeCloseTo(closed.blocks[0], 0);
+  const closed = await paintedGap(page);
+  expect(closed.grabH).toBeGreaterThanOrEqual(44);
+  expect(closed.gripBelow).toBeGreaterThanOrEqual(10.5);
+  expect(closed.gripBelow).toBeLessThanOrEqual(11.5);
+  expect(Math.abs(closed.painted - closed.block)).toBeLessThanOrEqual(0.5);
 
   if (test.info().project.name === "chromium") {
-    await stamp(page, "After, collapsed");
-    await page.screenshot({ path: "/opt/cursor/artifacts/iphone44-gap-collapsed-after.png" });
-    await page.evaluate(() => document.querySelector("[data-gap-stamp]")?.remove());
+    await page.screenshot({ path: "/tmp/gap-after-collapsed.png" });
   }
 
   await page.getByRole("button", { name: "Show the last 4 weeks" }).click();
-  await expect.poll(async () => page.locator(".homeweek .stage").evaluate((node) => node.style.height)).toBe("auto");
-  const open = await gaps(page);
-  expect(open.hit).toBeGreaterThanOrEqual(44);
-  expect(open.visual).toBeCloseTo(open.blocks[0], 0);
-  expect(open.visual).toBeCloseTo(closed.visual, 0);
+  await expect.poll(async () => page.locator(".homeweek .stage").evaluate((node) => (node as HTMLElement).style.height)).toBe("auto");
+  const open = await paintedGap(page);
+  expect(open.grabH).toBeGreaterThanOrEqual(44);
+  expect(open.gripBelow).toBeGreaterThanOrEqual(10.5);
+  expect(Math.abs(open.painted - open.block)).toBeLessThanOrEqual(0.5);
+  expect(Math.abs(open.painted - closed.painted)).toBeLessThanOrEqual(0.5);
 
   if (test.info().project.name === "chromium") {
-    await stamp(page, "After, expanded");
-    await page.screenshot({ path: "/opt/cursor/artifacts/iphone44-gap-expanded-after.png" });
+    await page.screenshot({ path: "/tmp/gap-after-expanded.png" });
   }
 });
