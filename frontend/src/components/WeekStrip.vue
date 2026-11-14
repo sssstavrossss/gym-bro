@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import Icon from "./Icon.vue";
 import { getProgress } from "../api";
 import { addDays, weekStart } from "../lib/dates";
@@ -18,6 +18,8 @@ const emit = defineEmits<{ select: [string] }>();
 
 const shown = ref(weekStart(props.selected || props.anchor || props.today));
 const pager = ref<HTMLElement | null>(null);
+const stage = ref<HTMLElement | null>(null);
+let settling = false;
 const dragX = ref(0);
 const animating = ref(false);
 const dragging = ref(false);
@@ -185,10 +187,37 @@ function readOpen(): boolean {
   if (!props.swipe) return false;
   try { return localStorage.getItem(openKey) === "1"; } catch { return false; }
 }
+function lockStage() {
+  const el = stage.value;
+  if (!el || reduceMotion.value) return;
+  el.style.height = `${el.getBoundingClientRect().height}px`;
+}
+async function glideStage() {
+  const el = stage.value;
+  if (!el || reduceMotion.value) {
+    if (el) el.style.height = "auto";
+    return;
+  }
+  await nextTick();
+  const face = el.querySelector<HTMLElement>(expanded.value ? ".cal.face" : ".pager.face");
+  const height = face?.offsetHeight ?? 0;
+  settling = true;
+  requestAnimationFrame(() => {
+    el.style.height = `${height}px`;
+  });
+}
+function onStageEnd(event: TransitionEvent) {
+  if (!settling || event.propertyName !== "height" || event.target !== stage.value) return;
+  settling = false;
+  if (stage.value) stage.value.style.height = "auto";
+}
 function setExpanded(next: boolean) {
+  if (next === expanded.value) return;
+  lockStage();
   expanded.value = next;
   try { localStorage.setItem(openKey, next ? "1" : "0"); } catch { /* the pick still applies this visit */ }
   if (next) void loadShades();
+  void glideStage();
 }
 async function loadShades() {
   try {
@@ -238,7 +267,8 @@ onBeforeUnmount(() => {
     </button>
   </div>
   <div v-else class="homeweek" :class="{ still: reduceMotion }" @pointerdown="down" @pointermove="move" @pointerup="up" @pointercancel="up">
-  <div v-show="!expanded" ref="pager" class="pager">
+  <div ref="stage" class="stage" @transitionend="onStageEnd">
+  <div ref="pager" class="pager face" :class="{ on: !expanded }" :inert="expanded" :aria-hidden="expanded">
     <div class="track" :style="trackStyle()" @transitionend="onTransitionEnd">
       <div
         v-for="page in pages"
@@ -268,8 +298,7 @@ onBeforeUnmount(() => {
     <button type="button" class="sr-only" @click="pageBy(-1)">Previous week</button>
     <button type="button" class="sr-only" :disabled="starts.length < 3" @click="pageBy(1)">Next week</button>
   </div>
-  <div class="calwrap" :class="{ open: expanded }">
-    <div class="cal" role="group" aria-label="Last 4 weeks" :inert="!expanded" :aria-hidden="!expanded">
+    <div class="cal face" :class="{ on: expanded }" role="group" aria-label="Last 4 weeks" :inert="!expanded" :aria-hidden="!expanded">
       <div class="calrow letters">
         <span v-for="(letter, index) in ['M','T','W','T','F','S','S']" :key="index" class="t-cap c3">{{ letter }}</span>
       </div>
@@ -325,8 +354,15 @@ onBeforeUnmount(() => {
 .dot { width: 4px; height: 4px; border-radius: 2px; }
 .dot.on { background: var(--text-tertiary); }
 .homeweek { display: flex; flex-direction: column; min-width: 0; }
-.calwrap { max-height: 0; overflow: hidden; transition: max-height .28s ease; }
-.calwrap.open { max-height: 520px; }
+.stage { position: relative; overflow: hidden; transition: height 340ms cubic-bezier(0.22, 1.05, 0.36, 1); }
+.face {
+  width: 100%; pointer-events: none;
+  position: absolute; left: 0; right: 0; top: 0;
+  transition: opacity 220ms ease;
+}
+.pager.face { opacity: 0; }
+.cal.face { opacity: 0; transform: translate3d(0, -6px, 0); transition: opacity 220ms ease, transform 340ms cubic-bezier(0.22, 1.05, 0.36, 1); }
+.face.on { opacity: 1; transform: none; pointer-events: auto; position: relative; }
 .cal { display: flex; flex-direction: column; gap: calc(var(--space-gap) / 2); padding: var(--space-gap); background: var(--color-surface); border-radius: var(--radius-card); }
 .calrow { display: flex; gap: 4px; }
 .calrow > * { flex: 1 1 0; min-width: 0; text-align: center; }
@@ -352,7 +388,7 @@ onBeforeUnmount(() => {
   color: var(--text-secondary);
 }
 .grip { width: 36px; height: 4px; border-radius: 2px; background: var(--color-border-strong); }
-.chev { transition: transform .28s ease; }
+.chev { transition: transform 340ms cubic-bezier(0.22, 1.05, 0.36, 1); }
 .chev.up { transform: rotate(180deg); }
-.still .calwrap, .still .chev, .still .track { transition: none; }
+.still .stage, .still .face, .still .chev, .still .track { transition: none; }
 </style>

@@ -11,9 +11,9 @@ import { boot } from "../state/boot";
 import { clearAllDrafts, commitProfile, profile, shownTargets, weightCaption } from "../state/profile";
 import { signOut } from "../auth/session";
 import { enableReminders, getNotifications, notificationHint } from "../lib/notifications";
-import { getInbox, markAllNotificationsRead, markNotificationRead, putNotificationType, type InboxItem, type NotificationSettings } from "../api";
+import { getInbox, markAllNotificationsRead, putNotificationType, type InboxItem, type NotificationSettings } from "../api";
 import { unreadCount } from "../lib/recalculate";
-import { inbox, refreshInbox } from "../state/inbox";
+import { inbox } from "../state/inbox";
 import { openRecalculate, openWeight } from "../ui";
 import { vp } from "../lib/viewport";
 import { applyTheme, readTheme, themes, type ThemeId } from "../lib/theme";
@@ -42,14 +42,6 @@ async function loadInbox() {
   } catch {
     noteError.value = "Couldn't load notifications.";
   }
-}
-async function openItem(item: InboxItem) {
-  if (!item.readAt) {
-    await markNotificationRead(item.id);
-    item.readAt = new Date().toISOString();
-    await refreshInbox();
-  }
-  if (item.type === "recalculate" || item.link.includes("recalculate")) openRecalculate();
 }
 async function onReadAll() {
   noteBusy.value = true;
@@ -178,7 +170,7 @@ async function onSignOut() {
         </section>
         <section class="card about">
           <span class="t-label c2 about-kicker">About you</span>
-          <div class="frow sexrow">
+          <div class="frow sexrow compact-seg">
             <span class="t-body c2">Sex</span>
             <span class="grow" />
             <Segmented class="sexseg" label="Sex" :model-value="profile.form.sex" :options="[{ value: 'male', label: 'Male' }, { value: 'female', label: 'Female' }]" @update:model-value="setSex" />
@@ -227,7 +219,9 @@ async function onSignOut() {
 
         <section class="card">
           <span class="t-label c2">Goal</span>
-          <Segmented label="Goal" :model-value="profile.form.goal" :options="[{ value: 'lose', label: 'Lose' }, { value: 'maintain', label: 'Maintain' }, { value: 'gain', label: 'Gain' }]" @update:model-value="setGoal" />
+          <div class="compact-seg">
+            <Segmented label="Goal" :model-value="profile.form.goal" :options="[{ value: 'lose', label: 'Lose' }, { value: 'maintain', label: 'Maintain' }, { value: 'gain', label: 'Gain' }]" @update:model-value="setGoal" />
+          </div>
           <div v-if="profile.form.goal !== 'maintain'" class="rate" role="group" aria-label="Rate">
             <span class="t-body c2">Rate</span>
             <button v-for="rate in RATES" :key="rate" type="button" class="chip t-label" :class="{ on: Number(profile.form.rate) === rate }" @click="setRate(rate)">{{ rate === 1 ? "1.0" : rate }}</button>
@@ -274,15 +268,6 @@ async function onSignOut() {
             <span v-if="sectionUnread" class="bullet" aria-hidden="true" />
             <button v-if="sectionUnread" type="button" class="t-label markall" :disabled="noteBusy" @click="onReadAll">Mark all read</button>
           </div>
-          <ul v-if="items.length" class="feed">
-            <li v-for="item in items" :key="item.id">
-              <button type="button" class="note row" @click="openItem(item)">
-                <span v-if="!item.readAt" class="bullet" aria-hidden="true" />
-                <span v-if="!item.readAt" class="sr-only">Unread</span>
-                <span class="t-bodys grow">{{ item.title }}</span>
-              </button>
-            </li>
-          </ul>
           <button type="button" class="nrow" :aria-pressed="typeOn" :disabled="noteBusy" @click="onType">
             <span class="col grow">
               <span class="t-body">Weekly recalculate</span>
@@ -345,11 +330,14 @@ async function onSignOut() {
 <style scoped>
 .frow { min-height: 44px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--color-border); width: 100%; text-align: left; }
 .sexrow { flex-wrap: wrap; }
-.sexrow :deep(.seg) {
-  width: auto; flex: 0 0 auto; min-width: 150px; margin-left: auto;
-  min-height: 30px; padding: 3px; border-radius: 10px;
+.compact-seg :deep(.seg) { min-height: 30px; padding: 3px; border-radius: 10px; }
+.sexrow :deep(.seg) { width: auto; flex: 0 0 auto; min-width: 150px; margin-left: auto; }
+html:not(.dt-xl) .compact-seg :deep(.seg-btn) {
+  min-width: 44px; min-height: 24px; padding: 2px 8px; border-radius: 8px;
 }
-.sexrow :deep(.seg-btn) { min-width: 44px; min-height: 44px; padding: 2px 8px; border-radius: 8px; }
+html:not(.dt-xl) .compact-seg :deep(.seg-btn)::after {
+  content: ""; position: absolute; inset: min(0px, calc((100% - 44px) / 2)) 0;
+}
 .lowrow { gap: 6px; }
 .frow.last { border-bottom: 0; }
 .fval { display: inline-flex; align-items: baseline; gap: 8px; margin-left: auto; white-space: nowrap; flex-wrap: nowrap; flex: none; }

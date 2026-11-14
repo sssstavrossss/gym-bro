@@ -163,9 +163,9 @@ test("tokens, sex control, starting-weight hint, profile dot, and tab labels", a
     await expect(row.locator("button")).toHaveCount(0);
     const profileSex = page.getByRole("radiogroup", { name: "Sex" });
     for (const name of ["Male", "Female"]) {
-      const box = await profileSex.getByRole("radio", { name, exact: true }).boundingBox();
-      expect(box?.width).toBeGreaterThanOrEqual(44);
-      expect(box?.height).toBeGreaterThanOrEqual(44);
+      const hit = await tapSize(profileSex.getByRole("radio", { name, exact: true }));
+      expect(hit.width).toBeGreaterThanOrEqual(44);
+      expect(hit.height).toBeGreaterThanOrEqual(44);
     }
 
     if (width >= 1024) {
@@ -477,6 +477,24 @@ async function setRoot(page: Page, px: number | null) {
     document.documentElement.style.fontSize = size == null ? "" : `${size}px`;
     window.dispatchEvent(new Event("resize"));
   }, px);
+}
+
+async function tapSize(locator: { evaluate: <T>(fn: (node: HTMLElement) => T) => Promise<T> }) {
+  return locator.evaluate((node) => {
+    const box = node.getBoundingClientRect();
+    const after = getComputedStyle(node, "::after");
+    let top = box.top;
+    let bottom = box.bottom;
+    let left = box.left;
+    let right = box.right;
+    if (after.content !== "none" && after.position !== "static") {
+      const aTop = parseFloat(after.top);
+      const aBottom = parseFloat(after.bottom);
+      if (Number.isFinite(aTop)) top = Math.min(top, box.top + aTop);
+      if (Number.isFinite(aBottom)) bottom = Math.max(bottom, box.bottom - aBottom);
+    }
+    return { width: right - left, height: bottom - top };
+  });
 }
 
 function overlapsY(

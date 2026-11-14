@@ -44,7 +44,9 @@ test("the weekly reminder shows on Today and Profile until it is dismissed", asy
   await page.setViewportSize({ width: 390, height: 844 });
   await page.getByRole("link", { name: "Profile" }).click();
   const section = page.getByRole("region", { name: "Notifications" });
-  await expect(section.getByText("Time to recalculate your target").first()).toBeVisible();
+  await expect(section.getByText("Time to recalculate your target")).toHaveCount(0);
+  await expect(section.getByRole("button", { name: "Weekly recalculate" })).toBeVisible();
+  await expect(section.getByText("Monday morning")).toBeVisible();
   await expect(section.getByRole("heading", { name: /Notifications\s+Unread/ })).toBeVisible();
   await expect(section.getByText("Notifications are not set up.")).toBeVisible();
   await section.scrollIntoViewIfNeeded();
@@ -63,6 +65,6 @@ test("the weekly reminder shows on Today and Profile until it is dismissed", asy
   await expect(page.getByRole("link", { name: /Unread/ })).toHaveCount(0);
 
   await page.getByRole("link", { name: "Profile" }).click();
-  await section.getByRole("button", { name: /Time to recalculate/ }).click();
+  await page.getByRole("button", { name: "Recalculate", exact: true }).click();
   await expect(page.getByRole("dialog", { name: "Recalculate" })).toBeVisible();
 });
