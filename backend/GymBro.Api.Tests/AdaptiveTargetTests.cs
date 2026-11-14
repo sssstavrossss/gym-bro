@@ -181,6 +181,49 @@ public sealed class AdaptiveTargetTests
     }
 
     [Fact]
+    public void A_counted_zero_day_counts_toward_seven_and_the_calendar_names_each_status()
+    {
+        var from = new DateOnly(2026, 10, 1);
+        var facts = new List<DayFact>();
+        for (var i = 0; i < 6; i++)
+        {
+            facts.Add(new DayFact(from.AddDays(i), 2000m, true, false, 2000));
+        }
+
+        var low = from.AddDays(6);
+        var justOver = from.AddDays(7);
+        var over = from.AddDays(8);
+        var empty = from.AddDays(9);
+        facts.Add(new DayFact(low, 1600m, true, false, 2000));
+        facts.Add(new DayFact(justOver, 1602m, true, false, 2000));
+        facts.Add(new DayFact(over, 2500m, true, false, 2000));
+        facts.Add(new DayFact(empty, 0m, false, true, 2000));
+
+        var open = AdaptiveTarget.Review(
+            from, empty, facts, new HashSet<DateOnly>(), 80m, 80m, true, true, Person, null);
+        Assert.Equal(AdaptiveTarget.Low, open.Calendar.Single(day => day.Date == low).Status);
+        Assert.Equal(AdaptiveTarget.Normal, open.Calendar.Single(day => day.Date == justOver).Status);
+        Assert.Equal(AdaptiveTarget.Over, open.Calendar.Single(day => day.Date == over).Status);
+        Assert.Equal(AdaptiveTarget.NoLog, open.Calendar.Single(day => day.Date == empty).Status);
+        Assert.False(open.Calendar.Single(day => day.Date == empty).Counted);
+        Assert.Null(open.Calendar.Single(day => day.Date == empty).Kcal);
+        Assert.Equal(9, open.IncludedDays);
+
+        var withZero = AdaptiveTarget.Review(
+            from, empty, facts, new HashSet<DateOnly>(), 80m, 80m, true, true, Person, null, new HashSet<DateOnly> { empty });
+        Assert.Equal(10, withZero.IncludedDays);
+        Assert.True(withZero.Calendar.Single(day => day.Date == empty).Counted);
+        Assert.True(withZero.Enough);
+        var sum = 6 * 2000m + 1600m + 1602m + 2500m;
+        Assert.Equal(sum / 9m, open.AverageKcal);
+        Assert.Equal(sum / 10m, withZero.AverageKcal);
+
+        var overStays = AdaptiveTarget.Review(
+            from, empty, facts, new HashSet<DateOnly> { over }, 80m, 80m, true, true, Person, null);
+        Assert.True(overStays.Calendar.Single(day => day.Date == over).Counted);
+    }
+
+    [Fact]
     public void The_banner_week_runs_Monday_to_Sunday()
     {
         Assert.Equal(new DateOnly(2026, 11, 9), RecalculateBanner.WeekStart(new DateOnly(2026, 11, 9)));

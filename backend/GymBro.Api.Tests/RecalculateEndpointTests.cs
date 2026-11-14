@@ -51,6 +51,39 @@ public sealed class RecalculateEndpointTests(ApiFactory factory)
     }
 
     [Fact]
+    public async Task Decline_keeps_the_target_and_the_period_and_writes_one_row_each_time()
+    {
+        factory.Clock.UtcNow = new DateTimeOffset(2026, 11, 10, 8, 0, 0, TimeSpan.Zero);
+        var owner = TestData.NewUser("recalc-decline");
+        using var client = factory.AsUser(owner);
+        await TestData.PutWeighIn(client, "2026-11-10", """{"kg":83.6,"timeZone":"UTC"}""");
+        await TestData.PutProfile(client, TestData.Profile());
+
+        var before = await client.GetFromJsonAsync<JsonElement>("/api/targets?date=2026-11-10");
+        var kept = before.GetProperty("targets").GetProperty("kcal").GetInt32();
+        var review = await client.GetFromJsonAsync<JsonElement>("/api/recalculate");
+        var from = review.GetProperty("from").GetString();
+        Assert.Equal(JsonValueKind.Array, review.GetProperty("calendar").ValueKind);
+
+        var body = new { exclude = Array.Empty<string>(), includeZero = Array.Empty<string>() };
+        Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync("/api/recalculate/decline", body)).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync("/api/recalculate/decline", body)).StatusCode);
+
+        var after = await client.GetFromJsonAsync<JsonElement>("/api/targets?date=2026-11-10");
+        Assert.Equal(kept, after.GetProperty("targets").GetProperty("kcal").GetInt32());
+        Assert.DoesNotContain("recalculation_declined", after.GetProperty("targets").GetProperty("reasons").EnumerateArray().Select(item => item.GetString()));
+        var again = await client.GetFromJsonAsync<JsonElement>("/api/recalculate");
+        Assert.Equal(from, again.GetProperty("from").GetString());
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var declines = await db.RecalculationDeclines.Where(row => row.UserId == owner).ToListAsync();
+        Assert.Equal(2, declines.Count);
+        Assert.All(declines, row => Assert.Equal(kept, row.KeptKcal));
+        Assert.Contains(declines, row => row.SuggestedKcal > 0);
+    }
+
+    [Fact]
     public async Task Notifications_stay_off_without_keys_and_subscriptions_are_private()
     {
         factory.Clock.UtcNow = new DateTimeOffset(2026, 11, 10, 8, 0, 0, TimeSpan.Zero);

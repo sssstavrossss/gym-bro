@@ -732,6 +732,68 @@ namespace GymBro.Api.Data.Migrations
                     b.ToTable("push_subscriptions", (string)null);
                 });
 
+            modelBuilder.Entity("GymBro.Api.Data.RecalculationDecline", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityAlwaysColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<int>("KeptKcal")
+                        .HasColumnType("integer")
+                        .HasColumnName("kept_kcal");
+
+                    b.Property<DateOnly>("PeriodFrom")
+                        .HasColumnType("date")
+                        .HasColumnName("period_from");
+
+                    b.Property<DateOnly>("PeriodTo")
+                        .HasColumnType("date")
+                        .HasColumnName("period_to");
+
+                    b.Property<int>("SuggestedBmr")
+                        .HasColumnType("integer")
+                        .HasColumnName("suggested_bmr");
+
+                    b.Property<int>("SuggestedCarbs")
+                        .HasColumnType("integer")
+                        .HasColumnName("suggested_carbs");
+
+                    b.Property<int>("SuggestedFat")
+                        .HasColumnType("integer")
+                        .HasColumnName("suggested_fat");
+
+                    b.Property<int>("SuggestedKcal")
+                        .HasColumnType("integer")
+                        .HasColumnName("suggested_kcal");
+
+                    b.Property<int>("SuggestedProtein")
+                        .HasColumnType("integer")
+                        .HasColumnName("suggested_protein");
+
+                    b.Property<int>("SuggestedTdee")
+                        .HasColumnType("integer")
+                        .HasColumnName("suggested_tdee");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId", "CreatedAt");
+
+                    b.ToTable("recalculation_declines", (string)null);
+                });
+
             modelBuilder.Entity("GymBro.Api.Data.Recipe", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1233,6 +1295,15 @@ namespace GymBro.Api.Data.Migrations
                 });
 
             modelBuilder.Entity("GymBro.Api.Data.PushSubscription", b =>
+                {
+                    b.HasOne("GymBro.Api.Data.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("GymBro.Api.Data.RecalculationDecline", b =>
                 {
                     b.HasOne("GymBro.Api.Data.AppUser", null)
                         .WithMany()
