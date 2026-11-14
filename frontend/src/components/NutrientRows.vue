@@ -29,7 +29,7 @@ const rows = computed(() => props.panel.keys.map((key) => {
 <template>
   <div class="panel" :data-panel="panel.id">
     <span class="t-label title">{{ panel.title }}</span>
-    <div v-if="per100" class="heads t-capn c3"><span></span><span>Per 100 g</span><span>Amount</span><span></span></div>
+    <div v-if="per100" class="heads t-capn c2"><span></span><span>Per 100 g</span><span>Amount</span><span></span></div>
     <div class="list" :class="{ grid: panel.grid && !per100, paired: per100 }">
       <div v-for="row in rows" :key="row.key" class="nrow" :class="{ miss: row.missing }">
         <span class="t-label name">{{ row.label }}</span>

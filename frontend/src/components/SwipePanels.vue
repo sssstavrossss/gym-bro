@@ -97,7 +97,7 @@ defineExpose({ go, index });
 </script>
 
 <template>
-  <div ref="root" class="swipe" :aria-label="label" tabindex="0" @keydown="onKey">
+  <div ref="root" class="panels" :aria-label="label" tabindex="0" @keydown="onKey">
     <div ref="track" class="track" :style="trackStyle" @scroll.passive="onScroll">
       <slot />
     </div>
@@ -125,7 +125,7 @@ defineExpose({ go, index });
 </template>
 
 <style scoped>
-.swipe { position: relative; min-width: 0; outline: none; }
+.panels { position: relative; min-width: 0; outline: none; }
 .track {
   display: flex;
   overflow-x: auto;

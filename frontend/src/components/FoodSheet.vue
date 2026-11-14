@@ -1313,7 +1313,7 @@ async function deleteEdited() {
         <SwipePanels :count="sheetPanels.length + 1" :height="282" label="Food nutrients">
           <div class="panel" data-panel="macros">
             <span class="t-label title">Macros</span>
-            <div class="cols t-capn c3"><span></span><span>Per 100 g</span><span>Amount</span></div>
+            <div class="cols t-capn c2"><span></span><span>Per 100 g</span><span>Amount</span></div>
             <div v-for="item in previewItems" :key="item.label" class="nrow">
               <span class="t-label name">{{ item.label }}</span>
               <span class="t-bodys num" data-num>{{ int(sheetFactor ? item.value / sheetFactor : item.value) }}</span>
