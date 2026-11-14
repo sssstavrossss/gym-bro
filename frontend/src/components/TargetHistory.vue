@@ -1,14 +1,16 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import { dayMonth, weekdayShort } from "../lib/dates";
 import { int } from "../lib/format";
 import { getTargetHistory, type TargetHistoryRow } from "../api";
+import { ui } from "../ui";
 
 const rows = ref<TargetHistoryRow[]>([]);
 const all = ref(false);
 const shown = computed(() => (all.value ? rows.value : rows.value.slice(0, 5)));
 
 function title(reasons: string[]): string {
+  if (reasons.includes("recalculation_declined")) return "Declined";
   if (reasons.includes("recalculation_formula") || reasons.includes("recalculation_adaptive")) return "Recalculated";
   if (reasons.includes("weekly_recalculation")) return "Weekly update";
   if (reasons.includes("macro_balance_change")) return "Macro balance change";
@@ -25,8 +27,12 @@ function hint(reasons: string[]): string {
   return "";
 }
 
-onMounted(async () => {
+async function reload() {
   try { rows.value = (await getTargetHistory()).rows; } catch { rows.value = []; }
+}
+onMounted(() => { void reload(); });
+watch(() => ui.sheet, (sheet, previous) => {
+  if (previous === "recalculate" && sheet !== "recalculate") void reload();
 });
 </script>
 
@@ -38,23 +44,24 @@ onMounted(async () => {
       <span class="t-capn c2">read-only · newest first</span>
     </div>
     <ol class="list">
-      <li v-for="row in shown" :key="row.date" class="hrow">
+      <li v-for="(row, index) in shown" :key="`${row.date}-${index}`" class="hrow" :class="{ quiet: row.reasons.includes('recalculation_declined') }">
         <span class="col dt">
           <span class="t-label">{{ dayMonth(row.date) }}</span>
           <span class="t-capn c2">{{ weekdayShort(row.date) }}</span>
         </span>
         <span class="col grow mid">
           <span class="t-label">{{ title(row.reasons) }}</span>
-          <span v-if="hint(row.reasons)" class="t-capn c2">{{ hint(row.reasons) }}</span>
+          <span v-if="row.suggestedKcal != null" class="t-capn c2">Suggested {{ int(row.suggestedKcal) }} · kept {{ int(row.kcal) }}</span>
+          <span v-else-if="hint(row.reasons)" class="t-capn c2">{{ hint(row.reasons) }}</span>
         </span>
-        <span class="col right">
+        <span v-if="row.suggestedKcal == null" class="col right">
           <span class="t-bodys num">{{ int(row.kcal) }} <span class="t-capn c2">kcal</span></span>
           <span class="t-capn c2 num">P{{ row.protein }} · F{{ row.fat }} · C{{ row.carbs }}</span>
         </span>
       </li>
     </ol>
     <button v-if="rows.length > 5" type="button" class="more t-label" :aria-expanded="all" @click="all = !all">{{ all ? "Show fewer" : `Show all ${rows.length} changes` }}</button>
-    <p class="t-capn c2 foot">Past days keep the target they had. A recalculation is listed only when the target changed.</p>
+    <p class="t-capn c2 foot">Past days keep the target they had. Accepted recalculations that change the target and every declined recalculation are listed.</p>
   </section>
 </template>
 
@@ -64,6 +71,7 @@ onMounted(async () => {
 .list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
 .hrow { display: flex; flex-wrap: wrap; gap: var(--space-gap); align-items: flex-start; padding: 10px 0; border-bottom: 1px solid var(--color-border); }
 .hrow:last-child { border-bottom: 0; }
+.quiet .t-label { color: var(--text-tertiary); }
 .dt { width: auto; max-width: 100%; flex: none; gap: 1px; }
 .mid { min-width: 0; flex: 1 1 8rem; gap: 2px; }
 .right { align-items: flex-end; text-align: right; gap: 2px; flex: 1 1 auto; max-width: 100%; }

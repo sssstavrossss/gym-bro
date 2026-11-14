@@ -13,6 +13,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
 
     public DbSet<TargetHistory> TargetHistories => Set<TargetHistory>();
 
+    public DbSet<RecalculationDecline> RecalculationDeclines => Set<RecalculationDecline>();
+
     public DbSet<Food> Foods => Set<Food>();
 
     public DbSet<FoodAlias> FoodAliases => Set<FoodAlias>();
@@ -105,6 +107,24 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             .IsUnique()
             .HasDatabaseName("ux_target_history_user_date");
         target.HasOne<AppUser>().WithMany().HasForeignKey(t => t.UserId).OnDelete(DeleteBehavior.Cascade);
+
+        var declined = modelBuilder.Entity<RecalculationDecline>();
+        declined.ToTable("recalculation_declines");
+        declined.HasKey(d => d.Id);
+        declined.Property(d => d.Id).HasColumnName("id").UseIdentityAlwaysColumn();
+        declined.Property(d => d.UserId).HasColumnName("user_id").HasMaxLength(64);
+        declined.Property(d => d.PeriodFrom).HasColumnName("period_from");
+        declined.Property(d => d.PeriodTo).HasColumnName("period_to");
+        declined.Property(d => d.SuggestedBmr).HasColumnName("suggested_bmr");
+        declined.Property(d => d.SuggestedTdee).HasColumnName("suggested_tdee");
+        declined.Property(d => d.SuggestedKcal).HasColumnName("suggested_kcal");
+        declined.Property(d => d.SuggestedProtein).HasColumnName("suggested_protein");
+        declined.Property(d => d.SuggestedFat).HasColumnName("suggested_fat");
+        declined.Property(d => d.SuggestedCarbs).HasColumnName("suggested_carbs");
+        declined.Property(d => d.KeptKcal).HasColumnName("kept_kcal");
+        declined.Property(d => d.CreatedAt).HasColumnName("created_at");
+        declined.HasIndex(d => new { d.UserId, d.CreatedAt });
+        declined.HasOne<AppUser>().WithMany().HasForeignKey(d => d.UserId).OnDelete(DeleteBehavior.Cascade);
 
         var food = modelBuilder.Entity<Food>();
         food.ToTable("foods", table =>

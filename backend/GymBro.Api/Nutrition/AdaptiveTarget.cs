@@ -35,6 +35,8 @@ public sealed record DayFact(DateOnly Date, decimal LoggedKcal, bool HasLog, boo
 
 public sealed record ReviewDay(DateOnly Date, int Kcal, int? TargetKcal, bool Fasting, bool CanExclude, bool Included);
 
+public sealed record CalendarDay(DateOnly Date, int? Kcal, int? TargetKcal, string Status, bool Counted);
+
 public sealed record ProposedTarget(int Bmr, int Tdee, int Kcal, int Protein, int Fat, int Carbs, bool FloorApplied, bool ManualKept);
 
 public sealed record AdaptiveReview(
@@ -51,16 +53,18 @@ public sealed record AdaptiveReview(
     decimal? AverageKcal,
     decimal? Burn,
     ProposedTarget? Proposed,
-    ProposedTarget Formula);
+    ProposedTarget Formula,
+    IReadOnlyList<CalendarDay> Calendar);
 
 /// <summary>
-/// On-demand target review. Under-target days are the ones under 90% of that
-/// day's own target. Fasting days stay in the average at 0 kcal. Days with no
-/// log are left out. Nothing is filled in when a number was not stored.
+/// On-demand target review. A logged day is listed when its calories are 80%
+/// or less of that day's own target. A day with no log is left out. A fasting
+/// mark does not add the day, remove it, or replace its logged calories.
+/// Nothing is filled in when a number was not stored.
 /// </summary>
 public static class AdaptiveTarget
 {
-    public const decimal UnderRatio = 0.9m;
+    public const decimal UnderRatio = 0.8m;
 
     public const int MinimumIncludedDays = 7;
 
@@ -68,8 +72,39 @@ public static class AdaptiveTarget
 
     public const string NeedWeighIns = "There is no weigh-in at the start of this period and another inside it, so the trend change is not measurable.";
 
+    public const string Low = "low";
+
+    public const string Over = "over";
+
+    public const string Normal = "normal";
+
+    public const string NoLog = "nolog";
+
     public static bool IsUnderTarget(decimal loggedKcal, int targetKcal) =>
-        targetKcal > 0 && loggedKcal < UnderRatio * targetKcal;
+        targetKcal > 0 && loggedKcal <= UnderRatio * targetKcal;
+
+    public static string StatusOf(DayFact fact)
+    {
+        if (!fact.HasLog)
+        {
+            return NoLog;
+        }
+
+        if (fact.TargetKcal is int target && target > 0)
+        {
+            if (IsUnderTarget(fact.LoggedKcal, target))
+            {
+                return Low;
+            }
+
+            if (fact.LoggedKcal > target)
+            {
+                return Over;
+            }
+        }
+
+        return Normal;
+    }
 
     public static AdaptiveReview Review(
         DateOnly from,
@@ -81,10 +116,13 @@ public static class AdaptiveTarget
         bool weighInOnOrBeforeStart,
         bool weighInInsidePeriod,
         NutritionInput input,
-        int? manualKcal)
+        int? manualKcal,
+        IReadOnlySet<DateOnly>? includeZero = null)
     {
+        includeZero ??= new HashSet<DateOnly>();
         var periodDays = to < from ? 0 : to.DayNumber - from.DayNumber + 1;
         var listed = new List<ReviewDay>();
+        var calendar = new List<CalendarDay>();
         var includedKcal = new List<decimal>();
         foreach (var fact in facts.OrderBy(fact => fact.Date))
         {
@@ -93,27 +131,28 @@ public static class AdaptiveTarget
                 continue;
             }
 
-            var under = fact.HasLog && fact.TargetKcal is int target && IsUnderTarget(fact.LoggedKcal, target);
-            var show = fact.Fasting || under;
-            var canExclude = under && !fact.Fasting;
-            var include = fact.Fasting || (fact.HasLog && fact.TargetKcal is not null && !(canExclude && excluded.Contains(fact.Date)));
-            if (include)
+            var status = StatusOf(fact);
+            var logged = fact.HasLog
+                ? (int)decimal.Round(fact.LoggedKcal, 0, MidpointRounding.AwayFromZero)
+                : (int?)null;
+            var counted = status switch
             {
-                includedKcal.Add(fact.Fasting ? 0m : fact.LoggedKcal);
+                NoLog => includeZero.Contains(fact.Date),
+                Low => !excluded.Contains(fact.Date),
+                _ => fact.HasLog,
+            };
+            if (counted)
+            {
+                includedKcal.Add(status == NoLog ? 0m : fact.LoggedKcal);
             }
 
-            if (!show)
+            calendar.Add(new CalendarDay(fact.Date, logged, fact.TargetKcal, status, counted));
+            if (status != Low)
             {
                 continue;
             }
 
-            listed.Add(new ReviewDay(
-                fact.Date,
-                (int)decimal.Round(fact.Fasting ? 0m : fact.LoggedKcal, 0, MidpointRounding.AwayFromZero),
-                fact.TargetKcal,
-                fact.Fasting,
-                canExclude,
-                include));
+            listed.Add(new ReviewDay(fact.Date, logged ?? 0, fact.TargetKcal, false, true, counted));
         }
 
         var formula = ToProposed(NutritionMath.Calculate(input), manualKept: false);
@@ -155,7 +194,8 @@ public static class AdaptiveTarget
             average,
             burn,
             proposed,
-            formula);
+            formula,
+            calendar);
     }
 
     private static ProposedTarget ToProposed(NutritionResult result, bool manualKept) =>

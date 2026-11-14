@@ -757,11 +757,20 @@ export interface RecalculateDay {
   included: boolean;
 }
 
+export interface RecalculateCalendarDay {
+  date: string;
+  kcal: number | null;
+  targetKcal: number | null;
+  status: "low" | "over" | "normal" | "nolog";
+  counted: boolean;
+}
+
 export interface RecalculateReview {
   from: string;
   to: string;
   periodDays: number;
   days: RecalculateDay[];
+  calendar: RecalculateCalendarDay[];
   includedDays: number;
   enough: boolean;
   blocked: string | null;
@@ -788,19 +797,27 @@ export async function getRecalculate(): Promise<RecalculateReview> {
   return jsonOrThrow(await request("/api/recalculate"));
 }
 
-export async function previewRecalculate(exclude: string[]): Promise<RecalculateReview> {
+export async function previewRecalculate(exclude: string[], includeZero: string[]): Promise<RecalculateReview> {
   return jsonOrThrow(await request("/api/recalculate/preview", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ exclude }),
+    body: JSON.stringify({ exclude, includeZero }),
   }));
 }
 
-export async function saveRecalculate(exclude: string[], mode: "adaptive" | "formula"): Promise<RecalculateReview> {
+export async function saveRecalculate(exclude: string[], includeZero: string[], mode: "adaptive" | "formula"): Promise<RecalculateReview> {
   return jsonOrThrow(await request("/api/recalculate", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ exclude, mode }),
+    body: JSON.stringify({ exclude, includeZero, mode }),
+  }));
+}
+
+export async function declineRecalculate(exclude: string[], includeZero: string[]): Promise<void> {
+  await jsonOrThrow(await request("/api/recalculate/decline", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ exclude, includeZero }),
   }));
 }
 
@@ -814,6 +831,7 @@ export interface NotificationSettings {
 export interface TargetHistoryRow {
   date: string;
   kcal: number;
+  suggestedKcal?: number | null;
   protein: number;
   fat: number;
   carbs: number;

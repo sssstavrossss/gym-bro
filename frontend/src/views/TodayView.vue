@@ -255,7 +255,6 @@ const weekRows = computed(() => {
 
 <style scoped>
 .grid, .stack, .topbar, .daycards { display: flex; flex-direction: column; gap: var(--space-gap); min-width: 0; }
-.phone .topbar { margin-bottom: calc(var(--space-gap) * -1 / 3); }
 .daycards.stale { opacity: 0.55; }
 .tablet .grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start; }
 .tablet .c-c { grid-column: 1 / -1; }

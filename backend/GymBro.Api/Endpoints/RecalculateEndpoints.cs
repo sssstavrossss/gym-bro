@@ -23,6 +23,7 @@ public static class RecalculateEndpoints
         api.MapGet("/recalculate/banner", Banner);
         api.MapPost("/recalculate/banner/dismiss", DismissBanner);
         api.MapPost("/recalculate/preview", Preview);
+        api.MapPost("/recalculate/decline", Decline);
         api.MapPost("/recalculate", Save);
         return api;
     }
@@ -97,7 +98,7 @@ public static class RecalculateEndpoints
             return denied;
         }
 
-        var built = await BuildAsync(Caller.Id(principal), new HashSet<DateOnly>(), db, clock, cancellationToken);
+        var built = await BuildAsync(Caller.Id(principal), new HashSet<DateOnly>(), new HashSet<DateOnly>(), db, clock, cancellationToken);
         return built.Error is not null ? ApiResults.Error(built.Error) : Results.Ok(ToResponse(built.Review!));
     }
 
@@ -119,7 +120,7 @@ public static class RecalculateEndpoints
             return ApiResults.Error(body.Error);
         }
 
-        var built = await BuildAsync(Caller.Id(principal), body.Exclude, db, clock, cancellationToken);
+        var built = await BuildAsync(Caller.Id(principal), body.Exclude, body.IncludeZero, db, clock, cancellationToken);
         return built.Error is not null ? ApiResults.Error(built.Error) : Results.Ok(ToResponse(built.Review!));
     }
 
@@ -149,7 +150,7 @@ public static class RecalculateEndpoints
 
         await users.UpsertAsync(principal, cancellationToken);
         var userId = Caller.Id(principal);
-        var built = await BuildAsync(userId, body.Exclude, db, clock, cancellationToken);
+        var built = await BuildAsync(userId, body.Exclude, body.IncludeZero, db, clock, cancellationToken);
         if (built.Error is not null || built.Review is null || built.Profile is null || built.WeightKg is not decimal weightKg)
         {
             return ApiResults.Error(built.Error ?? NeedProfile);
@@ -196,13 +197,60 @@ public static class RecalculateEndpoints
         }
         await NotificationBook.MarkCurrentWeekReadAsync(db, userId, clock, cancellationToken);
         await db.SaveChangesAsync(cancellationToken);
-        var saved = await BuildAsync(userId, body.Exclude, db, clock, cancellationToken);
+        var saved = await BuildAsync(userId, body.Exclude, body.IncludeZero, db, clock, cancellationToken);
         return Results.Ok(ToResponse(saved.Review!));
+    }
+
+    private static async Task<IResult> Decline(
+        ClaimsPrincipal principal,
+        HttpRequest http,
+        AppDbContext db,
+        TimeProvider clock,
+        CancellationToken cancellationToken)
+    {
+        if (Caller.MissingOid(principal) is { } denied)
+        {
+            return denied;
+        }
+
+        var body = await ReadBody(http, cancellationToken);
+        if (body.Error is not null)
+        {
+            return ApiResults.Error(body.Error);
+        }
+
+        var userId = Caller.Id(principal);
+        var built = await BuildAsync(userId, body.Exclude, body.IncludeZero, db, clock, cancellationToken);
+        if (built.Error is not null || built.Review is null)
+        {
+            return ApiResults.Error(built.Error ?? NeedProfile);
+        }
+
+        var review = built.Review;
+        var suggestion = review.Enough && review.Proposed is not null ? review.Proposed : review.Formula;
+        var kept = await TargetBook.InEffectAsync(db, userId, built.Today, cancellationToken);
+        db.RecalculationDeclines.Add(new RecalculationDecline
+        {
+            UserId = userId,
+            PeriodFrom = review.From,
+            PeriodTo = review.To,
+            SuggestedBmr = suggestion.Bmr,
+            SuggestedTdee = suggestion.Tdee,
+            SuggestedKcal = suggestion.Kcal,
+            SuggestedProtein = suggestion.Protein,
+            SuggestedFat = suggestion.Fat,
+            SuggestedCarbs = suggestion.Carbs,
+            KeptKcal = kept?.Kcal ?? suggestion.Kcal,
+            CreatedAt = clock.GetUtcNow(),
+        });
+        await db.SaveChangesAsync(cancellationToken);
+        return Results.Ok(new { saved = false, suggestedKcal = suggestion.Kcal, keptKcal = kept?.Kcal ?? suggestion.Kcal });
     }
 
     private static async Task<Built> BuildAsync(
         string userId,
         IReadOnlySet<DateOnly> excluded,
+        IReadOnlySet<DateOnly> includeZero,
         AppDbContext db,
         TimeProvider clock,
         CancellationToken cancellationToken)
@@ -235,7 +283,6 @@ public static class RecalculateEndpoints
         var to = today.AddDays(-1);
 
         var logs = new List<(DateOnly Date, decimal Kcal)>();
-        var fasting = new HashSet<DateOnly>();
         if (from <= to)
         {
             var rawLogs = await db.LogEntries.AsNoTracking()
@@ -246,10 +293,6 @@ public static class RecalculateEndpoints
                 .GroupBy(row => row.LocalDate)
                 .Select(group => (group.Key, group.Sum(row => row.Kcal)))
                 .ToList();
-            fasting = (await db.DayStatuses.AsNoTracking()
-                .Where(row => row.UserId == userId && row.Fasting && row.LocalDate >= from && row.LocalDate <= to)
-                .Select(row => row.LocalDate)
-                .ToListAsync(cancellationToken)).ToHashSet();
         }
 
         var byDay = logs.ToDictionary(row => row.Date, row => row.Kcal);
@@ -260,7 +303,7 @@ public static class RecalculateEndpoints
             {
                 var target = history.LastOrDefault(row => row.EffectiveDate <= day);
                 byDay.TryGetValue(day, out var kcal);
-                facts.Add(new DayFact(day, kcal, byDay.ContainsKey(day), fasting.Contains(day), target?.Kcal));
+                facts.Add(new DayFact(day, kcal, byDay.ContainsKey(day), false, target?.Kcal));
             }
         }
 
@@ -292,7 +335,8 @@ public static class RecalculateEndpoints
             onOrBefore,
             inside,
             input,
-            manual ? current.Kcal : null);
+            manual ? current.Kcal : null,
+            includeZero);
         return new Built(review, input, profile, today, weightKg, manual ? current.Kcal : null, null);
     }
 
@@ -320,6 +364,14 @@ public static class RecalculateEndpoints
         burn = review.Burn,
         proposed = Target(review.Proposed),
         formula = Target(review.Formula),
+        calendar = review.Calendar.Select(day => new
+        {
+            date = day.Date,
+            kcal = day.Kcal,
+            targetKcal = day.TargetKcal,
+            status = day.Status,
+            counted = day.Counted,
+        }),
     };
 
     private static object? Target(ProposedTarget? target) => target is null ? null : new
@@ -343,7 +395,7 @@ public static class RecalculateEndpoints
         int? ManualKcal,
         string? Error);
 
-    private readonly record struct Body(HashSet<DateOnly> Exclude, string? Mode, string? Error);
+    private readonly record struct Body(HashSet<DateOnly> Exclude, HashSet<DateOnly> IncludeZero, string? Mode, string? Error);
 
     private static async Task<Body> ReadBody(HttpRequest http, CancellationToken cancellationToken)
     {
@@ -353,20 +405,11 @@ public static class RecalculateEndpoints
             var root = json.RootElement;
             if (root.ValueKind != JsonValueKind.Object)
             {
-                return new Body([], null, NeedMode);
+                return new Body([], [], null, NeedMode);
             }
 
-            var exclude = new HashSet<DateOnly>();
-            if (root.TryGetProperty("exclude", out var list) && list.ValueKind == JsonValueKind.Array)
-            {
-                foreach (var item in list.EnumerateArray())
-                {
-                    if (item.ValueKind == JsonValueKind.String && DateOnly.TryParse(item.GetString(), out var date))
-                    {
-                        exclude.Add(date);
-                    }
-                }
-            }
+            var exclude = ReadDates(root, "exclude");
+            var includeZero = ReadDates(root, "includeZero");
 
             string? mode = null;
             if (root.TryGetProperty("mode", out var modeElement) && modeElement.ValueKind == JsonValueKind.String)
@@ -374,11 +417,28 @@ public static class RecalculateEndpoints
                 mode = modeElement.GetString();
             }
 
-            return new Body(exclude, mode, null);
+            return new Body(exclude, includeZero, mode, null);
         }
         catch (JsonException)
         {
-            return new Body([], null, NeedMode);
+            return new Body([], [], null, NeedMode);
         }
+    }
+
+    private static HashSet<DateOnly> ReadDates(JsonElement root, string name)
+    {
+        var dates = new HashSet<DateOnly>();
+        if (root.TryGetProperty(name, out var list) && list.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var item in list.EnumerateArray())
+            {
+                if (item.ValueKind == JsonValueKind.String && DateOnly.TryParse(item.GetString(), out var date))
+                {
+                    dates.Add(date);
+                }
+            }
+        }
+
+        return dates;
     }
 }

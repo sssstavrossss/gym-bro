@@ -38,7 +38,15 @@ test("phone home calendar, history, sex, and notification circles", async ({ pag
   const grab = page.getByRole("button", { name: "Show the last 4 weeks" });
   await expect(grab).toBeVisible();
   const grabBox = await grab.boundingBox();
-  expect(grabBox!.height).toBeGreaterThanOrEqual(44);
+  const grabHit = await grab.evaluate((node) => {
+    const box = node.getBoundingClientRect();
+    const extra = getComputedStyle(node, "::after");
+    const height = extra.position === "absolute" ? parseFloat(extra.height) : box.height;
+    const width = extra.position === "absolute" ? parseFloat(extra.width) : box.width;
+    return { width, height };
+  });
+  expect(grabHit.height).toBeGreaterThanOrEqual(44);
+  expect(grabHit.width).toBeGreaterThanOrEqual(44);
   expect(grabBox!.width).toBeGreaterThanOrEqual(44);
   if (test.info().project.name === "chromium") {
     await page.screenshot({ path: "/opt/cursor/artifacts/iphone42-week-collapsed.png" });

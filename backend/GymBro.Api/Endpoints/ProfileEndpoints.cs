@@ -50,23 +50,55 @@ public static class ProfileEndpoints
             return denied;
         }
 
+        var userId = Caller.Id(principal);
         var rows = await db.TargetHistories.AsNoTracking()
-            .Where(row => row.UserId == Caller.Id(principal))
+            .Where(row => row.UserId == userId)
             .OrderByDescending(row => row.EffectiveDate)
             .ThenByDescending(row => row.CreatedAt)
             .ThenByDescending(row => row.Id)
             .ToListAsync(cancellationToken);
+        var declines = await db.RecalculationDeclines.AsNoTracking()
+            .Where(row => row.UserId == userId)
+            .OrderByDescending(row => row.CreatedAt)
+            .ThenByDescending(row => row.Id)
+            .ToListAsync(cancellationToken);
+        var combined = rows.Select(row => new
+        {
+            sort = row.CreatedAt,
+            id = row.Id,
+            date = row.EffectiveDate,
+            kcal = row.Kcal,
+            suggestedKcal = (int?)null,
+            protein = row.ProteinGrams,
+            fat = row.FatGrams,
+            carbs = row.CarbGrams,
+            reasons = row.Reasons,
+            floorApplied = row.FloorApplied,
+        }).Concat(declines.Select(row => new
+        {
+            sort = row.CreatedAt,
+            id = row.Id,
+            date = DateOnly.FromDateTime(row.CreatedAt.UtcDateTime),
+            kcal = row.KeptKcal,
+            suggestedKcal = (int?)row.SuggestedKcal,
+            protein = row.SuggestedProtein,
+            fat = row.SuggestedFat,
+            carbs = row.SuggestedCarbs,
+            reasons = new[] { "recalculation_declined" },
+            floorApplied = false,
+        })).OrderByDescending(row => row.sort).ThenByDescending(row => row.id);
         return Results.Ok(new
         {
-            rows = rows.Select(row => new
+            rows = combined.Select(row => new
             {
-                date = row.EffectiveDate,
-                kcal = row.Kcal,
-                protein = row.ProteinGrams,
-                fat = row.FatGrams,
-                carbs = row.CarbGrams,
-                reasons = row.Reasons,
-                floorApplied = row.FloorApplied,
+                date = row.date,
+                kcal = row.kcal,
+                suggestedKcal = row.suggestedKcal,
+                protein = row.protein,
+                fat = row.fat,
+                carbs = row.carbs,
+                reasons = row.reasons,
+                floorApplied = row.floorApplied,
             }),
         });
     }
