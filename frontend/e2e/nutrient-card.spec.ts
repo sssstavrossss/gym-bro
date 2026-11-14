@@ -176,7 +176,10 @@ test("the home nutrient card is 358 by 212 on every panel", async ({ page }) => 
   }
   const heights: number[] = [];
   for (let i = 0; i < largeCount; i++) {
-    await largeDots.nth(i).click({ force: true });
+    await card.locator(".track").evaluate((track, index) => {
+      const el = track as HTMLElement;
+      el.scrollTo({ left: index * el.clientWidth, behavior: "auto" });
+    }, i);
     heights.push(Math.round((await card.boundingBox())!.height));
   }
   expect(new Set(heights).size).toBe(1);

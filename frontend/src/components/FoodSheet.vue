@@ -1615,10 +1615,10 @@ async function deleteEdited() {
 .preview .title { color: var(--text-secondary); }
 .preview .panel, .preview .cols, .preview .nrow, .preview :deep(.panel), .preview :deep(.list), .preview :deep(.heads), .preview :deep(.nrow) { width: 100%; box-sizing: border-box; }
 .preview .panel, .preview :deep(.panel) { padding: calc(var(--space-gap) / 3) calc(var(--space-gap) / 3) 0; }
-.preview .cols, .preview .nrow { display: grid; grid-template-columns: minmax(0, 1fr) max-content max-content; column-gap: 16px; align-items: baseline; }
-.preview .num, .preview .cols span:not(:first-child) { text-align: right; justify-self: end; }
+.preview .cols, .preview .nrow { display: grid; grid-template-columns: minmax(0, 1fr) 5.6rem 5.6rem; column-gap: 12px; align-items: baseline; }
+.preview .num, .preview .cols span:not(:first-child) { text-align: right; justify-self: stretch; font-variant-numeric: tabular-nums; }
 .preview .name, .preview .cols span:first-child { text-align: left; justify-self: start; }
-.preview .title, .preview .nrow, .preview .name, .preview .num { line-height: 1.3; }
+.preview .num { font-variant-numeric: tabular-nums; text-align: right; }
 .units, .chips { gap: 8px; flex-wrap: wrap; justify-content: center; max-width: 100%; }
 .unit-radios { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; max-width: 100%; }
 .uchip {

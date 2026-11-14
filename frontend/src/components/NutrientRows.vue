@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { nutrientParts, nutrientPercent, nutrientRow, type NutrientMap, type NutrientPanelDef } from "../lib/nutrients";
+import { formatNutrient, nutrientParts, nutrientPercent, nutrientRow, type NutrientMap, type NutrientPanelDef } from "../lib/nutrients";
 
 const props = defineProps<{
   panel: NutrientPanelDef;
@@ -19,7 +19,9 @@ const rows = computed(() => props.panel.keys.map((key) => {
     key,
     label: meta.label,
     amount: nutrientParts(value, meta.unit),
+    amountText: formatNutrient(value, meta.unit),
     per: props.per100 ? nutrientParts(perValue, meta.unit) : null,
+    perText: props.per100 ? formatNutrient(perValue, meta.unit) : null,
     percent: nutrientPercent(key, value, props.sex, props.age, props.kcalTarget),
     missing: value == null,
     indent: props.panel.indent?.includes(key) ?? false,
@@ -36,13 +38,9 @@ const showPercent = computed(() => rows.value.some((row) => row.percent != null)
       <div v-for="row in rows" :key="row.key" class="nrow" :class="{ miss: row.missing }">
         <span class="t-label name" :class="{ indent: row.indent }">{{ row.label }}</span>
         <template v-if="per100">
-          <span class="fig per t-bodys" data-num>
-            <span class="num">{{ row.per?.whole }}{{ row.per?.frac }}</span><span class="unit">{{ row.per?.unit }}</span>
-          </span>
+          <span class="val per num t-bodys" data-num>{{ row.perText }}</span>
           <span v-if="showPercent" class="t-label pct">{{ row.percent != null ? `${row.percent}%` : "" }}</span>
-          <span class="fig amt t-bodys" data-num>
-            <span class="num">{{ row.amount.whole }}{{ row.amount.frac }}</span><span class="unit">{{ row.amount.unit }}</span>
-          </span>
+          <span class="val amt num t-bodys" data-num>{{ row.amountText }}</span>
         </template>
         <span v-else class="nums">
           <span class="fig t-bodys" data-num>
@@ -57,8 +55,8 @@ const showPercent = computed(() => rows.value.some((row) => row.percent != null)
 
 <style scoped>
 .panel { display: flex; flex-direction: column; gap: 4px; min-width: 0; height: 100%; box-sizing: border-box; }
-.title { color: var(--text-secondary); line-height: 1.3; }
-.list { display: flex; flex-direction: column; flex: 1; min-height: 0; justify-content: flex-start; }
+.title { color: var(--text-secondary); }
+.list { display: flex; flex-direction: column; flex: none; min-height: 0; justify-content: flex-start; align-content: flex-start; }
 .list.grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -72,12 +70,13 @@ const showPercent = computed(() => rows.value.some((row) => row.percent != null)
   align-items: baseline;
   column-gap: 8px;
   min-width: 0;
-  line-height: 1.3;
+  margin: 0;
+  padding: 0;
+  flex: none;
 }
-.name, .num, .pct, .nums { line-height: 1.3; }
-.heads, .list.paired .nrow { display: grid; grid-template-columns: minmax(0, 1fr) max-content max-content; column-gap: 16px; align-items: baseline; width: 100%; }
-.heads.pcts, .list.paired.pcts .nrow { grid-template-columns: minmax(0, 1fr) max-content 3.6ch max-content; }
-.heads span:not(:first-child), .per, .amt, .pct { justify-self: end; text-align: right; }
+.heads, .list.paired .nrow { display: grid; grid-template-columns: minmax(0, 1fr) 5.6rem 5.6rem; column-gap: 12px; align-items: baseline; width: 100%; }
+.heads.pcts, .list.paired.pcts .nrow { grid-template-columns: minmax(0, 1fr) 5.6rem 2.2rem 5.6rem; }
+.heads span:not(:first-child), .val, .pct { justify-self: stretch; text-align: right; font-variant-numeric: tabular-nums; }
 .fig {
   display: inline-grid;
   grid-template-columns: 4ch 1.65em;
@@ -92,7 +91,7 @@ const showPercent = computed(() => rows.value.some((row) => row.percent != null)
 .name { min-width: 0; overflow-wrap: anywhere; }
 .name.indent { padding-left: 12px; }
 .num { white-space: nowrap; }
-.miss .fig { color: var(--text-tertiary); }
+.miss .fig, .miss .val { color: var(--text-tertiary); }
 .pct { color: var(--text-secondary); }
 html.dt-xl .nums { flex-direction: column; align-items: flex-end; gap: 0; }
 </style>
