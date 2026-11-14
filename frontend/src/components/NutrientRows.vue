@@ -37,16 +37,16 @@ const showPercent = computed(() => rows.value.some((row) => row.percent != null)
         <span class="t-label name" :class="{ indent: row.indent }">{{ row.label }}</span>
         <template v-if="per100">
           <span class="fig per t-bodys" data-num>
-            <span class="whole">{{ row.per?.whole }}</span><span class="frac">{{ row.per?.frac }}</span><span class="unit">{{ row.per?.unit }}</span>
+            <span class="num">{{ row.per?.whole }}{{ row.per?.frac }}</span><span class="unit">{{ row.per?.unit }}</span>
           </span>
           <span v-if="showPercent" class="t-label pct">{{ row.percent != null ? `${row.percent}%` : "" }}</span>
           <span class="fig amt t-bodys" data-num>
-            <span class="whole">{{ row.amount.whole }}</span><span class="frac">{{ row.amount.frac }}</span><span class="unit">{{ row.amount.unit }}</span>
+            <span class="num">{{ row.amount.whole }}{{ row.amount.frac }}</span><span class="unit">{{ row.amount.unit }}</span>
           </span>
         </template>
         <span v-else class="nums">
           <span class="fig t-bodys" data-num>
-            <span class="whole">{{ row.amount.whole }}</span><span class="frac">{{ row.amount.frac }}</span><span class="unit">{{ row.amount.unit }}</span>
+            <span class="num">{{ row.amount.whole }}{{ row.amount.frac }}</span><span class="unit">{{ row.amount.unit }}</span>
           </span>
           <span v-if="showPercent" class="t-label pct">{{ row.percent != null ? `${row.percent}%` : "" }}</span>
         </span>
@@ -80,19 +80,19 @@ const showPercent = computed(() => rows.value.some((row) => row.percent != null)
 .heads span:not(:first-child), .per, .amt, .pct { justify-self: end; text-align: right; }
 .fig {
   display: inline-grid;
-  grid-template-columns: 3.2ch 1.5ch 3ch;
+  grid-template-columns: 4ch 1.65em;
+  column-gap: 0.25em;
   align-items: baseline;
   font-variant-numeric: tabular-nums;
 }
-.whole { text-align: right; }
-.frac, .unit { text-align: left; }
-.unit { margin-left: 0.35ch; }
+.fig > .num { text-align: right; }
+.unit { text-align: left; }
 .nums { display: inline-flex; justify-content: flex-end; align-items: baseline; gap: 8px; white-space: nowrap; }
 .pct { width: 3.6ch; font-variant-numeric: tabular-nums; }
 .name { min-width: 0; overflow-wrap: anywhere; }
 .name.indent { padding-left: 12px; }
 .num { white-space: nowrap; }
-.miss .num { color: var(--text-tertiary); }
+.miss .fig { color: var(--text-tertiary); }
 .pct { color: var(--text-secondary); }
 html.dt-xl .nums { flex-direction: column; align-items: flex-end; gap: 0; }
 </style>

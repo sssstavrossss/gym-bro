@@ -134,7 +134,7 @@ test("the home nutrient card is 358 by 212 on every panel", async ({ page }) => 
     const groups = new Map<number, { wholes: number[]; units: number[] }>();
     for (const fig of figs) {
       const column = Math.round(fig.getBoundingClientRect().left / 8);
-      const whole = (fig.querySelector(".whole") as HTMLElement).getBoundingClientRect().right;
+      const whole = (fig.querySelector(".num") as HTMLElement).getBoundingClientRect().right;
       const unit = (fig.querySelector(".unit") as HTMLElement).getBoundingClientRect().left;
       const group = groups.get(column) ?? { wholes: [], units: [] };
       group.wholes.push(Math.round(whole));
