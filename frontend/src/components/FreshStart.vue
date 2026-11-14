@@ -35,7 +35,7 @@ async function no() {
     <div class="row top">
       <span class="ic" aria-hidden="true"><Icon name="scale" :size="18" /></span>
       <div class="col grow">
-        <h2 id="fs-h" class="t-bodys m0">Fresh start</h2>
+        <h2 id="fs-h" class="t-bodys section-title m0">Fresh start</h2>
         <span class="t-label c2">It's been {{ gapLabel(fresh.daysSincePrevious) }} · last weigh-in {{ shortDate(lastBefore) }}</span>
       </div>
     </div>

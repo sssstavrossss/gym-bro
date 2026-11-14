@@ -90,7 +90,7 @@ async function onContinue() {
     </section>
 
     <section class="card">
-      <h2 class="t-head">Your starting weight</h2>
+      <h2 class="t-head section-title">Your starting weight</h2>
       <label class="frow last">
         <span class="t-body c2">Today</span>
         <input v-model="profile.form.weighInKg" class="ninput" type="text" inputmode="decimal" autocomplete="off" aria-label="Starting weight in kilograms" />

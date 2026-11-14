@@ -158,6 +158,40 @@ svg { display: block; flex: none; }
 .t-cap { font-size: 0.6471rem; line-height: 0.8235rem; font-weight: 500; letter-spacing: 0.04em; text-transform: uppercase; }
 .t-capm { font-size: 0.6471rem; line-height: 0.8235rem; font-weight: 500; letter-spacing: 0.04em; }
 .t-capn { font-size: 0.6471rem; line-height: 0.8235rem; font-weight: 500; }
+/* Small card and section headings. About 2px above the text style they sit on, and bold.
+   Page titles stay .t-title. Button labels are not section titles. */
+.section-title {
+  font-weight: 700;
+  line-height: 1.3;
+  font-size: calc(0.7647rem + 2px);
+}
+.t-cap.section-title { font-size: calc(0.6471rem + 2px); font-weight: 700; }
+.t-bodys.section-title { font-size: calc(0.8824rem + 2px); font-weight: 700; }
+.t-head.section-title { font-size: calc(1rem + 2px); font-weight: 700; }
+.panel-title {
+  color: var(--text-secondary);
+  margin: 0 0 2px;
+}
+/* Fixed cards cannot grow. At the largest text size their type stays near the
+   default size so the rows still fit; the rest of the app keeps scaling. */
+html.dt-xl [data-nutrient-card] .t-label,
+html.dt-xl [data-nutrient-card] .t-bodys,
+html.dt-xl [data-nutrient-card] .t-cap,
+html.dt-xl [data-nutrient-card] .t-capn,
+html.dt-xl [data-nutrient-card] .section-title,
+html.dt-xl .preview .t-label,
+html.dt-xl .preview .t-bodys,
+html.dt-xl .preview .t-cap,
+html.dt-xl .preview .t-capn,
+html.dt-xl .preview .section-title {
+  font-size: 15px;
+  line-height: 1.3;
+}
+html.dt-xl [data-nutrient-card] .panel-title,
+html.dt-xl .preview .panel-title {
+  font-size: 17px;
+  line-height: 1.3;
+}
 .c2 { color: var(--text-secondary); }
 .c3 { color: var(--text-tertiary); }
 .num { font-variant-numeric: tabular-nums; }

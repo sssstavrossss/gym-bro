@@ -336,7 +336,7 @@ const diffText = computed(() => (
     </div>
     <div v-else-if="profile.chart" class="card chart-card">
       <div class="row legend">
-        <span class="t-cap c2">Last 30 days</span>
+        <span class="t-cap c2 section-title">Last 30 days</span>
         <span class="grow" />
         <span class="row lg"><i class="dot" /> <span class="t-capn c2">weigh-in</span></span>
         <span class="row lg"><i class="dash" /> <span class="t-capn c2">trend</span></span>

@@ -206,7 +206,7 @@ function onMenu(event: Event) {
         </div>
       </SwipeRow>
       </div>
-      <button v-if="(rows.length || pending.length) && !ui.selecting" type="button" class="addrow row" @click="add">
+      <button v-if="!home && (rows.length || pending.length) && !ui.selecting" type="button" class="addrow row" @click="add">
         <span class="cbtn fit addc" style="--s: var(--control-s-sm)" aria-hidden="true"><Icon name="plus" :size="13" :sw="2.4" /></span>
         <span class="t-body c2">{{ isToday ? "Add food" : `Add food to ${dayMonth(date)}` }}</span>
       </button>

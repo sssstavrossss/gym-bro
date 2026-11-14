@@ -107,7 +107,7 @@ defineExpose({ go, index });
 
 <template>
   <div ref="root" class="panels" :class="{ tight }">
-    <div ref="track" class="track" :style="trackStyle" tabindex="0" :aria-label="label" @keydown="onKey" @scroll.passive="onScroll">
+    <div ref="track" class="track" :class="{ fixed: height != null }" :style="trackStyle" tabindex="0" :aria-label="label" @keydown="onKey" @scroll.passive="onScroll">
       <slot />
     </div>
     <div v-if="count > 1" class="strip" :class="{ halves: visualOnly }">
@@ -139,7 +139,7 @@ defineExpose({ go, index });
 .track:focus-visible { outline: 2px solid var(--text-secondary); outline-offset: -2px; }
 .track {
   display: flex;
-  flex: 1;
+  flex: 1 1 auto;
   min-height: 0;
   overflow-x: auto;
   overflow-y: hidden;
@@ -147,6 +147,7 @@ defineExpose({ go, index });
   scrollbar-width: none;
   min-width: 0;
 }
+.track.fixed { flex: 0 0 auto; }
 .track::-webkit-scrollbar { display: none; }
 .track > :deep(*) {
   flex: 0 0 100%;

@@ -12,6 +12,8 @@ export interface NutrientPanelDef {
   title: string;
   keys: string[];
   grid?: boolean;
+  /** Two name/value/% columns even on the food sheet, which otherwise keeps Per 100 g and Amount. */
+  halves?: boolean;
   /** Names that sit in from the left edge, such as Saturated under Fat. */
   indent?: string[];
 }
@@ -51,14 +53,14 @@ const ROWS: Record<string, NutrientRow> = {
 
 const FATS_LEFT = ["fat", "saturatedFat", "monoFat", "polyFat"];
 const FATS_RIGHT = ["transFat", "omega3", "omega6", "cholesterol"];
+const VITAMINS = ["vitaminA", "vitaminD", "vitaminE", "vitaminC", "thiamin", "riboflavin", "niacin", "vitaminB6", "folate", "vitaminB12"];
+const MINERALS = ["calcium", "iron", "zinc", "magnesium", "potassium", "phosphorus", "selenium", "iodine"];
 
 export const NUTRIENT_PANELS: NutrientPanelDef[] = [
   { id: "fats", title: "Fats", grid: true, indent: ["saturatedFat"], keys: [...FATS_LEFT, ...FATS_RIGHT] },
   { id: "carbs", title: "Carbs & sodium", keys: ["sugars", "addedSugars", "fiber", "sodium"] },
-  { id: "vitamins", title: "Vitamins", keys: ["vitaminA", "vitaminD", "vitaminE", "vitaminC"] },
-  { id: "b", title: "B vitamins", keys: ["thiamin", "riboflavin", "niacin", "vitaminB6", "folate", "vitaminB12"] },
-  { id: "minerals", title: "Minerals", keys: ["calcium", "iron", "zinc", "magnesium"] },
-  { id: "more", title: "More minerals", keys: ["potassium", "phosphorus", "selenium", "iodine"] },
+  { id: "vitamins", title: "Vitamins", grid: true, halves: true, keys: VITAMINS },
+  { id: "minerals", title: "Minerals", grid: true, halves: true, keys: MINERALS },
 ];
 
 export function nutrientRow(key: string): NutrientRow {
@@ -115,23 +117,31 @@ export function panelHasData(entries: readonly NutrientSource[], keys: readonly 
   return keys.some((key) => entries.some((entry) => rawOf(entry, key) != null));
 }
 
-/** At the largest text size, a panel with more than four nutrients becomes groups of four. */
+/**
+ * Default text keeps Vitamins and Minerals as one two-column panel each.
+ * Largest text drops the two-column merge and shows single-column groups of
+ * four, so the fixed card height does not have to grow.
+ */
 export function panelsForSize(entries: readonly NutrientSource[], large: boolean): NutrientPanelDef[] {
   const shown: NutrientPanelDef[] = [];
   for (const panel of NUTRIENT_PANELS) {
     if (!panelHasData(entries, panel.keys)) continue;
-    if (panel.id === "fats" && large) {
+    if (!large) {
+      shown.push(panel);
+      continue;
+    }
+    if (panel.id === "fats") {
       shown.push({ id: "fats-0", title: panel.title, keys: FATS_LEFT, indent: ["saturatedFat"] });
       shown.push({ id: "fats-1", title: panel.title, keys: FATS_RIGHT });
       continue;
     }
-    if (large && panel.keys.length > 4) {
+    if (panel.keys.length > 4) {
       for (let index = 0; index < panel.keys.length; index += 4) {
         const keys = panel.keys.slice(index, index + 4);
         shown.push({ id: `${panel.id}-${index}`, title: panel.title, keys, grid: false });
       }
     } else {
-      shown.push(panel);
+      shown.push({ ...panel, grid: false });
     }
   }
   return shown;

@@ -37,7 +37,7 @@ watch(() => ui.sheet, (sheet, previous) => {
 
 <template>
   <section v-if="rows.length" class="card hist" aria-labelledby="th-h" data-target-history>
-    <h2 id="th-h" class="t-label c2">Target history</h2>
+    <h2 id="th-h" class="section-title c2">Target history</h2>
     <ol class="list">
       <li v-for="(row, index) in shown" :key="`${row.date}-${index}`" class="hrow" :class="{ quiet: row.reasons.includes('recalculation_declined') }">
         <span class="col dt">

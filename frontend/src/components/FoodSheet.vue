@@ -1264,8 +1264,8 @@ async function deleteEdited() {
       <FoodEditor :key="ui.foodEditor.id ?? 'new'" :edit-id="ui.foodEditor.id" :seed="ui.foodEditor.seed" :namesakes="mine" @saved="onFoodSaved" @deleted="onFoodDeleted" @cancel="back" />
     </div>
 
-    <div v-else-if="showDetail" class="body">
-      <div class="col center gap2">
+    <div v-else-if="showDetail" class="body detail">
+      <div class="col center lead">
         <h3 class="t-head dname">{{ detailTitle }}</h3>
         <span class="row gap6 t-label c2 wrapc">
           <span v-if="detailIsMine" class="mine t-capn"><Icon name="lock" :size="10" :sw="2.4" /> my food</span>
@@ -1275,11 +1275,11 @@ async function deleteEdited() {
         </span>
         <span v-if="editingFood && foodChanged" class="t-capn c2">Using the values it was logged with — this food has changed since.</span>
       </div>
-      <div class="col center gap8">
+      <div class="col center amount-block">
         <div class="base">
           <input ref="amountEl" v-autofocus :value="amountText" data-replace="1" class="t-dl num ginput" :inputmode="keyboardEntry ? 'decimal' : 'none'" autocomplete="off" :aria-label="`Amount in ${unit}`"
             @beforeinput="markWholeSelection" @focus="fresh = true" @input="amountInput" @keydown.enter.prevent="addDetail" />
-          <span class="t-head c2">{{ unitWord }}</span>
+          <span class="t-head c2 unitword">{{ unitWord }}</span>
         </div>
         <span v-if="isCount && preview.grams != null && gramsEach" class="t-label c2" aria-live="polite">= {{ int(preview.grams) }} g · 1 {{ unit }} = {{ gramsEach }} g</span>
         <div class="row units">
@@ -1311,9 +1311,9 @@ async function deleteEdited() {
         </div>
       </div>
       <div class="preview" aria-live="polite">
-        <SwipePanels :count="sheetPanels.length + 1" :height="282" label="Food nutrients">
+        <SwipePanels tight :count="sheetPanels.length + 1" :height="282" label="Food nutrients">
           <div class="panel" data-panel="macros">
-            <span class="t-label title">Macros</span>
+            <span class="section-title panel-title">Macros</span>
             <div class="cols t-capn c2"><span></span><span>Per 100 g</span><span>Amount</span></div>
             <div v-for="item in previewItems" :key="item.label" class="nrow">
               <span class="t-label name">{{ item.label }}</span>
@@ -1405,7 +1405,7 @@ async function deleteEdited() {
         <template v-if="filter === 'recipes'" />
         <template v-else-if="filter === 'mine'">
           <div v-if="mine.length" class="row lhead">
-            <span class="t-cap c2">My foods</span>
+            <span class="t-cap c2 section-title">My foods</span>
             <span class="grow" />
             <button type="button" class="chip t-label" @click="openNewFood(trimmedQuery || undefined)"><Icon name="plus" :size="14" :sw="2.4" /> New food</button>
           </div>
@@ -1428,7 +1428,7 @@ async function deleteEdited() {
         </template>
         <template v-else-if="!trimmedQuery">
           <div class="row lhead">
-            <span class="t-cap c2">Recent</span>
+            <span class="t-cap c2 section-title">Recent</span>
             <span class="grow" />
             <span class="t-capn c2">{{ keyboardEntry ? recentHintKeys : recentHintTouch }}</span>
           </div>
@@ -1452,14 +1452,14 @@ async function deleteEdited() {
             <span class="t-label">{{ searchError }}</span>
             <button v-if="trimmedQuery.length >= 2" type="button" class="chip" @click="runSearch(trimmedQuery)">Try again</button>
           </div>
-          <div v-if="results.length" class="row lhead"><span class="t-cap c2">Results</span></div>
+          <div v-if="results.length" class="row lhead"><span class="t-cap c2 section-title">Results</span></div>
           <button v-for="(food, index) in results" :key="food.id" type="button" class="rrow row" :class="{ hl: keyboardEntry && index === hi }" @pointerdown="pressFood($event, food)" @click="pickFood($event, food)" @mouseenter="hi = index">
             <span class="col grow rtext">
               <span class="row gap6 nm"><span class="t-body ell">{{ food.name }}</span><span v-if="isMyFood(food)" class="mine t-capn">my food</span></span>
               <span class="t-label c2 ell">{{ rowSub(food) }}</span>
             </span>
           </button>
-          <div v-if="off.results.length" class="row lhead"><span class="t-cap c2">Open Food Facts</span></div>
+          <div v-if="off.results.length" class="row lhead"><span class="t-cap c2 section-title">Open Food Facts</span></div>
           <button v-for="food in off.results" :key="food.id" type="button" class="rrow row" @pointerdown="pressFood($event, food)" @click="pickFood($event, food)">
             <span class="col grow rtext">
               <span class="t-body ell">{{ food.name }}</span>
@@ -1611,8 +1611,17 @@ async function deleteEdited() {
 .del-btn { min-height: 52px; min-width: 44px; padding: 0 18px; border-radius: 26px; background: var(--color-surface-2); display: inline-flex; align-items: center; justify-content: center; gap: 8px; flex: none; }
 .base { min-width: 0; max-width: 100%; display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
 .dname { margin: 0; overflow-wrap: anywhere; }
-.preview { display: block; padding: 8px 8px 0; border-radius: var(--radius-card); background: var(--color-surface-2); flex: none; width: 100%; max-width: 358px; box-sizing: border-box; }
-.preview .title { color: var(--text-secondary); }
+.preview { display: block; padding: calc(var(--space-gap) / 2) calc(var(--space-gap) / 2) 0; border-radius: var(--radius-card); background: var(--color-surface-2); flex: none; width: 100%; align-self: stretch; box-sizing: border-box; }
+.detail { gap: calc(var(--space-gap) / 6); }
+.detail .lead { gap: 0; }
+.detail .lead .wrapc { flex-wrap: nowrap; max-width: 100%; }
+.detail .lead .wrapc > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.detail .dname { font-size: max(16px, 0.8824rem); line-height: 1.1; }
+.detail .amount-block { gap: 2px; }
+.detail .ginput { font-size: max(16px, min(1.15rem, 22px)); line-height: 1; }
+.detail .unitword { font-size: max(16px, 0.8824rem); line-height: 1.1; }
+.detail .units, .detail .chips, .detail .unit-radios { gap: calc(var(--space-gap) / 3); }
+.detail .preview { padding-top: 0; padding-bottom: 0; }
 .preview .panel, .preview .cols, .preview .nrow, .preview :deep(.panel), .preview :deep(.list), .preview :deep(.heads), .preview :deep(.nrow) { width: 100%; box-sizing: border-box; }
 .preview .panel, .preview :deep(.panel) { padding: calc(var(--space-gap) / 3) calc(var(--space-gap) / 3) 0; }
 .preview .cols, .preview .nrow { display: grid; grid-template-columns: minmax(0, 1fr) 5.6rem 5.6rem; column-gap: 12px; align-items: baseline; }

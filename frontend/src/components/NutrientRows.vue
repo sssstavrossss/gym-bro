@@ -28,16 +28,17 @@ const rows = computed(() => props.panel.keys.map((key) => {
   };
 }));
 const showPercent = computed(() => rows.value.some((row) => row.percent != null));
+const halves = computed(() => props.panel.halves === true);
 </script>
 
 <template>
   <div class="panel" :data-panel="panel.id">
-    <span class="t-label title">{{ panel.title }}</span>
-    <div v-if="per100" class="heads t-capn c2" :class="{ pcts: showPercent }"><span></span><span>Per 100 g</span><span v-if="showPercent"></span><span>Amount</span></div>
-    <div class="list" :class="{ grid: panel.grid && !per100, paired: per100, pcts: showPercent }">
+    <span class="section-title panel-title">{{ panel.title }}</span>
+    <div v-if="per100 && !halves" class="heads t-capn c2" :class="{ pcts: showPercent }"><span></span><span>Per 100 g</span><span v-if="showPercent"></span><span>Amount</span></div>
+    <div class="list" :class="{ grid: halves || (panel.grid && !per100), paired: Boolean(per100) && !halves, pcts: showPercent }" :style="halves || (panel.grid && !per100) ? { '--half': String(Math.ceil(rows.length / 2)) } : undefined">
       <div v-for="row in rows" :key="row.key" class="nrow" :class="{ miss: row.missing }">
         <span class="t-label name" :class="{ indent: row.indent }">{{ row.label }}</span>
-        <template v-if="per100">
+        <template v-if="per100 && !halves">
           <span class="fig per t-bodys" data-num>
             <span class="num">{{ row.per?.whole }}{{ row.per?.frac }}</span><span class="unit">{{ row.per?.unit }}</span>
           </span>
@@ -59,15 +60,19 @@ const showPercent = computed(() => rows.value.some((row) => row.percent != null)
 
 <style scoped>
 .panel { display: flex; flex-direction: column; gap: 4px; min-width: 0; height: 100%; box-sizing: border-box; }
-.title { color: var(--text-secondary); }
 .list { display: flex; flex-direction: column; flex: none; min-height: 0; justify-content: flex-start; align-content: flex-start; }
 .list.grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  grid-template-rows: repeat(4, auto);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-rows: repeat(var(--half), auto);
   grid-auto-flow: column;
-  column-gap: 16px;
+  column-gap: var(--space-gap);
+  row-gap: 2px;
 }
+.list.grid .nrow { column-gap: calc(var(--space-gap) / 3); }
+.list.grid .fig { grid-template-columns: 3ch 1.35em; column-gap: 0.2em; }
+.list.grid .pct { width: 4ch; overflow: hidden; white-space: nowrap; text-align: right; }
+.list.grid .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .nrow {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -99,5 +104,5 @@ const showPercent = computed(() => rows.value.some((row) => row.percent != null)
 .num { white-space: nowrap; }
 .miss .fig { color: var(--text-tertiary); }
 .pct { color: var(--text-secondary); }
-html.dt-xl .nums { flex-direction: column; align-items: flex-end; gap: 0; }
+html.dt-xl .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 </style>

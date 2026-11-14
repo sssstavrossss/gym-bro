@@ -37,7 +37,7 @@ function onAdd(event: MouseEvent, group: SavedGroup) {
 <template>
   <div v-if="groups.length" class="groups col">
     <div class="row lhead">
-      <span class="t-cap c3">Saved groups</span>
+      <span class="t-cap c3 section-title">Saved groups</span>
       <span class="grow" />
       <span class="t-capn c3">+ adds every item {{ note }}</span>
     </div>
