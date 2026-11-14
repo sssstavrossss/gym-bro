@@ -60,12 +60,15 @@ onMounted(async () => {
 
 <style scoped>
 .hist { gap: calc(var(--space-gap) / 2); }
+.row { flex-wrap: wrap; align-items: flex-start; }
 .list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
-.hrow { display: flex; gap: var(--space-gap); align-items: flex-start; padding: 10px 0; border-bottom: 1px solid var(--color-border); }
+.hrow { display: flex; flex-wrap: wrap; gap: var(--space-gap); align-items: flex-start; padding: 10px 0; border-bottom: 1px solid var(--color-border); }
 .hrow:last-child { border-bottom: 0; }
-.dt { width: 52px; flex: none; gap: 1px; }
-.mid { min-width: 0; gap: 2px; }
-.right { align-items: flex-end; text-align: right; gap: 2px; flex: none; }
+.dt { width: auto; max-width: 100%; flex: none; gap: 1px; }
+.mid { min-width: 0; flex: 1 1 8rem; gap: 2px; }
+.right { align-items: flex-end; text-align: right; gap: 2px; flex: 1 1 auto; max-width: 100%; }
+:global(html.dt-xl) .hrow { flex-direction: column; }
+:global(html.dt-xl) .right { align-items: flex-start; text-align: left; }
 .more { align-self: flex-start; min-height: 44px; text-decoration: underline; text-underline-offset: 3px; }
 .foot { margin: 0; }
 h2 { margin: 0; }
