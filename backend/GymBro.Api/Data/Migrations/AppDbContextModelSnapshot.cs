@@ -636,6 +636,12 @@ namespace GymBro.Api.Data.Migrations
                         .HasColumnType("numeric(5,1)")
                         .HasColumnName("height_cm");
 
+                    b.Property<bool>("NotifyRecalculate")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true)
+                        .HasColumnName("notify_recalculate");
+
                     b.Property<decimal>("ProteinGramsPerKg")
                         .HasPrecision(3, 1)
                         .HasColumnType("numeric(3,1)")

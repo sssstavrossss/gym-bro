@@ -3,13 +3,15 @@ import { computed, onMounted, ref } from "vue";
 import AccuracyDot from "../components/AccuracyDot.vue";
 import Icon from "../components/Icon.vue";
 import Segmented from "../components/Segmented.vue";
+import SelectMark from "../components/SelectMark.vue";
+import TargetHistory from "../components/TargetHistory.vue";
 import { ACTIVITY, FAT_PRESETS, PROTEIN_PRESETS, RATES, type ActivityKey, type Goal, type MacroSetting, type Sex } from "../lib/nutrition";
 import { parseDecimal } from "../lib/numbers";
 import { boot } from "../state/boot";
 import { clearAllDrafts, commitProfile, profile, shownTargets, weightCaption } from "../state/profile";
 import { signOut } from "../auth/session";
-import { disableReminders, enableReminders, getNotifications, notificationHint } from "../lib/notifications";
-import { getInbox, markAllNotificationsRead, markNotificationRead, type InboxItem, type NotificationSettings } from "../api";
+import { enableReminders, getNotifications, notificationHint } from "../lib/notifications";
+import { getInbox, markAllNotificationsRead, markNotificationRead, putNotificationType, type InboxItem, type NotificationSettings } from "../api";
 import { unreadCount } from "../lib/recalculate";
 import { inbox, refreshInbox } from "../state/inbox";
 import { openRecalculate, openWeight } from "../ui";
@@ -61,12 +63,17 @@ async function onReadAll() {
     noteBusy.value = false;
   }
 }
-async function onReminders() {
+const typeOn = computed(() => notes.value?.types?.find((item) => item.id === "recalculate")?.enabled ?? true);
+async function onType() {
   if (!notes.value || noteBusy.value) return;
   noteBusy.value = true;
   noteError.value = "";
+  const next = !typeOn.value;
   try {
-    notes.value = notes.value.enabled ? await disableReminders() : await enableReminders(notes.value);
+    if (next && notes.value.configured && !notes.value.enabled) {
+      notes.value = await enableReminders(notes.value);
+    }
+    notes.value = await putNotificationType("recalculate", next);
   } catch (error) {
     noteError.value = error instanceof Error ? error.message : "Couldn't update reminders.";
   } finally {
@@ -259,32 +266,33 @@ async function onSignOut() {
           <button type="button" class="chip t-label recalc" @click="openRecalculate">Recalculate</button>
         </section>
 
+        <TargetHistory />
+
         <section class="card notes" aria-labelledby="remind-heading">
           <div class="row head">
             <h2 id="remind-heading" class="t-label c2 grow">Notifications<span v-if="sectionUnread" class="sr-only"> Unread</span></h2>
             <span v-if="sectionUnread" class="bullet" aria-hidden="true" />
             <button v-if="sectionUnread" type="button" class="t-label markall" :disabled="noteBusy" @click="onReadAll">Mark all read</button>
           </div>
-          <p v-if="items.length === 0" class="t-body">No notifications yet.</p>
-          <ul v-else class="feed">
+          <ul v-if="items.length" class="feed">
             <li v-for="item in items" :key="item.id">
               <button type="button" class="note row" @click="openItem(item)">
                 <span v-if="!item.readAt" class="bullet" aria-hidden="true" />
                 <span v-if="!item.readAt" class="sr-only">Unread</span>
-                <span class="col grow">
-                  <span class="t-bodys">{{ item.title }}</span>
-                  <span class="t-label c2 wrap">{{ item.body }}</span>
-                </span>
+                <span class="t-bodys grow">{{ item.title }}</span>
               </button>
             </li>
           </ul>
-          <p v-if="notes && !notes.configured" class="t-body">Notifications are not set up.</p>
-          <template v-else>
-            <p v-if="hint" class="t-label c2">{{ hint }}</p>
-            <button type="button" class="chip t-label" :disabled="noteBusy || !notes" @click="onReminders">
-              {{ notes?.enabled ? "Turn reminders off" : "Enable notifications" }}
-            </button>
-          </template>
+          <button type="button" class="nrow" :aria-pressed="typeOn" :disabled="noteBusy" @click="onType">
+            <span class="col grow">
+              <span class="t-body">Weekly recalculate</span>
+              <span class="t-capn c2">Monday morning</span>
+            </span>
+            <span class="mark" :class="{ on: typeOn }"><SelectMark :on="typeOn" /></span>
+          </button>
+          <p v-if="notes && !notes.configured" class="t-capn c2 status">Notifications are not set up.</p>
+          <p v-else-if="notes" class="t-capn c2 status">{{ notes.enabled ? "Push is on." : "Push is off." }}</p>
+          <p v-if="hint" class="t-capn c2 status">{{ hint }}</p>
           <p v-if="noteError" class="t-body" role="alert">{{ noteError }}</p>
         </section>
 
@@ -337,7 +345,11 @@ async function onSignOut() {
 <style scoped>
 .frow { min-height: 44px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--color-border); width: 100%; text-align: left; }
 .sexrow { flex-wrap: wrap; }
-.sexrow :deep(.seg) { width: auto; flex: 1 1 160px; min-width: 160px; }
+.sexrow :deep(.seg) {
+  width: auto; flex: 0 0 auto; min-width: 150px; margin-left: auto;
+  min-height: 30px; padding: 3px; border-radius: 10px;
+}
+.sexrow :deep(.seg-btn) { min-width: 44px; min-height: 44px; padding: 2px 8px; border-radius: 8px; }
 .lowrow { gap: 6px; }
 .frow.last { border-bottom: 0; }
 .fval { display: inline-flex; align-items: baseline; gap: 8px; margin-left: auto; white-space: nowrap; flex-wrap: nowrap; flex: none; }
@@ -345,6 +357,12 @@ async function onSignOut() {
 .ninput { width: 88px; margin-left: auto; text-align: right; background: transparent; border: 0; min-height: 44px; }
 .tz { margin-left: auto; width: 180px; text-align: right; background: transparent; border: 0; min-height: 44px; }
 .recalc { align-self: flex-start; }
+.nrow {
+  min-height: 44px; width: 100%; display: flex; align-items: center; gap: var(--space-gap);
+  text-align: left; padding: 0;
+}
+.nrow .mark { position: relative; width: 44px; height: 44px; flex: none; }
+.status { margin: 0; }
 .notes { gap: var(--space-gap); }
 .notes p { margin: 0; overflow-wrap: anywhere; }
 .head { gap: var(--space-gap); align-items: center; min-height: var(--control-hit); }

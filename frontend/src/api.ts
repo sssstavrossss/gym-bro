@@ -808,6 +808,17 @@ export interface NotificationSettings {
   configured: boolean;
   enabled: boolean;
   publicKey: string;
+  types?: { id: string; enabled: boolean }[];
+}
+
+export interface TargetHistoryRow {
+  date: string;
+  kcal: number;
+  protein: number;
+  fat: number;
+  carbs: number;
+  reasons: string[];
+  floorApplied: boolean;
 }
 
 export interface InboxItem {
@@ -853,6 +864,18 @@ export async function putNotifications(enabled: boolean): Promise<NotificationSe
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ enabled }),
   }));
+}
+
+export async function putNotificationType(type: string, enabled: boolean): Promise<NotificationSettings> {
+  return jsonOrThrow(await request("/api/notifications", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ type, enabled }),
+  }));
+}
+
+export async function getTargetHistory(): Promise<{ rows: TargetHistoryRow[] }> {
+  return jsonOrThrow(await request("/api/profile/history"));
 }
 
 export async function savePushSubscription(subscription: { endpoint: string; keys: { p256dh: string; auth: string } }): Promise<void> {

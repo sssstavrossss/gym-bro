@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import Icon from "./Icon.vue";
+import SelectMark from "./SelectMark.vue";
 import SwipeRow from "./SwipeRow.vue";
 import { byTime } from "../lib/dayLog";
 import { dayMonth } from "../lib/dates";
@@ -184,7 +185,7 @@ function onMenu(event: Event) {
             :tabindex="ui.selecting || vp.hover ? 0 : -1"
             @click.stop="check(entry, $event)"
           >
-            <span class="dot" /><Icon name="check" :size="12" :sw="3.4" class="tick" />
+            <SelectMark :on="selected(entry.id)" />
           </button>
           <button type="button" class="frow" :title="entry.name" @click="tap(entry, $event)">
             <span class="time t-label num" :class="selected(entry.id) ? '' : 'c2'">{{ entry.time }}</span>
@@ -254,20 +255,6 @@ function onMenu(event: Event) {
 .addrow { min-height: var(--control-hit); gap: var(--space-gap); align-items: center; text-align: left; margin-top: 8px; }
 .addc { pointer-events: none; }
 .mark { position: relative; width: 44px; height: 44px; flex: none; }
-/* 16px outline in the 44px hit. Same diameter at rest, on hover, and in select mode. */
-.dot, .tick {
-  position: absolute; left: 50%; top: 50%;
-  width: 16px; height: 16px;
-  transform: translate(-50%, -50%);
-}
-.dot {
-  border-radius: 8px; background: transparent;
-  box-shadow: inset 0 0 0 1.5px var(--text-tertiary);
-  transition: background .18s ease, box-shadow .18s ease;
-}
-.tick { color: var(--color-on-action); opacity: 0; transition: opacity .18s ease; }
-.mark.on .dot { background: var(--color-action); box-shadow: none; }
-.mark.on .tick { opacity: 1; }
 .hacts { position: absolute; right: 0; top: 0; bottom: 0; gap: 4px; align-items: center; opacity: 0; pointer-events: none; }
 .hbtn {
   position: relative; width: var(--control-hit); height: var(--control-hit);

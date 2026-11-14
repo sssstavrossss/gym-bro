@@ -54,7 +54,7 @@ public sealed class MondayReminder(
             return 0;
         }
 
-        var profiles = everyone.Where(profile => profile.RemindersEnabled).ToList();
+        var profiles = everyone.Where(profile => profile.RemindersEnabled && profile.NotifyRecalculate).ToList();
         var client = new WebPushClient();
         var vapid = new VapidDetails(push.Subject, push.PublicKey, push.PrivateKey);
         var sent = 0;

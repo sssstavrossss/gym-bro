@@ -13,6 +13,7 @@ public static class ProfileEndpoints
     public static RouteGroupBuilder MapProfile(this RouteGroupBuilder api)
     {
         api.MapGet("/profile", Get);
+        api.MapGet("/profile/history", History);
         api.MapPut("/profile", Put);
         api.MapPost("/targets/preview", Preview);
         api.MapGet("/targets", GetTargets);
@@ -37,6 +38,37 @@ public static class ProfileEndpoints
         var weight = await WeightReader.ReadAsync(db, userId, today, cancellationToken);
         var targets = profile is null ? null : await TargetBook.InEffectAsync(db, userId, today, cancellationToken);
         return Results.Ok(new ProfileStateResponse(ToResponse(profile), ToWeight(weight), ToTargets(targets), Matvaretabellen.Citation, OpenFoodFactsCredit.Citation));
+    }
+
+    private static async Task<IResult> History(
+        ClaimsPrincipal principal,
+        AppDbContext db,
+        CancellationToken cancellationToken)
+    {
+        if (Caller.MissingOid(principal) is { } denied)
+        {
+            return denied;
+        }
+
+        var rows = await db.TargetHistories.AsNoTracking()
+            .Where(row => row.UserId == Caller.Id(principal))
+            .OrderByDescending(row => row.EffectiveDate)
+            .ThenByDescending(row => row.CreatedAt)
+            .ThenByDescending(row => row.Id)
+            .ToListAsync(cancellationToken);
+        return Results.Ok(new
+        {
+            rows = rows.Select(row => new
+            {
+                date = row.EffectiveDate,
+                kcal = row.Kcal,
+                protein = row.ProteinGrams,
+                fat = row.FatGrams,
+                carbs = row.CarbGrams,
+                reasons = row.Reasons,
+                floorApplied = row.FloorApplied,
+            }),
+        });
     }
 
     private static async Task<IResult> Put(

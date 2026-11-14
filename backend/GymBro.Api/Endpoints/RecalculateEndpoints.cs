@@ -174,15 +174,26 @@ public static class RecalculateEndpoints
             reason = RecalculationReasons.Adaptive;
         }
 
-        await TargetBook.StageAsync(
-            db,
-            userId,
-            built.Today,
-            result,
-            weightKg,
-            [reason],
-            clock.GetUtcNow(),
-            cancellationToken);
+        var current = await TargetBook.InEffectAsync(db, userId, built.Today, cancellationToken);
+        var changed = current is null
+            || current.Kcal != result.Kcal
+            || current.ProteinGrams != result.Protein
+            || current.FatGrams != result.Fat
+            || current.CarbGrams != result.Carbs
+            || current.Bmr != result.Bmr
+            || current.Tdee != result.Tdee;
+        if (changed)
+        {
+            await TargetBook.StageAsync(
+                db,
+                userId,
+                built.Today,
+                result,
+                weightKg,
+                [reason],
+                clock.GetUtcNow(),
+                cancellationToken);
+        }
         await NotificationBook.MarkCurrentWeekReadAsync(db, userId, clock, cancellationToken);
         await db.SaveChangesAsync(cancellationToken);
         var saved = await BuildAsync(userId, body.Exclude, db, clock, cancellationToken);

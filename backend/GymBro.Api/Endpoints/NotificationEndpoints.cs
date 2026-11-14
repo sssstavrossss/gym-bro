@@ -42,17 +42,12 @@ public static class NotificationEndpoints
         }
 
         var userId = Caller.Id(principal);
-        var enabled = await db.Profiles.AsNoTracking()
+        var profile = await db.Profiles.AsNoTracking()
             .Where(row => row.UserId == userId)
-            .Select(row => (bool?)row.RemindersEnabled)
+            .Select(row => new { row.RemindersEnabled, row.NotifyRecalculate })
             .FirstOrDefaultAsync(cancellationToken);
         var push = options.Value;
-        return Results.Ok(new
-        {
-            configured = push.IsConfigured,
-            enabled = enabled ?? false,
-            publicKey = push.IsConfigured ? push.PublicKey : "",
-        });
+        return Results.Ok(Settings(push.IsConfigured, profile?.RemindersEnabled ?? false, profile?.NotifyRecalculate ?? true, push));
     }
 
     private static async Task<IResult> Inbox(
@@ -187,15 +182,16 @@ public static class NotificationEndpoints
             return denied;
         }
 
-        if (!options.Value.IsConfigured)
+        var toggle = await ReadToggle(http, cancellationToken);
+        if (toggle.Error is not null)
         {
-            return ApiResults.Error(NotConfigured);
+            return ApiResults.Error(toggle.Error);
         }
 
-        var enabled = await ReadEnabled(http, cancellationToken);
-        if (enabled.Error is not null)
+        // The master switch still needs push keys. A per-type preference is stored either way.
+        if (toggle.Type is null && !options.Value.IsConfigured)
         {
-            return ApiResults.Error(enabled.Error);
+            return ApiResults.Error(NotConfigured);
         }
 
         var profile = await db.Profiles.FirstOrDefaultAsync(row => row.UserId == Caller.Id(principal), cancellationToken);
@@ -204,9 +200,12 @@ public static class NotificationEndpoints
             return ApiResults.Error(RecalculateEndpoints.NeedProfile);
         }
 
-        profile.RemindersEnabled = enabled.Value;
+        if (toggle.Type == "recalculate") profile.NotifyRecalculate = toggle.Value;
+        else if (toggle.Type is null) profile.RemindersEnabled = toggle.Value;
+        else return ApiResults.Error("That notification type is not known.");
+
         await db.SaveChangesAsync(cancellationToken);
-        return Results.Ok(new { configured = true, enabled = profile.RemindersEnabled, publicKey = options.Value.PublicKey });
+        return Results.Ok(Settings(options.Value.IsConfigured, profile.RemindersEnabled, profile.NotifyRecalculate, options.Value));
     }
 
     private static async Task<IResult> Subscribe(
@@ -285,9 +284,17 @@ public static class NotificationEndpoints
         return Results.NoContent();
     }
 
-    private readonly record struct Enabled(bool Value, string? Error);
+    private static object Settings(bool configured, bool enabled, bool recalculate, WebPushOptions push) => new
+    {
+        configured,
+        enabled,
+        publicKey = configured ? push.PublicKey : "",
+        types = new[] { new { id = "recalculate", enabled = recalculate } },
+    };
 
-    private static async Task<Enabled> ReadEnabled(HttpRequest http, CancellationToken cancellationToken)
+    private readonly record struct Toggle(bool Value, string? Type, string? Error);
+
+    private static async Task<Toggle> ReadToggle(HttpRequest http, CancellationToken cancellationToken)
     {
         try
         {
@@ -297,14 +304,20 @@ public static class NotificationEndpoints
                 || !root.TryGetProperty("enabled", out var enabled)
                 || enabled.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
             {
-                return new Enabled(false, NeedEnabled);
+                return new Toggle(false, null, NeedEnabled);
             }
 
-            return new Enabled(enabled.GetBoolean(), null);
+            string? type = null;
+            if (root.TryGetProperty("type", out var typeElement) && typeElement.ValueKind == JsonValueKind.String)
+            {
+                type = typeElement.GetString();
+            }
+
+            return new Toggle(enabled.GetBoolean(), type, null);
         }
         catch (JsonException)
         {
-            return new Enabled(false, NeedEnabled);
+            return new Toggle(false, null, NeedEnabled);
         }
     }
 

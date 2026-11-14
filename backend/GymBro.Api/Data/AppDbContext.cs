@@ -69,6 +69,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         profile.Property(p => p.FatPercent).HasColumnName("fat_percent").HasPrecision(4, 1);
         profile.Property(p => p.TimeZone).HasColumnName("time_zone").HasMaxLength(64);
         profile.Property(p => p.RemindersEnabled).HasColumnName("reminders_enabled").HasDefaultValue(false);
+        profile.Property(p => p.NotifyRecalculate).HasColumnName("notify_recalculate").HasDefaultValue(true);
         profile.Property(p => p.CreatedAt).HasColumnName("created_at");
         profile.Property(p => p.UpdatedAt).HasColumnName("updated_at");
         profile.HasOne<AppUser>().WithMany().HasForeignKey(p => p.UserId).OnDelete(DeleteBehavior.Cascade);

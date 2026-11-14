@@ -88,7 +88,7 @@ test("phone home pages the week strip and matches the range pills", async ({ pag
 
   await page.mouse.move(box!.x + box!.width / 2, y);
   await page.mouse.down();
-  await page.mouse.move(box!.x + box!.width / 2, y + 90, { steps: 8 });
+  await page.mouse.move(box!.x + box!.width / 2, y + 20, { steps: 4 });
   await page.mouse.up();
   await expect(week.getByRole("button").first()).toHaveAttribute("aria-label", new RegExp(`Monday ${previousMonday},`));
   await page.locator(".scroller").first().evaluate((node) => { node.scrollTop = 180; });
