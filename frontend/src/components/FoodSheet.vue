@@ -1711,10 +1711,26 @@ html.dt-xl .sess-act { flex-basis: 100%; height: auto; padding: 8px 12px; }
 .dt-l .units, .dt-l .chips { justify-content: center; }
 .dt-l .uchip { min-height: 44px; }
 html.dt-xl .preview { display: block; }
-/* Type inside the sheet is capped near the default size, so the value columns
-   stay at that size too. Root rem would otherwise widen them until the names wrap. */
+/* The header, name, amount, and unit stay near the default size so the largest
+   text cannot cover them. The sheet body can still scroll. */
+html.dt-xl .hdr { flex-wrap: nowrap; }
+html.dt-xl .hdr :deep(.tchip.t-label),
+html.dt-xl .hdr :deep(.now) { font-size: 15px; line-height: 1.2; }
+html.dt-xl .detail .dname { font-size: 22px; line-height: 1.15; overflow-wrap: normal; }
+html.dt-xl .detail .ginput { font-size: 22px; }
+html.dt-xl .detail .unitword { font-size: 18px; }
+html.dt-xl .detail .lead .wrapc { flex-wrap: wrap; }
+html.dt-xl .detail .lead .wrapc > span { overflow: visible; text-overflow: clip; white-space: normal; }
+/* Type inside the card stays near the default size. Value columns stay narrow
+   enough that "Added sugars" stays on one line. */
 html.dt-xl .preview .cols,
-html.dt-xl .preview .nrow { grid-template-columns: minmax(0, 1fr) 80px 80px; }
+html.dt-xl .preview .nrow,
+html.dt-xl .preview :deep(.heads),
+html.dt-xl .preview :deep(.list.paired .nrow) { grid-template-columns: minmax(max-content, 1fr) 72px 72px; }
+html.dt-xl .preview :deep(.heads.pcts),
+html.dt-xl .preview :deep(.list.paired.pcts .nrow) { grid-template-columns: minmax(max-content, 1fr) 64px 40px 72px; }
+html.dt-xl .preview :deep(.name),
+html.dt-xl .preview .name { white-space: nowrap; overflow: visible; text-overflow: clip; }
 .dt-xl .qgrid { grid-template-columns: 1fr; }
 .fchips { gap: var(--space-gap); flex-wrap: wrap; flex: none; }
 .mine { display: inline-flex; align-items: center; gap: 3px; padding: 1px 6px; border-radius: 6px; border: 1px solid var(--color-border); color: var(--text-secondary); white-space: nowrap; flex: none; }

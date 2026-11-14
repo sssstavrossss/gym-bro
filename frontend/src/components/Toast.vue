@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, watch } from "vue";
 import { vp } from "../lib/viewport";
 import { runToastAction, ui } from "../ui";
 
@@ -18,6 +18,9 @@ function place() {
 watch([() => ui.toast?.id ?? 0, parked], () => {
   place();
 }, { flush: "post" });
+function onResize() { place(); }
+onMounted(() => window.addEventListener("resize", onResize));
+onBeforeUnmount(() => window.removeEventListener("resize", onResize));
 </script>
 
 <template>
@@ -46,6 +49,10 @@ watch([() => ui.toast?.id ?? 0, parked], () => {
 .toast.lift { bottom: calc(140px + max(var(--sab), 12px)); }
 .is-desktop .toast.lift { bottom: 140px; }
 .undo { color: var(--color-action); min-height: 44px; min-width: 44px; padding: 2px 4px; }
+/* The parked toast sits over the sheet. Keep it near the default size so it
+   does not cover the header when the system text is largest. */
+:global(html.dt-xl) .toast .t-label,
+:global(html.dt-xl) .toast .t-bodys { font-size: 15px; line-height: 1.3; }
 .toast-enter-active, .toast-leave-active { transition: opacity .2s, transform .2s; }
 .toast-enter-from { opacity: 1; transform: translateY(8px); }
 .toast-leave-to { opacity: 0; transform: translateY(8px); }

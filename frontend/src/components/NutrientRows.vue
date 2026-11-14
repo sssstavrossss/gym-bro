@@ -161,7 +161,8 @@ const rightRows = computed(() => rows.value.slice(mid.value));
 html.dt-xl .list.halves .name,
 html.dt-xl .list.halves .pct { font-size: 14px; }
 html.dt-xl .heads,
-html.dt-xl .list.paired .nrow { grid-template-columns: minmax(0, 1fr) 80px 80px; }
+html.dt-xl .list.paired .nrow { grid-template-columns: minmax(max-content, 1fr) 72px 72px; }
 html.dt-xl .heads.pcts,
-html.dt-xl .list.paired.pcts .nrow { grid-template-columns: minmax(0, 1fr) 80px 46px 80px; }
+html.dt-xl .list.paired.pcts .nrow { grid-template-columns: minmax(max-content, 1fr) 64px 40px 72px; }
+html.dt-xl .list.paired .name { white-space: nowrap; overflow: visible; text-overflow: clip; }
 </style>
