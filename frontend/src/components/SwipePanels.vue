@@ -8,7 +8,9 @@ const props = withDefaults(defineProps<{
   remember?: boolean;
   storageKey?: string;
   label?: string;
-}>(), { remember: false, lockIndex: -1 });
+  /** Home only: the strip takes half the layout height. The 44px hit box overlaps it. */
+  tight?: boolean;
+}>(), { remember: false, lockIndex: -1, tight: false });
 
 const track = ref<HTMLElement | null>(null);
 const root = ref<HTMLElement | null>(null);
@@ -104,7 +106,7 @@ defineExpose({ go, index });
 </script>
 
 <template>
-  <div ref="root" class="panels">
+  <div ref="root" class="panels" :class="{ tight }">
     <div ref="track" class="track" :style="trackStyle" tabindex="0" :aria-label="label" @keydown="onKey" @scroll.passive="onScroll">
       <slot />
     </div>
@@ -193,6 +195,10 @@ defineExpose({ go, index });
 }
 .edge.left { left: 0; }
 .edge.right { right: 0; }
+.tight .strip { height: 22px; }
+.tight .dot { height: 44px; margin-top: -11px; margin-bottom: -11px; }
+.tight .half { top: -11px; height: 44px; bottom: auto; }
+.tight .edge { bottom: 33px; }
 @media (prefers-reduced-motion: reduce) {
   .track { scroll-behavior: auto; }
 }

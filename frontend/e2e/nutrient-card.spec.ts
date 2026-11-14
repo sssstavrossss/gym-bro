@@ -130,6 +130,29 @@ test("the home nutrient card is 358 by 212 on every panel", async ({ page }) => 
     });
   });
   expect(aligned).toBe(true);
+  const slots = await fats.locator(".fig").evaluateAll((figs) => {
+    const groups = new Map<number, { wholes: number[]; units: number[] }>();
+    for (const fig of figs) {
+      const column = Math.round(fig.getBoundingClientRect().left / 8);
+      const whole = (fig.querySelector(".whole") as HTMLElement).getBoundingClientRect().right;
+      const unit = (fig.querySelector(".unit") as HTMLElement).getBoundingClientRect().left;
+      const group = groups.get(column) ?? { wholes: [], units: [] };
+      group.wholes.push(Math.round(whole));
+      group.units.push(Math.round(unit));
+      groups.set(column, group);
+    }
+    return [...groups.values()];
+  });
+  expect(slots.length).toBe(2);
+  for (const group of slots) {
+    expect(new Set(group.wholes).size).toBe(1);
+    expect(new Set(group.units).size).toBe(1);
+  }
+
+  const strip = await card.locator(".strip").evaluate((node) => node.getBoundingClientRect().height);
+  const hit = await card.locator("button.dot").first().evaluate((node) => node.getBoundingClientRect().height);
+  expect(Math.round(strip)).toBe(22);
+  expect(hit).toBeGreaterThanOrEqual(44);
 
   await expectRowsClear(page, "[data-nutrient-card]");
 
@@ -168,6 +191,8 @@ test("the home nutrient card is 358 by 212 on every panel", async ({ page }) => 
   await page.getByRole("button", { name: /^Oats/ }).first().click();
   const preview = page.locator(".preview");
   await expect(preview).toBeVisible();
+  const sheetStrip = await preview.locator(".strip").evaluate((node) => node.getBoundingClientRect().height);
+  expect(Math.round(sheetStrip)).toBe(44);
   await expectRowsClear(page, ".preview");
   await expectAmountFlush(page);
   await page.evaluate(() => {
@@ -181,7 +206,8 @@ test("the home nutrient card is 358 by 212 on every panel", async ({ page }) => 
 async function expectAmountFlush(page: Page) {
   const gaps = await page.locator(".preview").evaluate((root) => {
     const panel = root.querySelector("[data-panel]")!;
-    const right = panel.getBoundingClientRect().right;
+    const box = panel.getBoundingClientRect();
+    const right = box.right - parseFloat(getComputedStyle(panel).paddingRight);
     return [...root.querySelectorAll(".nrow, .heads")].map((row) => {
       const amount = row.querySelector(":scope > .amt") ?? row.querySelector(":scope > .num:last-child") ?? row.querySelector(":scope > span:last-child");
       const per = row.querySelector(":scope > .per") ?? row.querySelector(":scope > span:nth-child(2)");

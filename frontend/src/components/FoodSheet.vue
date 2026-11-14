@@ -1614,6 +1614,7 @@ async function deleteEdited() {
 .preview { display: block; padding: 8px 8px 0; border-radius: var(--radius-card); background: var(--color-surface-2); flex: none; width: 100%; max-width: 358px; box-sizing: border-box; }
 .preview .title { color: var(--text-secondary); }
 .preview .panel, .preview .cols, .preview .nrow, .preview :deep(.panel), .preview :deep(.list), .preview :deep(.heads), .preview :deep(.nrow) { width: 100%; box-sizing: border-box; }
+.preview .panel, .preview :deep(.panel) { padding: calc(var(--space-gap) / 3) calc(var(--space-gap) / 3) 0; }
 .preview .cols, .preview .nrow { display: grid; grid-template-columns: minmax(0, 1fr) max-content max-content; column-gap: 16px; align-items: baseline; }
 .preview .num, .preview .cols span:not(:first-child) { text-align: right; justify-self: end; }
 .preview .name, .preview .cols span:first-child { text-align: left; justify-self: start; }

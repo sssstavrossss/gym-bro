@@ -138,11 +138,20 @@ export function panelsForSize(entries: readonly NutrientSource[], large: boolean
 }
 
 export function formatNutrient(value: number | null | undefined, unit: string): string {
-  if (value == null || !Number.isFinite(value)) return "—";
-  const abs = Math.abs(value);
-  const rounded = abs >= 100 ? Math.round(value) : Math.round(value * 10) / 10;
-  const text = Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
-  return `${text} ${unit}`;
+  const parts = nutrientParts(value, unit);
+  if (!parts.unit) return parts.whole;
+  return `${parts.whole}${parts.frac} ${parts.unit}`;
+}
+
+/** Number split so the ones place, the decimal, and the unit each have a fixed slot. */
+export function nutrientParts(value: number | null | undefined, unit: string): { whole: string; frac: string; unit: string } {
+  if (value == null || !Number.isFinite(value)) return { whole: "—", frac: "", unit: "" };
+  const rounded = Math.abs(value) >= 100 ? Math.round(value) : Math.round(value * 10) / 10;
+  const sign = rounded < 0 ? "-" : "";
+  const abs = Math.abs(rounded);
+  if (Number.isInteger(abs)) return { whole: `${sign}${abs}`, frac: "", unit };
+  const [whole, dec] = abs.toFixed(1).split(".");
+  return { whole: `${sign}${whole}`, frac: `.${dec}`, unit };
 }
 
 export function osloYear(now = new Date()): number {

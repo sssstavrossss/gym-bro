@@ -56,7 +56,7 @@ const macros = computed(() => {
     </div>
   </section>
   <section v-else class="card macros fit" data-nutrient-card :aria-label="label || 'Today\'s macros'">
-    <SwipePanels :count="panels.length + 1" :lock-index="large ? 0 : -1" :label="label || 'Today\'s macros'">
+    <SwipePanels tight :count="panels.length + 1" :lock-index="large ? 0 : -1" :label="label || 'Today\'s macros'">
     <div class="macropane" data-panel="macros">
     <div v-for="m in macros" :key="m.label" class="col gap6">
       <div class="mrow">
@@ -82,7 +82,7 @@ const macros = computed(() => {
 
 <style scoped>
 .macros { gap: 14px; }
-.macros.fit { height: 212px; box-sizing: border-box; gap: 0; overflow: hidden; padding-bottom: 8px; }
+.macros.fit { height: 212px; box-sizing: border-box; gap: 0; overflow: hidden; padding-bottom: 12px; }
 .macropane { display: flex; flex-direction: column; gap: 6px; min-height: 0; }
 .gap6 { gap: 2px; }
 html.dt-xl .macros.fit { height: auto; overflow: visible; }

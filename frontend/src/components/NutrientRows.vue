@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { formatNutrient, nutrientPercent, nutrientRow, type NutrientMap, type NutrientPanelDef } from "../lib/nutrients";
+import { nutrientParts, nutrientPercent, nutrientRow, type NutrientMap, type NutrientPanelDef } from "../lib/nutrients";
 
 const props = defineProps<{
   panel: NutrientPanelDef;
@@ -14,36 +14,41 @@ const props = defineProps<{
 const rows = computed(() => props.panel.keys.map((key) => {
   const meta = nutrientRow(key);
   const value = props.values[key] ?? null;
-  const percent = nutrientPercent(key, value, props.sex, props.age, props.kcalTarget);
+  const perValue = props.per100 ? props.per100[key] ?? null : null;
   return {
     key,
     label: meta.label,
-    text: formatNutrient(value, meta.unit),
-    per: props.per100 ? formatNutrient(props.per100[key] ?? null, meta.unit) : null,
-    percent,
+    amount: nutrientParts(value, meta.unit),
+    per: props.per100 ? nutrientParts(perValue, meta.unit) : null,
+    percent: nutrientPercent(key, value, props.sex, props.age, props.kcalTarget),
     missing: value == null,
     indent: props.panel.indent?.includes(key) ?? false,
   };
 }));
+const showPercent = computed(() => rows.value.some((row) => row.percent != null));
 </script>
 
 <template>
   <div class="panel" :data-panel="panel.id">
     <span class="t-label title">{{ panel.title }}</span>
-    <div v-if="per100" class="heads t-capn c2"><span></span><span>Per 100 g</span><span>Amount</span></div>
-    <div class="list" :class="{ grid: panel.grid && !per100, paired: per100 }">
+    <div v-if="per100" class="heads t-capn c2" :class="{ pcts: showPercent }"><span></span><span>Per 100 g</span><span v-if="showPercent"></span><span>Amount</span></div>
+    <div class="list" :class="{ grid: panel.grid && !per100, paired: per100, pcts: showPercent }">
       <div v-for="row in rows" :key="row.key" class="nrow" :class="{ miss: row.missing }">
         <span class="t-label name" :class="{ indent: row.indent }">{{ row.label }}</span>
         <template v-if="per100">
-          <span class="t-bodys num per" data-num>{{ row.per }}</span>
-          <span class="amt">
-            <span v-if="row.percent != null" class="t-label pct">{{ row.percent }}%</span>
-            <span class="t-bodys num" data-num>{{ row.text }}</span>
+          <span class="fig per t-bodys" data-num>
+            <span class="whole">{{ row.per?.whole }}</span><span class="frac">{{ row.per?.frac }}</span><span class="unit">{{ row.per?.unit }}</span>
+          </span>
+          <span v-if="showPercent" class="t-label pct">{{ row.percent != null ? `${row.percent}%` : "" }}</span>
+          <span class="fig amt t-bodys" data-num>
+            <span class="whole">{{ row.amount.whole }}</span><span class="frac">{{ row.amount.frac }}</span><span class="unit">{{ row.amount.unit }}</span>
           </span>
         </template>
         <span v-else class="nums">
-          <span class="t-bodys num" data-num>{{ row.text }}</span>
-          <span v-if="row.percent != null" class="t-label pct">{{ row.percent }}%</span>
+          <span class="fig t-bodys" data-num>
+            <span class="whole">{{ row.amount.whole }}</span><span class="frac">{{ row.amount.frac }}</span><span class="unit">{{ row.amount.unit }}</span>
+          </span>
+          <span v-if="showPercent" class="t-label pct">{{ row.percent != null ? `${row.percent}%` : "" }}</span>
         </span>
       </div>
     </div>
@@ -71,9 +76,19 @@ const rows = computed(() => props.panel.keys.map((key) => {
 }
 .name, .num, .pct, .nums { line-height: 1.3; }
 .heads, .list.paired .nrow { display: grid; grid-template-columns: minmax(0, 1fr) max-content max-content; column-gap: 16px; align-items: baseline; width: 100%; }
-.heads span:not(:first-child), .per, .amt { justify-self: end; text-align: right; }
-.amt { display: inline-flex; align-items: baseline; justify-content: flex-end; gap: 8px; }
-.nums { display: flex; justify-content: flex-end; align-items: baseline; gap: 8px; white-space: nowrap; }
+.heads.pcts, .list.paired.pcts .nrow { grid-template-columns: minmax(0, 1fr) max-content 3.6ch max-content; }
+.heads span:not(:first-child), .per, .amt, .pct { justify-self: end; text-align: right; }
+.fig {
+  display: inline-grid;
+  grid-template-columns: 3.2ch 1.5ch 3ch;
+  align-items: baseline;
+  font-variant-numeric: tabular-nums;
+}
+.whole { text-align: right; }
+.frac, .unit { text-align: left; }
+.unit { margin-left: 0.35ch; }
+.nums { display: inline-flex; justify-content: flex-end; align-items: baseline; gap: 8px; white-space: nowrap; }
+.pct { width: 3.6ch; font-variant-numeric: tabular-nums; }
 .name { min-width: 0; overflow-wrap: anywhere; }
 .name.indent { padding-left: 12px; }
 .num { white-space: nowrap; }
