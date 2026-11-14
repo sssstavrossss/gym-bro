@@ -1,4 +1,4 @@
-import { addDays, dayMonth, dayNum, weekStart, weekday } from "./dates";
+import { addDays, dayMonth, dayNum, parse, weekStart, weekday } from "./dates";
 import { int } from "./format";
 import { macroStatus, type MacroKind } from "./macros";
 
@@ -57,6 +57,24 @@ export function clampLogDate(date: string, today: string, setupDate: string): st
 export function shiftLogDate(date: string, by: number, today: string, setupDate: string): string | null {
   const next = clampLogDate(addDays(date, by), today, setupDate);
   return next === date ? null : next;
+}
+
+/**
+ * The day to keep selected when the strip pages to `start` (that week's Monday).
+ * Same weekday as `from` when that day can be chosen. A future day clamps to today.
+ * A week that is entirely before setup has nothing to select.
+ */
+export function weekPageSelection(from: string, start: string, today: string, setupDate: string): string | null {
+  const index = (parse(from).getDay() + 6) % 7;
+  let candidate = addDays(start, index);
+  const end = addDays(start, 6);
+  if (candidate > today) candidate = today;
+  if (setupDate && candidate < setupDate) {
+    if (setupDate <= end && setupDate <= today) candidate = setupDate;
+    else return null;
+  }
+  if (candidate < start || candidate > end || candidate > today) return null;
+  return candidate;
 }
 
 export function weekDays(

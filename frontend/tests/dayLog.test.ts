@@ -9,6 +9,7 @@ import {
   summaryCells,
   targetLine,
   weekDays,
+  weekPageSelection,
 } from "../src/lib/dayLog";
 import { addNeedsTime, sameAddTap } from "../src/lib/foodSheet";
 
@@ -38,6 +39,9 @@ describe("day navigation", () => {
     expect(wednesday?.disabled).toBe(false);
     expect(wednesday?.label).toBe("W4, Wednesday 4, nothing logged, today, selected");
     expect(days.find((day) => day.date === "2026-11-02")?.label).toBe("M2, Monday 2, before you set up");
+    expect(weekPageSelection("2026-11-04", "2026-10-26", "2026-11-04", "2026-10-20")).toBe("2026-10-28");
+    expect(weekPageSelection("2026-11-04", "2026-11-02", "2026-11-04", "2026-10-20")).toBe("2026-11-04");
+    expect(weekPageSelection("2026-11-04", "2026-10-05", "2026-11-04", "2026-10-20")).toBeNull();
     expect(days.find((day) => day.date === "2026-11-03")?.label).toBe("T3, Tuesday 3, logged");
     expect(days.find((day) => day.date === "2026-11-05")?.label).toBe("T5, Thursday 5, later");
     expect(days.find((day) => day.date === "2026-11-06")?.label).toBe("F6, Friday 6, later");

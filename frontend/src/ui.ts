@@ -113,7 +113,9 @@ export function openAdd(): void {
 }
 
 export function openFood(tab: "search" | "quick" = "search", date?: string): void {
-  primeKeyboard();
+  // Search opens on the recents list. Focusing it would raise the iOS keyboard
+  // and cover that list. Quick Add still primes, like the other sheets.
+  if (tab !== "search") primeKeyboard();
   const today = todayInZone(deviceTimeZone());
   ui.editEntryId = null;
   ui.detailFoodId = null;

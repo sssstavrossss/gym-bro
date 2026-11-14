@@ -143,11 +143,9 @@ for (const width of [375, 390]) {
       await expect(filters.getByRole("button", { name: "New food" })).toHaveCount(0);
       await expect(filters.getByRole("button", { name: "New recipe" })).toHaveCount(0);
       const search = food.getByRole("searchbox", { name: "Search foods" });
-      await expect(search).toBeFocused();
-      await expect(filters).toBeHidden();
-      await search.blur();
+      await expect(search).not.toBeFocused();
+      await expect(filters.getByRole("button", { name: "All foods" })).toBeVisible();
       if (width === 390 && test.info().project.name === "chromium") {
-        await expect(filters.getByRole("button", { name: "All foods" })).toBeVisible();
         await page.screenshot({ path: "/opt/cursor/artifacts/add-food-chooser-phone.png" });
       }
       await search.focus();
@@ -160,7 +158,7 @@ for (const width of [375, 390]) {
       await fieldsAtLeast16(food);
 
       await food.getByRole("radio", { name: "Search" }).click();
-      await expect(search).toBeFocused();
+      await expect(search).not.toBeFocused();
       await search.fill(foodName);
       await food.getByRole("button", { name: new RegExp(foodName) }).click();
       const amount = food.getByRole("textbox", { name: "Amount in g" });
@@ -313,8 +311,9 @@ test("a desktop pointer also focuses and selects the primary field", async ({ pa
   await page.locator("aside").getByRole("button", { name: /Add food/ }).click();
   const food = page.getByRole("dialog", { name: "Add food" });
   const search = food.getByRole("searchbox", { name: "Search foods" });
-  await expect(search).toBeFocused();
+  await expect(search).not.toBeFocused();
   expect(await search.evaluate((node) => parseFloat(getComputedStyle(node).fontSize))).toBeLessThan(16);
+  await search.focus();
   await page.keyboard.type("ab");
   await expect(search).toHaveValue("ab");
   await food.getByRole("button", { name: "Close" }).click();

@@ -33,6 +33,12 @@ public sealed class RecalculateEndpointTests(ApiFactory factory)
         var adaptive = await client.PostAsJsonAsync("/api/recalculate", new { exclude = Array.Empty<string>(), mode = "adaptive" });
         Assert.Equal(HttpStatusCode.BadRequest, adaptive.StatusCode);
 
+        var unchanged = await client.PostAsJsonAsync("/api/recalculate", new { exclude = Array.Empty<string>(), mode = "formula" });
+        Assert.Equal(HttpStatusCode.OK, unchanged.StatusCode);
+        var before = await client.GetFromJsonAsync<JsonElement>("/api/targets?date=2026-11-10");
+        Assert.DoesNotContain(RecalculationReasons.Formula, before.GetProperty("targets").GetProperty("reasons").EnumerateArray().Select(item => item.GetString()));
+
+        Assert.Equal(HttpStatusCode.OK, (await client.PutAsync("/api/weigh-ins/2026-11-10", JsonContent.Create(new { kg = 90, timeZone = "Europe/Oslo", confirm = true }))).StatusCode);
         var saved = await client.PostAsJsonAsync("/api/recalculate", new { exclude = Array.Empty<string>(), mode = "formula" });
         Assert.Equal(HttpStatusCode.OK, saved.StatusCode);
         var today = await client.GetFromJsonAsync<JsonElement>("/api/targets?date=2026-11-10");
@@ -59,6 +65,12 @@ public sealed class RecalculateEndpointTests(ApiFactory factory)
         Assert.False(settings.GetProperty("configured").GetBoolean());
         var turned = await client.PutAsJsonAsync("/api/notifications", new { enabled = true });
         Assert.Equal(HttpStatusCode.BadRequest, turned.StatusCode);
+        var typed = await client.PutAsJsonAsync("/api/notifications", new { type = "recalculate", enabled = false });
+        Assert.Equal(HttpStatusCode.OK, typed.StatusCode);
+        var again = await client.GetFromJsonAsync<JsonElement>("/api/notifications");
+        Assert.False(again.GetProperty("types")[0].GetProperty("enabled").GetBoolean());
+        Assert.False(again.GetProperty("configured").GetBoolean());
+        Assert.Equal("", again.GetProperty("publicKey").GetString());
 
         var endpoint = "https://push.example.test/owner";
         var body = new { endpoint, keys = new { p256dh = "abc", auth = "def" } };

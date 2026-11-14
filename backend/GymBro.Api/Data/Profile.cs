@@ -37,6 +37,9 @@ public sealed class Profile
     /// <summary>Monday morning push asking the person to recalculate. Off until they turn it on.</summary>
     public bool RemindersEnabled { get; set; }
 
+    /// <summary>Weekly recalculate push. On unless the person turns that type off.</summary>
+    public bool NotifyRecalculate { get; set; } = true;
+
     public DateTimeOffset CreatedAt { get; set; }
 
     public DateTimeOffset UpdatedAt { get; set; }

@@ -749,15 +749,15 @@ function pickRecipe(id: string) {
 }
 function focusFor() {
   if (ui.sheet !== "food" || ui.foodEditor) return;
+  if (!showDetail.value) return;
   void nextTick(() => {
-    const field = showDetail.value ? amountEl.value : ui.foodTab === "search" ? searchEl.value : null;
-    if (field) focusField(field);
+    if (amountEl.value) focusField(amountEl.value);
   });
 }
 function onAddTabPointer(event: PointerEvent) {
   const label = (event.target as HTMLElement).closest("button")?.textContent?.trim();
   const next = label === "Quick Add" ? "quick" : label === "Search" ? "search" : null;
-  if (next && next !== ui.foodTab) primeKeyboard();
+  if (next === "quick" && next !== ui.foodTab) primeKeyboard();
 }
 watch(searchFocused, (focused) => {
   if (!focused) {
@@ -1312,7 +1312,7 @@ async function deleteEdited() {
     <template v-else-if="!editing && ui.foodTab === 'search'">
       <label class="field row">
         <Icon name="search" :size="18" class="c2" />
-        <input ref="searchEl" v-autofocus v-model="q" class="t-body grow" type="search" :placeholder="filter === 'mine' ? 'Search my foods' : filter === 'recipes' ? 'Search recipes' : 'Search foods'" :aria-label="filter === 'recipes' ? 'Search recipes' : 'Search foods'" autocomplete="off" enterkeyhint="search" @focus="searchFocused = true" @blur="queueSearchBlur" @keydown="searchKey" />
+        <input ref="searchEl" v-model="q" data-no-autofocus class="t-body grow" type="search" :placeholder="filter === 'mine' ? 'Search my foods' : filter === 'recipes' ? 'Search recipes' : 'Search foods'" :aria-label="filter === 'recipes' ? 'Search recipes' : 'Search foods'" autocomplete="off" enterkeyhint="search" @focus="searchFocused = true" @blur="queueSearchBlur" @keydown="searchKey" />
         <button v-if="q" type="button" class="clr c2" aria-label="Clear search" @click="q = ''"><Icon name="x" :size="16" /></button>
       </label>
       <div v-show="!searchFocused" class="row fchips" role="group" aria-label="Show">

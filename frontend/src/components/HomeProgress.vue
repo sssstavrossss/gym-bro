@@ -223,7 +223,7 @@ function stopScroll(event: MouseEvent) {
           :class="{ on: metric === item }" :aria-checked="metric === item" @click="pickMetric(item)">{{ metricLabels[item] }}</button>
       </div>
       <div class="picker-row" role="radiogroup" aria-label="Chart range" @mousedown="stopScroll">
-        <button v-for="item in ranges" :key="item" type="button" role="radio" class="quiet-pill t-label"
+        <button v-for="item in ranges" :key="item" type="button" role="radio" class="pill t-label"
           :class="{ on: range === item }" :aria-checked="range === item" @click="pickRange(item)">{{ rangeLabels[item] }}</button>
       </div>
     </div>
@@ -304,15 +304,14 @@ function stopScroll(event: MouseEvent) {
   display: flex; flex-wrap: nowrap; gap: calc(var(--space-gap) / 2);
   width: 100%; min-width: 0; overflow: hidden;
 }
-.pill, .quiet-pill {
+.pill {
   flex: 1 1 0; min-width: 44px; min-height: 44px; padding: 0 2px;
   display: inline-flex; align-items: center; justify-content: center;
   border-radius: 22px; color: var(--text-secondary); white-space: nowrap;
   overflow: hidden; font-size: min(0.7647rem, 15px);
+  background: var(--color-surface-2);
 }
-.pill { background: var(--color-surface-2); }
 .pill.on { background: var(--color-action); color: var(--color-on-action); }
-.quiet-pill.on { background: var(--color-surface-2); color: var(--text-primary); box-shadow: inset 0 0 0 1.5px var(--color-border-strong); }
 .chart { min-width: 0; min-height: 220px; }
 .plot { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr) 40px; align-items: stretch; }
 .fig { width: 100%; height: auto; display: block; }

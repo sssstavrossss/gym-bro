@@ -148,10 +148,13 @@ const weekRows = computed(() => {
 <template>
   <main class="screen today" :class="layout" :aria-label="title">
     <header class="screen-head homehead">
-      <h1 class="t-title">{{ title }}</h1>
+      <h1 class="t-title">
+        <button v-if="layout === 'phone' && selected !== today" type="button" class="titlebtn" @click="selected = today">{{ title }}</button>
+        <template v-else>{{ title }}</template>
+      </h1>
     </header>
     <div class="topbar">
-      <WeekStrip :anchor="today" :selected="selected" :today="today" :setup-date="viewed.setupDate" :logged-dates="viewed.loggedDates" @select="pick" />
+      <WeekStrip :anchor="today" :swipe="layout === 'phone'" :selected="selected" :today="today" :setup-date="viewed.setupDate" :logged-dates="viewed.loggedDates" @select="pick" />
     </div>
 
     <div class="grid">
@@ -289,7 +292,12 @@ const weekRows = computed(() => {
 .m0 { margin: 0; }
 .today { min-width: 0; max-width: 100%; }
 .homehead { height: 44px; min-height: 44px; max-height: 44px; overflow: hidden; }
-.homehead .t-title { margin: 0; white-space: nowrap; line-height: 1.2; }
+.homehead .t-title { margin: 0; height: 44px; display: flex; align-items: center; white-space: nowrap; line-height: 1.2; }
+.titlebtn {
+  min-width: 44px; height: 44px; padding: 0; margin: 0;
+  display: inline-flex; align-items: center; justify-content: flex-start;
+  background: none; color: inherit; font: inherit; letter-spacing: inherit; text-align: left;
+}
 .prompt { flex-direction: row; align-items: center; gap: 12px; text-align: left; width: 100%; min-width: 0; }
 .pic { width: var(--control-s); height: var(--control-s); border-radius: 50%; background: var(--color-action); color: var(--color-on-action); display: flex; align-items: center; justify-content: center; flex: none; }
 .sk { display: block; height: 12px; width: 40%; border-radius: 6px; background: var(--color-surface-2); }
