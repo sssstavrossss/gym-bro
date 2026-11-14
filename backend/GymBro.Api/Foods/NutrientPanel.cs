@@ -5,7 +5,7 @@ namespace GymBro.Api.Foods;
 
 public static class NutrientPanel
 {
-    public static void ApplyMatvare(Food food, IEnumerable<MatvareConstituent> rows)
+    public static void ApplyMatvare(Food food, IEnumerable<MatvareConstituent> rows, Action<string>? warn = null)
     {
         var list = rows.ToList();
         food.MonoFatPer100 = Take(list, "Enumet", "g");
@@ -16,9 +16,12 @@ public static class NutrientPanel
         food.CholesterolPer100 = Take(list, "Kolest", "mg");
         food.AddedSugarsPer100 = Take(list, "Sukker", "g");
         food.SodiumPer100 = Take(list, "Na", "mg");
-        food.VitaminAPer100 = Take(list, "Vit A", "ug");
+        // NNR 2023: "The RIs were set to 700 RE/day (females) and 800 RE/day (males)."
+        // Store Matvaretabellen "Vit A RE" ("RE") only. "Vit A" ("RAE") is a different unit and is left unused.
+        // A missing RE figure stays null. Vit E is "mg-ATE". No conversion.
+        food.VitaminAPer100 = TakeExact(list, "Vit A RE", "RE", "vitamin A", warn);
         food.VitaminDPer100 = Take(list, "Vit D", "ug");
-        food.VitaminEPer100 = Take(list, "Vit E", "mg");
+        food.VitaminEPer100 = TakeExact(list, "Vit E", "mg-ATE", "vitamin E", warn);
         food.ThiaminPer100 = Take(list, "Vit B1", "mg");
         food.RiboflavinPer100 = Take(list, "Vit B2", "mg");
         food.NiacinPer100 = Take(list, "NIAEQ", "mg") ?? Take(list, "Niacin", "mg");
@@ -480,6 +483,44 @@ public static class NutrientPanel
         }
 
         return null;
+    }
+
+    private static decimal? TakeExact(
+        IReadOnlyList<MatvareConstituent> rows,
+        string id,
+        string unit,
+        string nutrient,
+        Action<string>? warn)
+    {
+        decimal? found = null;
+        foreach (var row in rows)
+        {
+            if (!string.Equals(row.NutrientId?.Trim(), id, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            found ??= Accepted(row, unit, nutrient, warn);
+        }
+
+        return found;
+    }
+
+    private static decimal? Accepted(MatvareConstituent row, string expected, string nutrient, Action<string>? warn)
+    {
+        var unit = (row.Unit ?? "").Trim();
+        if (unit.Length > 0 && !string.Equals(unit, expected, StringComparison.Ordinal))
+        {
+            warn?.Invoke($"{nutrient} unit '{unit}' was not accepted.");
+            return null;
+        }
+
+        if (unit.Length == 0 || row.Quantity is not decimal value || value < 0)
+        {
+            return null;
+        }
+
+        return decimal.Round(value, 2, MidpointRounding.AwayFromZero);
     }
 
     private static decimal? Value(string? unit, decimal? quantity, string expected)

@@ -104,7 +104,8 @@ public sealed class MatvaretabellenImporter(
             if (existing.TryGetValue(parsed.Food.SourceId, out var row))
             {
                 Copy(parsed, row);
-                NutrientPanel.ApplyMatvare(row, Constituents(food));
+                NutrientPanel.ApplyMatvare(row, Constituents(food), message =>
+                    logger.LogWarning("Matvaretabellen {FoodId}: {Message}", food.FoodId, message));
                 row.RetiredAt = null;
                 row.UpdatedAt = started;
             }
@@ -118,7 +119,8 @@ public sealed class MatvaretabellenImporter(
                     UpdatedAt = started,
                 };
                 Copy(parsed, row);
-                NutrientPanel.ApplyMatvare(row, Constituents(food));
+                NutrientPanel.ApplyMatvare(row, Constituents(food), message =>
+                    logger.LogWarning("Matvaretabellen {FoodId}: {Message}", food.FoodId, message));
                 db.Foods.Add(row);
                 existing[parsed.Food.SourceId] = row;
             }
