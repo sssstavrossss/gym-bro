@@ -32,6 +32,28 @@ export function scaleTicks(low: number, high: number): number[] {
   return ticks.filter((tick, index) => ticks.findIndex((item) => Math.abs(item - tick) < 1e-9) === index);
 }
 
+/**
+ * Weight-axis labels. A short scale keeps every half-kilogram tick.
+ * A longer scale uses one even step, so the labels do not bunch
+ * (77.0, 76.0, 75.5, 74.5 was an index sample of a 0.5 kg grid).
+ */
+export function evenAxisLabels(low: number, high: number, flat = false): number[] {
+  const all = [high, ...axisMarks(low, high, flat), low].filter((tick, index, list) => (
+    list.findIndex((item) => Math.abs(item - tick) < 1e-9) === index
+  ));
+  if (all.length <= 4) return all;
+  if (flat || Math.abs(high - low) < 1e-9) return [high, (low + high) / 2, low];
+  const rough = (high - low) / 3;
+  const magnitude = 10 ** Math.floor(Math.log10(rough));
+  const step = [1, 2, 2.5, 5, 10].map((multiple) => multiple * magnitude).find((candidate) => candidate >= rough - 1e-9) ?? rough;
+  const start = Math.ceil((low - 1e-9) / step) * step;
+  const marks: number[] = [];
+  for (let mark = start; mark <= high + 1e-9 && marks.length < 4; mark += step) {
+    marks.push(Math.round(mark * 10) / 10);
+  }
+  return marks.length > 1 ? marks.reverse() : [high, low];
+}
+
 /** At most four labels. A narrow kilogram scale keeps every half-kilogram tick. */
 export function fewMarks(low: number, high: number, flat = false): number[] {
   const all = [high, ...axisMarks(low, high, flat), low].filter((tick, index, list) => (

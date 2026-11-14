@@ -33,9 +33,9 @@ for (const layout of widths) {
     await page.getByRole("button", { name: "Save and see targets" }).click();
 
     await expect(page.getByRole("heading", { name: "Profile", exact: true })).toBeVisible();
-    await expect(page.locator("[data-field=bmr]")).toHaveText("1786");
-    await expect(page.locator("[data-field=tdee]")).toHaveText("2768");
-    await expect(page.locator("[data-field=kcal]")).toHaveText("2218");
+    await expect(page.locator("[data-field=bmr]")).toHaveText("1,786");
+    await expect(page.locator("[data-field=tdee]")).toHaveText("2,768");
+    await expect(page.locator("[data-field=kcal]")).toHaveText("2,218");
     await expect(page.locator("[data-field=protein]")).toHaveText("167");
     await expect(page.locator("[data-field=fat]")).toHaveText("62");
     await expect(page.locator("[data-field=carbs]")).toHaveText("249");
@@ -80,7 +80,7 @@ for (const layout of widths) {
     await page.getByRole("group", { name: "Protein" }).getByRole("button", { name: "More" }).click();
     await expect(page.locator("[data-field=protein]")).toHaveText("201");
     await page.getByRole("button", { name: "1.0" }).click();
-    await expect(page.locator("[data-field=kcal]")).toHaveText("1786");
+    await expect(page.locator("[data-field=kcal]")).toHaveText("1,786");
     await expect(page.locator("[data-floor=true]")).toBeVisible();
 
     await page.route("**/api/profile", (route) => {
