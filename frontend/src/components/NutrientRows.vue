@@ -38,9 +38,13 @@ const showPercent = computed(() => rows.value.some((row) => row.percent != null)
       <div v-for="row in rows" :key="row.key" class="nrow" :class="{ miss: row.missing }">
         <span class="t-label name" :class="{ indent: row.indent }">{{ row.label }}</span>
         <template v-if="per100">
-          <span class="val per num t-bodys" data-num>{{ row.perText }}</span>
+          <span class="fig per t-bodys" data-num>
+            <span class="num">{{ row.per?.whole }}{{ row.per?.frac }}</span><span class="unit">{{ row.per?.unit }}</span>
+          </span>
           <span v-if="showPercent" class="t-label pct">{{ row.percent != null ? `${row.percent}%` : "" }}</span>
-          <span class="val amt num t-bodys" data-num>{{ row.amountText }}</span>
+          <span class="fig amt t-bodys" data-num>
+            <span class="num">{{ row.amount.whole }}{{ row.amount.frac }}</span><span class="unit">{{ row.amount.unit }}</span>
+          </span>
         </template>
         <span v-else class="nums">
           <span class="fig t-bodys" data-num>
@@ -76,7 +80,9 @@ const showPercent = computed(() => rows.value.some((row) => row.percent != null)
 }
 .heads, .list.paired .nrow { display: grid; grid-template-columns: minmax(0, 1fr) 5.6rem 5.6rem; column-gap: 12px; align-items: baseline; width: 100%; }
 .heads.pcts, .list.paired.pcts .nrow { grid-template-columns: minmax(0, 1fr) 5.6rem 2.2rem 5.6rem; }
-.heads span:not(:first-child), .val, .pct { justify-self: stretch; text-align: right; font-variant-numeric: tabular-nums; }
+.heads span:not(:first-child) { justify-self: stretch; text-align: right; }
+.per, .amt { justify-self: end; }
+.pct { justify-self: end; text-align: right; }
 .fig {
   display: inline-grid;
   grid-template-columns: 4ch 1.65em;
@@ -91,7 +97,7 @@ const showPercent = computed(() => rows.value.some((row) => row.percent != null)
 .name { min-width: 0; overflow-wrap: anywhere; }
 .name.indent { padding-left: 12px; }
 .num { white-space: nowrap; }
-.miss .fig, .miss .val { color: var(--text-tertiary); }
+.miss .fig { color: var(--text-tertiary); }
 .pct { color: var(--text-secondary); }
 html.dt-xl .nums { flex-direction: column; align-items: flex-end; gap: 0; }
 </style>

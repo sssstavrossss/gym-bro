@@ -198,6 +198,24 @@ test("the home nutrient card is 358 by 212 on every panel", async ({ page }) => 
   expect(Math.round(sheetStrip)).toBe(44);
   await expectRowsClear(page, ".preview");
   await expectAmountFlush(page);
+  const sheetSlots = await preview.locator("[data-panel='fats'] .fig").evaluateAll((figs) => {
+    const groups = new Map<number, { numbers: number[]; units: number[] }>();
+    for (const fig of figs) {
+      const column = Math.round(fig.getBoundingClientRect().left / 8);
+      const number = (fig.querySelector(".num") as HTMLElement).getBoundingClientRect().right;
+      const unit = (fig.querySelector(".unit") as HTMLElement).getBoundingClientRect().left;
+      const group = groups.get(column) ?? { numbers: [], units: [] };
+      group.numbers.push(Math.round(number));
+      group.units.push(Math.round(unit));
+      groups.set(column, group);
+    }
+    return [...groups.values()];
+  });
+  expect(sheetSlots.length).toBe(2);
+  for (const group of sheetSlots) {
+    expect(new Set(group.numbers).size).toBe(1);
+    expect(new Set(group.units).size).toBe(1);
+  }
   await page.evaluate(() => {
     document.documentElement.style.fontSize = "53px";
     window.dispatchEvent(new Event("resize"));
