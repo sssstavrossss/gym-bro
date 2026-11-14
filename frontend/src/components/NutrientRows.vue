@@ -86,26 +86,31 @@ const rightRows = computed(() => rows.value.slice(mid.value));
   column-gap: var(--space-gap);
   row-gap: 2px;
 }
-.list.halves { display: flex; flex-direction: row; align-items: start; column-gap: var(--space-gap); }
+.list.halves {
+  display: grid;
+  grid-template-columns: minmax(max-content, 1fr) minmax(max-content, 1fr);
+  align-items: start;
+  column-gap: var(--space-gap);
+}
 .half {
   display: grid;
-  grid-template-columns: max-content 3ch max-content;
+  grid-template-columns: minmax(max-content, 1fr) max-content max-content;
   column-gap: 0;
   row-gap: 2px;
   align-items: baseline;
 }
-.half.pcts { grid-template-columns: max-content 3ch max-content max-content; }
+.half.pcts { grid-template-columns: minmax(max-content, 1fr) max-content max-content max-content; }
 .list.halves .nrow,
 .list.halves .nums,
 .list.halves .fig { display: contents; }
 .list.halves .name {
-  margin-right: 6px;
+  margin-right: 2px;
   white-space: nowrap;
   overflow: visible;
   text-overflow: clip;
   font-size: calc(0.7647rem - 1px);
 }
-.list.halves .num { text-align: right; margin-right: 0.15em; }
+.list.halves .num { text-align: right; margin-right: 0.15em; justify-self: end; }
 .list.halves .unit {
   display: inline-grid;
   justify-items: start;
@@ -117,9 +122,10 @@ const rightRows = computed(() => rows.value.slice(mid.value));
 .list.halves .pct {
   display: block;
   width: auto;
-  margin: 0;
+  margin: 0 0 0 6px;
   text-align: right;
   white-space: nowrap;
+  font-size: calc(0.7647rem - 1px);
 }
 .nrow {
   display: grid;
@@ -152,5 +158,10 @@ const rightRows = computed(() => rows.value.slice(mid.value));
 .num { white-space: nowrap; }
 .miss .fig { color: var(--text-tertiary); }
 .pct { color: var(--text-secondary); }
-html.dt-xl .list.halves .name { font-size: 14px; }
+html.dt-xl .list.halves .name,
+html.dt-xl .list.halves .pct { font-size: 14px; }
+html.dt-xl .heads,
+html.dt-xl .list.paired .nrow { grid-template-columns: minmax(0, 1fr) 80px 80px; }
+html.dt-xl .heads.pcts,
+html.dt-xl .list.paired.pcts .nrow { grid-template-columns: minmax(0, 1fr) 80px 46px 80px; }
 </style>

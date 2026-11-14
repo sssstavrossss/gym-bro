@@ -1311,7 +1311,7 @@ async function deleteEdited() {
         </div>
       </div>
       <div class="preview" aria-live="polite">
-        <SwipePanels tight :count="sheetPanels.length + 1" :height="282" label="Food nutrients">
+        <SwipePanels tight :count="sheetPanels.length + 1" :height="208" label="Food nutrients">
           <div class="panel" data-panel="macros">
             <span class="section-title panel-title">Macros</span>
             <div class="cols t-capn c2"><span></span><span>Per 100 g</span><span>Amount</span></div>
@@ -1664,6 +1664,10 @@ async function deleteEdited() {
 .dt-l .units, .dt-l .chips { justify-content: center; }
 .dt-l .uchip { min-height: 44px; }
 html.dt-xl .preview { display: block; }
+/* Type inside the sheet is capped near the default size, so the value columns
+   stay at that size too. Root rem would otherwise widen them until the names wrap. */
+html.dt-xl .preview .cols,
+html.dt-xl .preview .nrow { grid-template-columns: minmax(0, 1fr) 80px 80px; }
 .dt-xl .qgrid { grid-template-columns: 1fr; }
 .fchips { gap: var(--space-gap); flex-wrap: wrap; flex: none; }
 .mine { display: inline-flex; align-items: center; gap: 3px; padding: 1px 6px; border-radius: 6px; border: 1px solid var(--color-border); color: var(--text-secondary); white-space: nowrap; flex: none; }
