@@ -28,6 +28,14 @@ public sealed class Recipe
 
     public decimal Carbs { get; set; }
 
+    public decimal? SaturatedFat { get; set; }
+
+    public decimal? Sugars { get; set; }
+
+    public decimal? Fiber { get; set; }
+
+    public decimal? Salt { get; set; }
+
     public DateTimeOffset CreatedAt { get; set; }
 
     public DateTimeOffset UpdatedAt { get; set; }

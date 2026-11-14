@@ -1,4 +1,5 @@
 using GymBro.Api.Data;
+using GymBro.Api.Foods;
 
 namespace GymBro.Api.Logging;
 
@@ -59,7 +60,15 @@ public static class RecipeRules
 
     public const string MissingRecipe = "No recipe with that id.";
 
-    public readonly record struct Totals(decimal Kcal, decimal Protein, decimal Fat, decimal Carbs);
+    public readonly record struct Totals(
+        decimal Kcal,
+        decimal Protein,
+        decimal Fat,
+        decimal Carbs,
+        decimal? SaturatedFat = null,
+        decimal? Sugars = null,
+        decimal? Fiber = null,
+        decimal? Salt = null);
 
     public static string? RejectName(string? raw, out string name)
     {
@@ -91,6 +100,10 @@ public static class RecipeRules
         decimal protein = 0;
         decimal fat = 0;
         decimal carbs = 0;
+        var saturated = new List<decimal?>();
+        var sugars = new List<decimal?>();
+        var fiber = new List<decimal?>();
+        var salt = new List<decimal?>();
         foreach (var row in rows)
         {
             if (!TryAdd(kcal, row.Kcal, out kcal)
@@ -100,13 +113,22 @@ public static class RecipeRules
             {
                 return null;
             }
+
+            saturated.Add(row.SaturatedFat);
+            sugars.Add(row.Sugars);
+            fiber.Add(row.Fiber);
+            salt.Add(row.Salt);
         }
 
         return new Totals(
             LogEntryRules.Round2(kcal),
             LogEntryRules.Round2(protein),
             LogEntryRules.Round2(fat),
-            LogEntryRules.Round2(carbs));
+            LogEntryRules.Round2(carbs),
+            Micronutrients.CompleteSum(saturated),
+            Micronutrients.CompleteSum(sugars),
+            Micronutrients.CompleteSum(fiber),
+            Micronutrients.CompleteSum(salt));
     }
 
     /// <summary>One portion of a saved recipe. Same factor the log uses for a single portion.</summary>
@@ -128,7 +150,11 @@ public static class RecipeRules
             Scale(total.Kcal, factor),
             Scale(total.Protein, factor),
             Scale(total.Fat, factor),
-            Scale(total.Carbs, factor));
+            Scale(total.Carbs, factor),
+            Micronutrients.Scale(total.SaturatedFat, factor),
+            Micronutrients.Scale(total.Sugars, factor),
+            Micronutrients.Scale(total.Fiber, factor),
+            Micronutrients.Scale(total.Salt, factor));
 
     public enum LogMode
     {
@@ -321,7 +347,7 @@ public static class RecipeRules
                 kept.Amount,
                 kept.Unit,
                 kept.Grams,
-                new Totals(kept.Kcal, kept.Protein, kept.Fat, kept.Carbs));
+                new Totals(kept.Kcal, kept.Protein, kept.Fat, kept.Carbs, kept.SaturatedFat, kept.Sugars, kept.Fiber, kept.Salt));
         }
 
         if (kept.Amount == 0)
@@ -330,7 +356,7 @@ public static class RecipeRules
         }
 
         var factor = amount / kept.Amount;
-        if (!TryShare(new Totals(kept.Kcal, kept.Protein, kept.Fat, kept.Carbs), factor, out var scaled))
+        if (!TryShare(new Totals(kept.Kcal, kept.Protein, kept.Fat, kept.Carbs, kept.SaturatedFat, kept.Sugars, kept.Fiber, kept.Salt), factor, out var scaled))
         {
             return BuiltLine.Bad(TooLarge);
         }
@@ -397,7 +423,7 @@ public static class RecipeRules
             return BuiltLine.Bad(snapshot.Error);
         }
 
-        var totals = new Totals(snapshot.Kcal, snapshot.Protein, snapshot.Fat, snapshot.Carbs);
+        var totals = new Totals(snapshot.Kcal, snapshot.Protein, snapshot.Fat, snapshot.Carbs, snapshot.SaturatedFat, snapshot.Sugars, snapshot.Fiber, snapshot.Salt);
         if (!Fits(totals))
         {
             return BuiltLine.Bad(TooLarge);
@@ -430,7 +456,13 @@ public static class RecipeRules
         totals.Kcal is >= 0 and <= NutrientMax
         && totals.Protein is >= 0 and <= NutrientMax
         && totals.Fat is >= 0 and <= NutrientMax
-        && totals.Carbs is >= 0 and <= NutrientMax;
+        && totals.Carbs is >= 0 and <= NutrientMax
+        && FitsOptional(totals.SaturatedFat)
+        && FitsOptional(totals.Sugars)
+        && FitsOptional(totals.Fiber)
+        && FitsOptional(totals.Salt);
+
+    private static bool FitsOptional(decimal? value) => value is null || value is >= 0 and <= NutrientMax;
 
     private static decimal Scale(decimal value, decimal factor) => LogEntryRules.Round2(value * factor);
 

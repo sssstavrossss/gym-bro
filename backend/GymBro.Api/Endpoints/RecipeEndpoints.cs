@@ -93,6 +93,10 @@ public static class RecipeEndpoints
             Protein = built.Totals.Value.Protein,
             Fat = built.Totals.Value.Fat,
             Carbs = built.Totals.Value.Carbs,
+            SaturatedFat = built.Totals.Value.SaturatedFat,
+            Sugars = built.Totals.Value.Sugars,
+            Fiber = built.Totals.Value.Fiber,
+            Salt = built.Totals.Value.Salt,
             CreatedAt = now,
             UpdatedAt = now,
         };
@@ -149,6 +153,10 @@ public static class RecipeEndpoints
         recipe.Protein = built.Totals.Value.Protein;
         recipe.Fat = built.Totals.Value.Fat;
         recipe.Carbs = built.Totals.Value.Carbs;
+        recipe.SaturatedFat = built.Totals.Value.SaturatedFat;
+        recipe.Sugars = built.Totals.Value.Sugars;
+        recipe.Fiber = built.Totals.Value.Fiber;
+        recipe.Salt = built.Totals.Value.Salt;
         recipe.UpdatedAt = clock.GetUtcNow();
         // Delete the old rows before inserting the replacements. One save would
         // collide on (recipe_id, position). The transaction keeps the previous
@@ -250,7 +258,7 @@ public static class RecipeEndpoints
         }
 
         var scaled = RecipeRules.ScaleLog(
-            new RecipeRules.Totals(recipe.Kcal, recipe.Protein, recipe.Fat, recipe.Carbs),
+            new RecipeRules.Totals(recipe.Kcal, recipe.Protein, recipe.Fat, recipe.Carbs, recipe.SaturatedFat, recipe.Sugars, recipe.Fiber, recipe.Salt),
             recipe.Portions,
             recipe.FinishedGrams,
             draft.Amount,
@@ -280,6 +288,10 @@ public static class RecipeEndpoints
             Protein = scaled.Nutrients.Protein,
             Fat = scaled.Nutrients.Fat,
             Carbs = scaled.Nutrients.Carbs,
+            SaturatedFat = scaled.Nutrients.SaturatedFat,
+            Sugars = scaled.Nutrients.Sugars,
+            Fiber = scaled.Nutrients.Fiber,
+            Salt = scaled.Nutrients.Salt,
             IdempotencyKey = draft.IdempotencyKey,
         };
         db.LogEntries.Add(entry);
@@ -325,6 +337,10 @@ public static class RecipeEndpoints
                 Protein = line.Nutrients.Protein,
                 Fat = line.Nutrients.Fat,
                 Carbs = line.Nutrients.Carbs,
+                SaturatedFat = line.Nutrients.SaturatedFat,
+                Sugars = line.Nutrients.Sugars,
+                Fiber = line.Nutrients.Fiber,
+                Salt = line.Nutrients.Salt,
             });
         }
     }
@@ -487,9 +503,13 @@ public static class RecipeEndpoints
                 item.Protein,
                 item.Fat,
                 item.Carbs,
-                available);
+                available,
+                item.SaturatedFat,
+                item.Sugars,
+                item.Fiber,
+                item.Salt);
         }).ToList();
-        var totals = new RecipeRules.Totals(recipe.Kcal, recipe.Protein, recipe.Fat, recipe.Carbs);
+        var totals = new RecipeRules.Totals(recipe.Kcal, recipe.Protein, recipe.Fat, recipe.Carbs, recipe.SaturatedFat, recipe.Sugars, recipe.Fiber, recipe.Salt);
         var perPortion = RecipeRules.PerPortion(totals, recipe.Portions);
         var perGram = RecipeRules.PerGram(totals, recipe.FinishedGrams);
         return new RecipeResponse(
@@ -506,11 +526,15 @@ public static class RecipeEndpoints
             RecipeRules.RetiredNotice(rows.Where(row => !row.Available).Select(row => row.Name)),
             recipe.CreatedAt,
             recipe.UpdatedAt,
-            rows);
+            rows,
+            recipe.SaturatedFat,
+            recipe.Sugars,
+            recipe.Fiber,
+            recipe.Salt);
     }
 
     private static MacroResponse Macro(RecipeRules.Totals totals) =>
-        new(totals.Kcal, totals.Protein, totals.Fat, totals.Carbs);
+        new(totals.Kcal, totals.Protein, totals.Fat, totals.Carbs, totals.SaturatedFat, totals.Sugars, totals.Fiber, totals.Salt);
 
     private static object ToLog(LogEntry entry) => new
     {
@@ -531,6 +555,10 @@ public static class RecipeEndpoints
         protein = entry.Protein,
         fat = entry.Fat,
         carbs = entry.Carbs,
+        saturatedFat = entry.SaturatedFat,
+        sugars = entry.Sugars,
+        fiber = entry.Fiber,
+        salt = entry.Salt,
         idempotencyKey = entry.IdempotencyKey,
         deletedAt = entry.DeletedAt,
     };
@@ -551,7 +579,11 @@ public static class RecipeEndpoints
         string Notice,
         DateTimeOffset CreatedAt,
         DateTimeOffset UpdatedAt,
-        IReadOnlyList<IngredientResponse> Ingredients);
+        IReadOnlyList<IngredientResponse> Ingredients,
+        decimal? SaturatedFat = null,
+        decimal? Sugars = null,
+        decimal? Fiber = null,
+        decimal? Salt = null);
 
     private sealed record IngredientResponse(
         Guid Id,
@@ -564,9 +596,21 @@ public static class RecipeEndpoints
         decimal Protein,
         decimal Fat,
         decimal Carbs,
-        bool Available);
+        bool Available,
+        decimal? SaturatedFat = null,
+        decimal? Sugars = null,
+        decimal? Fiber = null,
+        decimal? Salt = null);
 
-    private sealed record MacroResponse(decimal Kcal, decimal Protein, decimal Fat, decimal Carbs);
+    private sealed record MacroResponse(
+        decimal Kcal,
+        decimal Protein,
+        decimal Fat,
+        decimal Carbs,
+        decimal? SaturatedFat = null,
+        decimal? Sugars = null,
+        decimal? Fiber = null,
+        decimal? Salt = null);
 
     private sealed class WriteDraft
     {

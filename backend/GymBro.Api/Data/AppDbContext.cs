@@ -163,6 +163,10 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         food.Property(f => f.ProteinPer100).HasColumnName("protein_per_100").HasPrecision(8, 2);
         food.Property(f => f.FatPer100).HasColumnName("fat_per_100").HasPrecision(8, 2);
         food.Property(f => f.CarbsPer100).HasColumnName("carbs_per_100").HasPrecision(8, 2);
+        food.Property(f => f.SaturatedFatPer100).HasColumnName("saturated_fat_per_100").HasPrecision(8, 2);
+        food.Property(f => f.SugarsPer100).HasColumnName("sugars_per_100").HasPrecision(8, 2);
+        food.Property(f => f.FiberPer100).HasColumnName("fiber_per_100").HasPrecision(8, 2);
+        food.Property(f => f.SaltPer100).HasColumnName("salt_per_100").HasPrecision(8, 2);
         food.Property(f => f.ServingQuantity).HasColumnName("serving_quantity").HasPrecision(8, 2);
         food.Property(f => f.ServingLabel).HasColumnName("serving_label").HasMaxLength(80);
         food.Property(f => f.PieceQuantity).HasColumnName("piece_quantity").HasPrecision(8, 2);
@@ -246,6 +250,10 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         entry.Property(e => e.Protein).HasColumnName("protein").HasPrecision(8, 2);
         entry.Property(e => e.Fat).HasColumnName("fat").HasPrecision(8, 2);
         entry.Property(e => e.Carbs).HasColumnName("carbs").HasPrecision(8, 2);
+        entry.Property(e => e.SaturatedFat).HasColumnName("saturated_fat").HasPrecision(8, 2);
+        entry.Property(e => e.Sugars).HasColumnName("sugars").HasPrecision(8, 2);
+        entry.Property(e => e.Fiber).HasColumnName("fiber").HasPrecision(8, 2);
+        entry.Property(e => e.Salt).HasColumnName("salt").HasPrecision(8, 2);
         entry.Property(e => e.IdempotencyKey).HasColumnName("idempotency_key").HasMaxLength(64);
         entry.Property(e => e.DeletedAt).HasColumnName("deleted_at");
         entry.HasIndex(e => new { e.UserId, e.IdempotencyKey }).IsUnique();
@@ -302,6 +310,10 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         item.Property(i => i.Protein).HasColumnName("protein").HasPrecision(8, 2);
         item.Property(i => i.Fat).HasColumnName("fat").HasPrecision(8, 2);
         item.Property(i => i.Carbs).HasColumnName("carbs").HasPrecision(8, 2);
+        item.Property(i => i.SaturatedFat).HasColumnName("saturated_fat").HasPrecision(8, 2);
+        item.Property(i => i.Sugars).HasColumnName("sugars").HasPrecision(8, 2);
+        item.Property(i => i.Fiber).HasColumnName("fiber").HasPrecision(8, 2);
+        item.Property(i => i.Salt).HasColumnName("salt").HasPrecision(8, 2);
         item.HasIndex(i => new { i.GroupId, i.Position }).IsUnique();
         item.HasOne<EntryGroup>()
             .WithMany()
@@ -334,6 +346,10 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         recipe.Property(r => r.Protein).HasColumnName("protein").HasPrecision(8, 2);
         recipe.Property(r => r.Fat).HasColumnName("fat").HasPrecision(8, 2);
         recipe.Property(r => r.Carbs).HasColumnName("carbs").HasPrecision(8, 2);
+        recipe.Property(r => r.SaturatedFat).HasColumnName("saturated_fat").HasPrecision(8, 2);
+        recipe.Property(r => r.Sugars).HasColumnName("sugars").HasPrecision(8, 2);
+        recipe.Property(r => r.Fiber).HasColumnName("fiber").HasPrecision(8, 2);
+        recipe.Property(r => r.Salt).HasColumnName("salt").HasPrecision(8, 2);
         recipe.Property(r => r.CreatedAt).HasColumnName("created_at");
         recipe.Property(r => r.UpdatedAt).HasColumnName("updated_at");
         recipe.Property(r => r.RetiredAt).HasColumnName("retired_at");
@@ -364,6 +380,10 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         ingredient.Property(i => i.Protein).HasColumnName("protein").HasPrecision(8, 2);
         ingredient.Property(i => i.Fat).HasColumnName("fat").HasPrecision(8, 2);
         ingredient.Property(i => i.Carbs).HasColumnName("carbs").HasPrecision(8, 2);
+        ingredient.Property(i => i.SaturatedFat).HasColumnName("saturated_fat").HasPrecision(8, 2);
+        ingredient.Property(i => i.Sugars).HasColumnName("sugars").HasPrecision(8, 2);
+        ingredient.Property(i => i.Fiber).HasColumnName("fiber").HasPrecision(8, 2);
+        ingredient.Property(i => i.Salt).HasColumnName("salt").HasPrecision(8, 2);
         ingredient.HasIndex(i => new { i.RecipeId, i.Position }).IsUnique();
         ingredient.HasOne<Recipe>()
             .WithMany()

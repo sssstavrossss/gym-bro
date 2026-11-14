@@ -127,6 +127,26 @@ namespace GymBro.Api.Data.Migrations
                         .HasPrecision(8, 2)
                         .HasColumnType("numeric(8,2)")
                         .HasColumnName("carbs");
+                    b.Property<decimal?>("Fiber")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("fiber");
+
+                    b.Property<decimal?>("Salt")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("salt");
+
+                    b.Property<decimal?>("SaturatedFat")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("saturated_fat");
+
+                    b.Property<decimal?>("Sugars")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("sugars");
+
 
                     b.Property<decimal>("Fat")
                         .HasPrecision(8, 2)
@@ -225,6 +245,26 @@ namespace GymBro.Api.Data.Migrations
                         .HasPrecision(8, 2)
                         .HasColumnType("numeric(8,2)")
                         .HasColumnName("carbs_per_100");
+                    b.Property<decimal?>("FiberPer100")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("fiber_per_100");
+
+                    b.Property<decimal?>("SaltPer100")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("salt_per_100");
+
+                    b.Property<decimal?>("SaturatedFatPer100")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("saturated_fat_per_100");
+
+                    b.Property<decimal?>("SugarsPer100")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("sugars_per_100");
+
 
                     b.Property<decimal>("FatPer100")
                         .HasPrecision(8, 2)
@@ -484,6 +524,26 @@ namespace GymBro.Api.Data.Migrations
                         .HasPrecision(8, 2)
                         .HasColumnType("numeric(8,2)")
                         .HasColumnName("carbs");
+                    b.Property<decimal?>("Fiber")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("fiber");
+
+                    b.Property<decimal?>("Salt")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("salt");
+
+                    b.Property<decimal?>("SaturatedFat")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("saturated_fat");
+
+                    b.Property<decimal?>("Sugars")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("sugars");
+
 
                     b.Property<DateTimeOffset?>("DeletedAt")
                         .HasColumnType("timestamp with time zone")
@@ -805,6 +865,26 @@ namespace GymBro.Api.Data.Migrations
                         .HasPrecision(8, 2)
                         .HasColumnType("numeric(8,2)")
                         .HasColumnName("carbs");
+                    b.Property<decimal?>("Fiber")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("fiber");
+
+                    b.Property<decimal?>("Salt")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("salt");
+
+                    b.Property<decimal?>("SaturatedFat")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("saturated_fat");
+
+                    b.Property<decimal?>("Sugars")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("sugars");
+
 
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
@@ -886,6 +966,26 @@ namespace GymBro.Api.Data.Migrations
                         .HasPrecision(8, 2)
                         .HasColumnType("numeric(8,2)")
                         .HasColumnName("carbs");
+                    b.Property<decimal?>("Fiber")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("fiber");
+
+                    b.Property<decimal?>("Salt")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("salt");
+
+                    b.Property<decimal?>("SaturatedFat")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("saturated_fat");
+
+                    b.Property<decimal?>("Sugars")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("sugars");
+
 
                     b.Property<decimal>("Fat")
                         .HasPrecision(8, 2)

@@ -139,6 +139,10 @@ for (const width of [375, 390]) {
 
       await openAddFood(page);
       const food = page.getByRole("dialog", { name: "Add food" });
+      const openedTime = food.getByLabel(/Change time/);
+      await expect(openedTime).not.toBeFocused();
+      const openedType = await page.evaluate(() => (document.activeElement as HTMLInputElement | null)?.type ?? "");
+      expect(openedType).not.toBe("time");
       const filters = food.getByRole("group", { name: "Show" });
       await expect(filters.getByRole("button", { name: "New food" })).toHaveCount(0);
       await expect(filters.getByRole("button", { name: "New recipe" })).toHaveCount(0);

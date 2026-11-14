@@ -50,7 +50,7 @@ function change(event: Event) {
     <span class="tchip t-label" :class="{ set: modelValue, need: needed }">
       <Icon name="clock" :size="14" :sw="2.2" />
       <span>{{ label }}</span>
-      <input ref="el" class="tinput" type="time" :aria-label="`Time: ${label}. Change time`" :value="modelValue ?? ''" @pointerdown="arm" @click="pick" @change="change" />
+      <input ref="el" class="tinput" type="time" data-no-autofocus :aria-label="`Time: ${label}. Change time`" :value="modelValue ?? ''" @pointerdown="arm" @click="pick" @change="change" />
     </span>
     <button v-if="modelValue && !past && allowNow" type="button" class="now t-capn c2" @click="emit('update:modelValue', null)">Now</button>
   </span>

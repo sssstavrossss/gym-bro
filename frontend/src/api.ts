@@ -229,13 +229,26 @@ export interface LogEntryResponse {
   protein: number;
   fat: number;
   carbs: number;
+  saturatedFat: number | null;
+  sugars: number | null;
+  fiber: number | null;
+  salt: number | null;
   idempotencyKey: string;
   deletedAt: string | null;
 }
 
 export interface LogListResponse {
   localDate: string;
-  totals: { kcal: number; protein: number; fat: number; carbs: number };
+  totals: {
+    kcal: number;
+    protein: number;
+    fat: number;
+    carbs: number;
+    saturatedFat: number | null;
+    sugars: number | null;
+    fiber: number | null;
+    salt: number | null;
+  };
   entries: LogEntryResponse[];
 }
 
@@ -518,6 +531,10 @@ export interface CustomFoodBody {
   proteinPer100: number;
   fatPer100: number;
   carbsPer100: number;
+  saturatedFatPer100?: number | null;
+  sugarsPer100?: number | null;
+  fiberPer100?: number | null;
+  saltPer100?: number | null;
   servingQuantity: number | null;
   servingLabel: string | null;
 }

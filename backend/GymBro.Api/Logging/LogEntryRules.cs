@@ -1,5 +1,6 @@
 using System.Globalization;
 using GymBro.Api.Data;
+using GymBro.Api.Foods;
 using GymBro.Api.Nutrition;
 using GymBro.Api.Profiles;
 
@@ -344,7 +345,7 @@ public static class LogEntryRules
                 Scale(food.ProteinPer100, ownFactor),
                 Scale(food.FatPer100, ownFactor),
                 Scale(food.CarbsPer100, ownFactor),
-                null);
+                null).With(food, ownFactor);
         }
 
         // Kassalapp never stated grams or millilitres. The unit on this entry is the one to scale by.
@@ -358,7 +359,7 @@ public static class LogEntryRules
                 Scale(food.ProteinPer100, unconfirmedFactor),
                 Scale(food.FatPer100, unconfirmedFactor),
                 Scale(food.CarbsPer100, unconfirmedFactor),
-                null);
+                null).With(food, unconfirmedFactor);
         }
 
         var basis = food.Basis;
@@ -369,7 +370,7 @@ public static class LogEntryRules
                 return FoodSnapshot.Fail(PerServingUnit);
             }
 
-            return new FoodSnapshot(kind, null, Scale(food.KcalPer100, amount), Scale(food.ProteinPer100, amount), Scale(food.FatPer100, amount), Scale(food.CarbsPer100, amount), null);
+            return new FoodSnapshot(kind, null, Scale(food.KcalPer100, amount), Scale(food.ProteinPer100, amount), Scale(food.FatPer100, amount), Scale(food.CarbsPer100, amount), null).With(food, amount);
         }
 
         if (basis == "ml")
@@ -387,7 +388,7 @@ public static class LogEntryRules
                 Scale(food.ProteinPer100, factor),
                 Scale(food.FatPer100, factor),
                 Scale(food.CarbsPer100, factor),
-                null);
+                null).With(food, factor);
         }
 
         if (kind == "ml")
@@ -432,7 +433,7 @@ public static class LogEntryRules
             Scale(food.ProteinPer100, perGram),
             Scale(food.FatPer100, perGram),
             Scale(food.CarbsPer100, perGram),
-            null);
+            null).With(food, perGram);
     }
 
     /// <summary>
@@ -492,7 +493,13 @@ public static class LogEntryRules
             Round2(entry.Fat * factor),
             Round2(entry.Carbs * factor),
             grams,
-            null);
+            null)
+        {
+            SaturatedFat = Micronutrients.Scale(entry.SaturatedFat, factor),
+            Sugars = Micronutrients.Scale(entry.Sugars, factor),
+            Fiber = Micronutrients.Scale(entry.Fiber, factor),
+            Salt = Micronutrients.Scale(entry.Salt, factor),
+        };
     }
 
     private static decimal Scale(decimal per, decimal factor) => Round2(per * factor);
@@ -561,7 +568,23 @@ public readonly record struct FoodSnapshot(
     decimal Carbs,
     string? Error)
 {
+    public decimal? SaturatedFat { get; init; }
+
+    public decimal? Sugars { get; init; }
+
+    public decimal? Fiber { get; init; }
+
+    public decimal? Salt { get; init; }
+
     public static FoodSnapshot Fail(string error) => new("", null, 0, 0, 0, 0, error);
+
+    public FoodSnapshot With(Food food, decimal factor) => this with
+    {
+        SaturatedFat = Micronutrients.Scale(food.SaturatedFatPer100, factor),
+        Sugars = Micronutrients.Scale(food.SugarsPer100, factor),
+        Fiber = Micronutrients.Scale(food.FiberPer100, factor),
+        Salt = Micronutrients.Scale(food.SaltPer100, factor),
+    };
 }
 
 public readonly record struct StoredScale(
@@ -572,5 +595,13 @@ public readonly record struct StoredScale(
     decimal? Grams,
     string? Error)
 {
+    public decimal? SaturatedFat { get; init; }
+
+    public decimal? Sugars { get; init; }
+
+    public decimal? Fiber { get; init; }
+
+    public decimal? Salt { get; init; }
+
     public static StoredScale Fail(string error) => new(0, 0, 0, 0, null, error);
 }

@@ -15,7 +15,7 @@ public static class Matvaretabellen
     public const string Citation = "Matvaretabellen 2026. Mattilsynet. www.matvaretabellen.no";
 }
 
-public sealed record MatvaretabellenImportResult(int Upserted, int Retired, int Skipped);
+public sealed record MatvaretabellenImportResult(int Upserted, int Retired, int Skipped, string Coverage);
 
 public sealed class MatvaretabellenImporter(
     AppDbContext db,
@@ -159,7 +159,15 @@ public sealed class MatvaretabellenImporter(
             upserted,
             retired,
             skipped);
-        return new MatvaretabellenImportResult(upserted, retired, skipped);
+        var live = existing.Values.Where(row => row.RetiredAt is null).ToList();
+        var coverage = Micronutrients.CoverageLine(
+            "Matvaretabellen",
+            live.Count,
+            live.Count(row => row.SaturatedFatPer100 is not null),
+            live.Count(row => row.SugarsPer100 is not null),
+            live.Count(row => row.FiberPer100 is not null),
+            live.Count(row => row.SaltPer100 is not null));
+        return new MatvaretabellenImportResult(upserted, retired, skipped, coverage);
     }
 
     internal static MappedFood? Map(MvtFood food)
@@ -182,6 +190,11 @@ public sealed class MatvaretabellenImporter(
         var protein = Nutrient(food, "Protein");
         var fat = Nutrient(food, "Fett");
         var carbs = Nutrient(food, "Karbo");
+        var micros = Micronutrients.FromMatvare(food.Constituents.Select(constituent =>
+            new MatvareConstituent(
+                constituent.NutrientId,
+                constituent.Unit,
+                TryQuantity(constituent.Quantity, out var quantity) ? quantity : null)));
         Portion? serving = null;
         Portion? piece = null;
         foreach (var portion in food.Portions)
@@ -223,7 +236,11 @@ public sealed class MatvaretabellenImporter(
                 serving?.Grams,
                 serving?.Label,
                 piece?.Grams,
-                piece?.Label),
+                piece?.Label,
+                micros.SaturatedFat,
+                micros.Sugars,
+                micros.Fiber,
+                micros.Salt),
             CleanName(food.FoodNameEn));
     }
 
@@ -283,6 +300,10 @@ public sealed class MatvaretabellenImporter(
         row.ProteinPer100 = parsed.ProteinPer100;
         row.FatPer100 = parsed.FatPer100;
         row.CarbsPer100 = parsed.CarbsPer100;
+        row.SaturatedFatPer100 = parsed.SaturatedFatPer100;
+        row.SugarsPer100 = parsed.SugarsPer100;
+        row.FiberPer100 = parsed.FiberPer100;
+        row.SaltPer100 = parsed.SaltPer100;
         row.ServingQuantity = parsed.ServingQuantity;
         row.ServingLabel = parsed.ServingLabel;
         row.PieceQuantity = parsed.PieceQuantity;

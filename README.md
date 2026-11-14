@@ -288,6 +288,20 @@ docker compose run --rm app --import-matvaretabellen
 
 That one-off container applies migrations, imports, prints the citation, and exits. Run it again for the yearly refresh. The command prints `Matvaretabellen 2026. Mattilsynet. www.matvaretabellen.no`, and the app shows the same line from `/api/about` and the profile payload. Label kilocalories are stored as published. USDA is not used.
 
+The same import fills saturated fat (`Mettet`), total sugars (`Mono+Di`, not added sugar), fibre (`Fiber`), and salt (`NaCl`) on each Matvaretabellen food. A published 0 stays 0. A missing constituent stays null. Sodium is not converted into salt. Running it again updates those columns in place and does not rewrite `log_entries`, recipes, or saved groups. It prints a coverage line, for example `Matvaretabellen: 2118 foods, saturated fat 99.0% (2097), ...`. On a Mac, from the repo, with the API's database environment:
+
+```bash
+dotnet run --project backend/GymBro.Api -- --import-matvaretabellen
+```
+
+Kassalapp uses the same offline JSONL as the original import. No API call and no key. Codes read, only when the unit is grams, are `mettede_fettsyrer` / `mettede` / `mettet_fett` / `fett_mettede`, `sukkerarter`, `kostfiber` / `fiber`, and `salt`. `natrium` is ignored.
+
+```bash
+dotnet run --project backend/GymBro.Api -- --import-kassalapp --file /path/to/the-offline.jsonl
+```
+
+Open Food Facts reads `saturated-fat_100g`, `sugars_100g`, `fiber_100g`, and `salt_100g` the next time a product is fetched. There is no bulk Open Food Facts backfill. A branded product is never filled from a Matvaretabellen row. New logs, recipe ingredients, and saved-group items copy the four numbers as they stand. Older snapshots stay null. A day's total for each of the four is null unless every entry that day has a number.
+
 Search matches the Norwegian name, the English name, or one stored phrase on that same food. The typed text is composed to Unicode NFC, lower-cased with invariant rules, and punctuation becomes spaces, then split into words. That same text is stored on the food (`search_name`, `search_name_en`) when the row is saved. Startup fills rows that do not have it yet. Search reads those columns, so Postgres does not fold accents a second time. A precomposed "é" and an "e" plus a combining accent are the same letter. The accent is kept, so `cafe` does not match `café`. Every word has to occur in that one string. Words shorter than four letters stay on a boundary: words before the last one must be whole words, and the last word may be only the start of a word, so `chicken br` finds `chicken breast` while the person is still typing, and it does not return every chicken or every breast. A word of four letters or more may also sit inside a compound, so `bryst` still finds `kyllingbryst` and `filet` still finds `kyllingfilet`. `raw chicken br` stays on the raw fillet phrase. `fried chicken br` stays on the fried fillet phrase. Word order can vary (`fillet chicken`). A barcode of digits still matches the barcode exactly. Another person's private food is still excluded.
 
 Results are ordered so an exact name or phrase comes first, then a name or phrase that starts with what was typed (`chicken breast` before `chicken burger, breaded` for `chicken br`), then whole-word matches, then a last word that only starts a word, then a compound that merely contains the word. The list still stops at 25. At least two characters are required, and more than eight words is rejected, so a keystroke does not scan an open-ended predicate. The search box waits 200 ms and drops a response if the text has already changed.

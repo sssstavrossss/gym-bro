@@ -118,6 +118,10 @@ public static class GroupEndpoints
                 Protein = entry.Protein,
                 Fat = entry.Fat,
                 Carbs = entry.Carbs,
+                SaturatedFat = entry.SaturatedFat,
+                Sugars = entry.Sugars,
+                Fiber = entry.Fiber,
+                Salt = entry.Salt,
             });
         }
 
@@ -247,6 +251,10 @@ public static class GroupEndpoints
                     Protein = plan.Protein,
                     Fat = plan.Fat,
                     Carbs = plan.Carbs,
+                    SaturatedFat = plan.SaturatedFat,
+                    Sugars = plan.Sugars,
+                    Fiber = plan.Fiber,
+                    Salt = plan.Salt,
                     IdempotencyKey = GroupRules.ItemKey(draft.IdempotencyKey, item.Position),
                 };
                 db.LogEntries.Add(entry);
@@ -370,7 +378,11 @@ public static class GroupEndpoints
                 show ? plan.Fat : item.Fat,
                 show ? plan.Carbs : item.Carbs,
                 item.FoodId is null,
-                show);
+                show,
+                show ? plan.SaturatedFat : item.SaturatedFat,
+                show ? plan.Sugars : item.Sugars,
+                show ? plan.Fiber : item.Fiber,
+                show ? plan.Salt : item.Salt);
         }).ToList();
         return new GroupResponse(group.Id, group.Name, group.CreatedAt, rows.Sum(row => row.Kcal), rows);
     }
@@ -394,7 +406,11 @@ public static class GroupEndpoints
         entry.Fat,
         entry.Carbs,
         entry.IdempotencyKey,
-        entry.DeletedAt);
+        entry.DeletedAt,
+        entry.SaturatedFat,
+        entry.Sugars,
+        entry.Fiber,
+        entry.Salt);
 
     private sealed record GroupListResponse(IReadOnlyList<GroupResponse> Groups);
 
@@ -417,7 +433,11 @@ public static class GroupEndpoints
         decimal Fat,
         decimal Carbs,
         bool Quick,
-        bool Available);
+        bool Available,
+        decimal? SaturatedFat = null,
+        decimal? Sugars = null,
+        decimal? Fiber = null,
+        decimal? Salt = null);
 
     private sealed record SkippedItemResponse(string Name, string Notice);
 
@@ -447,7 +467,11 @@ public static class GroupEndpoints
         decimal Fat,
         decimal Carbs,
         string IdempotencyKey,
-        DateTimeOffset? DeletedAt);
+        DateTimeOffset? DeletedAt,
+        decimal? SaturatedFat = null,
+        decimal? Sugars = null,
+        decimal? Fiber = null,
+        decimal? Salt = null);
 
     private sealed class PlanContext(Dictionary<Guid, Food> foods, List<UserServing> servings)
     {

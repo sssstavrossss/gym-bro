@@ -222,6 +222,10 @@ public static class FoodCatalog
             row.ProteinPer100 = parsed.ProteinPer100;
             row.FatPer100 = parsed.FatPer100;
             row.CarbsPer100 = parsed.CarbsPer100;
+            row.SaturatedFatPer100 = parsed.SaturatedFatPer100;
+            row.SugarsPer100 = parsed.SugarsPer100;
+            row.FiberPer100 = parsed.FiberPer100;
+            row.SaltPer100 = parsed.SaltPer100;
             row.ServingQuantity = parsed.ServingQuantity;
             row.ServingLabel = TrimOrNull(parsed.ServingLabel, 80);
             row.PieceQuantity = parsed.PieceQuantity;

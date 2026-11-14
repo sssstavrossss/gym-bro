@@ -13,6 +13,10 @@ export interface CatalogFood {
   proteinPer100: number;
   fatPer100: number;
   carbsPer100: number;
+  saturatedFatPer100?: number | null;
+  sugarsPer100?: number | null;
+  fiberPer100?: number | null;
+  saltPer100?: number | null;
   servingQuantity: number | null;
   servingLabel: string | null;
   pieceQuantity: number | null;

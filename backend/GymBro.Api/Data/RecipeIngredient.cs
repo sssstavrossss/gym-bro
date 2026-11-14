@@ -40,4 +40,12 @@ public sealed class RecipeIngredient
     public decimal Fat { get; set; }
 
     public decimal Carbs { get; set; }
+
+    public decimal? SaturatedFat { get; set; }
+
+    public decimal? Sugars { get; set; }
+
+    public decimal? Fiber { get; set; }
+
+    public decimal? Salt { get; set; }
 }

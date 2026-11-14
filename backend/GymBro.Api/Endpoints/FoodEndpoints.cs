@@ -25,6 +25,14 @@ public sealed class CustomFoodRequest
 
     public decimal CarbsPer100 { get; set; }
 
+    public decimal? SaturatedFatPer100 { get; set; }
+
+    public decimal? SugarsPer100 { get; set; }
+
+    public decimal? FiberPer100 { get; set; }
+
+    public decimal? SaltPer100 { get; set; }
+
     public string? Basis { get; set; }
 
     /// <summary><c>per_100</c> (default) or <c>per_serving</c>. Per serving, the nutrient fields are for one serving.</summary>
@@ -429,6 +437,14 @@ public static class FoodEndpoints
             {
                 return "Protein, fat, and carbs per serving should be between 0 and 1,000 g.";
             }
+
+            if (OutOfRange(request.SaturatedFatPer100, PerServingMacroMax)
+                || OutOfRange(request.SugarsPer100, PerServingMacroMax)
+                || OutOfRange(request.FiberPer100, PerServingMacroMax)
+                || OutOfRange(request.SaltPer100, PerServingMacroMax))
+            {
+                return "Saturated fat, sugars, fibre, and salt per serving should be between 0 and 1,000 g.";
+            }
         }
         else
         {
@@ -441,6 +457,14 @@ public static class FoodEndpoints
                 || request.ProteinPer100 > 100 || request.FatPer100 > 100 || request.CarbsPer100 > 100)
             {
                 return "Protein, fat, and carbs per 100 should be between 0 and 100 g.";
+            }
+
+            if (OutOfRange(request.SaturatedFatPer100, 100)
+                || OutOfRange(request.SugarsPer100, 100)
+                || OutOfRange(request.FiberPer100, 100)
+                || OutOfRange(request.SaltPer100, 100))
+            {
+                return "Saturated fat, sugars, fibre, and salt per 100 should be between 0 and 100 g.";
             }
         }
 
@@ -495,6 +519,10 @@ public static class FoodEndpoints
             ProteinPer100 = request.ProteinPer100,
             FatPer100 = request.FatPer100,
             CarbsPer100 = request.CarbsPer100,
+            SaturatedFatPer100 = request.SaturatedFatPer100,
+            SugarsPer100 = request.SugarsPer100,
+            FiberPer100 = request.FiberPer100,
+            SaltPer100 = request.SaltPer100,
             Basis = basis,
             NutrientBasis = nutrientBasis,
             Barcode = barcode.Length == 0 ? null : barcode,
@@ -526,6 +554,10 @@ public static class FoodEndpoints
             ProteinPer100 = Scale(request.ProteinPer100, grams),
             FatPer100 = Scale(request.FatPer100, grams),
             CarbsPer100 = Scale(request.CarbsPer100, grams),
+            SaturatedFatPer100 = ScaleOptional(request.SaturatedFatPer100, grams),
+            SugarsPer100 = ScaleOptional(request.SugarsPer100, grams),
+            FiberPer100 = ScaleOptional(request.FiberPer100, grams),
+            SaltPer100 = ScaleOptional(request.SaltPer100, grams),
             Basis = "g",
             NutrientBasis = NutrientBases.Per100,
             Barcode = request.Barcode,
@@ -539,6 +571,11 @@ public static class FoodEndpoints
     private static decimal Scale(decimal perServing, decimal grams) =>
         decimal.Round(perServing * 100m / grams, 2, MidpointRounding.AwayFromZero);
 
+    private static decimal? ScaleOptional(decimal? perServing, decimal grams) =>
+        perServing is decimal value ? Scale(value, grams) : null;
+
+    private static bool OutOfRange(decimal? value, decimal max) => value is < 0 || value > max;
+
     private static void Apply(Food food, CustomFoodRequest request)
     {
         food.Name = request.Name ?? "";
@@ -547,6 +584,10 @@ public static class FoodEndpoints
         food.ProteinPer100 = request.ProteinPer100;
         food.FatPer100 = request.FatPer100;
         food.CarbsPer100 = request.CarbsPer100;
+        food.SaturatedFatPer100 = request.SaturatedFatPer100;
+        food.SugarsPer100 = request.SugarsPer100;
+        food.FiberPer100 = request.FiberPer100;
+        food.SaltPer100 = request.SaltPer100;
         food.Basis = request.Basis ?? "g";
         food.NutrientBasis = string.IsNullOrWhiteSpace(request.NutrientBasis)
             ? NutrientBases.Per100
@@ -650,6 +691,10 @@ public static class FoodEndpoints
         proteinPer100 = food.ProteinPer100,
         fatPer100 = food.FatPer100,
         carbsPer100 = food.CarbsPer100,
+        saturatedFatPer100 = food.SaturatedFatPer100,
+        sugarsPer100 = food.SugarsPer100,
+        fiberPer100 = food.FiberPer100,
+        saltPer100 = food.SaltPer100,
         servingQuantity = food.ServingQuantity,
         servingLabel = food.ServingLabel,
         pieceQuantity = food.PieceQuantity,
@@ -674,6 +719,10 @@ public static class FoodEndpoints
         proteinPer100 = food.ProteinPer100,
         fatPer100 = food.FatPer100,
         carbsPer100 = food.CarbsPer100,
+        saturatedFatPer100 = food.SaturatedFatPer100,
+        sugarsPer100 = food.SugarsPer100,
+        fiberPer100 = food.FiberPer100,
+        saltPer100 = food.SaltPer100,
         servingQuantity = food.ServingQuantity,
         servingLabel = food.ServingLabel,
         pieceQuantity = food.PieceQuantity,
@@ -699,6 +748,10 @@ public static class FoodEndpoints
         proteinPer100 = food.ProteinPer100,
         fatPer100 = food.FatPer100,
         carbsPer100 = food.CarbsPer100,
+        saturatedFatPer100 = food.SaturatedFatPer100,
+        sugarsPer100 = food.SugarsPer100,
+        fiberPer100 = food.FiberPer100,
+        saltPer100 = food.SaltPer100,
         servingQuantity = food.ServingQuantity,
         servingLabel = food.ServingLabel,
         pieceQuantity = food.PieceQuantity,

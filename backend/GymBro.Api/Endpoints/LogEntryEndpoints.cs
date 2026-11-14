@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using System.Text.Json;
 using GymBro.Api.Data;
+using GymBro.Api.Foods;
 using GymBro.Api.Logging;
 using GymBro.Api.Users;
 using Microsoft.EntityFrameworkCore;
@@ -93,6 +94,10 @@ public static class LogEntryEndpoints
         var amount = draft.Amount;
         var unit = draft.Unit;
         decimal? grams = null;
+        decimal? saturated = null;
+        decimal? sugars = null;
+        decimal? fiber = null;
+        decimal? salt = null;
         var snapshotUnit = draft.Unit;
         decimal? ownGrams = null;
         if (food is not null && LogEntryRules.NormalizeUnit(draft.Unit) is null && draft.Unit.Length > 0)
@@ -129,6 +134,10 @@ public static class LogEntryEndpoints
             carbs = snapshot.Carbs;
             unit = snapshot.Unit;
             grams = snapshot.Grams;
+            saturated = snapshot.SaturatedFat;
+            sugars = snapshot.Sugars;
+            fiber = snapshot.Fiber;
+            salt = snapshot.Salt;
         }
 
         var entry = new LogEntry
@@ -151,6 +160,10 @@ public static class LogEntryEndpoints
             Protein = protein,
             Fat = fat,
             Carbs = carbs,
+            SaturatedFat = saturated,
+            Sugars = sugars,
+            Fiber = fiber,
+            Salt = salt,
             IdempotencyKey = draft.IdempotencyKey,
         };
         db.LogEntries.Add(entry);
@@ -292,6 +305,10 @@ public static class LogEntryEndpoints
             fat = stored.Fat;
             carbs = stored.Carbs;
             grams = stored.Grams;
+            entry.SaturatedFat = stored.SaturatedFat;
+            entry.Sugars = stored.Sugars;
+            entry.Fiber = stored.Fiber;
+            entry.Salt = stored.Salt;
         }
         else if (entry.Source == LogEntryRules.QuickSource)
         {
@@ -520,6 +537,10 @@ public static class LogEntryEndpoints
             Protein = source.Protein,
             Fat = source.Fat,
             Carbs = source.Carbs,
+            SaturatedFat = source.SaturatedFat,
+            Sugars = source.Sugars,
+            Fiber = source.Fiber,
+            Salt = source.Salt,
             IdempotencyKey = idempotencyKey,
         };
     }
@@ -563,6 +584,10 @@ public static class LogEntryEndpoints
         protein = rows.Sum(row => row.Protein),
         fat = rows.Sum(row => row.Fat),
         carbs = rows.Sum(row => row.Carbs),
+        saturatedFat = Micronutrients.CompleteSum(rows.Select(row => row.SaturatedFat)),
+        sugars = Micronutrients.CompleteSum(rows.Select(row => row.Sugars)),
+        fiber = Micronutrients.CompleteSum(rows.Select(row => row.Fiber)),
+        salt = Micronutrients.CompleteSum(rows.Select(row => row.Salt)),
     };
 
     private static object ToResponse(LogEntry entry) => new
@@ -584,6 +609,10 @@ public static class LogEntryEndpoints
         protein = entry.Protein,
         fat = entry.Fat,
         carbs = entry.Carbs,
+        saturatedFat = entry.SaturatedFat,
+        sugars = entry.Sugars,
+        fiber = entry.Fiber,
+        salt = entry.Salt,
         idempotencyKey = entry.IdempotencyKey,
         deletedAt = entry.DeletedAt,
     };

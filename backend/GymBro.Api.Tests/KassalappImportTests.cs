@@ -195,6 +195,31 @@ public sealed class KassalappImportTests(ApiFactory factory)
         await db.SaveChangesAsync();
     }
 
+    [Fact]
+    public async Task Optional_grams_are_stored_and_sodium_is_not_turned_into_salt()
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var importer = scope.ServiceProvider.GetRequiredService<KassalappImporter>();
+        var line = """{"ean":"7777777777777","name":"Fictional seeded crisp","brand":"Fictional","updated_at":"2026-11-14T08:00:00Z","nutrition":[{"code":"energi_kcal","unit":"kcal","amount":100},{"code":"protein","unit":"g","amount":2},{"code":"fett_totalt","unit":"g","amount":1},{"code":"karbohydrater","unit":"g","amount":20},{"code":"mettede_fettsyrer","unit":"g","amount":0},{"code":"sukkerarter","unit":"g","amount":8},{"code":"kostfiber","unit":"g","amount":1.5},{"code":"salt","unit":"g","amount":0.3},{"code":"natrium","unit":"mg","amount":120}]}""";
+        var report = await importer.ImportFileAsync(Stream(line), CancellationToken.None);
+        var stored = await db.Foods.Where(row => row.Source == Kassalapp.Source && row.UserId == null && row.RetiredAt == null).ToListAsync();
+        Assert.Equal(Micronutrients.CoverageLine(
+            "Kassalapp",
+            stored.Count,
+            stored.Count(row => row.SaturatedFatPer100 is not null),
+            stored.Count(row => row.SugarsPer100 is not null),
+            stored.Count(row => row.FiberPer100 is not null),
+            stored.Count(row => row.SaltPer100 is not null)), report.Coverage);
+        var food = await db.Foods.SingleAsync(row => row.SourceId == "7777777777777");
+        Assert.Equal(0, food.SaturatedFatPer100);
+        Assert.Equal(8, food.SugarsPer100);
+        Assert.Equal(1.5m, food.FiberPer100);
+        Assert.Equal(0.3m, food.SaltPer100);
+        db.Foods.Remove(food);
+        await db.SaveChangesAsync();
+    }
+
     private static Stream Stream(string text) => new MemoryStream(Encoding.UTF8.GetBytes(text));
 
     private static StringContent Json(string text) => new(text, Encoding.UTF8, "application/json");

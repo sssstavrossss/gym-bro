@@ -70,6 +70,18 @@ public sealed class Food
 
     public decimal CarbsPer100 { get; set; }
 
+    /// <summary>Saturated fat, grams per 100 g or per serving. Null when the source did not publish it.</summary>
+    public decimal? SaturatedFatPer100 { get; set; }
+
+    /// <summary>Total sugars, grams. Null when unknown. Not added sugar alone.</summary>
+    public decimal? SugarsPer100 { get; set; }
+
+    /// <summary>Fibre, grams. Null when unknown.</summary>
+    public decimal? FiberPer100 { get; set; }
+
+    /// <summary>Salt, grams. Null when unknown. Never derived from sodium.</summary>
+    public decimal? SaltPer100 { get; set; }
+
     public decimal? ServingQuantity { get; set; }
 
     public string? ServingLabel { get; set; }
