@@ -154,7 +154,7 @@ defineExpose({ go, index });
   scroll-snap-align: start;
   scroll-snap-stop: always;
   min-width: 0;
-  overflow: auto;
+  overflow: hidden;
   box-sizing: border-box;
 }
 .strip { display: flex; justify-content: center; flex: none; height: 44px; position: relative; }
