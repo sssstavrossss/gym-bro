@@ -208,7 +208,7 @@ function stopScroll(event: MouseEvent) {
 <template>
   <section class="home-progress" aria-label="Progress">
     <div class="row head">
-      <h2 class="t-head">Progress</h2>
+      <h2 class="t-head section-title">Progress</h2>
       <span v-if="period" class="t-label c2 period">{{ period }}</span>
       <span class="grow" />
       <button type="button" class="weigh" @click="openWeight()">

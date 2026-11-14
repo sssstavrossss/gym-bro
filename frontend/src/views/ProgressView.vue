@@ -194,7 +194,7 @@ function weighInOn(date: string): string {
       <div class="charts">
         <section class="card chart">
           <div class="row">
-            <h2 class="t-head">Weight</h2>
+            <h2 class="t-head section-title">Weight</h2>
             <span class="grow" />
             <span class="t-capn c2">Weigh-ins</span>
           </div>
@@ -219,7 +219,7 @@ function weighInOn(date: string): string {
 
         <section class="card chart">
           <div class="row">
-            <h2 class="t-head">Calories</h2>
+            <h2 class="t-head section-title">Calories</h2>
             <span class="grow" />
             <span class="t-capn c2">Logged days</span>
           </div>
@@ -244,7 +244,7 @@ function weighInOn(date: string): string {
 
         <section class="card chart">
           <div class="row">
-            <h2 class="t-head">Protein</h2>
+            <h2 class="t-head section-title">Protein</h2>
             <span class="grow" />
             <span class="t-capn c2">Logged days</span>
           </div>

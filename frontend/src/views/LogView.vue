@@ -100,7 +100,7 @@ async function onFasting(event: Event) {
       </section>
       <div class="maincol">
         <div class="row dayline">
-          <span class="t-bodys">Day total</span>
+          <span class="t-bodys section-title">Day total</span>
           <span class="t-body c2">&nbsp;· {{ totalLine }}</span>
         </div>
         <Timeline :date="shown" :today="today" :entries="entries" :pending="pending" show-empty />

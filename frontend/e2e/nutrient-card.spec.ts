@@ -166,7 +166,9 @@ test("the home nutrient card is 358 by 212 on every panel", async ({ page }) => 
   });
   await expect.poll(async () => card.locator("button.dot").count()).toBeGreaterThan(count);
   const grown = await card.boundingBox();
-  expect(grown!.height).toBeGreaterThan(212);
+  expect(Math.round(grown!.width)).toBe(358);
+  expect(Math.round(grown!.height)).toBe(212);
+  await expectRowsClear(page, "[data-nutrient-card]");
   const largeDots = card.locator("button.dot");
   const largeCount = await largeDots.count();
   const width = (await card.boundingBox())!.width;
@@ -195,7 +197,9 @@ test("the home nutrient card is 358 by 212 on every panel", async ({ page }) => 
   const preview = page.locator(".preview");
   await expect(preview).toBeVisible();
   const sheetStrip = await preview.locator(".strip").evaluate((node) => node.getBoundingClientRect().height);
-  expect(Math.round(sheetStrip)).toBe(44);
+  const sheetHit = await preview.locator("button.dot").first().evaluate((node) => node.getBoundingClientRect().height);
+  expect(Math.round(sheetStrip)).toBe(22);
+  expect(sheetHit).toBeGreaterThanOrEqual(44);
   await expectRowsClear(page, ".preview");
   await expectAmountFlush(page);
   const sheetSlots = await preview.locator("[data-panel='fats'] .fig").evaluateAll((figs) => {
@@ -229,16 +233,19 @@ async function expectAmountFlush(page: Page) {
     const panel = root.querySelector("[data-panel]")!;
     const box = panel.getBoundingClientRect();
     const right = box.right - parseFloat(getComputedStyle(panel).paddingRight);
-    return [...root.querySelectorAll(".nrow, .heads")].map((row) => {
-      const amount = row.querySelector(":scope > .amt") ?? row.querySelector(":scope > .num:last-child") ?? row.querySelector(":scope > span:last-child");
-      const per = row.querySelector(":scope > .per") ?? row.querySelector(":scope > span:nth-child(2)");
-      if (!amount) return 0;
+    return [...root.querySelectorAll(".nrow, .heads, .cols")].flatMap((row) => {
+      const directNums = [...row.querySelectorAll(":scope > .num")];
+      const table = row.classList.contains("heads") || row.classList.contains("cols") || row.querySelector(":scope > .amt") || directNums.length > 1;
+      if (!table) return [];
+      const amount = row.querySelector(":scope > .amt") ?? directNums.at(-1) ?? row.querySelector(":scope > span:last-child");
+      const per = row.querySelector(":scope > .per") ?? (directNums.length > 1 ? directNums[0] : row.querySelector(":scope > span:nth-child(2)"));
+      if (!amount || amount === per) return [];
       const amountBox = amount.getBoundingClientRect();
       const perBox = per ? per.getBoundingClientRect() : null;
-      return {
+      return [{
         gap: Math.round(right - amountBox.right),
         order: perBox ? perBox.right <= amountBox.left + 1 : true,
-      };
+      }];
     });
   });
   for (const row of gaps) {

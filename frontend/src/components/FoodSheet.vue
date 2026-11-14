@@ -127,6 +127,10 @@ let detailGen = 0;
 const searchEl = ref<HTMLInputElement | null>(null);
 const listEl = ref<HTMLElement | null>(null);
 const searchFocused = ref(false);
+/** Search chrome, kept after a result is added so the query and list come back. Not the same as the field having focus. */
+const searchView = ref(false);
+const searchScroll = ref(0);
+let keepSearch = false;
 const resultsMax = ref("");
 const amountEl = ref<HTMLInputElement | null>(null);
 const detailFood = ref<FoodSearchRow | null>(null);
@@ -371,17 +375,36 @@ function showFood(food: FoodSearchRow, preset?: { amount: number; unit: string }
   idempotencyKey.value = "";
   resetServingForm();
 }
+function holdSearchPlace() {
+  if (!searchFocused.value && !searchView.value) return;
+  keepSearch = true;
+  searchView.value = true;
+  if (listEl.value) searchScroll.value = listEl.value.scrollTop;
+}
 function pickFood(event: MouseEvent, food: FoodSearchRow, preset?: { amount: number; unit: string }) {
-  clickPick(event, () => { void openFoodRow(food, preset); });
+  clickPick(event, () => { holdSearchPlace(); void openFoodRow(food, preset); });
 }
 function pressFood(event: PointerEvent, food: FoodSearchRow, preset?: { amount: number; unit: string }) {
+  holdSearchPlace();
   bindPick(event, () => { void openFoodRow(food, preset); });
 }
 function closeSearchKeyboard() {
   searchEl.value?.blur();
   if (!keyboardEntry.value) document.querySelector<HTMLElement>(".kb-proxy")?.blur();
 }
+function restoreSearchList() {
+  searchFocused.value = false;
+  const top = searchScroll.value;
+  void nextTick(() => {
+    searchEl.value?.blur();
+    const list = listEl.value;
+    if (!list) return;
+    list.scrollTop = top;
+    requestAnimationFrame(() => { if (listEl.value) listEl.value.scrollTop = top; });
+  });
+}
 async function openFoodRow(food: FoodSearchRow, preset?: { amount: number; unit: string }) {
+  holdSearchPlace();
   if (keyboardEntry.value) primeKeyboard();
   else closeSearchKeyboard();
   const gen = ++detailGen;
@@ -411,6 +434,8 @@ function back() {
   ui.detailFoodId = null;
   detailFood.value = null;
   formError.value = "";
+  searchView.value = false;
+  keepSearch = false;
 }
 function openNewFood(seedName?: string) {
   primeKeyboard();
@@ -481,8 +506,15 @@ function amountKey(key: string) {
   const next = typeInto(amountText.value === "0" && key !== "⌫" && key !== "." ? "0" : amountText.value, key, maxInt, decimals);
   amountText.value = next === "" ? "0" : next;
 }
+function onSearchFocus() {
+  searchView.value = true;
+  searchFocused.value = true;
+}
 function queueSearchBlur() {
-  window.setTimeout(() => { searchFocused.value = false; }, 0);
+  window.setTimeout(() => {
+    searchFocused.value = false;
+    if (!keepSearch) searchView.value = false;
+  }, 0);
 }
 function fitResults() {
   const list = listEl.value;
@@ -856,6 +888,10 @@ watch(open, (isOpen) => {
   }
   q.value = "";
   results.value = [];
+  searchView.value = false;
+  searchFocused.value = false;
+  searchScroll.value = 0;
+  keepSearch = false;
   searchError.value = "";
   searching.value = false;
   session.value = [];
@@ -1208,9 +1244,11 @@ async function addDetail() {
     }
     toast(`Added ${amountLabel(result.entry.amount, result.entry.unit || unit.value)} ${result.entry.name} · ${int(result.entry.kcal)} kcal`);
     noteSession(result.entry);
+    const backToSearch = searchView.value;
     ui.detailFoodId = null;
     detailFood.value = null;
-    q.value = "";
+    if (!backToSearch) q.value = "";
+    if (backToSearch) restoreSearchList();
     idempotencyKey.value = "";
     void loadRecents();
     saveError.value = false;
@@ -1246,9 +1284,9 @@ async function deleteEdited() {
         <button v-if="showDetail || showEditor" type="button" class="cbtn"  aria-label="Back" @click="back">
           <Icon name="left" :size="18" />
         </button>
-        <h2 v-else-if="!searchFocused" class="t-head">{{ editing ? "Edit food" : "Add food" }}</h2>
+        <h2 v-else-if="!searchView" class="t-head">{{ editing ? "Edit food" : "Add food" }}</h2>
         <span class="grow" />
-        <TimeChip v-if="!showEditor && !searchFocused" v-model="time" :date="ui.foodDate" :today="foodToday" :allow-now="!pastDay && !editing" />
+        <TimeChip v-if="!showEditor && (showDetail || !searchView)" v-model="time" :date="ui.foodDate" :today="foodToday" :allow-now="!pastDay && !editing" />
         <button type="button" class="cbtn"  aria-label="Close" @click="closeSheet">
           <Icon name="x" :size="18" />
         </button>
@@ -1256,7 +1294,7 @@ async function deleteEdited() {
       <p v-if="needTime && !showEditor" class="needt t-label" role="status">
         <Icon name="clock" :size="14" :sw="2.2" /> Logging to {{ dayMonth(ui.foodDate) }} — pick the time you ate it.
       </p>
-      <Segmented v-if="!showDetail && !editing && !showEditor && !searchFocused" v-model="ui.foodTab" label="Add food" :options="[{ value: 'search', label: 'Search' }, { value: 'quick', label: 'Quick Add' }]" @pointerdown="onAddTabPointer" />
+      <Segmented v-if="!showDetail && !editing && !showEditor && !searchView" v-model="ui.foodTab" label="Add food" :options="[{ value: 'search', label: 'Search' }, { value: 'quick', label: 'Quick Add' }]" @pointerdown="onAddTabPointer" />
       </div>
     </template>
 
@@ -1264,8 +1302,8 @@ async function deleteEdited() {
       <FoodEditor :key="ui.foodEditor.id ?? 'new'" :edit-id="ui.foodEditor.id" :seed="ui.foodEditor.seed" :namesakes="mine" @saved="onFoodSaved" @deleted="onFoodDeleted" @cancel="back" />
     </div>
 
-    <div v-else-if="showDetail" class="body">
-      <div class="col center gap2">
+    <div v-else-if="showDetail" class="body detail">
+      <div class="col center lead">
         <h3 class="t-head dname">{{ detailTitle }}</h3>
         <span class="row gap6 t-label c2 wrapc">
           <span v-if="detailIsMine" class="mine t-capn"><Icon name="lock" :size="10" :sw="2.4" /> my food</span>
@@ -1275,11 +1313,11 @@ async function deleteEdited() {
         </span>
         <span v-if="editingFood && foodChanged" class="t-capn c2">Using the values it was logged with — this food has changed since.</span>
       </div>
-      <div class="col center gap8">
+      <div class="col center amount-block">
         <div class="base">
           <input ref="amountEl" v-autofocus :value="amountText" data-replace="1" class="t-dl num ginput" :inputmode="keyboardEntry ? 'decimal' : 'none'" autocomplete="off" :aria-label="`Amount in ${unit}`"
             @beforeinput="markWholeSelection" @focus="fresh = true" @input="amountInput" @keydown.enter.prevent="addDetail" />
-          <span class="t-head c2">{{ unitWord }}</span>
+          <span class="t-head c2 unitword">{{ unitWord }}</span>
         </div>
         <span v-if="isCount && preview.grams != null && gramsEach" class="t-label c2" aria-live="polite">= {{ int(preview.grams) }} g · 1 {{ unit }} = {{ gramsEach }} g</span>
         <div class="row units">
@@ -1311,9 +1349,9 @@ async function deleteEdited() {
         </div>
       </div>
       <div class="preview" aria-live="polite">
-        <SwipePanels :count="sheetPanels.length + 1" :height="282" label="Food nutrients">
+        <SwipePanels tight :count="sheetPanels.length + 1" :height="208" label="Food nutrients">
           <div class="panel" data-panel="macros">
-            <span class="t-label title">Macros</span>
+            <span class="section-title panel-title">Macros</span>
             <div class="cols t-capn c2"><span></span><span>Per 100 g</span><span>Amount</span></div>
             <div v-for="item in previewItems" :key="item.label" class="nrow">
               <span class="t-label name">{{ item.label }}</span>
@@ -1363,10 +1401,10 @@ async function deleteEdited() {
     <template v-else-if="!editing && ui.foodTab === 'search'">
       <label class="field row">
         <Icon name="search" :size="18" class="c2" />
-        <input ref="searchEl" v-model="q" data-no-autofocus class="t-body grow" type="search" :placeholder="filter === 'mine' ? 'Search my foods' : filter === 'recipes' ? 'Search recipes' : 'Search foods'" :aria-label="filter === 'recipes' ? 'Search recipes' : 'Search foods'" autocomplete="off" enterkeyhint="search" @focus="searchFocused = true" @blur="queueSearchBlur" @keydown="searchKey" />
+        <input ref="searchEl" v-model="q" data-no-autofocus class="t-body grow" type="search" :placeholder="filter === 'mine' ? 'Search my foods' : filter === 'recipes' ? 'Search recipes' : 'Search foods'" :aria-label="filter === 'recipes' ? 'Search recipes' : 'Search foods'" autocomplete="off" enterkeyhint="search" @focus="onSearchFocus" @blur="queueSearchBlur" @keydown="searchKey" />
         <button v-if="q" type="button" class="clr c2" aria-label="Clear search" @click="q = ''"><Icon name="x" :size="16" /></button>
       </label>
-      <div v-show="!searchFocused" class="row fchips" role="group" aria-label="Show">
+      <div v-show="!searchView" class="row fchips" role="group" aria-label="Show">
         <button type="button" class="chip t-label" :class="{ on: filter === 'all' }" :aria-pressed="filter === 'all'" @click="filter = 'all'">All foods</button>
         <button type="button" class="chip t-label" :class="{ on: filter === 'mine' }" :aria-pressed="filter === 'mine'" @click="filter = 'mine'">My foods · {{ mine.length }}</button>
         <button type="button" class="chip t-label" :class="{ on: filter === 'recipes' }" :aria-pressed="filter === 'recipes'" @click="filter = 'recipes'">Recipes · {{ savedRecipes.list.length }}</button>
@@ -1383,7 +1421,7 @@ async function deleteEdited() {
           @remove="removeRecipe"
           @create="openRecipeCreate('food')"
         />
-        <template v-if="filter !== 'mine' && filter !== 'recipes' && !searchFocused">
+        <template v-if="filter !== 'mine' && filter !== 'recipes' && !searchView">
         <SavedGroups
           :groups="visibleGroups"
           :note="groupNote"
@@ -1405,7 +1443,7 @@ async function deleteEdited() {
         <template v-if="filter === 'recipes'" />
         <template v-else-if="filter === 'mine'">
           <div v-if="mine.length" class="row lhead">
-            <span class="t-cap c2">My foods</span>
+            <span class="t-cap c2 section-title">My foods</span>
             <span class="grow" />
             <button type="button" class="chip t-label" @click="openNewFood(trimmedQuery || undefined)"><Icon name="plus" :size="14" :sw="2.4" /> New food</button>
           </div>
@@ -1428,7 +1466,7 @@ async function deleteEdited() {
         </template>
         <template v-else-if="!trimmedQuery">
           <div class="row lhead">
-            <span class="t-cap c2">Recent</span>
+            <span class="t-cap c2 section-title">Recent</span>
             <span class="grow" />
             <span class="t-capn c2">{{ keyboardEntry ? recentHintKeys : recentHintTouch }}</span>
           </div>
@@ -1452,14 +1490,14 @@ async function deleteEdited() {
             <span class="t-label">{{ searchError }}</span>
             <button v-if="trimmedQuery.length >= 2" type="button" class="chip" @click="runSearch(trimmedQuery)">Try again</button>
           </div>
-          <div v-if="results.length" class="row lhead"><span class="t-cap c2">Results</span></div>
+          <div v-if="results.length" class="row lhead"><span class="t-cap c2 section-title">Results</span></div>
           <button v-for="(food, index) in results" :key="food.id" type="button" class="rrow row" :class="{ hl: keyboardEntry && index === hi }" @pointerdown="pressFood($event, food)" @click="pickFood($event, food)" @mouseenter="hi = index">
             <span class="col grow rtext">
               <span class="row gap6 nm"><span class="t-body ell">{{ food.name }}</span><span v-if="isMyFood(food)" class="mine t-capn">my food</span></span>
               <span class="t-label c2 ell">{{ rowSub(food) }}</span>
             </span>
           </button>
-          <div v-if="off.results.length" class="row lhead"><span class="t-cap c2">Open Food Facts</span></div>
+          <div v-if="off.results.length" class="row lhead"><span class="t-cap c2 section-title">Open Food Facts</span></div>
           <button v-for="food in off.results" :key="food.id" type="button" class="rrow row" @pointerdown="pressFood($event, food)" @click="pickFood($event, food)">
             <span class="col grow rtext">
               <span class="t-body ell">{{ food.name }}</span>
@@ -1495,14 +1533,14 @@ async function deleteEdited() {
           <span class="t-bodys">{{ session.length }} added · {{ int(sessionKcal) }} kcal</span>
           <span class="t-capn c2">{{ pastDay ? dayMonth(ui.foodDate) : "Today" }} · {{ int(foodTotals.kcal) }} kcal</span>
         </span>
-        <span class="row sbtns">
-          <button v-if="canSaveGroup(session.length)" type="button" class="chip" @click="saveSessionGroup">
-            <Icon name="layers" :size="14" /> Save as group
+        <span class="sbtns">
+          <button v-if="canSaveGroup(session.length)" type="button" class="sess-act t-label" @click="saveSessionGroup">
+            <Icon name="layers" :size="14" /> <span>Save as group</span>
           </button>
-          <button v-if="canSaveRecipe(sessionRecipeCount)" type="button" class="chip" @click="saveSessionRecipe">
-            <Icon name="food" :size="14" /> Save as recipe
+          <button v-if="canSaveRecipe(sessionRecipeCount)" type="button" class="sess-act t-label" @click="saveSessionRecipe">
+            <Icon name="food" :size="14" /> <span>Save as recipe</span>
           </button>
-          <button type="button" class="chip on" @click="closeSheet">Done</button>
+          <button type="button" class="sess-act primary t-label" @click="closeSheet">Done</button>
         </span>
       </div>
     </template>
@@ -1611,11 +1649,20 @@ async function deleteEdited() {
 .del-btn { min-height: 52px; min-width: 44px; padding: 0 18px; border-radius: 26px; background: var(--color-surface-2); display: inline-flex; align-items: center; justify-content: center; gap: 8px; flex: none; }
 .base { min-width: 0; max-width: 100%; display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
 .dname { margin: 0; overflow-wrap: anywhere; }
-.preview { display: block; padding: 8px 8px 0; border-radius: var(--radius-card); background: var(--color-surface-2); flex: none; width: 100%; max-width: 358px; box-sizing: border-box; }
-.preview .title { color: var(--text-secondary); }
-.preview .panel, .preview .cols, .preview .nrow, .preview :deep(.panel), .preview :deep(.list), .preview :deep(.heads), .preview :deep(.nrow) { width: 100%; box-sizing: border-box; }
+.preview { display: block; padding: calc(var(--space-gap) / 2) calc(var(--space-gap) / 2) 0; border-radius: var(--radius-card); background: var(--color-surface-2); flex: none; width: 100%; align-self: stretch; box-sizing: border-box; }
+.detail { gap: calc(var(--space-gap) / 6); }
+.detail .lead { gap: 0; }
+.detail .lead .wrapc { flex-wrap: nowrap; max-width: 100%; }
+.detail .lead .wrapc > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.detail .dname { font-size: max(16px, 0.8824rem); line-height: 1.1; }
+.detail .amount-block { gap: 2px; }
+.detail .ginput { font-size: max(16px, min(1.15rem, 22px)); line-height: 1; }
+.detail .unitword { font-size: max(16px, 0.8824rem); line-height: 1.1; }
+.detail .units, .detail .chips, .detail .unit-radios { gap: calc(var(--space-gap) / 3); }
+.detail .preview { padding-top: 0; padding-bottom: 0; }
+.preview .panel, .preview .cols, .preview .nrow, .preview :deep(.panel), .preview :deep(.heads), .preview :deep(.nrow) { width: 100%; box-sizing: border-box; }
 .preview .panel, .preview :deep(.panel) { padding: calc(var(--space-gap) / 3) calc(var(--space-gap) / 3) 0; }
-.preview .cols, .preview .nrow { display: grid; grid-template-columns: minmax(0, 1fr) 5.6rem 5.6rem; column-gap: 12px; align-items: baseline; }
+.preview .cols, .preview .nrow { display: grid; grid-template-columns: minmax(0, 1fr) 4.6rem 4.6rem; column-gap: 12px; align-items: baseline; }
 .preview .num, .preview .cols span:not(:first-child) { text-align: right; justify-self: stretch; font-variant-numeric: tabular-nums; }
 .preview .name, .preview .cols span:first-child { text-align: left; justify-self: start; }
 .preview .num { font-variant-numeric: tabular-nums; text-align: right; }
@@ -1649,12 +1696,41 @@ async function deleteEdited() {
 .uchip.on .ug { color: var(--color-on-action); }
 .after { gap: 12px; padding: 16px; border-radius: var(--radius-card); border: 1px solid var(--color-border); }
 .arow { gap: 6px; }
-.session { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; padding: 10px 12px; border-radius: var(--radius-card); background: var(--color-surface-2); flex: none; }
-.stext { flex: 1 1 150px; min-width: 0; }
-.sbtns { gap: 8px; flex: 0 0 auto; margin-left: auto; }
+.session { display: flex; flex-direction: column; align-items: stretch; gap: 8px; padding: 12px; border-radius: var(--radius-card); background: var(--color-surface-2); flex: none; min-width: 0; max-width: 100%; box-sizing: border-box; }
+.stext { min-width: 0; }
+.sbtns { display: flex; flex-wrap: wrap; align-items: stretch; gap: 8px; margin: 0; min-width: 0; max-width: 100%; }
+.sess-act {
+  flex: 1 1 0; min-width: 0; box-sizing: border-box; min-height: 44px; height: 44px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 4px;
+  padding: 4px 6px; border-radius: 22px; border: 1px solid var(--color-border);
+  background: var(--color-surface); color: var(--text-primary); text-align: center; line-height: 1.1;
+}
+.sess-act span { min-width: 0; }
+.sess-act.primary { background: var(--color-action); border-color: var(--color-action); color: var(--color-on-action); }
+html.dt-xl .sess-act { flex-basis: 100%; height: auto; padding: 8px 12px; }
 .dt-l .units, .dt-l .chips { justify-content: center; }
 .dt-l .uchip { min-height: 44px; }
 html.dt-xl .preview { display: block; }
+/* The header, name, amount, and unit stay near the default size so the largest
+   text cannot cover them. The sheet body can still scroll. */
+html.dt-xl .hdr { flex-wrap: nowrap; }
+html.dt-xl .hdr :deep(.tchip.t-label),
+html.dt-xl .hdr :deep(.now) { font-size: 15px; line-height: 1.2; }
+html.dt-xl .detail .dname { font-size: 22px; line-height: 1.15; overflow-wrap: normal; }
+html.dt-xl .detail .ginput { font-size: 22px; }
+html.dt-xl .detail .unitword { font-size: 18px; }
+html.dt-xl .detail .lead .wrapc { flex-wrap: wrap; }
+html.dt-xl .detail .lead .wrapc > span { overflow: visible; text-overflow: clip; white-space: normal; }
+/* Type inside the card stays near the default size. Value columns stay narrow
+   enough that "Added sugars" stays on one line. */
+html.dt-xl .preview .cols,
+html.dt-xl .preview .nrow,
+html.dt-xl .preview :deep(.heads),
+html.dt-xl .preview :deep(.list.paired .nrow) { grid-template-columns: minmax(max-content, 1fr) 72px 72px; }
+html.dt-xl .preview :deep(.heads.pcts),
+html.dt-xl .preview :deep(.list.paired.pcts .nrow) { grid-template-columns: minmax(max-content, 1fr) 64px 40px 72px; }
+html.dt-xl .preview :deep(.name),
+html.dt-xl .preview .name { white-space: nowrap; overflow: visible; text-overflow: clip; }
 .dt-xl .qgrid { grid-template-columns: 1fr; }
 .fchips { gap: var(--space-gap); flex-wrap: wrap; flex: none; }
 .mine { display: inline-flex; align-items: center; gap: 3px; padding: 1px 6px; border-radius: 6px; border: 1px solid var(--color-border); color: var(--text-secondary); white-space: nowrap; flex: none; }

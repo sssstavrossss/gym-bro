@@ -155,7 +155,7 @@ async function onSignOut() {
     <div class="pgrid" :class="{ two: vp.tablet, desk: vp.desktop }">
       <div class="pcol">
         <section class="card" aria-labelledby="theme-h">
-          <h2 id="theme-h" class="t-label c2">Theme</h2>
+          <h2 id="theme-h" class="section-title c2">Theme</h2>
           <div class="themes" role="radiogroup" aria-label="Theme">
             <button v-for="item in themes" :key="item.id" type="button" role="radio" class="theme" :aria-checked="theme === item.id" @click="chooseTheme(item.id)">
               <span class="swatch" :style="{ background: item.background }" aria-hidden="true"></span>
@@ -164,7 +164,7 @@ async function onSignOut() {
           </div>
         </section>
         <section class="card about">
-          <span class="t-label c2 about-kicker">About you</span>
+          <span class="section-title c2 about-kicker">About you</span>
           <div class="frow sexrow compact-seg">
             <span class="t-body c2">Sex</span>
             <span class="grow" />
@@ -213,7 +213,7 @@ async function onSignOut() {
         </section>
 
         <section class="card">
-          <span class="t-label c2">Goal</span>
+          <span class="section-title c2">Goal</span>
           <div class="compact-seg">
             <Segmented label="Goal" :model-value="profile.form.goal" :options="[{ value: 'lose', label: 'Lose' }, { value: 'maintain', label: 'Maintain' }, { value: 'gain', label: 'Gain' }]" @update:model-value="setGoal" />
           </div>
@@ -234,7 +234,7 @@ async function onSignOut() {
 
       <div class="pcol">
         <section v-if="shown" class="card">
-          <h2 class="t-label c2">Your targets</h2>
+          <h2 class="section-title c2">Your targets</h2>
           <div class="stats">
             <div><span class="t-label c2">BMR</span><span class="figure"><span class="t-ns" data-field="bmr">{{ int(shown.bmr) }}</span><span class="t-label c2">kcal</span></span></div>
             <div><span class="t-label c2">Daily burn</span><span class="figure"><span class="t-ns" data-field="tdee">{{ int(shown.tdee) }}</span><span class="t-label c2">kcal</span></span></div>
@@ -254,7 +254,7 @@ async function onSignOut() {
 
         <section class="card notes" aria-labelledby="remind-heading">
           <div class="row head">
-            <h2 id="remind-heading" class="t-label c2 grow">Notifications<span v-if="sectionUnread" class="sr-only"> Unread</span></h2>
+            <h2 id="remind-heading" class="section-title c2 grow">Notifications<span v-if="sectionUnread" class="sr-only"> Unread</span></h2>
             <span v-if="sectionUnread" class="bullet" aria-hidden="true" />
             <button v-if="sectionUnread" type="button" class="t-label markall" :disabled="noteBusy" @click="onReadAll">Mark all read</button>
           </div>
@@ -375,7 +375,7 @@ html:not(.dt-xl) .compact-seg :deep(.seg-btn)::after {
 .swatch { width: 14px; height: 14px; border-radius: 4px; box-shadow: inset 0 0 0 1px var(--color-border-strong); flex: none; }
 h2 { margin: 0; }
 /* xxxL and up: label on top, value under it, left-aligned. A value never splits from its unit. */
-.dt-l .about-kicker { font-size: 0.6471rem; line-height: 0.8235rem; font-weight: 500; letter-spacing: 0.04em; text-transform: uppercase; }
+.dt-l .about-kicker { letter-spacing: 0.04em; text-transform: uppercase; }
 .dt-l .frow { position: relative; flex-direction: column; flex-wrap: nowrap; align-items: flex-start; gap: 2px; padding: 8px 0; height: auto; }
 .dt-l .frow > .grow { display: none; }
 .dt-l .frow > * { max-width: 100%; }

@@ -13,7 +13,7 @@ import Sparkline from "../components/Sparkline.vue";
 import Timeline from "../components/Timeline.vue";
 import WeekStrip from "../components/WeekStrip.vue";
 import WeightChart from "../components/WeightChart.vue";
-import { addDays, dayNum, diffDays, shortDate, todayInZone, weekday, weekdayShort, weekStart } from "../lib/dates";
+import { addDays, dayMonth, dayNum, diffDays, shortDate, todayInZone, weekday, weekdayShort, weekStart } from "../lib/dates";
 import { int, kg } from "../lib/format";
 import { screenLayoutFromFlags } from "../lib/layout";
 import { freshDismissed, goalDismissed, promptState } from "../lib/prompts";
@@ -86,6 +86,9 @@ const foodTitle = computed(() => {
   if (shownDay.value === addDays(today.value, -1)) return "Foods yesterday";
   return `Foods ${weekday(shownDay.value)}`;
 });
+const addFoodLabel = computed(() => (
+  shownDay.value === today.value ? "Add food" : `Add food to ${dayMonth(shownDay.value)}`
+));
 function pick(day: string) {
   selected.value = day;
 }
@@ -177,7 +180,12 @@ const weekRows = computed(() => {
             <Icon name="right" :size="16" class="c3" />
           </button>
           <section v-if="layout === 'phone' && hasDay" class="card logc">
-            <h2 class="foods t-label c2">{{ foodTitle }}</h2>
+            <div class="row foodhead">
+              <h2 class="foods section-title c2">{{ foodTitle }}</h2>
+              <button v-if="!ui.selecting" type="button" class="addfood t-label" @click="openFood('search', shownDay)">
+                <Icon name="plus" :size="14" :sw="2.4" />{{ addFoodLabel }}
+              </button>
+            </div>
             <Timeline home compact :date="shownDay" :today="today" :entries="entries" :pending="pending" />
           </section>
         </div>
@@ -190,7 +198,7 @@ const weekRows = computed(() => {
           <button type="button" class="stretch" :aria-label="aria" @click="openWeight()" />
           <div class="row top">
             <div v-if="shown && weight" class="col gap2">
-              <span class="row trendline"><span class="t-cap c2">Weight · trend</span><InfoTip label="What is the trend?">{{ tip }}</InfoTip></span>
+              <span class="row trendline"><span class="t-cap c2 section-title">Weight · trend</span><InfoTip label="What is the trend?">{{ tip }}</InfoTip></span>
               <span class="row gap8 numrow">
                 <span class="base"><span class="t-nm">{{ kg(weight.trendKg!) }}</span><span class="t-label c2">kg</span></span>
                 <AccuracyDot v-if="low" label />
@@ -198,7 +206,7 @@ const weekRows = computed(() => {
               <span class="t-capn c2 wsub">{{ subtitle }}</span>
             </div>
             <div v-else class="col gap2">
-              <span class="t-cap c2">Weight</span>
+              <span class="t-cap c2 section-title">Weight</span>
               <span class="t-head">No weigh-ins yet</span>
               <span class="t-capn c2">Log your weight to start a trend</span>
             </div>
@@ -212,7 +220,7 @@ const weekRows = computed(() => {
 
         <section v-if="layout === 'two' || layout === 'three'" class="card weekc" aria-labelledby="week-heading">
           <div class="row weekhead">
-            <h2 id="week-heading" class="t-cap c2">This week</h2>
+            <h2 id="week-heading" class="t-cap c2 section-title">This week</h2>
             <span class="t-capn c2 legend">line = that day's target · ✓ on · hatched = over{{ weekHasManual ? " · M = manual" : "" }}</span>
           </div>
           <button
@@ -243,8 +251,10 @@ const weekRows = computed(() => {
 
       <section v-if="layout !== 'phone' && ready" class="card logc c-c">
         <div class="row loghead">
-          <h2 class="foods t-label c2">{{ foodTitle }}</h2>
-          <span class="grow" />
+          <h2 class="foods section-title c2">{{ foodTitle }}</h2>
+          <button v-if="!ui.selecting" type="button" class="addfood t-label" @click="openFood('search', shownDay)">
+            <Icon name="plus" :size="14" :sw="2.4" />{{ addFoodLabel }}
+          </button>
           <RouterLink :to="logHref" class="t-label c2 more">Open log <Icon name="right" :size="14" /></RouterLink>
         </div>
         <Timeline home compact show-empty :date="shownDay" :today="today" :entries="entries" :pending="pending" />
@@ -278,7 +288,18 @@ const weekRows = computed(() => {
 .wm { width: 18px; flex: none; display: inline-flex; align-items: center; }
 .wst { width: 14px; flex: none; display: inline-flex; justify-content: center; }
 .loghead { min-height: 44px; align-items: center; }
-.foods { margin: 0; text-align: left; }
+.foods { margin: 0; text-align: left; min-width: 0; }
+.foodhead, .loghead { justify-content: space-between; gap: var(--space-gap); min-width: 0; align-items: center; }
+.addfood {
+  margin-left: auto; flex: 0 1 auto; max-width: 100%;
+  min-height: var(--control-hit); min-width: var(--control-hit);
+  display: inline-flex; align-items: center; justify-content: flex-end;
+  gap: calc(var(--space-gap) / 3); padding: 0 calc(var(--space-gap) / 2);
+  color: var(--text-secondary); background: transparent;
+}
+.addfood:hover { color: var(--text-primary); }
+html.dt-xl .foodhead, html.dt-xl .loghead { flex-wrap: nowrap; }
+html.dt-xl .foodhead .foods, html.dt-xl .loghead .foods { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .more { display: inline-flex; align-items: center; gap: calc(var(--space-gap) / 2); min-height: var(--control-hit); padding: 0 calc(var(--space-gap) / 2); text-decoration: none; color: var(--text-secondary); }
 .more:hover { color: var(--text-primary); }
 .wk { width: 3.4rem; text-align: right; flex: none; }

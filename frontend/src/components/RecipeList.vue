@@ -39,7 +39,7 @@ function onRemove(event: MouseEvent, recipe: Recipe) {
 <template>
   <div v-if="recipes.length || heading" class="recipes col">
     <div class="row lhead">
-      <span class="t-cap c3">{{ heading || "Recipes" }}</span>
+      <span class="t-cap c3 section-title">{{ heading || "Recipes" }}</span>
       <span class="grow" />
       <button type="button" class="chip t-label" @pointerdown="beginCreate" @click="emit('create')">
         <Icon name="plus" :size="14" :sw="2.4" /> New recipe
