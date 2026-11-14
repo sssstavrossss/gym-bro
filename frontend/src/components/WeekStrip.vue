@@ -383,9 +383,14 @@ onBeforeUnmount(() => {
 .tile .mark { position: absolute; top: 4px; right: 4px; }
 .corner { position: absolute; top: 4px; right: 4px; width: 0; height: 0; border-left: 7px solid transparent; border-top: 7px solid var(--text-secondary); }
 .grab {
-  min-width: 44px; min-height: 44px; align-self: center;
+  position: relative; min-width: var(--control-hit); align-self: center;
   display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
   color: var(--text-secondary);
+}
+.grab::after {
+  content: ""; position: absolute; left: 50%; top: 50%;
+  width: var(--control-hit); height: var(--control-hit);
+  transform: translate(-50%, -50%);
 }
 .grip { width: 36px; height: 4px; border-radius: 2px; background: var(--color-border-strong); }
 .chev { transition: transform 340ms cubic-bezier(0.22, 1.05, 0.36, 1); }

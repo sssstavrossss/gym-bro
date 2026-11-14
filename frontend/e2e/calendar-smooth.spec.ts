@@ -53,8 +53,8 @@ test("calendar motion, home gap, compact profile controls, and a lean notificati
     const card = document.querySelector("main.today .macros")!.getBoundingClientRect();
     return card.top - week.bottom;
   });
-  expect(gap).toBeGreaterThanOrEqual(6);
-  expect(gap).toBeLessThanOrEqual(10);
+  expect(gap).toBeGreaterThanOrEqual(11);
+  expect(gap).toBeLessThanOrEqual(13);
   if (test.info().project.name === "chromium") {
     await page.screenshot({ path: "/opt/cursor/artifacts/iphone43-home-gap.png" });
   }
