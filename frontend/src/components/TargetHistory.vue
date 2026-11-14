@@ -61,7 +61,7 @@ watch(() => ui.sheet, (sheet, previous) => {
       </li>
     </ol>
     <button v-if="rows.length > 5" type="button" class="more t-label" :aria-expanded="all" @click="all = !all">{{ all ? "Show fewer" : `Show all ${rows.length} changes` }}</button>
-    <p class="t-capn c2 foot">Past days keep the target they had. A recalculation is listed only when the target changed.</p>
+    <p class="t-capn c2 foot">Past days keep the target they had. Accepted recalculations that change the target and every declined recalculation are listed.</p>
   </section>
 </template>
 

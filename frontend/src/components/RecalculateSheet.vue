@@ -116,9 +116,11 @@ async function decline() {
   }
 }
 
-function line(numbers: { kcal: number; protein: number; fat: number; carbs: number } | null): string {
-  if (!numbers) return "—";
-  return `${int(numbers.kcal)} kcal · P ${int(numbers.protein)} · F ${int(numbers.fat)} · C ${int(numbers.carbs)}`;
+function delta(next: number | undefined, prev: number | undefined): string {
+  if (next == null || prev == null) return "—";
+  const diff = next - prev;
+  if (diff === 0) return "0";
+  return `${diff > 0 ? "+" : "−"}${int(Math.abs(diff))}`;
 }
 </script>
 
@@ -126,18 +128,22 @@ function line(numbers: { kcal: number; protein: number; fat: number; carbs: numb
   <BottomSheet :open="open" label="Recalculate" @close="closeSheet">
     <template #header>
       <div class="row hdr">
-        <h2 class="t-head grow recalc-title">Recalculate</h2>
+        <h2 class="t-head recalc-title">Recalculate</h2>
+        <button type="button" class="chip t-label preview" :disabled="busy || !review" @click="load(true)">Preview</button>
+        <span class="grow" />
         <button type="button" class="cbtn" aria-label="Close" @click="closeSheet">×</button>
       </div>
+      <p class="t-capn c2 saved">Nothing is saved until you accept.</p>
+      <p v-if="review && review.periodDays > 0" class="t-body period recalc-period">
+        {{ dayMonth(review.from) }} – {{ dayMonth(review.to) }} · {{ review.periodDays }} days since your last update
+      </p>
+      <p v-else-if="review" class="t-body period recalc-period">No finished day since the last recalculation. Today is not included.</p>
     </template>
     <div class="col body">
       <p v-if="!review && busy" class="t-label c2">Loading the days since your last recalculation…</p>
       <template v-else-if="review">
-        <p v-if="review.periodDays > 0" class="t-body period recalc-period">
-          {{ dayMonth(review.from) }} – {{ dayMonth(review.to) }}
-        </p>
-        <p v-else class="t-body period recalc-period">No finished day since the last recalculation. Today is not included.</p>
         <RecalcCalendar :days="review.calendar" :selected="selected" @pick="pick" />
+        <p class="t-capn c2 explain">Tap a low day to leave it out. Tap an empty day to count it as 0. Days over the target stay counted.</p>
         <div class="row chips">
           <button type="button" class="chip t-label" :disabled="busy" @click="countAllLow">Count all low</button>
           <button type="button" class="chip t-label" :disabled="busy" @click="reset">Reset</button>
@@ -145,26 +151,39 @@ function line(numbers: { kcal: number; protein: number; fat: number; carbs: numb
         <p v-if="note" class="t-body">{{ note }}</p>
         <p v-if="zeroWarning" class="t-capn c2">An empty day is counted as 0 kcal. That is not a guess of what you ate.</p>
         <section class="stats" aria-label="This preview">
-          <span class="t-label">{{ review.includedDays }} days counted</span>
-          <span v-if="review.averageKcal != null" class="t-label c2">avg {{ int(Math.round(review.averageKcal)) }} kcal</span>
-          <span v-if="review.trendChangeKg != null" class="t-label c2">trend {{ kg(review.trendChangeKg) }} kg</span>
+          <div><span class="t-capn c2">Days</span><span class="t-label">{{ review.includedDays }}/{{ review.periodDays }}</span></div>
+          <div><span class="t-capn c2">Trend</span><span class="t-label">{{ review.trendChangeKg == null ? "—" : `${kg(review.trendChangeKg)} kg` }}</span></div>
+          <div><span class="t-capn c2">Ate</span><span class="t-label">{{ review.averageKcal == null ? "—" : int(Math.round(review.averageKcal)) }}</span></div>
+          <div><span class="t-capn c2">Burn</span><span class="t-label">{{ review.burn == null ? "—" : int(Math.round(review.burn)) }}</span></div>
         </section>
         <div class="compare" data-recalc-preview>
-          <p class="t-label c2">Now</p>
-          <p class="t-bodys">{{ line(current) }}</p>
-          <p class="t-label c2">{{ proposed?.manualKept ? "Estimated burn, your number kept" : "New" }}</p>
-          <p class="t-bodys">{{ proposed ? line(proposed) : "—" }}</p>
-          <p v-if="review.enough && review.burn != null" class="t-body" data-derivation>
+          <span class="t-capn c2"></span>
+          <span class="t-capn c2">Now</span>
+          <span class="t-capn c2">{{ proposed?.manualKept ? "Kept" : "New" }}</span>
+          <span class="t-capn c2">Change</span>
+          <span class="t-label">kcal</span>
+          <span class="t-label num">{{ current ? int(current.kcal) : "—" }}</span>
+          <span class="t-label num">{{ proposed ? int(proposed.kcal) : "—" }}</span>
+          <span class="t-label num">{{ delta(proposed?.kcal, current?.kcal) }}</span>
+          <span class="t-label">P</span>
+          <span class="t-label num">{{ current ? int(current.protein) : "—" }}</span>
+          <span class="t-label num">{{ proposed ? int(proposed.protein) : "—" }}</span>
+          <span class="t-label num">{{ delta(proposed?.protein, current?.protein) }}</span>
+          <span class="t-label">F</span>
+          <span class="t-label num">{{ current ? int(current.fat) : "—" }}</span>
+          <span class="t-label num">{{ proposed ? int(proposed.fat) : "—" }}</span>
+          <span class="t-label num">{{ delta(proposed?.fat, current?.fat) }}</span>
+          <span class="t-label">C</span>
+          <span class="t-label num">{{ current ? int(current.carbs) : "—" }}</span>
+          <span class="t-label num">{{ proposed ? int(proposed.carbs) : "—" }}</span>
+          <span class="t-label num">{{ delta(proposed?.carbs, current?.carbs) }}</span>
+          <p v-if="review.enough && review.burn != null" class="t-body span" data-derivation>
             Adaptive. Estimated burn {{ int(Math.round(review.burn)) }} kcal is the average of the included days, adjusted for the trend change, then for your goal.
           </p>
-          <p v-else class="t-body" data-derivation role="status">
+          <p v-else class="t-body span" data-derivation role="status">
             Formula fallback. {{ review.blocked }} This preview uses Mifflin-St Jeor times your activity. Nothing is guessed.
           </p>
-          <p v-if="proposed?.floorApplied" class="t-capn">Raised to your BMR so the target does not go below it.</p>
-        </div>
-        <div class="row chips">
-          <button type="button" class="chip t-label" :disabled="busy" @click="load(true)">Preview</button>
-          <p class="t-capn c2 saved">Nothing is saved until you accept.</p>
+          <p v-if="proposed?.floorApplied" class="t-capn span">Raised to your BMR so the target does not go below it.</p>
         </div>
         <button type="button" class="primary-btn t-bodys" :disabled="busy || acceptKcal == null" @click="accept">
           {{ acceptKcal == null ? "Accept" : `Accept ${int(acceptKcal)} kcal` }}
@@ -180,12 +199,21 @@ function line(numbers: { kcal: number; protein: number; fat: number; carbs: numb
 .hdr { gap: var(--space-gap); align-items: center; }
 .body { gap: var(--space-gap); }
 .chips { gap: var(--space-gap); align-items: center; flex-wrap: wrap; }
-.chip { min-height: var(--control-hit); }
-.stats { display: flex; flex-wrap: wrap; gap: var(--space-gap); }
-.compare { display: flex; flex-direction: column; gap: calc(var(--space-gap) / 2); }
-.compare p, .saved { margin: 0; }
+.chip, .preview { min-height: var(--control-hit); }
+.explain, .saved, .period { margin: 0; }
+.stats {
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px;
+  padding: var(--space-gap); border: 1px solid var(--color-border); border-radius: var(--radius-card);
+}
+.stats > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.stats .t-capn { text-transform: uppercase; letter-spacing: 0.04em; }
+.compare {
+  display: grid; grid-template-columns: 1.1fr repeat(3, minmax(0, 1fr)); gap: 8px 10px; align-items: baseline;
+}
+.compare .num { text-align: right; font-variant-numeric: tabular-nums; }
+.span { grid-column: 1 / -1; margin: 0; }
 .cbtn { min-width: var(--control-hit); min-height: var(--control-hit); font-size: 1.25rem; }
-.decline { min-height: var(--control-hit); }
+.decline { min-height: var(--control-hit); align-self: center; }
 </style>
 <style>
 html.dt-xl .recalc-period { display: none; }
