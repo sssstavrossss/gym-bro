@@ -75,7 +75,7 @@ import RecipeList from "./RecipeList.vue";
 import { canSaveGroup, groupTimeNote, matchingGroups, readdToast } from "../lib/groups";
 import { canSaveRecipe, matchingRecipes, recipeFoodEntries } from "../lib/recipes";
 import { deleteSavedGroup, loadGroups, readdSavedGroup, savedGroups } from "../state/groups";
-import { deleteRecipeWithUndo, loadRecipes, savedRecipes } from "../state/recipes";
+import { loadRecipes, savedRecipes } from "../state/recipes";
 import { closeFoodLayer, closeSheet, openCopy, openGroupSheet, openRecipeCreate, openRecipeEdit, openRecipeFromEntries, openRecipeLog, toast, ui } from "../ui";
 
 const open = computed(() => ui.sheet === "food");
@@ -915,13 +915,6 @@ function saveSessionRecipe() {
   if (!canSaveRecipe(sessionRecipeCount.value)) return;
   openRecipeFromEntries(session.value.map((row) => row.id), "food");
 }
-async function removeRecipe(recipe: { id: string; name: string }) {
-  if (saving.value) return;
-  saving.value = true;
-  const removed = await deleteRecipeWithUndo(recipe, toast);
-  saving.value = false;
-  if (!removed) toast("Couldn't delete that recipe.");
-}
 async function addGroup(group: SavedGroup) {
   closeSearchKeyboard();
   if (saving.value) return;
@@ -1409,7 +1402,6 @@ async function deleteEdited() {
           :saving="saving"
           @add="(recipe) => pickRecipe(recipe.id)"
           @edit="(recipe) => openRecipeEdit(recipe.id)"
-          @remove="removeRecipe"
           @create="openRecipeCreate('food')"
         />
         <template v-if="filter !== 'mine' && filter !== 'recipes' && !searchView">
@@ -1427,7 +1419,6 @@ async function deleteEdited() {
           :saving="saving"
           @add="(recipe) => pickRecipe(recipe.id)"
           @edit="(recipe) => openRecipeEdit(recipe.id)"
-          @remove="removeRecipe"
           @create="openRecipeCreate('food')"
         />
         </template>

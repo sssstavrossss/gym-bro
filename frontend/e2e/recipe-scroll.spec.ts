@@ -90,6 +90,7 @@ for (const size of [
   { width: 390, height: 844, label: "390x844" },
 ]) {
   test(`recipe sheet scrolls on a phone ${size.label}`, async ({ page }) => {
+    test.setTimeout(150_000);
     const oid = `e2e-scroll-${size.width}-${Date.now()}-${test.info().project.name}`;
     const when = await clock(page);
     await putWeighIn(page.request, oid, when.today, when.zone);
@@ -108,7 +109,8 @@ for (const size of [
     await food.getByRole("button", { name: "New recipe" }).first().click();
     const sheet = page.getByRole("dialog", { name: "New recipe" });
 
-    for (let i = 0; i < 6; i++) {
+    // Ten foods: the form is compact, so six no longer overflow a 390x844 phone.
+    for (let i = 0; i < 10; i++) {
       await sheet.getByRole("button", { name: "Add ingredient" }).click();
       await sheet.getByLabel("Search foods").fill(foodName);
       await sheet.getByRole("button", { name: new RegExp(foodName) }).click();
@@ -117,7 +119,7 @@ for (const size of [
     }
 
     await sheet.getByLabel("Recipe name").fill("Big pot");
-    await sheet.getByLabel("Portions").fill("6");
+    await sheet.getByLabel("Portions").fill("10");
 
     const body = sheet.locator(".sheet-body");
     const overflow = await body.evaluate((el) => ({
@@ -128,13 +130,13 @@ for (const size of [
     expect(overflow.scroll).toBeGreaterThan(overflow.client);
     expect(overflow.overscroll).toBe("contain");
 
-    const last = sheet.locator("[data-ingredient-index='5']");
+    const last = sheet.locator("[data-ingredient-index='9']");
     const add = sheet.getByRole("button", { name: "Add ingredient" });
-    expect(await insideSheet(page, "[data-ingredient-index='5']")).toBe(false);
+    expect(await insideSheet(page, "[data-ingredient-index='9']")).toBe(false);
 
     const pageBefore = await page.locator(".scroller").evaluate((el) => el.scrollTop);
     await last.scrollIntoViewIfNeeded();
-    expect(await insideSheet(page, "[data-ingredient-index='5']")).toBe(true);
+    expect(await insideSheet(page, "[data-ingredient-index='9']")).toBe(true);
     await expect(sheet.getByRole("button", { name: "Save recipe" })).toBeInViewport();
 
     await add.scrollIntoViewIfNeeded();
@@ -143,7 +145,7 @@ for (const size of [
     await page.mouse.wheel(0, 80);
     expect(await page.locator(".scroller").evaluate((el) => el.scrollTop)).toBe(pageBefore);
     await last.scrollIntoViewIfNeeded();
-    expect(await insideSheet(page, "[data-ingredient-index='5']")).toBe(true);
+    expect(await insideSheet(page, "[data-ingredient-index='9']")).toBe(true);
     await expect(sheet.getByRole("button", { name: "Save recipe" })).toBeInViewport();
     const saveBox = await sheet.getByRole("button", { name: "Save recipe" }).boundingBox();
     expect(saveBox && saveBox.height >= 44 && saveBox.width >= 44).toBeTruthy();
@@ -154,6 +156,6 @@ for (const size of [
     await expect(page.getByText(/Saved “Big pot”/)).toBeVisible();
     const recipes = await page.request.get("/api/recipes", { headers: headers(oid) });
     const saved = (await recipes.json()).recipes as { name: string; ingredients: unknown[] }[];
-    expect(saved.some((recipe) => recipe.name === "Big pot" && recipe.ingredients.length === 6)).toBeTruthy();
+    expect(saved.some((recipe) => recipe.name === "Big pot" && recipe.ingredients.length === 10)).toBeTruthy();
   });
 }

@@ -11,7 +11,7 @@ defineProps<{
   heading?: string;
   activeIndex?: number;
 }>();
-const emit = defineEmits<{ add: [recipe: Recipe]; edit: [recipe: Recipe]; remove: [recipe: Recipe]; create: [] }>();
+const emit = defineEmits<{ add: [recipe: Recipe]; edit: [recipe: Recipe]; create: [] }>();
 
 function beginCreate(event: PointerEvent) {
   event.preventDefault();
@@ -29,12 +29,6 @@ function pressEdit(event: PointerEvent, recipe: Recipe) {
 function onEdit(event: MouseEvent, recipe: Recipe) {
   clickPick(event, () => emit("edit", recipe));
 }
-function pressRemove(event: PointerEvent, recipe: Recipe) {
-  bindPick(event, () => emit("remove", recipe));
-}
-function onRemove(event: MouseEvent, recipe: Recipe) {
-  clickPick(event, () => emit("remove", recipe));
-}
 </script>
 
 <template>
@@ -42,7 +36,7 @@ function onRemove(event: MouseEvent, recipe: Recipe) {
     <div class="row lhead">
       <span class="t-cap c3 section-title">{{ heading || "Recipes" }}</span>
       <span class="grow" />
-      <button type="button" class="chip t-label" @pointerdown="beginCreate" @click="emit('create')">
+      <button v-if="recipes.length || !heading" type="button" class="chip t-label" @pointerdown="beginCreate" @click="emit('create')">
         <Icon name="plus" :size="14" :sw="2.4" /> New recipe
       </button>
     </div>
@@ -51,7 +45,7 @@ function onRemove(event: MouseEvent, recipe: Recipe) {
       <button type="button" class="col grow rtext" @pointerdown="pressAdd($event, recipe)" @click="onAdd($event, recipe)">
         <span class="row gap6 nm">
           <span class="t-body name" data-recipe-name>{{ recipe.name }}</span>
-          <span class="mark t-capn">recipe</span>
+          <span v-if="!heading" class="mark t-capn">recipe</span>
         </span>
         <span class="t-label c2 detail" data-recipe-detail>
           <span>{{ recipe.ingredients.length }} foods · {{ int(recipe.perPortion.kcal) }} kcal per portion</span>
@@ -61,16 +55,16 @@ function onRemove(event: MouseEvent, recipe: Recipe) {
       <button type="button" class="cbtn" :aria-label="`Edit recipe ${recipe.name}`" :disabled="saving" @pointerdown="pressEdit($event, recipe)" @click="onEdit($event, recipe)">
         <Icon name="edit" :size="16" />
       </button>
-      <button type="button" class="cbtn" :aria-label="`Delete recipe ${recipe.name}`" :disabled="saving" @pointerdown="pressRemove($event, recipe)" @click="onRemove($event, recipe)">
-        <Icon name="trash" :size="16" />
-      </button>
       <button type="button" class="cbtn filled" :aria-label="`Log recipe ${recipe.name}`" :disabled="saving" @pointerdown="pressAdd($event, recipe)" @click="onAdd($event, recipe)">
         <Icon name="plus" :size="18" :sw="2.4" />
       </button>
     </div>
     <div v-if="heading && !recipes.length" class="empty col">
       <span class="t-bodys">No recipes yet</span>
-      <span class="t-label c2">Build one from foods you log. It saves as a single entry.</span>
+      <span class="t-label c2">Combine foods into one dish, then log it by the portion.</span>
+      <button type="button" class="chip on t-label newbtn" @pointerdown="beginCreate" @click="emit('create')">
+        <Icon name="plus" :size="14" :sw="2.4" /> New recipe
+      </button>
     </div>
   </div>
 </template>
@@ -89,4 +83,5 @@ function onRemove(event: MouseEvent, recipe: Recipe) {
 .gap6 { gap: 6px; }
 .mark { display: inline-flex; align-items: center; padding: 1px 6px; border-radius: 6px; border: 1px solid var(--color-border); color: var(--text-secondary); white-space: nowrap; flex: none; }
 .empty { margin: 0; padding: 8px 0 12px; }
+.newbtn { align-self: flex-start; margin-top: 4px; }
 </style>

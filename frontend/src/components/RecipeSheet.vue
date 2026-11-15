@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { getFood, listMyFoods, searchFoods, type FoodSearchRow, type RecipeIngredient } from "../api";
+import { getFood, listMyFoods, listRecentFoods, searchFoods, type FoodSearchRow, type RecentFood, type RecipeIngredient } from "../api";
 import BottomSheet from "./BottomSheet.vue";
 import Icon from "./Icon.vue";
 import Keypad from "./Keypad.vue";
@@ -9,7 +9,7 @@ import { dayMonth, todayInZone } from "../lib/dates";
 import { amountError, amountLabel, convertAmount, defaultAmount, distinctUnits, parseAmount, servingName, unitsForFood, type CatalogFood, type UnitChoice } from "../lib/foodAmount";
 import { int } from "../lib/format";
 import { acceptSearchResult, preparedSearch, searchDebounceMs } from "../lib/foodSearch";
-import { addNeedsTime, logTimeForAdd } from "../lib/foodSheet";
+import { addNeedsTime, amountForRecent, logTimeForAdd } from "../lib/foodSheet";
 import { bindPick, clickPick } from "../lib/cleanTap";
 import { armReplace, primeKeyboard, selectField } from "../lib/focusField";
 import { afterInsertion, markWholeSelection, nextQuickInput, nextQuickNumber, tookWholeSelection } from "../lib/quickEntry";
@@ -81,8 +81,9 @@ const logUnit = ref<"portion" | "g">("portion");
 const time = ref<string | null>(null);
 const logKey = ref("");
 const snapshot = ref<RecipeLogInput | null>(null);
-/** Name takes focus only when the form first opens, not each time it comes back from adding an ingredient. */
-const focusName = ref(true);
+const recents = ref<RecentFood[]>([]);
+/** Set by a Save tap that could not save yet, so every field says what it still needs. */
+const tried = ref(false);
 let searchGen = 0;
 let searchTimer = 0;
 
@@ -113,6 +114,9 @@ const formReady = computed(() =>
   && !finishedProblem.value
   && lines.value.length > 0
   && lineMacros.value.every((row) => row !== null));
+
+/** Recipe form: Save sits in the header and the totals sit under it, so neither covers the fields. */
+const showForm = computed(() => !loading.value && mode.value !== "log" && step.value === "form");
 
 const logPreview = computed(() => (
   snapshot.value ? scaleRecipeLog(snapshot.value, parseAmount(logAmount.value), logUnit.value) : null
@@ -162,7 +166,7 @@ async function reset() {
   logKey.value = "";
   snapshot.value = null;
   padTarget.value = null;
-  focusName.value = true;
+  tried.value = false;
   if (mode.value === "edit" || mode.value === "log") {
     if (!ui.recipeId) return;
     loading.value = true;
@@ -269,7 +273,12 @@ function draftFrom(food: CatalogFood, amount: string, unit: string): DraftLine {
 function lineSummary(line: DraftLine): string {
   const macros = macrosOf(line);
   if (!macros) return "";
-  return `${recipeMacro(macros.protein)} g protein · ${int(macros.kcal)} kcal`;
+  return `${int(macros.kcal)} kcal · P ${recipeMacro(macros.protein)}`;
+}
+
+/** Unit chips show under the ingredient being edited, or one whose unit can't be used. */
+function showUnits(line: DraftLine): boolean {
+  return unitChoices(line).length > 1 && (padLine.value === line.key || macrosOf(line) === null);
 }
 
 function lineError(line: DraftLine): string | null {
@@ -319,10 +328,16 @@ function setLogUnit(next: "portion" | "g") {
   logUnit.value = next;
 }
 
+/**
+ * Keep the focused field in view. For an ingredient amount that is the whole ingredient,
+ * so its unit chips are not left under the keypad. Two frames: the keypad and the chips
+ * mount on the same focus, and the scroll has to wait for that layout.
+ */
 function reveal(event: FocusEvent) {
   const target = event.target;
   if (!(target instanceof HTMLElement)) return;
-  requestAnimationFrame(() => target.scrollIntoView({ block: "nearest" }));
+  const box = target.closest<HTMLElement>(".ing") ?? target;
+  requestAnimationFrame(() => requestAnimationFrame(() => box.scrollIntoView({ block: "nearest" })));
 }
 
 function selectAmount(event: FocusEvent) {
@@ -374,6 +389,13 @@ function closePad() {
   padLine.value = null;
 }
 
+/** Done also lets go of the field, so its ring and unit chips go away with the keypad. */
+function donePad() {
+  closePad();
+  const active = document.activeElement;
+  if (active instanceof HTMLInputElement) active.blur();
+}
+
 function onPadFocus(target: "log" | "pick" | "portions" | "finished" | "line", event: FocusEvent, lineKey?: string) {
   padTarget.value = target;
   padLine.value = lineKey ?? null;
@@ -397,9 +419,9 @@ function onPadInput(event: Event) {
   });
 }
 
+/** Matvaretabellen is most results, so it is not named. The others are. */
 function sourceLabel(source: string): string {
   if (source === "custom") return "Your food";
-  if (source === "mvt") return "Matvaretabellen";
   if (source === "off") return "Open Food Facts";
   if (source === "kassalapp") return "Kassalapp";
   return "";
@@ -415,7 +437,10 @@ function foodFacts(food: CatalogFood): string {
     bits.push(`${int(food.kcalPer100)} kcal per serving`);
     bits.push(`P ${recipeMacro(food.proteinPer100)} · F ${recipeMacro(food.fatPer100)} · C ${recipeMacro(food.carbsPer100)}`);
   }
-  if (food.servingQuantity != null && food.servingLabel) bits.push(`${food.servingQuantity} ${food.servingLabel}`);
+  if (food.servingQuantity != null && food.servingLabel) {
+    const perHundred = food.nutrientBasis === "per_100" && (food.basis === "g" || food.basis === "ml");
+    bits.push(perHundred ? `1 ${food.servingLabel} = ${int(food.servingQuantity)} ${food.basis}` : `${food.servingQuantity} ${food.servingLabel}`);
+  }
   const source = food.source ? sourceLabel(food.source) : "";
   if (source) bits.push(source);
   return bits.join(" · ");
@@ -424,7 +449,6 @@ function foodFacts(food: CatalogFood): string {
 function backStep() {
   primeKeyboard();
   closePad();
-  if (step.value === "search") focusName.value = false;
   step.value = step.value === "amount" ? "search" : "form";
 }
 
@@ -435,11 +459,9 @@ async function openSearch() {
   q.value = "";
   results.value = [];
   error.value = "";
-  try {
-    mine.value = (await listMyFoods()).foods;
-  } catch {
-    mine.value = [];
-  }
+  const [own, recent] = await Promise.allSettled([listMyFoods(), listRecentFoods()]);
+  mine.value = own.status === "fulfilled" ? own.value.foods : [];
+  recents.value = recent.status === "fulfilled" ? recent.value.foods : [];
 }
 
 watch(q, (value) => {
@@ -471,15 +493,31 @@ async function runSearch(trimmed: string) {
 }
 
 const searchEmpty = computed(() => {
-  if (searching.value || searchRows.value.length) return "";
+  if (searching.value || searchSections.value.some((section) => section.rows.length)) return "";
   const query = q.value.trim();
   if (query.length >= 2) return `No foods match “${query}”. Try fewer letters or another word.`;
-  return query ? "Type at least 2 letters." : "Search for a food above.";
+  return query ? "Type at least 2 letters." : "Search for a food above. Foods you log show up here.";
 });
-const searchRows = computed(() => (q.value.trim().length >= 2 ? results.value : mine.value.filter((food) => {
-  const needle = q.value.trim().toLowerCase();
-  return !needle || `${food.name} ${food.brand ?? ""}`.toLowerCase().includes(needle);
-})));
+/** Before a search: recent foods with their last amount, then this person's own foods. */
+const searchSections = computed<{ title: string; rows: FoodSearchRow[] }[]>(() => {
+  const query = q.value.trim();
+  if (query.length >= 2) return [{ title: "", rows: results.value }];
+  const needle = query.toLowerCase();
+  const matches = (food: FoodSearchRow) => !needle || `${food.name} ${food.brand ?? ""}`.toLowerCase().includes(needle);
+  const recent = recents.value.filter(matches);
+  const seen = new Set(recent.map((food) => food.id));
+  const own = mine.value.filter((food) => !seen.has(food.id) && matches(food));
+  return [{ title: "Recent", rows: recent }, { title: "Your foods", rows: own }].filter((section) => section.rows.length);
+});
+function isRecentRow(food: FoodSearchRow): food is RecentFood {
+  return q.value.trim().length < 2 && typeof (food as RecentFood).amount === "number" && typeof (food as RecentFood).unit === "string";
+}
+function rowFacts(food: FoodSearchRow): string {
+  if (!isRecentRow(food)) return foodFacts(food);
+  const last = amountForRecent(food, food.amount, food.unit);
+  const macros = ingredientMacros(food, Number(last.amount), last.unit);
+  return macros ? `Last ${amountLabel(Number(last.amount), last.unit)} · ${int(macros.kcal)} kcal · P ${recipeMacro(macros.protein)}` : foodFacts(food);
+}
 
 function pressIngredient(event: PointerEvent, food: FoodSearchRow) {
   bindPick(event, () => { void chooseFood(food); });
@@ -489,6 +527,7 @@ function pickIngredient(event: MouseEvent, food: FoodSearchRow) {
 }
 async function chooseFood(food: FoodSearchRow) {
   primeKeyboard();
+  const last = isRecentRow(food) ? { amount: food.amount, unit: food.unit } : null;
   let current: CatalogFood = food;
   try {
     current = { ...food, ...(await getFood(food.id)) };
@@ -497,13 +536,23 @@ async function chooseFood(food: FoodSearchRow) {
   }
   if (!open.value) return;
   picked.value = current;
-  const start = defaultAmount(current);
+  const start = last ? amountForRecent(current, last.amount, last.unit) : defaultAmount(current);
   pickAmount.value = start.amount;
   pickUnit.value = start.unit;
   step.value = "amount";
 }
 
 const pickMacros = computed(() => (picked.value ? ingredientMacros(picked.value, parseAmount(pickAmount.value), pickUnit.value) : null));
+const pickFigures = computed(() => {
+  const macros = pickMacros.value;
+  return [
+    { label: "KCAL", value: macros ? int(macros.kcal) : "–" },
+    { label: "PROTEIN", value: macros ? recipeMacro(macros.protein) : "–" },
+    { label: "FAT", value: macros ? recipeMacro(macros.fat) : "–" },
+    { label: "CARBS", value: macros ? recipeMacro(macros.carbs) : "–" },
+  ];
+});
+const pickChips = computed(() => (pickUnit.value === "g" ? [50, 100, 150, 200] : pickUnit.value === "ml" ? [100, 250, 500] : [0.5, 1, 2]));
 const pickProblem = computed(() => {
   if (!picked.value) return null;
   return amountError(parseAmount(pickAmount.value), pickUnit.value);
@@ -515,7 +564,6 @@ function addPicked() {
   lines.value.push(draftFrom(food, pickAmount.value, pickUnit.value));
   picked.value = null;
   closePad();
-  focusName.value = false;
   step.value = "form";
 }
 
@@ -525,7 +573,12 @@ function removeLine(key: string) {
 }
 
 async function save() {
-  if (saving.value || !formReady.value) return;
+  if (saving.value) return;
+  // Save stays tappable: a tap that can't save yet makes each field say what it needs.
+  if (!formReady.value) {
+    tried.value = true;
+    return;
+  }
   saving.value = true;
   error.value = "";
   const result = await saveRecipe({
@@ -595,15 +648,43 @@ async function addLog() {
 <template>
   <BottomSheet :open="open" :label="title" full @close="closeRecipeSheet">
     <template #header>
-      <div class="row hdr">
-        <button v-if="step !== 'form'" type="button" class="cbtn" aria-label="Back" @click="backStep">
-          <Icon name="left" :size="18" />
-        </button>
-        <h2 class="t-head grow">{{ step === "search" ? "Add ingredient" : step === "amount" ? (picked?.name || "Amount") : title }}</h2>
-        <TimeChip v-if="mode === 'log' && step === 'form'" v-model="time" :date="ui.foodDate" :today="foodToday" />
-        <button type="button" class="cbtn" aria-label="Close" @click="closeRecipeSheet">
-          <Icon name="x" :size="18" />
-        </button>
+      <div class="hwrap">
+        <div class="row hdr">
+          <button v-if="step !== 'form'" type="button" class="cbtn" aria-label="Back" @click="backStep">
+            <Icon name="left" :size="18" />
+          </button>
+          <h2 class="t-head grow htitle">{{ step === "search" ? "Add ingredient" : step === "amount" ? (picked?.name || "Amount") : title }}</h2>
+          <TimeChip v-if="mode === 'log' && step === 'form'" v-model="time" :date="ui.foodDate" :today="foodToday" />
+          <button
+            v-if="showForm"
+            type="button"
+            class="chip t-bodys savebtn"
+            :class="{ on: formReady && !saving }"
+            :aria-disabled="!formReady || saving"
+            aria-label="Save recipe"
+            data-recipe-save
+            @click="save"
+          >{{ saving ? "Saving…" : "Save" }}</button>
+          <button type="button" class="cbtn" aria-label="Close" @click="closeRecipeSheet">
+            <Icon name="x" :size="18" />
+          </button>
+        </div>
+        <div v-if="showForm" class="sum" aria-live="polite" data-recipe-sum>
+          <div class="metric">
+            <span class="t-cap c2">Total</span>
+            <span class="fig num">{{ linesOk ? int(total.kcal) : "–" }} <span class="t-label c2">kcal</span></span>
+            <span v-if="linesOk" class="t-label c2">P {{ recipeMacro(total.protein) }} · F {{ recipeMacro(total.fat) }} · C {{ recipeMacro(total.carbs) }}</span>
+            <span v-else class="t-label c2">Fix the amount marked below.</span>
+          </div>
+          <div class="metric">
+            <span class="t-cap c2">Per portion</span>
+            <span class="fig num">{{ per ? int(per.kcal) : "–" }} <span class="t-label c2">kcal</span></span>
+            <span v-if="per" class="t-label c2" data-recipe-portion>P {{ recipeMacro(per.protein) }} · F {{ recipeMacro(per.fat) }} · C {{ recipeMacro(per.carbs) }}</span>
+            <span v-else-if="linesOk" class="t-label c2">Enter portions to see this.</span>
+          </div>
+          <p v-if="per" class="sr-only">{{ sentence }} · {{ recipeMacro(per.fat) }} g fat · {{ recipeMacro(per.carbs) }} g carbs · {{ int(per.kcal) }} kcal</p>
+        </div>
+        <p v-if="showForm && error" class="t-label err" role="alert">{{ error }}</p>
       </div>
     </template>
 
@@ -611,8 +692,7 @@ async function addLog() {
 
     <div v-else-if="mode === 'log'" class="stack" @focusin="reveal">
       <p v-if="needTime" class="t-label need" role="status">Logging to {{ dayMonth(ui.foodDate) }} — pick the time you ate it.</p>
-      <p class="t-label c2">The logged entry keeps these numbers. Later edits to the recipe do not change it.</p>
-      <div class="preview" aria-live="polite">
+      <div class="preview" aria-live="polite" data-log-preview>
         <div v-for="item in logFigures" :key="item.label" class="col center">
           <span class="t-nm num">{{ item.value }}</span>
           <span class="t-cap c2">{{ item.label }}</span>
@@ -623,17 +703,19 @@ async function addLog() {
         <input v-autofocus :value="logAmount" data-replace="1" class="t-body grow num" :inputmode="keyboardEntry ? 'decimal' : 'none'" autocomplete="off" aria-label="Amount to log" @focus="onPadFocus('log', $event)" @beforeinput="markWholeSelection" @input="onPadInput" />
         <span class="t-label c2">{{ logUnit === "g" ? "g" : "portion" }}</span>
       </label>
-      <div class="row units" role="radiogroup" aria-label="Log by">
-        <button type="button" class="chip t-label" role="radio" :class="{ on: logUnit === 'portion' }" :aria-checked="logUnit === 'portion'" @click="setLogUnit('portion')">portion</button>
-        <button v-if="snapshot?.finishedGrams" type="button" class="chip t-label" role="radio" :class="{ on: logUnit === 'g' }" :aria-checked="logUnit === 'g'" @click="setLogUnit('g')">grams</button>
+      <div v-if="snapshot?.finishedGrams || eachPortion" class="row unitline">
+        <div v-if="snapshot?.finishedGrams" class="row units" role="radiogroup" aria-label="Log by">
+          <button type="button" class="chip t-label" role="radio" :class="{ on: logUnit === 'portion' }" :aria-checked="logUnit === 'portion'" @click="setLogUnit('portion')">portion</button>
+          <button type="button" class="chip t-label" role="radio" :class="{ on: logUnit === 'g' }" :aria-checked="logUnit === 'g'" @click="setLogUnit('g')">grams</button>
+        </div>
+        <span class="grow" />
+        <span v-if="eachPortion" class="t-label c2" data-recipe-each>1 portion = {{ int(eachPortion) }} g</span>
       </div>
-      <p v-if="eachPortion" class="t-label c2" data-recipe-each>1 portion = {{ int(eachPortion) }} g</p>
       <div class="row chips">
         <button v-for="amount in logChips" :key="amount" type="button" class="chip t-label" @click="logAmount = String(amount)">{{ amountLabel(amount, logUnit === "g" ? "g" : "portion") }}</button>
       </div>
       <div v-if="!keyboardEntry" class="pad" @mousedown.prevent><Keypad @key="onPadKey" /></div>
-      <p v-if="logPreview" class="t-bodys">{{ recipeMacro(logPreview.protein) }} g protein in this log</p>
-      <p v-else-if="logProblem" class="t-label err" role="status">{{ logProblem }}</p>
+      <p v-if="!logPreview && logProblem" class="t-label err" role="status">{{ logProblem }}</p>
     </div>
 
     <div v-else-if="step === 'search'" class="stack search">
@@ -642,22 +724,31 @@ async function addLog() {
         <input v-autofocus v-model="q" class="t-body grow" type="search" placeholder="Search foods" aria-label="Search foods" autocomplete="off" />
       </label>
       <p v-if="searching" class="t-label c2" role="status">Searching…</p>
-      <button v-for="food in searchRows" :key="food.id" type="button" class="rrow row" @pointerdown="pressIngredient($event, food)" @click="pickIngredient($event, food)">
-        <span class="col grow rtext">
-          <span class="t-body name">{{ food.name }}</span>
-          <span class="t-label c2 facts">{{ foodFacts(food) }}</span>
-        </span>
-      </button>
+      <section v-for="section in searchSections" :key="section.title" class="col">
+        <h3 v-if="section.title" class="t-cap c3 section-title">{{ section.title }}</h3>
+        <button v-for="food in section.rows" :key="food.id" type="button" class="rrow row" @pointerdown="pressIngredient($event, food)" @click="pickIngredient($event, food)">
+          <span class="col grow rtext">
+            <span class="t-body name">{{ food.name }}</span>
+            <span class="t-label c2 facts">{{ rowFacts(food) }}</span>
+          </span>
+        </button>
+      </section>
       <p v-if="searchEmpty" class="t-label c2" role="status">{{ searchEmpty }}</p>
     </div>
 
     <div v-else-if="step === 'amount' && picked" class="stack" @focusin="reveal">
+      <div class="preview" aria-live="polite" data-pick-preview>
+        <div v-for="item in pickFigures" :key="item.label" class="col center">
+          <span class="t-nm num">{{ item.value }}</span>
+          <span class="t-cap c2">{{ item.label }}</span>
+        </div>
+      </div>
       <label class="field row">
         <span class="t-label c2">Amount</span>
         <input v-autofocus :value="pickAmount" data-replace="1" class="t-body grow num" :inputmode="keyboardEntry ? 'decimal' : 'none'" autocomplete="off" :aria-label="`Amount of ${picked.name}`" @focus="onPadFocus('pick', $event)" @beforeinput="markWholeSelection" @input="onPadInput" @keydown.enter.prevent="addPicked" />
         <span class="t-label c2">{{ unitWord(pickUnit, unitsForFood(picked)) }}</span>
       </label>
-      <div class="row units" role="radiogroup" :aria-label="`Unit for ${picked.name}`">
+      <div v-if="distinctUnits(unitsForFood(picked), pickUnit).length > 1" class="row units" role="radiogroup" :aria-label="`Unit for ${picked.name}`">
         <button
           v-for="choice in distinctUnits(unitsForFood(picked), pickUnit)"
           :key="choice.unit"
@@ -669,33 +760,41 @@ async function addLog() {
           @click="setPickUnit(choice)"
         >{{ choice.label }}</button>
       </div>
+      <div class="row chips">
+        <button v-for="amount in pickChips" :key="amount" type="button" class="chip t-label" @click="pickAmount = String(amount)">{{ amountLabel(amount, pickUnit) }}</button>
+      </div>
       <div v-if="!keyboardEntry" class="pad" @mousedown.prevent><Keypad @key="onPadKey" /></div>
-      <p v-if="pickMacros" class="t-bodys" aria-live="polite">{{ recipeMacro(pickMacros.protein) }} g protein · {{ int(pickMacros.kcal) }} kcal</p>
-      <p v-else-if="pickProblem" class="t-label err" role="status">{{ pickProblem }}</p>
+      <p v-if="!pickMacros && pickProblem" class="t-label err" role="status">{{ pickProblem }}</p>
     </div>
 
     <div v-else class="stack" @focusin="reveal">
       <p v-if="notice" class="t-label note" role="status">{{ notice }}</p>
       <label class="field row">
         <span class="t-label c2">Name</span>
-        <input v-autofocus="focusName" v-model="name" class="t-body grow" type="text" placeholder="Weeknight stew" :maxlength="recipeNameMax" autocomplete="off" aria-label="Recipe name" @focus="onNameFocus" />
+        <input v-model="name" data-no-autofocus class="t-body grow" type="text" placeholder="Weeknight stew" :maxlength="recipeNameMax" autocomplete="off" aria-label="Recipe name" @focus="onNameFocus" />
       </label>
-      <label class="field row">
-        <span class="t-label c2">Portions</span>
-        <input :value="portionsText" data-replace="1" class="t-body grow num" :inputmode="keyboardEntry ? 'decimal' : 'none'" autocomplete="off" aria-label="Portions" placeholder="e.g. 5" @focus="onPadFocus('portions', $event)" @beforeinput="markWholeSelection" @input="onPadInput" />
-      </label>
-      <label class="field row">
-        <span class="t-label c2">Finished weight</span>
-        <input :value="finishedText" data-replace="1" class="t-body grow num" :inputmode="keyboardEntry ? 'decimal' : 'none'" autocomplete="off" aria-label="Finished weight in grams, optional" placeholder="Optional, grams" @focus="onPadFocus('finished', $event)" @beforeinput="markWholeSelection" @input="onPadInput" />
-      </label>
-      <p class="t-label c2">Calories and macros are worked out from the foods. They update as you change ingredients, amounts, or portions.</p>
-      <button type="button" class="add-btn t-bodys" @click="openSearch">
-        <Icon name="plus" :size="16" :sw="2.4" /> Add ingredient
-      </button>
-      <div v-if="!lines.length" class="empty col">
-        <span class="t-bodys">No ingredients yet</span>
-        <span class="t-label c2">Add a food. The total and the amount per portion appear as you go.</span>
+      <div class="two">
+        <label class="field tall">
+          <span class="t-label c2">Portions</span>
+          <input :value="portionsText" data-no-autofocus data-replace="1" class="t-body num" :inputmode="keyboardEntry ? 'decimal' : 'none'" autocomplete="off" aria-label="Portions" placeholder="e.g. 4" @focus="onPadFocus('portions', $event)" @beforeinput="markWholeSelection" @input="onPadInput" />
+        </label>
+        <label class="field tall">
+          <span class="t-label c2">Finished weight (g)</span>
+          <input :value="finishedText" data-no-autofocus data-replace="1" class="t-body num" :inputmode="keyboardEntry ? 'decimal' : 'none'" autocomplete="off" aria-label="Finished weight in grams, optional" placeholder="Optional" @focus="onPadFocus('finished', $event)" @beforeinput="markWholeSelection" @input="onPadInput" />
+        </label>
       </div>
+      <p v-if="nameProblem && (name.trim() || tried)" class="t-label err" role="status">{{ nameProblem }}</p>
+      <p v-if="(portionsText.trim() || tried) && portionsProblem" class="t-label err" role="status">{{ portionsProblem }}</p>
+      <p v-if="finishedProblem" class="t-label err" role="status">{{ finishedProblem }}</p>
+      <div class="row sec">
+        <span class="t-cap c3 section-title">Ingredients</span>
+        <span class="grow" />
+        <span class="t-cap c3">{{ lines.length }}</span>
+      </div>
+      <button type="button" class="add-btn t-body" @click="openSearch">
+        <Icon name="search" :size="16" /> Add ingredient
+      </button>
+      <p v-if="!lines.length" class="t-label" :class="tried ? 'err' : 'c2'">Add a food. The totals at the top update as you go.</p>
       <div v-else class="items col">
         <div v-for="(line, index) in lines" :key="line.key" class="ing" :data-ingredient-index="index">
           <div class="ingrow">
@@ -704,8 +803,8 @@ async function addLog() {
               <span v-if="lineSummary(line)" class="t-label c2">{{ lineSummary(line) }}</span>
               <span v-else class="t-label err" role="status">{{ lineError(line) }}</span>
             </span>
-            <label class="amt">
-              <input :value="line.amountText" data-replace="1" class="t-body num" :inputmode="keyboardEntry ? 'decimal' : 'none'" autocomplete="off" :aria-label="`Amount of ${line.name}`" :readonly="!line.available && !line.stored" @focus="onPadFocus('line', $event, line.key)" @beforeinput="markWholeSelection" @input="onPadInput" />
+            <label class="amt" :class="{ on: padLine === line.key }">
+              <input :value="line.amountText" data-no-autofocus data-replace="1" class="t-body num" :inputmode="keyboardEntry ? 'decimal' : 'none'" autocomplete="off" :aria-label="`Amount of ${line.name}`" :readonly="!line.available && !line.stored" @focus="onPadFocus('line', $event, line.key)" @beforeinput="markWholeSelection" @input="onPadInput" />
               <span class="t-label c2">{{ unitWord(line.unit, unitChoices(line)) }}</span>
             </label>
             <button type="button" class="cbtn" :aria-label="`Remove ${line.name}`" @click="removeLine(line.key)">
@@ -713,7 +812,7 @@ async function addLog() {
             </button>
           </div>
           <p v-if="!line.available" class="t-label c2 gone">No longer available. Saved totals stay until you remove it.</p>
-          <div v-if="unitChoices(line).length > 1" class="row units" role="radiogroup" :aria-label="`Unit for ${line.name}`">
+          <div v-if="showUnits(line)" class="row units" role="radiogroup" :aria-label="`Unit for ${line.name}`" @mousedown.prevent>
             <button
               v-for="choice in unitChoices(line)"
               :key="choice.unit"
@@ -727,9 +826,9 @@ async function addLog() {
           </div>
         </div>
       </div>
-      <p v-if="nameProblem && name.trim()" class="t-label err" role="status">{{ nameProblem }}</p>
-      <p v-if="portionsText.trim() && portionsProblem" class="t-label err" role="status">{{ portionsProblem }}</p>
-      <p v-if="finishedProblem" class="t-label err" role="status">{{ finishedProblem }}</p>
+      <button v-if="mode === 'edit'" type="button" class="t-label gdel" :disabled="saving" @click="removeRecipe">
+        <Icon name="trash" :size="14" /> Delete recipe
+      </button>
     </div>
 
     <template v-if="!loading && mode === 'log'" #footer>
@@ -737,86 +836,74 @@ async function addLog() {
       <button type="button" class="primary-btn t-bodys" :disabled="saving || !logPreview || needTime" @click="addLog">
         {{ saving ? "Adding…" : needTime ? "Pick a time to add" : logPreview ? `Add · ${int(logPreview.kcal)} kcal` : "Add" }}
       </button>
+      <p class="t-label c3 lognote">Later edits to the recipe don't change this entry.</p>
     </template>
     <template v-else-if="!loading && step === 'amount' && picked" #footer>
       <button type="button" class="primary-btn t-bodys" :disabled="!pickMacros" @click="addPicked">Add to recipe</button>
     </template>
-    <template v-else-if="!loading && step === 'form'" #footer>
-      <div v-if="!keyboardEntry && padTarget" class="padwrap" data-recipe-pad @mousedown.prevent>
+    <template v-else-if="showForm && !keyboardEntry && padTarget" #footer>
+      <div class="padwrap" data-recipe-pad @mousedown.prevent>
         <div class="row padhead">
           <span class="t-label c2 grow padcap" aria-live="polite">{{ padCaption }}</span>
-          <button type="button" class="chip t-label" @click="closePad">Done</button>
+          <button type="button" class="chip t-label" @click="donePad">Done</button>
         </div>
         <Keypad @key="onPadKey" />
-        <p class="t-label c2 sumline" aria-live="polite" data-recipe-sumline>
-          Total {{ linesOk ? int(total.kcal) : "–" }} kcal · per portion {{ per ? int(per.kcal) : "–" }} kcal<template v-if="per"> · P {{ recipeMacro(per.protein) }}</template>
-        </p>
       </div>
-      <div v-else class="sum" aria-live="polite">
-        <div class="metric">
-          <span class="t-cap c2">Total</span>
-          <span class="t-nm num">{{ linesOk ? int(total.kcal) : "–" }}</span>
-          <span class="t-label c2">kcal</span>
-          <span v-if="linesOk" class="t-label c2">P {{ recipeMacro(total.protein) }} · F {{ recipeMacro(total.fat) }} · C {{ recipeMacro(total.carbs) }}</span>
-          <span v-else class="t-label c2">Fix the amount marked above.</span>
-        </div>
-        <div class="metric">
-          <span class="t-cap c2">Per portion</span>
-          <span class="t-nm num">{{ per ? int(per.kcal) : "–" }}</span>
-          <span class="t-label c2">kcal</span>
-          <span v-if="per" class="t-label c2" data-recipe-portion>P {{ recipeMacro(per.protein) }} · F {{ recipeMacro(per.fat) }} · C {{ recipeMacro(per.carbs) }}</span>
-          <span v-else-if="linesOk" class="t-label c2">Enter portions to see the amount per portion.</span>
-        </div>
-        <p v-if="per" class="sr-only">{{ sentence }} · {{ recipeMacro(per.fat) }} g fat · {{ recipeMacro(per.carbs) }} g carbs · {{ int(per.kcal) }} kcal</p>
-      </div>
-      <p v-if="error" class="t-label err" role="alert">{{ error }}</p>
-      <button type="button" class="primary-btn t-bodys" :disabled="saving || !formReady" @click="save">
-        {{ saving ? "Saving…" : "Save recipe" }}
-      </button>
-      <button v-if="mode === 'edit'" type="button" class="t-label gdel" :disabled="saving" @click="removeRecipe">
-        <Icon name="trash" :size="14" /> Delete recipe
-      </button>
     </template>
   </BottomSheet>
 </template>
 
 <style scoped>
-.hdr { gap: var(--space-gap); min-width: 0; align-items: center; }
-.stack { display: flex; flex-direction: column; gap: 12px; }
+.hwrap { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.hdr { gap: 8px; min-width: 0; align-items: center; }
+.htitle { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.savebtn { flex: none; padding-left: 16px; padding-right: 16px; color: var(--text-tertiary); }
+.savebtn.on { color: var(--color-on-action); }
+.stack { display: flex; flex-direction: column; gap: 10px; }
 .field { min-height: 44px; padding: 0 12px; gap: 8px; border-radius: var(--radius-control); background: var(--color-surface-2); flex: none; }
 .field input { border: 0; outline: 0; background: transparent; min-width: 0; width: 100%; padding: 0; color: var(--text-primary); }
 .field input::placeholder { color: var(--text-tertiary); }
+.field.tall { display: flex; flex-direction: column; justify-content: center; gap: 2px; padding: 8px 12px; min-width: 0; }
+.field.tall .num { text-align: left; }
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .num { text-align: right; font-variant-numeric: tabular-nums; }
 .finder { position: sticky; top: 0; z-index: 1; }
-.preview { display: flex; justify-content: space-around; gap: 8px; padding: 14px 8px; border-radius: var(--radius-card); background: var(--color-surface-2); }
+.preview { display: flex; justify-content: space-around; gap: 8px; padding: 12px 8px; border-radius: var(--radius-card); background: var(--color-surface-2); flex: none; }
 .center { align-items: center; text-align: center; flex: 1; min-width: 0; }
-.sum { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; padding: 12px; border-radius: var(--radius-card); background: var(--color-surface-2); }
-.metric { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 0; text-align: left; }
-.metric .num { text-align: left; }
+.sum { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 8px 12px; border-radius: var(--radius-control); background: var(--color-surface-2); }
+.metric { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; min-width: 0; text-align: left; }
+.metric + .metric { border-left: 1px solid var(--color-border); padding-left: 12px; }
+.fig { font-size: 1.0588rem; line-height: 1.3; font-weight: 700; letter-spacing: -0.01em; text-align: left; }
+.sec { align-items: center; margin-top: 8px; }
+.sec .section-title { margin: 0; }
 .items { gap: 0; }
-.ing { display: flex; flex-direction: column; gap: 4px; padding: 4px 0; border-bottom: 1px solid var(--color-border); }
-.ingrow { display: grid; grid-template-columns: minmax(0, 1fr) auto 44px; gap: 8px; align-items: center; min-height: 44px; }
+.ing { display: flex; flex-direction: column; gap: 4px; padding: 2px 0; border-bottom: 1px solid var(--color-border); }
+.ingrow { display: grid; grid-template-columns: minmax(0, 1fr) auto 44px; gap: 8px; align-items: center; min-height: 52px; }
 .ingtext { display: flex; flex-direction: column; min-width: 0; }
 .ingtext .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.amt { display: flex; align-items: center; gap: 4px; min-height: 44px; padding: 0 8px; border-radius: 12px; background: var(--color-surface-2); }
-.amt input { width: 4.5rem; min-height: 44px; border: 0; background: transparent; padding: 0; color: var(--text-primary); }
+.amt { display: flex; align-items: center; gap: 4px; min-height: 40px; padding: 0 10px; border-radius: 12px; background: var(--color-surface-2); }
+.amt input { width: 3.6rem; min-height: 40px; border: 0; outline: 0; background: transparent; padding: 0; color: var(--text-primary); }
+.amt input:focus-visible { outline: 0; }
+.amt.on, .amt:focus-within { box-shadow: inset 0 0 0 2px var(--text-primary); }
+.ing .units { padding-bottom: 6px; }
 .gone { margin: 0; }
-.empty { gap: 4px; padding: 8px 2px 4px; }
 .units, .chips { gap: 8px; flex-wrap: wrap; }
+.unitline { align-items: center; gap: 8px; min-width: 0; }
 .rrow { min-height: 56px; width: 100%; gap: 8px; padding: 6px 0; border: 0; border-bottom: 1px solid var(--color-border); background: transparent; text-align: left; }
 .rtext { gap: 2px; min-width: 0; align-items: flex-start; }
 .name, .facts { min-width: 0; white-space: normal; overflow-wrap: anywhere; }
-.pad { margin-top: var(--space-gap); }
+.section-title { margin: 8px 0 0; }
+.pad { margin-top: 4px; }
 .padwrap { display: flex; flex-direction: column; gap: 8px; }
 .padhead { align-items: center; gap: 8px; min-width: 0; }
-.sumline { margin: 0; }
 .padcap { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lognote { margin: 0; text-align: center; }
 .err, .note, .need { margin: 0; }
 .add-btn {
-  min-height: 44px; width: 100%; border-radius: var(--radius-control);
-  border: 1px dashed var(--color-border-strong); color: var(--text-primary);
-  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-  background: transparent;
+  min-height: 44px; width: 100%; border-radius: var(--radius-control); padding: 0 12px;
+  border: 1px solid var(--color-border); color: var(--text-secondary);
+  display: inline-flex; align-items: center; gap: 8px;
+  background: transparent; flex: none;
 }
-.gdel { align-self: flex-start; min-height: 44px; padding: 8px 0; display: inline-flex; align-items: center; gap: 6px; text-decoration: underline; text-underline-offset: 3px; background: transparent; color: var(--text-primary); }
+.gdel { align-self: flex-start; min-height: 44px; padding: 8px 0; margin-top: 8px; display: inline-flex; align-items: center; gap: 6px; text-decoration: underline; text-underline-offset: 3px; background: transparent; color: var(--text-primary); }
 </style>
