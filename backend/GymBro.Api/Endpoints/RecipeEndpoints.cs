@@ -297,6 +297,7 @@ public static class RecipeEndpoints
             Salt = scaled.Nutrients.Salt,
             IdempotencyKey = draft.IdempotencyKey,
         };
+        NutrientPanel.ScaleOnto(entry, recipe, scaled.Factor);
         db.LogEntries.Add(entry);
         try
         {

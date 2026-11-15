@@ -21,7 +21,7 @@ import {
   type WeighInRow,
   type WeighInWriteResult,
 } from "../api";
-import { todayIso } from "../lib/dates";
+import { todayInZone } from "../lib/dates";
 import { kg } from "../lib/format";
 import {
   ACTIVITY,
@@ -382,7 +382,9 @@ export async function saveSetup(): Promise<boolean> {
   }
   profile.saving = true;
   try {
-    const written = await putWeighIn(todayIso(), kg, profile.form.timeZone);
+    // The server checks the date against today in the zone sent, so take today from that same zone.
+    const zone = profile.form.timeZone || deviceTimeZone();
+    const written = await putWeighIn(todayInZone(zone), kg, zone);
     if (written.confirm) {
       profile.error = "Enter your starting weight. A later weigh-in can be confirmed in the weight sheet.";
       return false;

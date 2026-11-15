@@ -140,7 +140,7 @@ public static class GroupRules
             snapshot.SaturatedFat,
             snapshot.Sugars,
             snapshot.Fiber,
-            snapshot.Salt);
+            snapshot.Salt) with { Factor = snapshot.Factor };
     }
 
     /// <summary>A stored gram weight can stand in for a missing serving only on a per-100 g food.</summary>
@@ -186,6 +186,9 @@ public readonly record struct PlannedItem(
     decimal? Fiber = null,
     decimal? Salt = null)
 {
+    /// <summary>What the food's per-100 (or per-serving) numbers were multiplied by. Zero for a quick-add item.</summary>
+    public decimal Factor { get; init; }
+
     public static PlannedItem Ready(
         string name,
         string source,
