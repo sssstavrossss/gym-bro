@@ -3,6 +3,8 @@
 Vue 3 + Vite + TypeScript + vue-router, same stack/versions as `gym-bro/frontend` (Vue 3.5, Vite 7, TS strict, vue-tsc).
 No backend, no auth: example data lives in `src/store.ts` (reactive, persisted to localStorage, "reset example data" on Profile).
 
+> **This is the October 2026 design prototype, not the shipped app.** The production app in `frontend/` and `backend/` has moved on in places. The automatic weekly target update was replaced by an on-demand Recalculate (a button on Today and Profile, plus a Monday reminder). The "own number" (manual target) and goal-mode switch shown here are not built in production yet. Meal types are absent in both. The root `README.md` is the spec for the real app.
+
     npm install
     npm run dev        # http://localhost:5174 (also on LAN with --host)
     npm run build      # typecheck + dist/ (relative base, hash routes: any sub-path) + gymbro-prototype.html (single file, opens from disk)
