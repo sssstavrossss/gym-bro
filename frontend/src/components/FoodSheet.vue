@@ -332,7 +332,7 @@ const sheetPer100 = computed<NutrientMap>(() => {
 });
 const sheetAmount = computed<NutrientMap>(() => scaleMap(sheetPer100.value, sheetFactor.value));
 const sheetLarge = ref(false);
-const sheetPanels = computed(() => panelsForSize(sheetSource.value ? [sheetSource.value] : [], sheetLarge.value));
+const sheetPanels = computed(() => panelsForSize(sheetSource.value ? [sheetSource.value] : [], sheetLarge.value, true));
 const sheetAge = computed(() => {
   const year = profile.saved?.birthYear;
   return typeof year === "number" ? osloYear() - year : 0;

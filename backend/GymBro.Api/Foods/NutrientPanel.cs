@@ -38,6 +38,10 @@ public static class NutrientPanel
         food.PhosphorusPer100 = Take(list, "P", "mg");
         food.SeleniumPer100 = Take(list, "Se", "ug");
         food.IodinePer100 = Take(list, "I", "ug");
+        food.CopperPer100 = Take(list, "Cu", "mg");
+        food.StarchPer100 = Take(list, "Stivel", "g");
+        // EPA + DHA, the long-chain marine omega-3s. A missing half counts as unknown, not 0.
+        food.EpaDhaPer100 = Both(Take(list, "C20:5n-3Eikosapentaensyre", "g"), Take(list, "C22:6n-3Dokosaheksaensyre", "g"));
     }
 
     public static void ApplyKassalapp(Food food, IEnumerable<KassalNutrient> rows)
@@ -52,28 +56,37 @@ public static class NutrientPanel
         }
     }
 
+    /// <summary>
+    /// Open Food Facts gives every <c>_100g</c> value in grams. The panel shows these in mg or µg,
+    /// so they are scaled before rounding; otherwise 2.1 mg of iron (0.0021 g) would round to 0.
+    /// </summary>
+    private static readonly HashSet<string> OffMilligrams =
+    [
+        "cholesterol_100g", "sodium_100g", "vitamin-e_100g", "vitamin-b1_100g", "vitamin-b2_100g", "vitamin-pp_100g",
+        "vitamin-b6_100g", "vitamin-c_100g", "calcium_100g", "iron_100g", "zinc_100g", "magnesium_100g",
+        "potassium_100g", "phosphorus_100g", "copper_100g",
+    ];
+
+    private static readonly HashSet<string> OffMicrograms =
+    [
+        "vitamin-a_100g", "vitamin-d_100g", "vitamin-b9_100g", "vitamin-b12_100g", "selenium_100g", "iodine_100g",
+    ];
+
     public static Dictionary<string, decimal?> ReadOff(JsonElement nutriments)
     {
-        decimal? Read(string key) =>
-            nutriments.TryGetProperty(key, out var raw) && raw.ValueKind == JsonValueKind.Number && raw.TryGetDecimal(out var value)
-                ? NonNegative(value)
-                : null;
-        decimal? Raw(string key) =>
-            nutriments.TryGetProperty(key, out var raw) && raw.ValueKind == JsonValueKind.Number && raw.TryGetDecimal(out var value) && value >= 0
-                ? value
-                : null;
+        decimal? Read(string key)
+        {
+            if (!nutriments.TryGetProperty(key, out var raw) || raw.ValueKind != JsonValueKind.Number || !raw.TryGetDecimal(out var grams) || grams < 0)
+            {
+                return null;
+            }
+
+            var scale = OffMilligrams.Contains(key) ? 1_000m : OffMicrograms.Contains(key) ? 1_000_000m : 1m;
+            return NonNegative(grams * scale);
+        }
+
         var food = new Food();
         ApplyOff(food, Read);
-        if (Raw("sodium_100g") is decimal sodiumGrams)
-        {
-            food.SodiumPer100 = decimal.Round(sodiumGrams * 1000m, 2, MidpointRounding.AwayFromZero);
-        }
-
-        if (Raw("cholesterol_100g") is decimal cholesterolGrams)
-        {
-            food.CholesterolPer100 = decimal.Round(cholesterolGrams * 1000m, 2, MidpointRounding.AwayFromZero);
-        }
-
         return Per100(food);
     }
 
@@ -105,6 +118,9 @@ public static class NutrientPanel
         food.PhosphorusPer100 = Get(panel, "phosphorus");
         food.SeleniumPer100 = Get(panel, "selenium");
         food.IodinePer100 = Get(panel, "iodine");
+        food.CopperPer100 = Get(panel, "copper");
+        food.StarchPer100 = Get(panel, "starch");
+        food.EpaDhaPer100 = Get(panel, "epaDha");
     }
 
     private static decimal? Get(IReadOnlyDictionary<string, decimal?> panel, string key) =>
@@ -138,6 +154,9 @@ public static class NutrientPanel
         food.PhosphorusPer100 = NonNegative(read("phosphorus_100g"));
         food.SeleniumPer100 = NonNegative(read("selenium_100g"));
         food.IodinePer100 = NonNegative(read("iodine_100g"));
+        food.CopperPer100 = NonNegative(read("copper_100g"));
+        food.StarchPer100 = NonNegative(read("starch_100g"));
+        food.EpaDhaPer100 = Both(NonNegative(read("eicosapentaenoic-acid_100g")), NonNegative(read("docosahexaenoic-acid_100g")));
     }
 
     public static void ScaleExisting(LogEntry entry, decimal factor)
@@ -168,6 +187,9 @@ public static class NutrientPanel
         entry.Phosphorus = Micronutrients.Scale(entry.Phosphorus, factor);
         entry.Selenium = Micronutrients.Scale(entry.Selenium, factor);
         entry.Iodine = Micronutrients.Scale(entry.Iodine, factor);
+        entry.Copper = Micronutrients.Scale(entry.Copper, factor);
+        entry.Starch = Micronutrients.Scale(entry.Starch, factor);
+        entry.EpaDha = Micronutrients.Scale(entry.EpaDha, factor);
     }
 
     public static void ScaleOnto(LogEntry target, Food food, decimal factor)
@@ -198,6 +220,9 @@ public static class NutrientPanel
         target.Phosphorus = Micronutrients.Scale(food.PhosphorusPer100, factor);
         target.Selenium = Micronutrients.Scale(food.SeleniumPer100, factor);
         target.Iodine = Micronutrients.Scale(food.IodinePer100, factor);
+        target.Copper = Micronutrients.Scale(food.CopperPer100, factor);
+        target.Starch = Micronutrients.Scale(food.StarchPer100, factor);
+        target.EpaDha = Micronutrients.Scale(food.EpaDhaPer100, factor);
     }
 
     /// <summary>
@@ -232,6 +257,9 @@ public static class NutrientPanel
         target.Phosphorus = Share(recipe.Phosphorus, factor);
         target.Selenium = Share(recipe.Selenium, factor);
         target.Iodine = Share(recipe.Iodine, factor);
+        target.Copper = Share(recipe.Copper, factor);
+        target.Starch = Share(recipe.Starch, factor);
+        target.EpaDha = Share(recipe.EpaDha, factor);
     }
 
     private static decimal? Share(decimal? total, decimal factor)
@@ -274,6 +302,9 @@ public static class NutrientPanel
         target.Phosphorus = Micronutrients.Scale(food.PhosphorusPer100, factor);
         target.Selenium = Micronutrients.Scale(food.SeleniumPer100, factor);
         target.Iodine = Micronutrients.Scale(food.IodinePer100, factor);
+        target.Copper = Micronutrients.Scale(food.CopperPer100, factor);
+        target.Starch = Micronutrients.Scale(food.StarchPer100, factor);
+        target.EpaDha = Micronutrients.Scale(food.EpaDhaPer100, factor);
     }
 
     public static void Copy(LogEntry target, LogEntry source)
@@ -304,6 +335,9 @@ public static class NutrientPanel
         target.Phosphorus = source.Phosphorus;
         target.Selenium = source.Selenium;
         target.Iodine = source.Iodine;
+        target.Copper = source.Copper;
+        target.Starch = source.Starch;
+        target.EpaDha = source.EpaDha;
     }
 
     public static void Copy(EntryGroupItem target, LogEntry source)
@@ -334,6 +368,9 @@ public static class NutrientPanel
         target.Phosphorus = source.Phosphorus;
         target.Selenium = source.Selenium;
         target.Iodine = source.Iodine;
+        target.Copper = source.Copper;
+        target.Starch = source.Starch;
+        target.EpaDha = source.EpaDha;
     }
 
     public static void Copy(LogEntry target, EntryGroupItem source)
@@ -364,6 +401,9 @@ public static class NutrientPanel
         target.Phosphorus = source.Phosphorus;
         target.Selenium = source.Selenium;
         target.Iodine = source.Iodine;
+        target.Copper = source.Copper;
+        target.Starch = source.Starch;
+        target.EpaDha = source.EpaDha;
     }
 
     public static void Copy(RecipeIngredient target, RecipeIngredient source)
@@ -394,6 +434,9 @@ public static class NutrientPanel
         target.Phosphorus = source.Phosphorus;
         target.Selenium = source.Selenium;
         target.Iodine = source.Iodine;
+        target.Copper = source.Copper;
+        target.Starch = source.Starch;
+        target.EpaDha = source.EpaDha;
     }
 
     public static void SumOnto(Recipe target, IEnumerable<RecipeIngredient> rows)
@@ -425,6 +468,9 @@ public static class NutrientPanel
         target.Phosphorus = Micronutrients.KnownSum(rows.Select(row => row.Phosphorus));
         target.Selenium = Micronutrients.KnownSum(rows.Select(row => row.Selenium));
         target.Iodine = Micronutrients.KnownSum(rows.Select(row => row.Iodine));
+        target.Copper = Micronutrients.KnownSum(rows.Select(row => row.Copper));
+        target.Starch = Micronutrients.KnownSum(rows.Select(row => row.Starch));
+        target.EpaDha = Micronutrients.KnownSum(rows.Select(row => row.EpaDha));
     }
 
     public static Dictionary<string, decimal?> Day(IReadOnlyList<LogEntry> rows) => new()
@@ -454,7 +500,10 @@ public static class NutrientPanel
         ["potassium"] = Micronutrients.KnownSum(rows.Select(row => row.Potassium)) ?? 0,
         ["phosphorus"] = Micronutrients.KnownSum(rows.Select(row => row.Phosphorus)) ?? 0,
         ["selenium"] = Micronutrients.KnownSum(rows.Select(row => row.Selenium)) ?? 0,
-        ["iodine"] = Micronutrients.KnownSum(rows.Select(row => row.Iodine)) ?? 0
+        ["iodine"] = Micronutrients.KnownSum(rows.Select(row => row.Iodine)) ?? 0,
+        ["copper"] = Micronutrients.KnownSum(rows.Select(row => row.Copper)) ?? 0,
+        ["starch"] = Micronutrients.KnownSum(rows.Select(row => row.Starch)) ?? 0,
+        ["epaDha"] = Micronutrients.KnownSum(rows.Select(row => row.EpaDha)) ?? 0
     };
 
     public static Dictionary<string, decimal?> Amount(LogEntry row) => new()
@@ -484,7 +533,10 @@ public static class NutrientPanel
         ["potassium"] = row.Potassium,
         ["phosphorus"] = row.Phosphorus,
         ["selenium"] = row.Selenium,
-        ["iodine"] = row.Iodine
+        ["iodine"] = row.Iodine,
+        ["copper"] = row.Copper,
+        ["starch"] = row.Starch,
+        ["epaDha"] = row.EpaDha
     };
 
     public static Dictionary<string, decimal?> Per100(Food row) => new()
@@ -514,7 +566,10 @@ public static class NutrientPanel
         ["potassium"] = row.PotassiumPer100,
         ["phosphorus"] = row.PhosphorusPer100,
         ["selenium"] = row.SeleniumPer100,
-        ["iodine"] = row.IodinePer100
+        ["iodine"] = row.IodinePer100,
+        ["copper"] = row.CopperPer100,
+        ["starch"] = row.StarchPer100,
+        ["epaDha"] = row.EpaDhaPer100
     };
 
     private static decimal? Take(IReadOnlyList<MatvareConstituent> rows, string id, string unit)
@@ -605,6 +660,10 @@ public static class NutrientPanel
 
         return text is "µg" or "ug" or "mcg" or "μg";
     }
+
+    /// <summary>Sum of two parts, or null when either part is unknown.</summary>
+    private static decimal? Both(decimal? first, decimal? second) =>
+        first is decimal a && second is decimal b ? a + b : null;
 
     private static decimal? NonNegative(decimal? value) =>
         value is decimal known && known >= 0 ? decimal.Round(known, 2, MidpointRounding.AwayFromZero) : null;

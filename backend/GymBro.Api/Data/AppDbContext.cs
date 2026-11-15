@@ -193,6 +193,9 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         food.Property(f => f.PhosphorusPer100).HasColumnName("phosphorus_per_100").HasPrecision(8, 2);
         food.Property(f => f.SeleniumPer100).HasColumnName("selenium_per_100").HasPrecision(8, 2);
         food.Property(f => f.IodinePer100).HasColumnName("iodine_per_100").HasPrecision(8, 2);
+        food.Property(f => f.CopperPer100).HasColumnName("copper_per_100").HasPrecision(8, 2);
+        food.Property(f => f.StarchPer100).HasColumnName("starch_per_100").HasPrecision(8, 2);
+        food.Property(f => f.EpaDhaPer100).HasColumnName("epa_dha_per_100").HasPrecision(8, 2);
 
         food.Property(f => f.ServingQuantity).HasColumnName("serving_quantity").HasPrecision(8, 2);
         food.Property(f => f.ServingLabel).HasColumnName("serving_label").HasMaxLength(80);
@@ -307,6 +310,9 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         entry.Property(e => e.Phosphorus).HasColumnName("phosphorus").HasPrecision(8, 2);
         entry.Property(e => e.Selenium).HasColumnName("selenium").HasPrecision(8, 2);
         entry.Property(e => e.Iodine).HasColumnName("iodine").HasPrecision(8, 2);
+        entry.Property(e => e.Copper).HasColumnName("copper").HasPrecision(8, 2);
+        entry.Property(e => e.Starch).HasColumnName("starch").HasPrecision(8, 2);
+        entry.Property(e => e.EpaDha).HasColumnName("epa_dha").HasPrecision(8, 2);
 
         entry.Property(e => e.IdempotencyKey).HasColumnName("idempotency_key").HasMaxLength(64);
         entry.Property(e => e.DeletedAt).HasColumnName("deleted_at");
@@ -394,6 +400,9 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         item.Property(i => i.Phosphorus).HasColumnName("phosphorus").HasPrecision(8, 2);
         item.Property(i => i.Selenium).HasColumnName("selenium").HasPrecision(8, 2);
         item.Property(i => i.Iodine).HasColumnName("iodine").HasPrecision(8, 2);
+        item.Property(i => i.Copper).HasColumnName("copper").HasPrecision(8, 2);
+        item.Property(i => i.Starch).HasColumnName("starch").HasPrecision(8, 2);
+        item.Property(i => i.EpaDha).HasColumnName("epa_dha").HasPrecision(8, 2);
 
         item.HasIndex(i => new { i.GroupId, i.Position }).IsUnique();
         item.HasOne<EntryGroup>()
@@ -457,6 +466,9 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         recipe.Property(r => r.Phosphorus).HasColumnName("phosphorus").HasPrecision(8, 2);
         recipe.Property(r => r.Selenium).HasColumnName("selenium").HasPrecision(8, 2);
         recipe.Property(r => r.Iodine).HasColumnName("iodine").HasPrecision(8, 2);
+        recipe.Property(r => r.Copper).HasColumnName("copper").HasPrecision(8, 2);
+        recipe.Property(r => r.Starch).HasColumnName("starch").HasPrecision(8, 2);
+        recipe.Property(r => r.EpaDha).HasColumnName("epa_dha").HasPrecision(8, 2);
 
         recipe.Property(r => r.CreatedAt).HasColumnName("created_at");
         recipe.Property(r => r.UpdatedAt).HasColumnName("updated_at");
@@ -518,6 +530,9 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         ingredient.Property(i => i.Phosphorus).HasColumnName("phosphorus").HasPrecision(8, 2);
         ingredient.Property(i => i.Selenium).HasColumnName("selenium").HasPrecision(8, 2);
         ingredient.Property(i => i.Iodine).HasColumnName("iodine").HasPrecision(8, 2);
+        ingredient.Property(i => i.Copper).HasColumnName("copper").HasPrecision(8, 2);
+        ingredient.Property(i => i.Starch).HasColumnName("starch").HasPrecision(8, 2);
+        ingredient.Property(i => i.EpaDha).HasColumnName("epa_dha").HasPrecision(8, 2);
 
         ingredient.HasIndex(i => new { i.RecipeId, i.Position }).IsUnique();
         ingredient.HasOne<Recipe>()

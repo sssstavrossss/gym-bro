@@ -182,7 +182,10 @@ public readonly record struct Micronutrients(decimal? SaturatedFat, decimal? Sug
             Part("potassium", row => row.PotassiumPer100),
             Part("phosphorus", row => row.PhosphorusPer100),
             Part("selenium", row => row.SeleniumPer100),
-            Part("iodine", row => row.IodinePer100)) + ".";
+            Part("iodine", row => row.IodinePer100),
+            Part("copper", row => row.CopperPer100),
+            Part("starch", row => row.StarchPer100),
+            Part("EPA + DHA", row => row.EpaDhaPer100)) + ".";
     }
 
     private static string Format(decimal? percent) =>

@@ -28,4 +28,7 @@ public sealed partial class Food
     public decimal? PhosphorusPer100 { get; set; }
     public decimal? SeleniumPer100 { get; set; }
     public decimal? IodinePer100 { get; set; }
+    public decimal? CopperPer100 { get; set; }
+    public decimal? StarchPer100 { get; set; }
+    public decimal? EpaDhaPer100 { get; set; }
 }

@@ -28,4 +28,7 @@ public sealed partial class EntryGroupItem
     public decimal? Phosphorus { get; set; }
     public decimal? Selenium { get; set; }
     public decimal? Iodine { get; set; }
+    public decimal? Copper { get; set; }
+    public decimal? Starch { get; set; }
+    public decimal? EpaDha { get; set; }
 }
