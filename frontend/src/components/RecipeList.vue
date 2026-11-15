@@ -2,7 +2,8 @@
 import Icon from "./Icon.vue";
 import type { Recipe } from "../api";
 import { bindPick, clickPick } from "../lib/cleanTap";
-import { recipeFigure, recipeMacro } from "../lib/recipes";
+import { int } from "../lib/format";
+import { portionGrams, recipeMacro } from "../lib/recipes";
 
 defineProps<{
   recipes: Recipe[];
@@ -53,8 +54,8 @@ function onRemove(event: MouseEvent, recipe: Recipe) {
           <span class="mark t-capn">recipe</span>
         </span>
         <span class="t-label c2 detail" data-recipe-detail>
-          <span>{{ recipe.ingredients.length }} foods · {{ recipeFigure(recipe.perPortion.kcal) }} kcal</span>
-          <span> P {{ recipeMacro(recipe.perPortion.protein) }} · F {{ recipeMacro(recipe.perPortion.fat) }} · C {{ recipeMacro(recipe.perPortion.carbs) }} per portion<template v-if="recipe.finishedGrams"> · {{ recipeFigure(recipe.finishedGrams) }} g finished</template></span>
+          <span>{{ recipe.ingredients.length }} foods · {{ int(recipe.perPortion.kcal) }} kcal per portion</span>
+          <span> P {{ recipeMacro(recipe.perPortion.protein) }} · F {{ recipeMacro(recipe.perPortion.fat) }} · C {{ recipeMacro(recipe.perPortion.carbs) }}<template v-if="portionGrams(recipe)"> · 1 portion = {{ int(portionGrams(recipe)!) }} g</template></span>
         </span>
       </button>
       <button type="button" class="cbtn" :aria-label="`Edit recipe ${recipe.name}`" :disabled="saving" @pointerdown="pressEdit($event, recipe)" @click="onEdit($event, recipe)">

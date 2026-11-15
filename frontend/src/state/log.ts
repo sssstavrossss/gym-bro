@@ -337,8 +337,9 @@ async function fetchDay(date: string, zone: string): Promise<CachedDay> {
   };
 }
 
-function prefetchDay(date: string, zone: string, today: string): void {
-  if (!date || date > today || dayCache.has(date) || prefetching.has(date)) return;
+function prefetchDay(date: string, zone: string, today: string, setupDate: string | null): void {
+  // Before setup the server refuses the day (400), so there is nothing to fetch.
+  if (!date || date > today || (setupDate && date < setupDate) || dayCache.has(date) || prefetching.has(date)) return;
   const job = fetchDay(date, zone).then((snap) => {
     if (!dayCache.has(snap.date)) dayCache.set(snap.date, snap);
   }).catch(() => {
@@ -373,8 +374,8 @@ export async function loadDay(date: string): Promise<void> {
     dayCache.set(snap.date, snap);
     settlePending(snap.entries);
     showCached(snap);
-    prefetchDay(addDays(snap.date, -1), zone, today);
-    prefetchDay(addDays(snap.date, 1), zone, today);
+    prefetchDay(addDays(snap.date, -1), zone, today, days.setupDate);
+    prefetchDay(addDays(snap.date, 1), zone, today, days.setupDate);
   } catch (error) {
     if (gen !== viewGeneration) return;
     viewed.loaded = true;

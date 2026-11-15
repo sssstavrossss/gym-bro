@@ -6,9 +6,12 @@ import { armReplace, focusField, selectField, type FocusableField } from "./focu
  * On mount it focuses that field and selects the whole value.
  * iOS only keeps the keyboard if `primeKeyboard()` already ran in the tap
  * that opened the form. See `focusField.ts`.
+ * `v-autofocus="false"` leaves focus alone, for a field that mounts again
+ * later in the same form.
  */
-export const vAutofocus: ObjectDirective<HTMLElement> = {
-  mounted(el) {
+export const vAutofocus: ObjectDirective<HTMLElement, boolean | undefined> = {
+  mounted(el, binding) {
+    if (binding.value === false) return;
     el.setAttribute("data-autofocus", "");
     const field = el as HTMLElement & FocusableField;
     const replace = () => el.dataset.replace === "1";

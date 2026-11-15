@@ -39,7 +39,7 @@
     {"id": "whole-wheat", "add": ["whole wheat", "wholewheat"], "when": [{"name": "en", "op": "hasAll", "text": ["wholemeal"]}]},
     {"id": "crispbread", "add": ["crispbread"], "when": [{"name": "en", "op": "startsAny", "text": ["crisp bread"]}]},
     {"id": "yogurt", "add": ["yogurt"], "when": [{"name": "en", "op": "startsAny", "text": ["yoghurt"]}]},
-    {"id": "chicken-breast", "add": ["chicken breast", "chicken breast fillet", "kyllingbryst", "kylling bryst"], "when": [{"name": "en", "op": "startsAny", "text": ["chicken fillet", "chicken, fillet"]}], "unlessWords": ["thigh", "drumstick", "nugget", "minced", "liver", "sausage", "wing", "leg"]},
+    {"id": "chicken-breast", "add": ["chicken breast", "chicken breast fillet", "kyllingbryst", "kylling bryst", "kyllingfilet"], "when": [{"name": "en", "op": "startsAny", "text": ["chicken fillet", "chicken, fillet"]}], "unlessWords": ["thigh", "drumstick", "nugget", "minced", "liver", "sausage", "wing", "leg"]},
     {"id": "turkey-fillet", "add": ["turkey fillet"], "when": [{"name": "en", "op": "hasAll", "text": ["turkey", "breast"]}], "unlessWords": ["ham"]},
     {"id": "hen-breast", "add": ["hen breast", "hønebryst"], "when": [{"name": "nb", "op": "hasAll", "text": ["bryst", "høne", "filet"]}]},
     {"id": "fava", "add": ["fava", "fava beans"], "when": [{"name": "en", "op": "startsAny", "text": ["broad beans"]}]},

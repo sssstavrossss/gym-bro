@@ -136,6 +136,22 @@ export function scaleRecipeLog(
   return { ...shareTotals(totals, factor), grams: weight != null && weight > 0 ? weight : null };
 }
 
+/** Grams in one portion, when the recipe has a finished weight. */
+export function portionGrams(recipe: { portions: number; finishedGrams: number | null }): number | null {
+  if (!(recipe.portions > 0) || recipe.finishedGrams == null || !(recipe.finishedGrams > 0)) return null;
+  return round2(recipe.finishedGrams / recipe.portions);
+}
+
+/** Why an amount can't be logged, in words. Null when it can. Same limits as `scaleRecipeLog`. */
+export function recipeLogProblem(recipe: RecipeLogInput, amount: number, unit: "portion" | "g"): string | null {
+  if (scaleRecipeLog(recipe, amount, unit)) return null;
+  if (unit === "g") {
+    if (!(recipe.finishedGrams != null && recipe.finishedGrams > 0)) return "This recipe has no finished weight, so it can't be logged in grams.";
+    return "Enter grams above 0 and at most 10,000.";
+  }
+  return `Enter portions above 0 and at most ${recipeLogPortionsMax}.`;
+}
+
 export function recipeFoodEntries<T extends { source: string; foodId: string | null }>(entries: readonly T[]): T[] {
   return entries.filter((entry) => entry.source !== "quick" && Boolean(entry.foodId));
 }

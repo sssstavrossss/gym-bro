@@ -6,6 +6,8 @@ import {
   matchingRecipes,
   perPortion,
   perPortionSentence,
+  portionGrams,
+  recipeLogProblem,
   recipeMacro,
   presetFromLogged,
   recipeFoodEntries,
@@ -109,4 +111,14 @@ it("matches a recipe by its name or an ingredient and prefers a logged gram weig
   const bread: CatalogFood = { ...chicken, servingQuantity: null, servings: [{ id: "s", name: "slice", grams: 40 }] };
   expect(presetFromLogged(bread, { amount: 2, unit: "slice", grams: 80 })).toEqual({ amount: "2", unit: "slice" });
   expect(presetFromLogged(chicken, { amount: 2, unit: "slice", grams: 80 })).toEqual({ amount: "80", unit: "g" });
+});
+
+it("says how many grams a portion is and why an amount can't be logged", () => {
+  const pot = { portions: 4, finishedGrams: 1600, kcal: 2000, protein: 200, fat: 40, carbs: 200 };
+  expect(portionGrams(pot)).toBe(400);
+  expect(portionGrams({ ...pot, finishedGrams: null })).toBeNull();
+  expect(recipeLogProblem(pot, 1, "portion")).toBeNull();
+  expect(recipeLogProblem(pot, 1600, "portion")).toBe("Enter portions above 0 and at most 50.");
+  expect(recipeLogProblem(pot, 20000, "g")).toBe("Enter grams above 0 and at most 10,000.");
+  expect(recipeLogProblem({ ...pot, finishedGrams: null }, 100, "g")).toBe("This recipe has no finished weight, so it can't be logged in grams.");
 });

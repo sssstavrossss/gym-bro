@@ -17,6 +17,7 @@ public static class RecipeEndpoints
         api.MapPost("/recipes", Create);
         api.MapPut("/recipes/{id:guid}", Update);
         api.MapDelete("/recipes/{id:guid}", Retire);
+        api.MapPost("/recipes/{id:guid}/restore", Restore);
         api.MapPost("/recipes/{id:guid}/log", Log);
         return api;
     }
@@ -202,6 +203,41 @@ public static class RecipeEndpoints
         recipe.UpdatedAt = now;
         await db.SaveChangesAsync(cancellationToken);
         return Results.NoContent();
+    }
+
+    /// <summary>Undo for a delete: clears <c>retired_at</c>. A recipe that is already live is returned as it is.</summary>
+    private static async Task<IResult> Restore(
+        ClaimsPrincipal principal,
+        Guid id,
+        AppDbContext db,
+        UserDirectory users,
+        TimeProvider clock,
+        CancellationToken cancellationToken)
+    {
+        if (Caller.MissingOid(principal) is { } denied)
+        {
+            return denied;
+        }
+
+        await users.UpsertAsync(principal, cancellationToken);
+        var userId = Caller.Id(principal);
+        var recipe = await db.Recipes.FirstOrDefaultAsync(
+            row => row.Id == id && row.UserId == userId,
+            cancellationToken);
+        if (recipe is null)
+        {
+            return ApiResults.Error(RecipeRules.MissingRecipe, StatusCodes.Status404NotFound);
+        }
+
+        if (recipe.RetiredAt is not null)
+        {
+            recipe.RetiredAt = null;
+            recipe.UpdatedAt = clock.GetUtcNow();
+            await db.SaveChangesAsync(cancellationToken);
+        }
+
+        var restored = await Load(db, userId, id, cancellationToken);
+        return Results.Ok(restored[0]);
     }
 
     private static async Task<IResult> Log(
@@ -567,6 +603,7 @@ public static class RecipeEndpoints
         sugars = entry.Sugars,
         fiber = entry.Fiber,
         salt = entry.Salt,
+        nutrients = NutrientPanel.Amount(entry),
         idempotencyKey = entry.IdempotencyKey,
         deletedAt = entry.DeletedAt,
     };

@@ -220,6 +220,7 @@ public sealed class RecipeEndpointTests(ApiFactory factory)
         Assert.Equal(0, (await stranger.GetFromJsonAsync<JsonElement>("/api/recipes")).GetProperty("recipes").GetArrayLength());
         Assert.Equal(HttpStatusCode.NotFound, (await stranger.GetAsync("/api/recipes/" + id)).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await stranger.DeleteAsync("/api/recipes/" + id)).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await stranger.PostAsync("/api/recipes/" + id + "/restore", null)).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await Log(stranger, id, "2026-10-24", "stolen", 1, "portion")).StatusCode);
         var stolen = await stranger.PutAsync("/api/recipes/" + id, Json(
             $$"""{"name":"Stolen","portions":1,"ingredients":[{"foodId":"{{chicken}}","amount":100,"unit":"g"}]}"""));
@@ -261,6 +262,30 @@ public sealed class RecipeEndpointTests(ApiFactory factory)
         Assert.NotNull(row.RetiredAt);
         Assert.Equal(1, await db.RecipeIngredients.CountAsync(item => item.RecipeId == id));
         Assert.Equal(1, await db.LogEntries.CountAsync(entry => entry.UserId == user && entry.DeletedAt == null));
+    }
+
+    [Fact]
+    public async Task Restoring_a_deleted_recipe_brings_it_back_with_its_ingredients()
+    {
+        factory.Clock.UtcNow = new DateTimeOffset(2026, 10, 24, 9, 0, 0, TimeSpan.Zero);
+        using var client = factory.AsUser(TestData.NewUser("recipe-restore"));
+        await Setup(client, "2026-10-24");
+        var chicken = await Food(client, "Fictional chicken", 400, 100, 10, 0);
+        var id = (await (await Save(client, "Undo pot", 4, 800, (chicken, 200, "g"))).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+        Assert.Equal(HttpStatusCode.NoContent, (await client.DeleteAsync("/api/recipes/" + id)).StatusCode);
+
+        var restored = await client.PostAsync("/api/recipes/" + id + "/restore", null);
+        Assert.Equal(HttpStatusCode.OK, restored.StatusCode);
+        var body = await restored.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("Undo pot", body.GetProperty("name").GetString());
+        Assert.Equal(800, body.GetProperty("kcal").GetDecimal());
+        Assert.Equal(1, body.GetProperty("ingredients").GetArrayLength());
+
+        var list = await client.GetFromJsonAsync<JsonElement>("/api/recipes");
+        Assert.Equal(id, list.GetProperty("recipes")[0].GetProperty("id").GetGuid());
+        Assert.Equal(HttpStatusCode.Created, (await Log(client, id, "2026-10-24", "after-restore", 1, "portion")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.PostAsync("/api/recipes/" + id + "/restore", null)).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await client.PostAsync("/api/recipes/" + Guid.NewGuid() + "/restore", null)).StatusCode);
     }
 
     [Fact]

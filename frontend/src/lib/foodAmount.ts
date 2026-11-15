@@ -183,6 +183,41 @@ export function unitsForFood(food: CatalogFood): UnitChoice[] {
   return units;
 }
 
+/**
+ * Chips to show. Matvaretabellen often gives a food the same size twice, as a
+ * serving and as a piece with the same name ("porsjon", 150 g). Show one chip.
+ * `keep` is the unit already chosen, so an entry logged as a piece still has its chip.
+ */
+export function distinctUnits(units: readonly UnitChoice[], keep?: string): UnitChoice[] {
+  const serving = units.find((item) => item.unit === "serving");
+  const piece = units.find((item) => item.unit === "piece");
+  const same = serving && piece
+    && serving.gramsEach != null
+    && serving.gramsEach === piece.gramsEach
+    && serving.label.trim().toLocaleLowerCase() === piece.label.trim().toLocaleLowerCase();
+  if (!same) return [...units];
+  const drop = keep === "piece" ? "serving" : "piece";
+  return units.filter((item) => item.unit !== drop);
+}
+
+/**
+ * The amount to show after switching unit, so the food stays the same size.
+ * Grams to a count snaps to halves when it lands on one, otherwise 1.
+ * With `exact`, a count keeps the amount of food instead (3.33 portions), for a
+ * recipe ingredient where the total has to stay the same.
+ * A unit with no gram size starts at 1.
+ */
+export function convertAmount(amount: number, from: UnitChoice | undefined, to: UnitChoice, exact = false): string {
+  const grams = from?.gramsEach == null ? amount : amount * from.gramsEach;
+  if (to.gramsEach == null || to.gramsEach === 0) return "1";
+  if (to.unit === "g" || to.unit === "ml") return String(Math.round(grams || to.gramsEach));
+  const count = grams / to.gramsEach;
+  if (exact && count > 0) return String(Math.round(count * 100) / 100);
+  const halves = Math.round(count * 2) / 2;
+  const snapped = count >= 0.5 && Math.abs(count * 2 - Math.round(count * 2)) < 0.01 ? halves : 1;
+  return String(snapped);
+}
+
 function ownServingUnits(food: CatalogFood): UnitChoice[] {
   if (!hasGramBasis(food)) return [];
   return (food.servings ?? [])

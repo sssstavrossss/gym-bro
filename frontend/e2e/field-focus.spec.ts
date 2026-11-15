@@ -222,7 +222,10 @@ for (const width of [375, 390]) {
       await recipe.getByRole("button", { name: new RegExp(foodName) }).click();
       await expectReplace(page, recipe.getByRole("textbox", { name: `Amount of ${foodName}` }), "40", "caret");
       await recipe.getByRole("button", { name: "Add to recipe" }).click();
-      await expect(recipe.getByRole("textbox", { name: "Recipe name" })).toBeFocused();
+      // Back on the form, Name keeps its text and does not grab focus, so the next key can't replace it.
+      await expect(recipe.getByRole("textbox", { name: `Amount of ${foodName}` })).toBeVisible();
+      await expect(recipe.getByRole("textbox", { name: "Recipe name" })).not.toBeFocused();
+      await expect(recipe.getByRole("textbox", { name: "Recipe name" })).toHaveValue("Soup");
       await fieldsAtLeast16(recipe);
       const summaryAlign = await recipe.locator(".metric").evaluateAll((nodes) => nodes.map((node) => {
         const figure = node.querySelector(".t-nm");

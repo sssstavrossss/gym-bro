@@ -28,6 +28,8 @@ import {
   scaleStored,
   servingDefinitionError,
   servingName,
+  convertAmount,
+  distinctUnits,
   unitsForEntry,
   unitsForFood,
   type OwnServing,
@@ -73,7 +75,7 @@ import RecipeList from "./RecipeList.vue";
 import { canSaveGroup, groupTimeNote, matchingGroups, readdToast } from "../lib/groups";
 import { canSaveRecipe, matchingRecipes, recipeFoodEntries } from "../lib/recipes";
 import { deleteSavedGroup, loadGroups, readdSavedGroup, savedGroups } from "../state/groups";
-import { loadRecipes, retireRecipe, savedRecipes } from "../state/recipes";
+import { deleteRecipeWithUndo, loadRecipes, savedRecipes } from "../state/recipes";
 import { closeFoodLayer, closeSheet, openCopy, openGroupSheet, openRecipeCreate, openRecipeEdit, openRecipeFromEntries, openRecipeLog, toast, ui } from "../ui";
 
 const open = computed(() => ui.sheet === "food");
@@ -257,7 +259,7 @@ const units = computed(() => {
     return [{ unit: "portion", label: "portion", gramsEach: null }];
   }
   if (editingFood.value) return unitsForEntry(editingFood.value);
-  return shownFood.value ? unitsForFood(shownFood.value) : [];
+  return shownFood.value ? distinctUnits(unitsForFood(shownFood.value), unit.value) : [];
 });
 const amountNumber = computed(() => parseAmount(amountText.value));
 const preview = computed(() => {
@@ -275,6 +277,7 @@ const svEditId = ref<string | null>(null);
 const savingServing = ref(false);
 const servingDraftError = computed(() => servingDefinitionError(svName.value, parseAmount(svGrams.value)));
 const unitWord = computed(() => amountLabel(amountNumber.value || 0, unit.value).replace(/^[\d.]+ /, ""));
+const unitWord1 = computed(() => amountLabel(1, unit.value).replace(/^[\d.]+ /, ""));
 const gramsEach = computed(() => units.value.find((item) => item.unit === unit.value)?.gramsEach ?? null);
 const quickAmounts = computed(() => (unit.value === "g" ? [100, 150, 200] : unit.value === "ml" ? [100, 250, 500] : [0.5, 1, 2, 3]));
 const detailTitle = computed(() => detailFood.value?.name ?? editingFood.value?.name ?? "");
@@ -472,22 +475,11 @@ function setUnit(next: UnitChoice) {
     return;
   }
   const current = units.value.find((item) => item.unit === unit.value);
-  const grams = current?.gramsEach == null ? amountNumber.value : amountNumber.value * current.gramsEach;
+  const amount = amountNumber.value;
   unit.value = next.unit;
   fresh.value = true;
   formError.value = "";
-  if (next.gramsEach == null || next.gramsEach === 0) {
-    amountText.value = "1";
-    return;
-  }
-  if (next.unit === "g" || next.unit === "ml") {
-    amountText.value = String(Math.round(grams || next.gramsEach));
-    return;
-  }
-  const count = grams / next.gramsEach;
-  const halves = Math.round(count * 2) / 2;
-  const snapped = count >= 0.5 && Math.abs(count * 2 - Math.round(count * 2)) < 0.01 ? halves : 1;
-  amountText.value = String(snapped);
+  amountText.value = convertAmount(amount, current, next);
 }
 function setAmount(value: number) {
   amountText.value = String(value);
@@ -926,10 +918,9 @@ function saveSessionRecipe() {
 async function removeRecipe(recipe: { id: string; name: string }) {
   if (saving.value) return;
   saving.value = true;
-  const removed = await retireRecipe(recipe.id);
+  const removed = await deleteRecipeWithUndo(recipe, toast);
   saving.value = false;
-  if (removed) toast(`Deleted ${recipe.name} · past logs kept`);
-  else toast("Couldn't delete that recipe.");
+  if (!removed) toast("Couldn't delete that recipe.");
 }
 async function addGroup(group: SavedGroup) {
   closeSearchKeyboard();
@@ -1319,7 +1310,7 @@ async function deleteEdited() {
             @beforeinput="markWholeSelection" @focus="fresh = true" @input="amountInput" @keydown.enter.prevent="addDetail" />
           <span class="t-head c2 unitword">{{ unitWord }}</span>
         </div>
-        <span v-if="isCount && preview.grams != null && gramsEach" class="t-label c2" aria-live="polite">= {{ int(preview.grams) }} g · 1 {{ unit }} = {{ gramsEach }} g</span>
+        <span v-if="isCount && preview.grams != null && gramsEach" class="t-label c2" aria-live="polite">= {{ int(preview.grams) }} g<template v-if="amountNumber !== 1"> · 1 {{ unitWord1 }} = {{ gramsEach }} g</template></span>
         <div class="row units">
           <div class="unit-radios" role="radiogroup" aria-label="Unit">
             <button v-for="choice in units" :key="choice.unit" type="button" role="radio" class="uchip t-label" :class="{ on: choice.unit === unit }" :aria-checked="choice.unit === unit" @click="setUnit(choice)">

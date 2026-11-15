@@ -19,13 +19,6 @@ function macro(value: number): string {
   return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
 }
 
-function figure(value: number): string {
-  const rounded = Math.round(value * 100) / 100;
-  if (rounded === 0) return "0";
-  if (Number.isInteger(rounded)) return String(rounded);
-  return rounded.toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
-}
-
 async function createFood(request: APIRequestContext, oid: string, name: string, kcal: number, protein: number, fat: number, carbs: number) {
   const response = await request.post("/api/foods", {
     headers: headers(oid),
@@ -82,7 +75,7 @@ test("recipe chip detail wraps the full macros at iPhone width", async ({ page }
   expect(created.ok(), await created.text()).toBeTruthy();
   const recipe = await created.json();
   const per = recipe.perPortion;
-  const detailText = `${recipe.ingredients.length} foods · ${figure(per.kcal)} kcal P ${macro(per.protein)} · F ${macro(per.fat)} · C ${macro(per.carbs)} per portion · ${figure(recipe.finishedGrams)} g finished`;
+  const detailText = `${recipe.ingredients.length} foods · ${Math.round(per.kcal).toLocaleString("en-US")} kcal per portion P ${macro(per.protein)} · F ${macro(per.fat)} · C ${macro(per.carbs)} · 1 portion = ${Math.round(recipe.finishedGrams / recipe.portions)} g`;
 
   await page.addInitScript((id) => {
     sessionStorage.setItem("gymbro-e2e", "1");

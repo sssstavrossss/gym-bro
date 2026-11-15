@@ -69,6 +69,7 @@ public sealed class FoodAliasTests(ApiFactory factory)
             Assert.Equal(breast, await Search(client, "chicken breast."));
             Assert.Equal(FilletIds.OrderBy(id => id), (await Search(client, "kyllingbryst")).OrderBy(id => id));
             Assert.Equal(FilletIds.OrderBy(id => id), (await Search(client, "kylling bryst")).OrderBy(id => id));
+            Assert.Equal(FilletIds.OrderBy(id => id), (await Search(client, "kyllingfilet")).OrderBy(id => id));
 
             Assert.Equal(["03.224"], await Search(client, "hen breast"));
             Assert.Equal(["03.224"], await Search(client, "hønebryst"));
