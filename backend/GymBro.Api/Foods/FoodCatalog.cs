@@ -55,71 +55,75 @@ public static class FoodCatalog
 
         var userParam = Add(userId);
         var queryParam = Add(query);
-        var normalizedParam = Add(normalized);
-        var prefixParam = Add(LikePrefix(normalized));
         var digitParam = Add(digits);
         var matchParams = tokens.Select((token, index) => Add(MatchPattern(token, index == tokens.Length - 1))).ToArray();
-        var lastWholeParam = Add(WholeWordPattern(tokens[^1]));
-        var lastPrefixParam = Add(WordPrefixPattern(tokens[^1]));
+
+        // An inflected word may also match by its base form (tomater → tomat). Only the words that have one get the extra pattern.
+        var stems = tokens.Select(FoodSearchStem.Stem).ToArray();
+        var stemParams = stems.Select(stem => stem is null ? null : Add(StemPattern(stem))).ToArray();
+        var anyStem = stemParams.Any(param => param is not null);
 
         // COLLATE "C" keeps the match on the stored letters. A database collation must not treat é as e.
         const string namePad = "(' ' || coalesce(f.search_name, '') || ' ') COLLATE \"C\"";
         const string enPad = "(' ' || coalesce(f.search_name_en, '') || ' ') COLLATE \"C\"";
         const string aliasPad = "(' ' || a.normalized || ' ') COLLATE \"C\"";
         const string nameBrandPad = "(' ' || coalesce(f.search_name, '') || ' ' || coalesce(f.search_brand, '') || ' ') COLLATE \"C\"";
-        string All(string pad) => string.Join(" AND ", matchParams.Select(param => pad + " LIKE " + param));
+        const string aliasOfFood = "a.source = f.source AND a.source_id = f.source_id AND a.expected_name_en = f.name_en";
+        string Strict(string pad) => string.Join(" AND ", matchParams.Select(param => pad + " LIKE " + param));
+        string Loose(string pad) => string.Join(" AND ", matchParams.Select((param, index) => stemParams[index] is { } stem
+            ? "(" + pad + " LIKE " + param + " OR " + pad + " LIKE " + stem + ")"
+            : pad + " LIKE " + param));
 
+        // Every token must hit the same string: the name, name + brand, the English name, or one alias.
+        string Matches(Func<string, string> all) => $"""
+            ({digitParam} AND f.barcode = {queryParam})
+                OR ({all(namePad)})
+                OR ({all(nameBrandPad)})
+                OR ({all(enPad)})
+                OR EXISTS (SELECT 1 FROM food_aliases AS a WHERE {aliasOfFood} AND {all(aliasPad)})
+            """;
+
+        // Exact name or phrase, then a name that starts with the text, then a whole last word, then a last word that starts a word.
+        string Rank(string text)
+        {
+            var exact = Add(text);
+            var prefix = Add(LikePrefix(text));
+            var lastWord = text[(text.LastIndexOf(' ') + 1)..];
+            var lastWhole = Add(WholeWordPattern(lastWord));
+            var lastPrefix = Add(WordPrefixPattern(lastWord));
+            return $"""
+                CASE
+                  WHEN ({digitParam} AND f.barcode = {queryParam})
+                    OR f.search_name COLLATE "C" = {exact}
+                    OR f.search_name_en COLLATE "C" = {exact}
+                    OR f.search_brand COLLATE "C" = {exact}
+                    OR EXISTS (SELECT 1 FROM food_aliases AS a WHERE {aliasOfFood} AND a.normalized COLLATE "C" = {exact}) THEN 0
+                  WHEN f.search_name COLLATE "C" LIKE {prefix}
+                    OR f.search_name_en COLLATE "C" LIKE {prefix}
+                    OR EXISTS (SELECT 1 FROM food_aliases AS a WHERE {aliasOfFood} AND a.normalized COLLATE "C" LIKE {prefix}) THEN 1
+                  WHEN {namePad} LIKE {lastWhole}
+                    OR {enPad} LIKE {lastWhole}
+                    OR EXISTS (SELECT 1 FROM food_aliases AS a WHERE {aliasOfFood} AND {aliasPad} LIKE {lastWhole}) THEN 2
+                  WHEN {namePad} LIKE {lastPrefix}
+                    OR {enPad} LIKE {lastPrefix}
+                    OR EXISTS (SELECT 1 FROM food_aliases AS a WHERE {aliasOfFood} AND {aliasPad} LIKE {lastPrefix}) THEN 3
+                  ELSE 4
+                END
+                """;
+        }
+
+        // Without a base form the query is the strict one. With one, a food that matches the words as typed
+        // still comes first, and base-form matches are ranked among themselves by the base-form text.
+        var order = anyStem
+            ? $"CASE WHEN {Matches(Strict)} THEN 0 ELSE 1 END, {Rank(normalized)}, {Rank(string.Join(' ', tokens.Select((token, index) => stems[index] ?? token)))}, f.name, f.source"
+            : $"{Rank(normalized)}, f.name, f.source";
         var sql = $"""
             SELECT f.id AS "Value"
             FROM foods AS f
             WHERE f.retired_at IS NULL
               AND (f.user_id IS NULL OR f.user_id = {userParam})
-              AND (
-                ({digitParam} AND f.barcode = {queryParam})
-                OR ({All(namePad)})
-                OR ({All(nameBrandPad)})
-                OR ({All(enPad)})
-                OR EXISTS (
-                  SELECT 1 FROM food_aliases AS a
-                  WHERE a.source = f.source
-                    AND a.source_id = f.source_id
-                    AND a.expected_name_en = f.name_en
-                    AND {All(aliasPad)}
-                )
-              )
-            ORDER BY CASE
-              WHEN ({digitParam} AND f.barcode = {queryParam})
-                OR f.search_name COLLATE "C" = {normalizedParam}
-                OR f.search_name_en COLLATE "C" = {normalizedParam}
-                OR f.search_brand COLLATE "C" = {normalizedParam}
-                OR EXISTS (
-                  SELECT 1 FROM food_aliases AS a
-                  WHERE a.source = f.source AND a.source_id = f.source_id AND a.expected_name_en = f.name_en
-                    AND a.normalized COLLATE "C" = {normalizedParam}
-                ) THEN 0
-              WHEN f.search_name COLLATE "C" LIKE {prefixParam}
-                OR f.search_name_en COLLATE "C" LIKE {prefixParam}
-                OR EXISTS (
-                  SELECT 1 FROM food_aliases AS a
-                  WHERE a.source = f.source AND a.source_id = f.source_id AND a.expected_name_en = f.name_en
-                    AND a.normalized COLLATE "C" LIKE {prefixParam}
-                ) THEN 1
-              WHEN {namePad} LIKE {lastWholeParam}
-                OR {enPad} LIKE {lastWholeParam}
-                OR EXISTS (
-                  SELECT 1 FROM food_aliases AS a
-                  WHERE a.source = f.source AND a.source_id = f.source_id AND a.expected_name_en = f.name_en
-                    AND {aliasPad} LIKE {lastWholeParam}
-                ) THEN 2
-              WHEN {namePad} LIKE {lastPrefixParam}
-                OR {enPad} LIKE {lastPrefixParam}
-                OR EXISTS (
-                  SELECT 1 FROM food_aliases AS a
-                  WHERE a.source = f.source AND a.source_id = f.source_id AND a.expected_name_en = f.name_en
-                    AND {aliasPad} LIKE {lastPrefixParam}
-                ) THEN 3
-              ELSE 4
-            END, f.name, f.source
+              AND ({Matches(anyStem ? Loose : Strict)})
+            ORDER BY {order}
             LIMIT {SearchLimit}
             """;
 
@@ -270,6 +274,10 @@ public static class FoodCatalog
 
         return last ? WordPrefixPattern(token) : WholeWordPattern(token);
     }
+
+    /// <summary>A long base form may sit inside a compound like any long word. A short one must start a word.</summary>
+    private static string StemPattern(string stem) =>
+        stem.Length >= CompoundTokenLength ? "%" + stem + "%" : WordPrefixPattern(stem);
 
     private static string WholeWordPattern(string token) => "% " + token + " %";
 

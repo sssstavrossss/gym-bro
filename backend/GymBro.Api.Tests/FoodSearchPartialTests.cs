@@ -164,6 +164,19 @@ public sealed class FoodSearchPartialTests(ApiFactory factory)
             Assert.Contains("03.481", fried);
             Assert.DoesNotContain("03.205", fried);
             Assert.True(watch.ElapsedMilliseconds < 3000, watch.ElapsedMilliseconds + " ms");
+
+            // Inflected words find the base name. Words in any order.
+            Assert.Contains("06.070", await Ids(client, "tomater hermetiske"));
+            Assert.Contains("06.070", await Ids(client, "hermetiske tomater"));
+            Assert.Contains("06.096", await Ids(client, "poteter kokte"));
+            Assert.Contains("06.529", await Ids(client, "epler"));
+            Assert.Contains("06.070", await Ids(client, "canned tomatoes"));
+
+            // A name that matches the words as typed ranks before one that only matches the base form.
+            var tomater = await Ids(client, "tomater");
+            Assert.Equal(["06.102", "06.103"], tomater.Take(2).OrderBy(id => id));
+            Assert.Contains("06.069", tomater);
+            Assert.Contains("06.070", tomater);
         }
         finally
         {
