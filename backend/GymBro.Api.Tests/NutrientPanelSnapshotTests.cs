@@ -78,6 +78,44 @@ public sealed class NutrientPanelSnapshotTests(ApiFactory factory)
         Assert.Equal(JsonValueKind.Null, byKey["panel-r-portion"].GetProperty("nutrients").GetProperty("iron").ValueKind);
     }
 
+    [Fact]
+    public async Task A_recipe_adds_the_ingredients_that_know_a_value()
+    {
+        factory.Clock.UtcNow = new DateTimeOffset(2026, 11, 14, 8, 0, 0, TimeSpan.Zero);
+        using var client = factory.AsUser(TestData.NewUser("panel-known"));
+        await Setup(client);
+        var stock = await PanelFood(client, "Fictional known stock", kcalPer100: 20, sodiumPer100: 300, vitaminCPer100: 4);
+        var plain = await client.PostAsJsonAsync("/api/foods", new
+        {
+            name = "Fictional plain noodles",
+            kcalPer100 = 140,
+            proteinPer100 = 5,
+            fatPer100 = 1,
+            carbsPer100 = 28,
+            basis = "g",
+            nutrientBasis = "per_100",
+        });
+        Assert.Equal(HttpStatusCode.Created, plain.StatusCode);
+        var noodles = (await plain.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+
+        var created = await client.PostAsync("/api/recipes", Json(
+            $$"""{"name":"Fictional noodle soup","portions":2,"finishedGrams":600,"ingredients":[{"foodId":"{{stock}}","amount":400,"unit":"g"},{"foodId":"{{noodles}}","amount":200,"unit":"g"}]}"""));
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        var recipeId = (await created.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+
+        var logged = await client.PostAsync("/api/recipes/" + recipeId + "/log", Json(
+            """{"localDate":"2026-11-14","timeZone":"UTC","idempotencyKey":"panel-k-portion","amount":1,"unit":"portion","time":"12:00"}"""));
+        Assert.Equal(HttpStatusCode.Created, logged.StatusCode);
+
+        var day = await client.GetFromJsonAsync<JsonElement>("/api/log-entries?date=2026-11-14");
+        var entry = day.GetProperty("entries").EnumerateArray()
+            .Single(row => row.GetProperty("idempotencyKey").GetString() == "panel-k-portion");
+        Assert.Equal(600m, entry.GetProperty("nutrients").GetProperty("sodium").GetDecimal());
+        Assert.Equal(8m, entry.GetProperty("nutrients").GetProperty("vitaminC").GetDecimal());
+        Assert.Equal(JsonValueKind.Null, entry.GetProperty("nutrients").GetProperty("iron").ValueKind);
+        Assert.Equal(0, day.GetProperty("totals").GetProperty("nutrients").GetProperty("iron").GetDecimal());
+    }
+
     private static async Task Setup(HttpClient client)
     {
         await TestData.PutWeighIn(client, "2026-11-14", """{"kg":80,"timeZone":"UTC"}""");

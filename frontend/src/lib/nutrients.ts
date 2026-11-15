@@ -74,10 +74,11 @@ export function sodiumMg(sodium: number | null | undefined, saltGrams: number | 
   return null;
 }
 
-export function completeSum(values: readonly (number | null | undefined)[]): number | null {
-  if (values.length === 0) return null;
-  if (values.some((value) => value == null || !Number.isFinite(value))) return null;
-  return values.reduce<number>((sum, value) => sum + (value ?? 0), 0);
+/** Sum of the known values; an unknown one counts as 0. Null only when none is known. */
+export function knownSum(values: readonly (number | null | undefined)[]): number | null {
+  const known = values.filter((value): value is number => value != null && Number.isFinite(value));
+  if (known.length === 0) return null;
+  return known.reduce((sum, value) => sum + value, 0);
 }
 
 export interface NutrientSource {
@@ -108,7 +109,8 @@ export function valuesOf(source: NutrientSource): NutrientMap {
 export function dayNutrients(entries: readonly NutrientSource[]): NutrientMap {
   const out: NutrientMap = {};
   for (const key of Object.keys(ROWS)) {
-    out[key] = completeSum(entries.map((entry) => rawOf(entry, key)));
+    // A day total is always a number: what is known, with unknown counted as 0.
+    out[key] = knownSum(entries.map((entry) => rawOf(entry, key))) ?? 0;
   }
   return out;
 }

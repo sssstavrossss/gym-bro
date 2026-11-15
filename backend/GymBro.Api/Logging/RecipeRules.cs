@@ -125,10 +125,10 @@ public static class RecipeRules
             LogEntryRules.Round2(protein),
             LogEntryRules.Round2(fat),
             LogEntryRules.Round2(carbs),
-            Micronutrients.CompleteSum(saturated),
-            Micronutrients.CompleteSum(sugars),
-            Micronutrients.CompleteSum(fiber),
-            Micronutrients.CompleteSum(salt));
+            Micronutrients.KnownSum(saturated),
+            Micronutrients.KnownSum(sugars),
+            Micronutrients.KnownSum(fiber),
+            Micronutrients.KnownSum(salt));
     }
 
     /// <summary>One portion of a saved recipe. Same factor the log uses for a single portion.</summary>

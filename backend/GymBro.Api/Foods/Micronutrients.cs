@@ -110,10 +110,10 @@ public readonly record struct Micronutrients(decimal? SaturatedFat, decimal? Sug
         new(Scale(SaturatedFat, factor), Scale(Sugars, factor), Scale(Fiber, factor), Scale(Salt, factor));
 
     /// <summary>
-    /// Sum when every value is present, including a published zero.
-    /// Null when the list is empty or any value is unknown.
+    /// Sum of the known values, so an unknown value counts as 0.
+    /// Null only when no value is known (an empty list included).
     /// </summary>
-    public static decimal? CompleteSum(IEnumerable<decimal?> values)
+    public static decimal? KnownSum(IEnumerable<decimal?> values)
     {
         decimal sum = 0;
         var any = false;
@@ -121,7 +121,7 @@ public readonly record struct Micronutrients(decimal? SaturatedFat, decimal? Sug
         {
             if (value is not decimal known)
             {
-                return null;
+                continue;
             }
 
             any = true;
