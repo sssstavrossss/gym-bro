@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import Icon from "./Icon.vue";
 import SelectMark from "./SelectMark.vue";
 import SwipeRow from "./SwipeRow.vue";
 import { byTime } from "../lib/dayLog";
 import { dayMonth } from "../lib/dates";
 import { int } from "../lib/format";
+import { capHeight, scrollMark } from "../lib/scrollCap";
 import { readdToast } from "../lib/groups";
 import { activateMark, activateRow, longPressMoved, longPressMs, type Selection } from "../lib/selection";
 import { vp } from "../lib/viewport";
@@ -14,8 +15,47 @@ import { loadGroups, readdSavedGroup, savedGroups } from "../state/groups";
 import { deviceTimeZone } from "../state/profile";
 import { openCopy, openEdit, openFood, startSelect, toast, ui } from "../ui";
 
-const props = defineProps<{ date: string; today: string; entries: LogEntry[]; pending: PendingAdd[]; compact?: boolean; showEmpty?: boolean; home?: boolean }>();
+const props = defineProps<{ date: string; today: string; entries: LogEntry[]; pending: PendingAdd[]; compact?: boolean; showEmpty?: boolean; home?: boolean; maxRows?: number }>();
 const rows = computed(() => byTime(props.entries));
+
+/** With `maxRows`, the list shows that many rows and scrolls the rest, with a scroll bar and edge fades. */
+const listEl = ref<HTMLElement | null>(null);
+const capped = ref<number | null>(null);
+const mark = ref(scrollMark(0, 0, 0));
+function measure() {
+  const el = listEl.value;
+  if (!el || !props.maxRows) {
+    capped.value = null;
+    return;
+  }
+  const bottoms = [...el.children].map((child) => {
+    const row = child as HTMLElement;
+    return row.offsetTop + row.offsetHeight;
+  });
+  capped.value = capHeight(bottoms, props.maxRows);
+  void nextTick(onScroll);
+}
+function onScroll() {
+  const el = listEl.value;
+  mark.value = el && capped.value != null ? scrollMark(el.scrollTop, el.scrollHeight, el.clientHeight) : scrollMark(0, 0, 0);
+}
+let resize: ResizeObserver | null = null;
+onMounted(() => {
+  if (!props.maxRows || typeof ResizeObserver === "undefined") return;
+  resize = new ResizeObserver(() => measure());
+  if (listEl.value) resize.observe(listEl.value);
+  measure();
+});
+onBeforeUnmount(() => resize?.disconnect());
+watch(() => [props.entries.length, props.pending.length, props.date], () => {
+  void nextTick(() => {
+    if (resize && listEl.value) {
+      resize.disconnect();
+      resize.observe(listEl.value);
+    }
+    measure();
+  });
+});
 const ordered = computed(() => rows.value.map((entry) => entry.id));
 const isToday = computed(() => props.date === props.today);
 
@@ -126,7 +166,7 @@ function onMenu(event: Event) {
 </script>
 
 <template>
-  <div class="tl" :class="{ compact, selecting: ui.selecting }">
+  <div class="tl" :class="{ compact, selecting: ui.selecting, capped: capped != null }">
     <div v-if="showEmpty && !rows.length && !pending.length" class="empty col">
       <span class="eic"><Icon name="food" :size="22" /></span>
       <span class="t-head">{{ isToday ? "Nothing logged yet today" : `Nothing logged on ${dayMonth(date)}` }}</span>
@@ -146,7 +186,15 @@ function onMenu(event: Event) {
         <span class="grow" />
         <button type="button" class="chip t-label" @click="startSelect()">Select</button>
       </div>
-      <div v-if="pending.length || rows.length" class="entries" data-log-entries>
+      <div v-if="pending.length || rows.length" class="capwrap" :class="{ capped: capped != null }">
+      <div
+        ref="listEl"
+        class="entries"
+        :class="{ oneline: home && Boolean(maxRows) }"
+        :style="capped != null ? { maxHeight: `${capped}px` } : undefined"
+        data-log-entries
+        @scroll.passive="onScroll"
+      >
       <div v-for="item in pending" :key="item.idempotencyKey" class="pending">
         <span class="time t-label c2">{{ item.time || "Now" }}</span>
         <span class="col two">
@@ -206,6 +254,12 @@ function onMenu(event: Event) {
         </div>
       </SwipeRow>
       </div>
+      <template v-if="capped != null">
+        <span v-show="mark.above" class="fade top" aria-hidden="true" />
+        <span v-show="mark.below" class="fade bottom" aria-hidden="true" data-more-below />
+        <span class="sbar" aria-hidden="true" data-scroll-bar><i :style="{ top: `${mark.thumbTop}%`, height: `${mark.thumbHeight}%` }" /></span>
+      </template>
+      </div>
       <button v-if="!home && (rows.length || pending.length) && !ui.selecting" type="button" class="addrow row" @click="add">
         <span class="cbtn fit addc" style="--s: var(--control-s-sm)" aria-hidden="true"><Icon name="plus" :size="13" :sw="2.4" /></span>
         <span class="t-body c2">{{ isToday ? "Add food" : `Add food to ${dayMonth(date)}` }}</span>
@@ -223,6 +277,21 @@ function onMenu(event: Event) {
   padding-top: 0;
   padding-bottom: 0;
 }
+.capwrap { position: relative; min-width: 0; }
+/* The scroll bar sits in the card's padding, so the outer clip is lifted; the list still clips sideways for swipe rows. */
+.tl.capped { overflow: visible; }
+.capwrap.capped .entries { overflow-x: hidden; overflow-y: auto; overscroll-behavior-y: auto; scrollbar-width: none; }
+.capwrap.capped .entries::-webkit-scrollbar { display: none; }
+.entries { position: relative; }
+/* Phone Home card (capped): one line per name and amount, so five rows are always the same height. */
+.entries.oneline .name, .entries.oneline .sub { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; overflow-wrap: normal; word-break: normal; }
+.entries.oneline .two { max-width: 100%; }
+.entries.oneline .two > * { width: 100%; }
+.fade { position: absolute; left: 0; right: 0; height: 40px; pointer-events: none; z-index: 2; }
+.fade.top { top: 1px; background: linear-gradient(to top, transparent, var(--color-surface) 90%); }
+.fade.bottom { bottom: 1px; height: 52px; background: linear-gradient(to bottom, transparent, var(--color-surface) 88%); }
+.sbar { position: absolute; top: 6px; bottom: 6px; right: calc(var(--space-screen) / -2 - 1.5px); width: 3px; border-radius: 2px; background: var(--color-track); pointer-events: none; z-index: 3; }
+.sbar i { position: absolute; left: 0; right: 0; border-radius: 2px; background: var(--text-tertiary); }
 .entries > .pending:not(:first-child),
 .entries > :deep(.swipe:not(:first-child)) { border-top: 1px solid var(--color-border); }
 .line {

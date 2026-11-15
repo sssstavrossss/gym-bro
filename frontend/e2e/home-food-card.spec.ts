@@ -72,3 +72,62 @@ test("home food card is quiet and hold still selects", async ({ page }) => {
   await expect(page.getByText(/Target .* kcal/)).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "Foods today" })).toHaveCount(0);
 });
+
+test("home food card shows five rows, scrolls the rest, and marks what is hidden", async ({ page }) => {
+  const oid = `e2e-home-cap-${Date.now()}-${test.info().project.name}`;
+  const when = await clock(page);
+  expect((await page.request.put(`/api/weigh-ins/${when.today}`, { headers: headers(oid), data: { kg: 83.6, timeZone: when.zone } })).ok()).toBeTruthy();
+  expect((await page.request.put("/api/profile", {
+    headers: headers(oid),
+    data: {
+      sex: "male", birthYear: 1990, heightCm: 180, activity: "moderate", goal: "lose",
+      rateKgPerWeek: 0.5, goalWeightKg: 80, proteinSetting: "normal", proteinGramsPerKg: 2,
+      fatSetting: "normal", fatPercent: 25, timeZone: when.zone,
+    },
+  })).ok()).toBeTruthy();
+  for (let i = 0; i < 7; i++) {
+    expect((await page.request.post("/api/log-entries", {
+      headers: headers(oid),
+      data: {
+        idempotencyKey: `${oid}-${i}`, localDate: when.today, timeZone: when.zone, time: `0${i + 1}:00`,
+        name: i === 2 ? "Fictional organic extra virgin olive oil from a very long catalogue name" : `Fictional food ${i + 1}`,
+        kcal: 100 + i, protein: 5, fat: 2, carbs: 10,
+      },
+    })).ok()).toBeTruthy();
+  }
+  await page.addInitScript((id) => {
+    sessionStorage.setItem("gymbro-e2e", "1");
+    sessionStorage.setItem("gymbro-e2e-oid", id);
+  }, oid);
+
+  await page.goto("/today");
+  const card = page.locator("main.today .logc");
+  await expect(card.getByRole("heading", { name: "Foods today" })).toBeVisible();
+  await expect(card.locator(".fcount")).toHaveText("7 foods");
+  const add = card.getByRole("button", { name: "Add food", exact: true });
+  await expect(add).toBeVisible();
+  const addBox = await add.boundingBox();
+  expect(addBox && addBox.height >= 44 && addBox.width >= 44).toBeTruthy();
+
+  const list = card.locator("[data-log-entries]");
+  await expect(list.locator(".line")).toHaveCount(7);
+  const rows = await list.evaluate((el) => {
+    const lines = [...el.querySelectorAll(".line")].map((line) => line.getBoundingClientRect().height);
+    return { client: el.clientHeight, scroll: el.scrollHeight, heights: lines };
+  });
+  expect(new Set(rows.heights.map(Math.round)).size).toBe(1);
+  expect(rows.scroll).toBeGreaterThan(rows.client);
+  const perRow = rows.scroll / 7;
+  expect(Math.round(rows.client / perRow)).toBe(5);
+
+  await expect(card.locator("[data-scroll-bar]")).toBeVisible();
+  await expect(card.locator("[data-more-below]")).toBeVisible();
+  await expect(card.locator(".fade.top")).toBeHidden();
+
+  await list.evaluate((el) => { el.scrollTop = el.scrollHeight; });
+  await expect(card.locator("[data-more-below]")).toBeHidden();
+  await expect(card.locator(".fade.top")).toBeVisible();
+
+  await add.click();
+  await expect(page.getByRole("dialog", { name: "Add food" })).toBeVisible();
+});
