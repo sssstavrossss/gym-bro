@@ -80,6 +80,17 @@ public sealed class ProgressEndpointTests(ApiFactory factory)
         Assert.Equal(-0.06m, body.GetProperty("weight").GetProperty("trendChangeKg").GetDecimal());
         Assert.Equal(JsonValueKind.Null, gap.GetProperty("fat").ValueKind);
         Assert.Equal(JsonValueKind.Null, gap.GetProperty("carbs").ValueKind);
+        // A quick add has no fibre figure, so a logged day counts it as 0. A day with nothing logged stays null.
+        Assert.Equal(0m, logged.GetProperty("fiber").GetDecimal());
+        Assert.Equal(JsonValueKind.Null, gap.GetProperty("fiber").ValueKind);
+
+        var food = await client.PostAsync("/api/foods", Json("""{"name":"Fictional bran","kcalPer100":200,"proteinPer100":10,"fatPer100":4,"carbsPer100":30,"fiberPer100":12}"""));
+        Assert.True(food.IsSuccessStatusCode, await food.Content.ReadAsStringAsync());
+        var foodId = (await food.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+        var bran = await client.PostAsync("/api/log-entries", Json($$"""{"idempotencyKey":"p-bran","localDate":"2026-11-10","timeZone":"UTC","time":"09:00","foodId":"{{foodId}}","amount":50,"unit":"g"}"""));
+        Assert.True(bran.IsSuccessStatusCode, await bran.Content.ReadAsStringAsync());
+        var again = await client.GetFromJsonAsync<JsonElement>("/api/progress?range=7d");
+        Assert.Equal(6m, Day(again.GetProperty("days"), "2026-11-10").GetProperty("fiber").GetDecimal());
     }
 
     [Fact]

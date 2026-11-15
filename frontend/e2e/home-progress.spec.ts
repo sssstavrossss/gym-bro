@@ -99,6 +99,7 @@ test("home title, progress pickers, and remembered metric", async ({ page }) => 
     if (!sessionStorage.getItem("gymbro-e2e-kept")) {
       localStorage.removeItem("gymbro-home-metric");
       localStorage.removeItem("gymbro-home-range");
+      localStorage.removeItem("gymbro-home-progress-page");
       sessionStorage.setItem("gymbro-e2e-kept", "1");
     }
   }, oid);
@@ -108,53 +109,37 @@ test("home title, progress pickers, and remembered metric", async ({ page }) => 
   await expect(main.getByRole("heading", { level: 1, name: "Today" })).toBeVisible();
   await expect(page.locator(".wcard")).toHaveCount(0);
   await expect(main.getByText(/fasting/i)).toHaveCount(0);
-  await expect(page.getByRole("radio", { name: "Weight", exact: true })).toBeChecked();
+  const progress = page.getByRole("region", { name: "Progress", exact: true });
+  await expect(progress.locator("[data-progress-title]")).toHaveText("Weight");
+  await expect(progress.getByRole("button", { name: "Weight", exact: true })).toHaveAttribute("aria-current", "true");
   await expect(page.getByRole("radio", { name: "30d", exact: true })).toBeChecked();
   const chart = page.getByRole("img", { name: "Weight chart" });
   await expect(chart).toBeVisible();
   await expect(page.locator("[data-home-summary]")).toContainText("latest 83.6");
   await expect(page.getByText("Daily averages")).toHaveCount(0);
-  const rows = await page.evaluate(() => {
-    const main = document.querySelector("main.today");
-    if (!main) return null;
-    const pad = parseFloat(getComputedStyle(main).paddingLeft);
-    const contentLeft = main.getBoundingClientRect().left + pad;
-    const contentWidth = main.clientWidth - pad * 2;
-    return ["Chart metric", "Chart range"].map((name) => {
-      const row = document.querySelector(`[aria-label="${name}"]`);
-      if (!row) return null;
-      const box = row.getBoundingClientRect();
-      const buttons = [...row.querySelectorAll("button")].map((button) => button.getBoundingClientRect());
-      return {
-        left: box.left,
-        width: box.width,
-        contentLeft,
-        contentWidth,
-        widths: buttons.map((button) => button.width),
-        heights: buttons.map((button) => button.height),
-      };
-    });
+  // One range switch inside the card: five equal segments, a 44px track.
+  const seg = await progress.getByRole("radiogroup", { name: "Chart range" }).evaluate((row) => {
+    const box = row.getBoundingClientRect();
+    const card = row.closest(".card")!.getBoundingClientRect();
+    const widths = [...row.querySelectorAll("button")].map((button) => button.getBoundingClientRect().width);
+    return { height: box.height, inside: box.left >= card.left && box.right <= card.right, widths };
   });
-  expect(rows).toHaveLength(2);
-  for (const row of rows ?? []) {
-    expect(row).toBeTruthy();
-    expect(Math.abs(row!.left - row!.contentLeft)).toBeLessThanOrEqual(1);
-    expect(Math.abs(row!.width - row!.contentWidth)).toBeLessThanOrEqual(1);
-    const widths = row!.widths;
-    expect(Math.max(...widths) - Math.min(...widths)).toBeLessThanOrEqual(1);
-    expect(widths.every((width) => width >= 44)).toBe(true);
-    expect(row!.heights.every((height) => height >= 44)).toBe(true);
-  }
+  expect(seg.height).toBeGreaterThanOrEqual(44);
+  expect(seg.inside).toBe(true);
+  expect(seg.widths).toHaveLength(5);
+  expect(Math.max(...seg.widths) - Math.min(...seg.widths)).toBeLessThanOrEqual(1);
+  // The numbers under each chart sit centred in their column.
+  const aligned = await page.locator("[data-home-summary] .cell").evaluateAll((cells) => cells.map((cell) => getComputedStyle(cell).textAlign));
+  expect(aligned.every((value) => value === "center")).toBe(true);
   if (test.info().project.name === "chromium") {
     await page.screenshot({ path: "/opt/cursor/artifacts/iphone41-home-top.png" });
-    const progress = page.getByRole("region", { name: "Progress", exact: true });
     await showInView(page, progress);
     await page.screenshot({ path: "/opt/cursor/artifacts/iphone41-progress-weight-30d.png" });
     await page.screenshot({ path: "/opt/cursor/artifacts/iphone41-progress-section.png" });
-    await page.getByRole("radio", { name: "Protein", exact: true }).click();
+    await progress.getByRole("button", { name: "Protein", exact: true }).click();
     await showInView(page, progress);
     await page.screenshot({ path: "/opt/cursor/artifacts/iphone41-progress-protein-30d.png" });
-    await page.getByRole("radio", { name: "Weight", exact: true }).click();
+    await progress.getByRole("button", { name: "Weight", exact: true }).click();
     await showInView(page, page.locator("[data-home-summary]"), "end");
     await page.screenshot({ path: "/opt/cursor/artifacts/iphone41-summary.png" });
     await page.evaluate(() => document.querySelector(".scroller")?.scrollTo(0, 0));
@@ -180,9 +165,10 @@ test("home title, progress pickers, and remembered metric", async ({ page }) => 
   const headingY = await page.getByRole("heading", { level: 1 }).evaluate((el) => el.offsetTop);
   expect(Math.abs(headingY - top)).toBeLessThanOrEqual(1);
 
-  const chartNode = page.locator(".home-progress svg.fig");
+  const chartNode = page.locator(".home-progress [data-page='weight'] svg.fig");
   await expect(chartNode).toBeVisible();
-  await page.getByRole("radio", { name: "Protein", exact: true }).click();
+  await progress.getByRole("button", { name: "Protein", exact: true }).click();
+  await expect(progress.locator("[data-progress-title]")).toHaveText("Protein");
   await expect(page.getByRole("img", { name: "Protein chart" })).toBeVisible();
   await expect(page.getByText("Loading progress…")).toHaveCount(0);
   const period = page.locator(".home-progress .period");
@@ -199,6 +185,7 @@ test("home title, progress pickers, and remembered metric", async ({ page }) => 
   expect(Math.abs(after - before)).toBeLessThanOrEqual(2);
 
   await page.reload();
-  await expect(page.getByRole("radio", { name: "Protein", exact: true })).toBeChecked();
+  await expect(progress.locator("[data-progress-title]")).toHaveText("Protein");
+  await expect(progress.getByRole("button", { name: "Protein", exact: true })).toHaveAttribute("aria-current", "true");
   await expect(page.getByRole("radio", { name: "7d", exact: true })).toBeChecked();
 });
