@@ -81,14 +81,17 @@ function pageTitle(day: string, now: string) {
   if (Math.abs(diffDays(now, day)) <= 6) return weekday(day);
   return shortDate(day);
 }
+/** Another day names the date in the title, so the Add pill can stay short. */
 const foodTitle = computed(() => {
   if (shownDay.value === today.value) return "Foods today";
-  if (shownDay.value === addDays(today.value, -1)) return "Foods yesterday";
-  return `Foods ${weekday(shownDay.value)}`;
+  if (shownDay.value === addDays(today.value, -1)) return `Foods yesterday, ${dayMonth(shownDay.value)}`;
+  return `Foods on ${weekdayShort(shownDay.value)} ${dayMonth(shownDay.value)}`;
 });
-const addFoodLabel = computed(() => (
+const addFoodLabel = computed(() => (shownDay.value === today.value ? "Add food" : "Add"));
+const addFoodName = computed(() => (
   shownDay.value === today.value ? "Add food" : `Add food to ${dayMonth(shownDay.value)}`
 ));
+const foodCount = computed(() => entries.value.length + pending.value.length);
 function pick(day: string) {
   selected.value = day;
 }
@@ -181,12 +184,15 @@ const weekRows = computed(() => {
           </button>
           <section v-if="layout === 'phone' && hasDay" class="card logc">
             <div class="row foodhead">
-              <h2 class="foods section-title c2">{{ foodTitle }}</h2>
-              <button v-if="!ui.selecting" type="button" class="addfood t-label" @click="openFood('search', shownDay)">
-                <Icon name="plus" :size="14" :sw="2.4" />{{ addFoodLabel }}
+              <span class="row ftitle">
+                <h2 class="foods section-title c2">{{ foodTitle }}</h2>
+                <span class="t-label c3 fcount">{{ foodCount }}<span class="sr-only">{{ foodCount === 1 ? " food" : " foods" }}</span></span>
+              </span>
+              <button v-if="!ui.selecting" type="button" class="chip on t-label addpill" :aria-label="addFoodName" @click="openFood('search', shownDay)">
+                <Icon name="plus" :size="14" :sw="2.6" />{{ addFoodLabel }}
               </button>
             </div>
-            <Timeline home compact :date="shownDay" :today="today" :entries="entries" :pending="pending" />
+            <Timeline home compact :max-rows="5" :date="shownDay" :today="today" :entries="entries" :pending="pending" />
           </section>
         </div>
 
@@ -298,6 +304,11 @@ const weekRows = computed(() => {
   color: var(--text-secondary); background: transparent;
 }
 .addfood:hover { color: var(--text-primary); }
+/* Phone Home card: title row as tall as the Macros title, so the card's own padding is the only space above it. */
+.logc .foodhead { min-height: 0; margin: -10px 0 -6px; }
+.ftitle { gap: 6px; align-items: baseline; min-width: 0; }
+.fcount { flex: none; font-variant-numeric: tabular-nums; }
+.addpill { flex: none; font-weight: 600; padding-left: 14px; padding-right: 14px; }
 html.dt-xl .foodhead, html.dt-xl .loghead { flex-wrap: nowrap; }
 html.dt-xl .foodhead .foods, html.dt-xl .loghead .foods { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .more { display: inline-flex; align-items: center; gap: calc(var(--space-gap) / 2); min-height: var(--control-hit); padding: 0 calc(var(--space-gap) / 2); text-decoration: none; color: var(--text-secondary); }

@@ -137,12 +137,20 @@ test("the today log keeps its columns when a name and the calories are wide", as
     expect(tall.nameLeft).toBe(short.nameLeft);
     expect(tall.timeLeft).toBe(short.timeLeft);
     expect(Math.abs(tall.kcalRight - short.kcalRight)).toBeLessThanOrEqual(1);
-    expect(tall.rowHeight).toBeGreaterThan(short.rowHeight);
-    expect(tall.nameHeight).toBeGreaterThan(short.nameHeight);
-    expect(tall.clipped).toBe(false);
-    expect(tall.whiteSpace).not.toBe("nowrap");
-    expect(tall.overflowWrap).toBe("anywhere");
-    expect(tall.textOverflow).not.toBe("ellipsis");
+    if (size.width < 600) {
+      // Phone Home card: one line per name with an ellipsis, so every row is the same height and five fit.
+      expect(tall.rowHeight).toBe(short.rowHeight);
+      expect(tall.clipped).toBe(true);
+      expect(tall.whiteSpace).toBe("nowrap");
+      expect(tall.textOverflow).toBe("ellipsis");
+    } else {
+      expect(tall.rowHeight).toBeGreaterThan(short.rowHeight);
+      expect(tall.nameHeight).toBeGreaterThan(short.nameHeight);
+      expect(tall.clipped).toBe(false);
+      expect(tall.whiteSpace).not.toBe("nowrap");
+      expect(tall.overflowWrap).toBe("anywhere");
+      expect(tall.textOverflow).not.toBe("ellipsis");
+    }
     expect(Math.abs(tall.kcalMid - tall.blockMid)).toBeLessThanOrEqual(2);
     expect(Math.abs(tall.timeMid - tall.blockMid)).toBeLessThanOrEqual(2);
     expect(Math.abs(tall.dotMid - tall.timeMid)).toBeLessThanOrEqual(2);
