@@ -160,7 +160,7 @@ function clearRecipe(): void {
 
 export function openRecipeCreate(returnTo: "food" | null): void {
   if (ui.sheet === "recipe" && ui.recipeMode === "create" && ui.recipeId == null) return;
-  primeKeyboard();
+  // No primeKeyboard: the recipe form opens with the keyboard down. Its fields opt out of autofocus.
   ui.recipeMode = "create";
   ui.recipeId = null;
   ui.recipeEntryIds = [];
@@ -169,7 +169,7 @@ export function openRecipeCreate(returnTo: "food" | null): void {
 }
 
 export function openRecipeEdit(id: string): void {
-  primeKeyboard();
+  // No primeKeyboard: the recipe form opens with the keyboard down. Its fields opt out of autofocus.
   ui.recipeMode = "edit";
   ui.recipeId = id;
   ui.recipeEntryIds = [];
@@ -187,7 +187,7 @@ export function openRecipeLog(id: string): void {
 }
 
 export function openRecipeFromEntries(ids: string[], returnTo: "food" | "select"): void {
-  primeKeyboard();
+  // No primeKeyboard: the recipe form opens with the keyboard down. Its fields opt out of autofocus.
   ui.recipeMode = "create";
   ui.recipeId = null;
   ui.recipeEntryIds = ids.slice();

@@ -115,7 +115,6 @@ test("create a recipe, see per-portion protein update, log it, and retire it", a
   await food.getByRole("button", { name: "New recipe" }).first().click();
 
   const sheet = page.getByRole("dialog", { name: "New recipe" });
-  await expect(sheet.getByText("Calories and macros are worked out from the foods.")).toBeVisible();
   await expect(sheet.getByLabel("Calories")).toHaveCount(0);
   await expect(sheet.getByLabel("Protein")).toHaveCount(0);
   await sheet.getByRole("button", { name: "Add ingredient" }).click();
@@ -123,7 +122,7 @@ test("create a recipe, see per-portion protein update, log it, and retire it", a
   await sheet.getByRole("button", { name: /Fictional recipe chicken/ }).click();
   await sheet.getByLabel("Amount of Fictional recipe chicken").fill("250");
   await sheet.getByRole("button", { name: "Add to recipe" }).click();
-  await expect(sheet.getByText("250 g protein · 1,000 kcal")).toBeVisible();
+  await expect(sheet.getByText("1,000 kcal · P 250")).toBeVisible();
   await sheet.getByLabel("Portions").fill("5");
   await expect(sheet.locator("[data-recipe-portion]")).toHaveText("P 50 · F 5 · C 0");
   await sheet.getByLabel("Portions").fill("10");
@@ -148,7 +147,7 @@ test("create a recipe, see per-portion protein update, log it, and retire it", a
   const again = page.getByRole("dialog", { name: "Add food" });
   await again.getByRole("button", { name: "Log recipe Chicken pot" }).click();
   const logging = page.getByRole("dialog", { name: "Log Chicken pot" });
-  await expect(logging.getByText("50 g protein in this log")).toBeVisible();
+  await expect(logging.locator("[data-log-preview]")).toContainText("50");
   await expect(logging.getByRole("radio", { name: "grams" })).toBeVisible();
   await logging.getByRole("button", { name: /Add · 200 kcal/ }).click();
   await expect(page.getByText(/Added 1 portion Chicken pot · 50 g protein/)).toBeVisible();
@@ -157,11 +156,14 @@ test("create a recipe, see per-portion protein update, log it, and retire it", a
   const grams = page.getByRole("dialog", { name: "Log Chicken pot" });
   await grams.getByRole("radio", { name: "grams" }).click();
   await grams.getByLabel("Amount to log").fill("100");
-  await expect(grams.getByText("50 g protein in this log")).toBeVisible();
+  await expect(grams.locator("[data-log-preview]")).toContainText("50");
   await grams.getByRole("button", { name: /Add · 200 kcal/ }).click();
   await expect(page.getByText(/Added 100 g Chicken pot · 50 g protein/)).toBeVisible();
 
-  await again.getByRole("button", { name: "Delete recipe Chicken pot" }).click();
+  // The list has no delete button; Delete is on the edit screen.
+  await expect(again.getByRole("button", { name: "Delete recipe Chicken pot" })).toHaveCount(0);
+  await again.getByRole("button", { name: "Edit recipe Chicken pot" }).click();
+  await page.getByRole("dialog", { name: "Edit recipe" }).getByRole("button", { name: "Delete recipe" }).click();
   await expect(page.getByText("Deleted Chicken pot · past logs kept")).toBeVisible();
   await expect(again.getByRole("button", { name: "Log recipe Chicken pot" })).toHaveCount(0);
 

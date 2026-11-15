@@ -214,7 +214,9 @@ for (const width of [375, 390]) {
       await expect(food.getByRole("button", { name: "New recipe" })).toBeVisible();
       await food.getByRole("button", { name: "New recipe" }).click();
       const recipe = page.getByRole("dialog", { name: "New recipe" });
-      await expectReplace(page, recipe.getByRole("textbox", { name: "Recipe name" }), "Soup");
+      // Name does not take focus on open, so the keyboard stays down until a field is tapped.
+      await expect(recipe.getByRole("textbox", { name: "Recipe name" })).not.toBeFocused();
+      await expectReplace(page, recipe.getByRole("textbox", { name: "Recipe name" }), "Soup", "caret");
       await fieldsAtLeast16(recipe);
       await recipe.getByRole("button", { name: "Add ingredient" }).click();
       const ingredientSearch = recipe.getByRole("searchbox", { name: "Search foods" });
@@ -228,7 +230,7 @@ for (const width of [375, 390]) {
       await expect(recipe.getByRole("textbox", { name: "Recipe name" })).toHaveValue("Soup");
       await fieldsAtLeast16(recipe);
       const summaryAlign = await recipe.locator(".metric").evaluateAll((nodes) => nodes.map((node) => {
-        const figure = node.querySelector(".t-nm");
+        const figure = node.querySelector(".fig");
         const label = node.querySelector(".t-label");
         return {
           figure: figure ? getComputedStyle(figure).textAlign : "",
@@ -236,7 +238,7 @@ for (const width of [375, 390]) {
         };
       }));
       expect(summaryAlign.every((item) => item.figure === "left" && item.label === "left")).toBe(true);
-      await expect(recipe.locator(".metric").nth(1).locator(".t-nm")).toHaveText("–");
+      await expect(recipe.locator(".metric").nth(1).locator(".fig")).toHaveText("– kcal");
       if (width === 390 && test.info().project.name === "chromium") {
         await recipe.locator("[data-ingredient-index='0']").scrollIntoViewIfNeeded();
         await page.screenshot({ path: "/opt/cursor/artifacts/recipe-sheet-phone.png" });
