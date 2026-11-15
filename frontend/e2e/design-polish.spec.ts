@@ -305,8 +305,9 @@ test("only weigh-in offers Edit, and one reading labels its own kilogram", async
     await expect(line).toBeVisible();
     const edit = sheet.getByRole("button", { name: "Edit your only weigh-in" });
     const editBox = await edit.boundingBox();
-    expect(editBox?.width).toBeGreaterThanOrEqual(44);
-    expect(editBox?.height).toBeGreaterThanOrEqual(44);
+    // WebKit can report 43.9999 for a 44px box.
+    expect(editBox?.width).toBeGreaterThanOrEqual(43.9);
+    expect(editBox?.height).toBeGreaterThanOrEqual(43.9);
     const lineBox = await line.boundingBox();
     expect(lineBox?.height).toBeLessThan(44);
     await expect(sheet.locator(".ymark", { hasText: "83.6" })).toBeVisible();
@@ -461,10 +462,11 @@ test("trend info stays clear of the weight label at AX5", async ({ page }) => {
   await openToday(page, oid, 390);
   await ax5(page);
   const cells = page.locator("[data-home-summary] .cell");
-  await expect(cells).toHaveCount(4);
+  // Each Progress page shows three numbers under its chart.
+  await expect(cells).toHaveCount(3);
   await expect(page.getByText("Daily averages")).toHaveCount(0);
   const boxes = [];
-  for (let index = 0; index < 4; index += 1) boxes.push(await cells.nth(index).boundingBox());
+  for (let index = 0; index < 3; index += 1) boxes.push(await cells.nth(index).boundingBox());
   for (let index = 0; index < boxes.length; index += 1) {
     for (let other = index + 1; other < boxes.length; other += 1) {
       expect(boxes[index] && boxes[other] && intersects(boxes[index]!, boxes[other]!)).toBe(false);
@@ -514,7 +516,7 @@ test("large text keeps the close button, units, and the info hit target", async 
 
   for (const px of [17, 28, 53]) {
     await setRoot(page, px);
-    const radios = page.getByRole("radiogroup", { name: "Chart metric" }).getByRole("radio");
+    const radios = page.getByRole("radiogroup", { name: "Chart range" }).getByRole("radio");
     await expect(radios).toHaveCount(5);
     const widths: number[] = [];
     for (let index = 0; index < 5; index += 1) {

@@ -91,8 +91,9 @@ test("phone home pages the week strip and matches the range pills", async ({ pag
   await page.mouse.move(box!.x + box!.width / 2, y + 20, { steps: 4 });
   await page.mouse.up();
   await expect(week.getByRole("button").first()).toHaveAttribute("aria-label", new RegExp(`Monday ${previousMonday},`));
-  await page.locator(".scroller").first().evaluate((node) => { node.scrollTop = 180; });
-  await expect.poll(async () => page.locator(".scroller").first().evaluate((node) => node.scrollTop)).toBeGreaterThan(100);
+  // The Progress card is shorter than the old pills and summary, so scroll by what the page has.
+  await page.locator(".scroller").first().evaluate((node) => { node.scrollTop = Math.min(180, node.scrollHeight - node.clientHeight); });
+  await expect.poll(async () => page.locator(".scroller").first().evaluate((node) => node.scrollTop)).toBeGreaterThan(40);
 
   await page.getByRole("heading", { level: 1 }).getByRole("button").click();
   await expect(page.getByRole("heading", { level: 1, name: "Today" })).toBeVisible();
@@ -108,28 +109,19 @@ test("phone home pages the week strip and matches the range pills", async ({ pag
   await expect(page.getByRole("group", { name: "This week" })).toBeVisible();
 
   await page.goto("/today");
-  const metric = page.getByRole("radio", { name: "Weight", exact: true });
   const range = page.getByRole("radio", { name: "30d", exact: true });
-  await expect(metric).toBeChecked();
+  const other = page.getByRole("radio", { name: "7d", exact: true });
   await expect(range).toBeChecked();
-  const paint = async () => {
-    const [metricBg, rangeBg, radius, height] = await Promise.all([
-      metric.evaluate((el) => getComputedStyle(el).backgroundColor),
-      range.evaluate((el) => getComputedStyle(el).backgroundColor),
-      metric.evaluate((el) => getComputedStyle(el).borderRadius),
-      metric.evaluate((el) => el.getBoundingClientRect().height),
-    ]);
-    const rangeHeight = await range.evaluate((el) => el.getBoundingClientRect().height);
-    const rangeRadius = await range.evaluate((el) => getComputedStyle(el).borderRadius);
-    return { metricBg, rangeBg, radius, rangeRadius, height, rangeHeight };
-  };
+  const paint = async () => ({
+    rangeBg: await range.evaluate((el) => getComputedStyle(el).backgroundColor),
+    otherBg: await other.evaluate((el) => getComputedStyle(el).backgroundColor),
+    height: await range.evaluate((el) => el.getBoundingClientRect().height),
+  });
   await page.evaluate(() => document.querySelector(".scroller")?.scrollTo(0, 600));
   const graphite = await paint();
-  expect(graphite.metricBg).toBe(graphite.rangeBg);
-  expect(graphite.radius).toBe(graphite.rangeRadius);
   expect(graphite.height).toBeGreaterThanOrEqual(44);
-  expect(Math.abs(graphite.height - graphite.rangeHeight)).toBeLessThanOrEqual(1);
-  expect(graphite.metricBg).toBe("rgb(255, 255, 255)");
+  expect(graphite.rangeBg).toBe("rgb(255, 255, 255)");
+  expect(graphite.otherBg).not.toBe(graphite.rangeBg);
   if (test.info().project.name === "chromium") {
     const progress = page.getByRole("region", { name: "Progress", exact: true });
     await progress.evaluate((el) => el.scrollIntoView({ block: "start" }));
@@ -137,7 +129,6 @@ test("phone home pages the week strip and matches the range pills", async ({ pag
     await page.evaluate(() => { document.documentElement.dataset.theme = "midnight"; });
     await page.screenshot({ path: "/opt/cursor/artifacts/iphone42-pills-midnight.png" });
     const midnight = await paint();
-    expect(midnight.metricBg).toBe(midnight.rangeBg);
-    expect(midnight.metricBg).toBe("rgb(255, 255, 255)");
+    expect(midnight.rangeBg).toBe("rgb(255, 255, 255)");
   }
 });

@@ -473,6 +473,8 @@ export interface ProgressDay {
   carbs?: number | null;
   targetFat?: number | null;
   targetCarbs?: number | null;
+  /** Grams of fibre that day. A food without a fibre figure counts as 0. Null on a day with nothing logged. */
+  fiber?: number | null;
 }
 
 export interface ProgressResponse {

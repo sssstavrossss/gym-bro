@@ -10,7 +10,10 @@ const props = withDefaults(defineProps<{
   label?: string;
   /** Home only: the strip takes half the layout height. The 44px hit box overlaps it. */
   tight?: boolean;
+  /** Names for the dots ("Weight", "Calories"…), read out instead of "Panel 2 of 6". */
+  names?: string[];
 }>(), { remember: false, lockIndex: -1, tight: false });
+const emit = defineEmits<{ change: [index: number] }>();
 
 const track = ref<HTMLElement | null>(null);
 const root = ref<HTMLElement | null>(null);
@@ -27,22 +30,34 @@ const trackStyle = computed(() => {
 
 function storedIndex(): number {
   if (!props.remember || !props.storageKey) return 0;
-  const raw = Number(localStorage.getItem(props.storageKey));
-  return Number.isInteger(raw) && raw >= 0 && raw < props.count ? raw : 0;
+  try {
+    const raw = Number(localStorage.getItem(props.storageKey));
+    return Number.isInteger(raw) && raw >= 0 && raw < props.count ? raw : 0;
+  } catch {
+    return 0;
+  }
 }
 
+/** Saves the page when `remember` is on, and tells the parent which page is showing. */
 function remember() {
+  emit("change", index.value);
   if (!props.remember || !props.storageKey) return;
-  localStorage.setItem(props.storageKey, String(index.value));
+  try {
+    localStorage.setItem(props.storageKey, String(index.value));
+  } catch {
+    // Private mode can reject storage. The page still changes.
+  }
 }
 
 function go(next: number, behavior?: ScrollBehavior) {
   const trackEl = track.value;
   if (!trackEl || props.count < 1) return;
   const clamped = Math.max(0, Math.min(props.count - 1, next));
+  // Snap-stop would halt a smooth scroll on the next page, so a jump of more than one page is instant.
+  const far = Math.abs(clamped - index.value) > 1;
   index.value = clamped;
   remember();
-  const motion = behavior ?? (reduce.value ? "auto" : "smooth");
+  const motion = behavior ?? (reduce.value || far ? "auto" : "smooth");
   trackEl.scrollTo({ left: clamped * trackEl.clientWidth, behavior: motion });
 }
 
@@ -91,6 +106,7 @@ let observer: ResizeObserver | null = null;
 onMounted(() => {
   reduce.value = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   index.value = storedIndex();
+  emit("change", index.value);
   void measure().then(() => go(index.value, "auto"));
   observer = new ResizeObserver(() => { void measure(); });
   if (root.value) observer.observe(root.value);
@@ -119,7 +135,7 @@ defineExpose({ go, index });
         :class="{ on: index === dot - 1 }"
         :tabindex="visualOnly ? -1 : 0"
         :aria-hidden="visualOnly ? 'true' : undefined"
-        :aria-label="visualOnly ? undefined : `Panel ${dot} of ${count}`"
+        :aria-label="visualOnly ? undefined : (names?.[dot - 1] ?? `Panel ${dot} of ${count}`)"
         :aria-current="!visualOnly && index === dot - 1 ? 'true' : undefined"
         @click="visualOnly ? undefined : go(dot - 1)"
       ><span class="pip" /></button>
