@@ -2,6 +2,8 @@ import { expect, it } from "vitest";
 import {
   amountError,
   amountLabel,
+  convertAmount,
+  distinctUnits,
   hasGramBasis,
   macroFigure,
   macrosForFood,
@@ -167,4 +169,24 @@ it("scales an edited entry from its stored grams, not a new piece size", () => {
   expect(scaleStored(slice, 70, "g")).toMatchObject({ grams: 70, kcal: 140 });
   expect(unitsForEntry(slice).map((unit) => unit.label)).toEqual(["g", "1 slice = 35 g"]);
   expect(unitsForEntry(slice).find((unit) => unit.unit === "slice")?.gramsEach).toBe(35);
+});
+
+it("shows one chip when a food has the same portion as a serving and a piece", () => {
+  const twice = { ...chicken, servingQuantity: 150, servingLabel: "porsjon", pieceQuantity: 150, pieceLabel: "Porsjon" };
+  expect(distinctUnits(unitsForFood(twice)).map((unit) => unit.unit)).toEqual(["g", "serving"]);
+  expect(distinctUnits(unitsForFood(twice), "piece").map((unit) => unit.unit)).toEqual(["g", "piece"]);
+  expect(distinctUnits(unitsForFood(chicken)).map((unit) => unit.unit)).toEqual(["g", "serving", "piece"]);
+  expect(distinctUnits(unitsForFood({ ...twice, pieceQuantity: 120 })).map((unit) => unit.unit)).toEqual(["g", "serving", "piece"]);
+});
+
+it("keeps the same amount of food when the unit changes", () => {
+  const gram = { unit: "g", label: "g", gramsEach: 1 };
+  const portion = { unit: "serving", label: "porsjon", gramsEach: 150 };
+  expect(convertAmount(600, gram, portion)).toBe("4");
+  expect(convertAmount(225, gram, portion)).toBe("1.5");
+  expect(convertAmount(500, gram, portion)).toBe("1");
+  expect(convertAmount(500, gram, portion, true)).toBe("3.33");
+  expect(convertAmount(3.33, portion, gram, true)).toBe("500");
+  expect(convertAmount(4, portion, gram)).toBe("600");
+  expect(convertAmount(2, portion, { unit: "serving", label: "bar", gramsEach: null })).toBe("1");
 });

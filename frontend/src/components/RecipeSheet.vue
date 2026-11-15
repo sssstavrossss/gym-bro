@@ -6,7 +6,8 @@ import Icon from "./Icon.vue";
 import Keypad from "./Keypad.vue";
 import TimeChip from "./TimeChip.vue";
 import { dayMonth, todayInZone } from "../lib/dates";
-import { amountError, amountLabel, defaultAmount, parseAmount, unitsForFood, type CatalogFood } from "../lib/foodAmount";
+import { amountError, amountLabel, convertAmount, defaultAmount, distinctUnits, parseAmount, servingName, unitsForFood, type CatalogFood, type UnitChoice } from "../lib/foodAmount";
+import { int } from "../lib/format";
 import { acceptSearchResult, preparedSearch, searchDebounceMs } from "../lib/foodSearch";
 import { addNeedsTime, logTimeForAdd } from "../lib/foodSheet";
 import { bindPick, clickPick } from "../lib/cleanTap";
@@ -19,9 +20,10 @@ import {
   ingredientMacros,
   perPortion,
   perPortionSentence,
+  portionGrams,
   portionsError,
   presetFromLogged,
-  recipeFigure,
+  recipeLogProblem,
   recipeMacro,
   recipeNameError,
   recipeNameMax,
@@ -34,7 +36,7 @@ import {
 } from "../lib/recipes";
 import { deviceTimeZone } from "../state/profile";
 import { findEntry, viewed } from "../state/log";
-import { fetchRecipe, logSavedRecipe, retireRecipe, saveRecipe } from "../state/recipes";
+import { deleteRecipeWithUndo, fetchRecipe, logSavedRecipe, saveRecipe } from "../state/recipes";
 import { closeRecipeSheet, finishRecipeSave, toast, ui } from "../ui";
 
 interface DraftLine {
@@ -79,6 +81,8 @@ const logUnit = ref<"portion" | "g">("portion");
 const time = ref<string | null>(null);
 const logKey = ref("");
 const snapshot = ref<RecipeLogInput | null>(null);
+/** Name takes focus only when the form first opens, not each time it comes back from adding an ingredient. */
+const focusName = ref(true);
 let searchGen = 0;
 let searchTimer = 0;
 
@@ -98,8 +102,10 @@ function macrosOf(line: DraftLine): RecipeTotals | null {
   return null;
 }
 const lineMacros = computed(() => lines.value.map((line) => macrosOf(line)));
+/** A line with an unusable amount would silently drop out of the sum, so the sum is not shown until it is fixed. */
+const linesOk = computed(() => lineMacros.value.every((row) => row !== null));
 const total = computed(() => sumTotals(lineMacros.value.filter((row): row is RecipeTotals => row !== null)));
-const per = computed(() => (portionsProblem.value ? null : perPortion(total.value, portions.value)));
+const per = computed(() => (portionsProblem.value || !linesOk.value ? null : perPortion(total.value, portions.value)));
 const sentence = computed(() => (per.value ? perPortionSentence(per.value) : ""));
 const formReady = computed(() =>
   !nameProblem.value
@@ -111,10 +117,12 @@ const formReady = computed(() =>
 const logPreview = computed(() => (
   snapshot.value ? scaleRecipeLog(snapshot.value, parseAmount(logAmount.value), logUnit.value) : null
 ));
+const logProblem = computed(() => (snapshot.value ? recipeLogProblem(snapshot.value, parseAmount(logAmount.value), logUnit.value) : null));
+const eachPortion = computed(() => (snapshot.value ? portionGrams(snapshot.value) : null));
 const logFigures = computed(() => {
   const preview = logPreview.value;
   return [
-    { label: "KCAL", value: preview ? recipeFigure(preview.kcal) : "–" },
+    { label: "KCAL", value: preview ? int(preview.kcal) : "–" },
     { label: "PROTEIN", value: preview ? recipeMacro(preview.protein) : "–" },
     { label: "FAT", value: preview ? recipeMacro(preview.fat) : "–" },
     { label: "CARBS", value: preview ? recipeMacro(preview.carbs) : "–" },
@@ -153,6 +161,8 @@ async function reset() {
   time.value = null;
   logKey.value = "";
   snapshot.value = null;
+  padTarget.value = null;
+  focusName.value = true;
   if (mode.value === "edit" || mode.value === "log") {
     if (!ui.recipeId) return;
     loading.value = true;
@@ -259,7 +269,7 @@ function draftFrom(food: CatalogFood, amount: string, unit: string): DraftLine {
 function lineSummary(line: DraftLine): string {
   const macros = macrosOf(line);
   if (!macros) return "";
-  return `${recipeMacro(macros.protein)} g protein · ${recipeFigure(macros.kcal)} kcal`;
+  return `${recipeMacro(macros.protein)} g protein · ${int(macros.kcal)} kcal`;
 }
 
 function lineError(line: DraftLine): string | null {
@@ -268,8 +278,45 @@ function lineError(line: DraftLine): string | null {
   return amountError(parseAmount(line.amountText), line.unit) ?? "Choose a unit this food can be logged in.";
 }
 
-function unitChoices(line: DraftLine) {
-  return line.food ? unitsForFood(line.food) : [];
+function unitChoices(line: DraftLine): UnitChoice[] {
+  return line.food ? distinctUnits(unitsForFood(line.food), line.unit) : [];
+}
+
+/** Word next to the amount: the chip's name ("porsjon", "stk"), not the API value ("serving", "piece"). */
+function unitWord(unit: string, choices: readonly UnitChoice[]): string {
+  const choice = choices.find((item) => item.unit === unit);
+  if (!choice) return servingName(unit) ?? unit;
+  if (choice.named) return choice.unit;
+  return choice.label;
+}
+
+/** Switching unit keeps the same amount of food: 600 g becomes 4 × 150 g portions, not 600 portions. */
+function setLineUnit(line: DraftLine, next: UnitChoice) {
+  if (next.unit === line.unit) return;
+  const choices = line.food ? unitsForFood(line.food) : [];
+  const current = choices.find((item) => item.unit === line.unit);
+  line.amountText = convertAmount(parseAmount(line.amountText), current, next, true);
+  line.unit = next.unit;
+}
+
+function setPickUnit(next: UnitChoice) {
+  if (!picked.value || next.unit === pickUnit.value) return;
+  const current = unitsForFood(picked.value).find((item) => item.unit === pickUnit.value);
+  pickAmount.value = convertAmount(parseAmount(pickAmount.value), current, next);
+  pickUnit.value = next.unit;
+}
+
+/** Same food, same size: one portion is finished weight ÷ portions. */
+function setLogUnit(next: "portion" | "g") {
+  if (next === logUnit.value) return;
+  const each = eachPortion.value;
+  if (each != null) {
+    const portion: UnitChoice = { unit: "portion", label: "portion", gramsEach: each };
+    const gram: UnitChoice = { unit: "g", label: "g", gramsEach: 1 };
+    const amount = parseAmount(logAmount.value);
+    logAmount.value = next === "g" ? convertAmount(amount, portion, gram) : convertAmount(amount, gram, portion);
+  }
+  logUnit.value = next;
 }
 
 function reveal(event: FocusEvent) {
@@ -306,6 +353,27 @@ function writePad(next: string) {
   }
 }
 
+function onNameFocus(event: FocusEvent) {
+  closePad();
+  selectAmount(event);
+}
+
+/** The keypad sits at the bottom of the sheet, so it says which field it is typing into. */
+const padCaption = computed(() => {
+  if (padTarget.value === "portions") return `Portions: ${portionsText.value || "–"}`;
+  if (padTarget.value === "finished") return `Finished weight: ${finishedText.value || "–"} g`;
+  if (padTarget.value === "line") {
+    const line = lines.value.find((item) => item.key === padLine.value);
+    if (line) return `${line.name}: ${line.amountText || "–"} ${unitWord(line.unit, unitChoices(line))}`;
+  }
+  return "";
+});
+
+function closePad() {
+  padTarget.value = null;
+  padLine.value = null;
+}
+
 function onPadFocus(target: "log" | "pick" | "portions" | "finished" | "line", event: FocusEvent, lineKey?: string) {
   padTarget.value = target;
   padLine.value = lineKey ?? null;
@@ -331,34 +399,38 @@ function onPadInput(event: Event) {
 
 function sourceLabel(source: string): string {
   if (source === "custom") return "Your food";
-  if (source === "matvaretabellen") return "Matvaretabellen";
-  if (source === "kassalapp") return "Open Food Facts";
-  return source;
+  if (source === "mvt") return "Matvaretabellen";
+  if (source === "off") return "Open Food Facts";
+  if (source === "kassalapp") return "Kassalapp";
+  return "";
 }
 
 function foodFacts(food: CatalogFood): string {
   const bits: string[] = [];
   if (food.brand) bits.push(food.brand);
   if (food.nutrientBasis === "per_100" && (food.basis === "g" || food.basis === "ml")) {
-    bits.push(`${recipeFigure(food.kcalPer100)} kcal per 100 ${food.basis}`);
+    bits.push(`${int(food.kcalPer100)} kcal per 100 ${food.basis}`);
     bits.push(`P ${recipeMacro(food.proteinPer100)} · F ${recipeMacro(food.fatPer100)} · C ${recipeMacro(food.carbsPer100)}`);
   } else if (food.nutrientBasis === "per_serving") {
-    bits.push(`${recipeFigure(food.kcalPer100)} kcal per serving`);
+    bits.push(`${int(food.kcalPer100)} kcal per serving`);
     bits.push(`P ${recipeMacro(food.proteinPer100)} · F ${recipeMacro(food.fatPer100)} · C ${recipeMacro(food.carbsPer100)}`);
   }
   if (food.servingQuantity != null && food.servingLabel) bits.push(`${food.servingQuantity} ${food.servingLabel}`);
-  if (food.source) bits.push(sourceLabel(food.source));
+  const source = food.source ? sourceLabel(food.source) : "";
+  if (source) bits.push(source);
   return bits.join(" · ");
 }
 
 function backStep() {
   primeKeyboard();
-  padTarget.value = null;
+  closePad();
+  if (step.value === "search") focusName.value = false;
   step.value = step.value === "amount" ? "search" : "form";
 }
 
 async function openSearch() {
   primeKeyboard();
+  closePad();
   step.value = "search";
   q.value = "";
   results.value = [];
@@ -398,6 +470,12 @@ async function runSearch(trimmed: string) {
   }
 }
 
+const searchEmpty = computed(() => {
+  if (searching.value || searchRows.value.length) return "";
+  const query = q.value.trim();
+  if (query.length >= 2) return `No foods match “${query}”. Try fewer letters or another word.`;
+  return query ? "Type at least 2 letters." : "Search for a food above.";
+});
 const searchRows = computed(() => (q.value.trim().length >= 2 ? results.value : mine.value.filter((food) => {
   const needle = q.value.trim().toLowerCase();
   return !needle || `${food.name} ${food.brand ?? ""}`.toLowerCase().includes(needle);
@@ -436,10 +514,13 @@ function addPicked() {
   if (!food || !pickMacros.value || lines.value.length >= 100) return;
   lines.value.push(draftFrom(food, pickAmount.value, pickUnit.value));
   picked.value = null;
+  closePad();
+  focusName.value = false;
   step.value = "form";
 }
 
 function removeLine(key: string) {
+  if (padLine.value === key) closePad();
   lines.value = lines.value.filter((line) => line.key !== key);
 }
 
@@ -463,20 +544,21 @@ async function save() {
     return;
   }
   const verb = mode.value === "edit" ? "Updated" : "Saved";
-  toast(`${verb} “${result.recipe.name}” · ${recipeMacro(result.recipe.perPortion.protein)} g protein per portion. Find it under Add food → Recipes.`);
+  // From the food sheet the list is right behind this sheet, so there is nothing to point to.
+  const where = ui.recipeReturn === "food" ? "" : " Find it under Add food → Recipes.";
+  toast(`${verb} “${result.recipe.name}” · ${recipeMacro(result.recipe.perPortion.protein)} g protein per portion.${where}`);
   finishRecipeSave();
 }
 
 async function removeRecipe() {
   if (saving.value || !recipeId.value) return;
   saving.value = true;
-  const removed = await retireRecipe(recipeId.value);
+  const removed = await deleteRecipeWithUndo({ id: recipeId.value, name: loadedName.value || name.value }, toast);
   saving.value = false;
   if (!removed) {
     error.value = "Couldn't delete that recipe.";
     return;
   }
-  toast(`Deleted ${loadedName.value || name.value} · past logs kept`);
   finishRecipeSave();
 }
 
@@ -542,15 +624,16 @@ async function addLog() {
         <span class="t-label c2">{{ logUnit === "g" ? "g" : "portion" }}</span>
       </label>
       <div class="row units" role="radiogroup" aria-label="Log by">
-        <button type="button" class="chip t-label" role="radio" :class="{ on: logUnit === 'portion' }" :aria-checked="logUnit === 'portion'" @click="logUnit = 'portion'">portion</button>
-        <button v-if="snapshot?.finishedGrams" type="button" class="chip t-label" role="radio" :class="{ on: logUnit === 'g' }" :aria-checked="logUnit === 'g'" @click="logUnit = 'g'">grams</button>
+        <button type="button" class="chip t-label" role="radio" :class="{ on: logUnit === 'portion' }" :aria-checked="logUnit === 'portion'" @click="setLogUnit('portion')">portion</button>
+        <button v-if="snapshot?.finishedGrams" type="button" class="chip t-label" role="radio" :class="{ on: logUnit === 'g' }" :aria-checked="logUnit === 'g'" @click="setLogUnit('g')">grams</button>
       </div>
+      <p v-if="eachPortion" class="t-label c2" data-recipe-each>1 portion = {{ int(eachPortion) }} g</p>
       <div class="row chips">
         <button v-for="amount in logChips" :key="amount" type="button" class="chip t-label" @click="logAmount = String(amount)">{{ amountLabel(amount, logUnit === "g" ? "g" : "portion") }}</button>
       </div>
       <div v-if="!keyboardEntry" class="pad" @mousedown.prevent><Keypad @key="onPadKey" /></div>
       <p v-if="logPreview" class="t-bodys">{{ recipeMacro(logPreview.protein) }} g protein in this log</p>
-      <p v-else-if="logUnit === 'g'" class="t-label" role="status">This recipe has no finished weight, so it can't be logged in grams.</p>
+      <p v-else-if="logProblem" class="t-label err" role="status">{{ logProblem }}</p>
     </div>
 
     <div v-else-if="step === 'search'" class="stack search">
@@ -565,29 +648,29 @@ async function addLog() {
           <span class="t-label c2 facts">{{ foodFacts(food) }}</span>
         </span>
       </button>
-      <p v-if="!searching && !searchRows.length" class="t-label c2">No foods to add yet.</p>
+      <p v-if="searchEmpty" class="t-label c2" role="status">{{ searchEmpty }}</p>
     </div>
 
     <div v-else-if="step === 'amount' && picked" class="stack" @focusin="reveal">
       <label class="field row">
         <span class="t-label c2">Amount</span>
-        <input v-autofocus :value="pickAmount" data-replace="1" class="t-body grow num" :inputmode="keyboardEntry ? 'decimal' : 'none'" autocomplete="off" :aria-label="`Amount of ${picked.name}`" @focus="onPadFocus('pick', $event)" @beforeinput="markWholeSelection" @input="onPadInput" />
-        <span class="t-label c2">{{ pickUnit }}</span>
+        <input v-autofocus :value="pickAmount" data-replace="1" class="t-body grow num" :inputmode="keyboardEntry ? 'decimal' : 'none'" autocomplete="off" :aria-label="`Amount of ${picked.name}`" @focus="onPadFocus('pick', $event)" @beforeinput="markWholeSelection" @input="onPadInput" @keydown.enter.prevent="addPicked" />
+        <span class="t-label c2">{{ unitWord(pickUnit, unitsForFood(picked)) }}</span>
       </label>
       <div class="row units" role="radiogroup" :aria-label="`Unit for ${picked.name}`">
         <button
-          v-for="choice in unitsForFood(picked)"
+          v-for="choice in distinctUnits(unitsForFood(picked), pickUnit)"
           :key="choice.unit"
           type="button"
           class="chip t-label"
           role="radio"
           :class="{ on: pickUnit === choice.unit }"
           :aria-checked="pickUnit === choice.unit"
-          @click="pickUnit = choice.unit"
+          @click="setPickUnit(choice)"
         >{{ choice.label }}</button>
       </div>
       <div v-if="!keyboardEntry" class="pad" @mousedown.prevent><Keypad @key="onPadKey" /></div>
-      <p v-if="pickMacros" class="t-bodys" aria-live="polite">{{ recipeMacro(pickMacros.protein) }} g protein · {{ recipeFigure(pickMacros.kcal) }} kcal</p>
+      <p v-if="pickMacros" class="t-bodys" aria-live="polite">{{ recipeMacro(pickMacros.protein) }} g protein · {{ int(pickMacros.kcal) }} kcal</p>
       <p v-else-if="pickProblem" class="t-label err" role="status">{{ pickProblem }}</p>
     </div>
 
@@ -595,7 +678,7 @@ async function addLog() {
       <p v-if="notice" class="t-label note" role="status">{{ notice }}</p>
       <label class="field row">
         <span class="t-label c2">Name</span>
-        <input v-autofocus v-model="name" class="t-body grow" type="text" placeholder="Weeknight stew" :maxlength="recipeNameMax" autocomplete="off" aria-label="Recipe name" @focus="selectAmount" />
+        <input v-autofocus="focusName" v-model="name" class="t-body grow" type="text" placeholder="Weeknight stew" :maxlength="recipeNameMax" autocomplete="off" aria-label="Recipe name" @focus="onNameFocus" />
       </label>
       <label class="field row">
         <span class="t-label c2">Portions</span>
@@ -606,7 +689,6 @@ async function addLog() {
         <input :value="finishedText" data-replace="1" class="t-body grow num" :inputmode="keyboardEntry ? 'decimal' : 'none'" autocomplete="off" aria-label="Finished weight in grams, optional" placeholder="Optional, grams" @focus="onPadFocus('finished', $event)" @beforeinput="markWholeSelection" @input="onPadInput" />
       </label>
       <p class="t-label c2">Calories and macros are worked out from the foods. They update as you change ingredients, amounts, or portions.</p>
-      <div v-if="!keyboardEntry && padTarget" class="pad" @mousedown.prevent><Keypad @key="onPadKey" /></div>
       <button type="button" class="add-btn t-bodys" @click="openSearch">
         <Icon name="plus" :size="16" :sw="2.4" /> Add ingredient
       </button>
@@ -624,7 +706,7 @@ async function addLog() {
             </span>
             <label class="amt">
               <input :value="line.amountText" data-replace="1" class="t-body num" :inputmode="keyboardEntry ? 'decimal' : 'none'" autocomplete="off" :aria-label="`Amount of ${line.name}`" :readonly="!line.available && !line.stored" @focus="onPadFocus('line', $event, line.key)" @beforeinput="markWholeSelection" @input="onPadInput" />
-              <span class="t-label c2">{{ line.unit }}</span>
+              <span class="t-label c2">{{ unitWord(line.unit, unitChoices(line)) }}</span>
             </label>
             <button type="button" class="cbtn" :aria-label="`Remove ${line.name}`" @click="removeLine(line.key)">
               <Icon name="x" :size="16" />
@@ -640,7 +722,7 @@ async function addLog() {
               role="radio"
               :class="{ on: line.unit === choice.unit }"
               :aria-checked="line.unit === choice.unit"
-              @click="line.unit = choice.unit"
+              @click="setLineUnit(line, choice)"
             >{{ choice.label }}</button>
           </div>
         </div>
@@ -653,28 +735,39 @@ async function addLog() {
     <template v-if="!loading && mode === 'log'" #footer>
       <p v-if="error" class="t-label err" role="alert">{{ error }}</p>
       <button type="button" class="primary-btn t-bodys" :disabled="saving || !logPreview || needTime" @click="addLog">
-        {{ saving ? "Adding…" : needTime ? "Pick a time to add" : `Add · ${logPreview ? recipeFigure(logPreview.kcal) : ""} kcal` }}
+        {{ saving ? "Adding…" : needTime ? "Pick a time to add" : logPreview ? `Add · ${int(logPreview.kcal)} kcal` : "Add" }}
       </button>
     </template>
     <template v-else-if="!loading && step === 'amount' && picked" #footer>
       <button type="button" class="primary-btn t-bodys" :disabled="!pickMacros" @click="addPicked">Add to recipe</button>
     </template>
     <template v-else-if="!loading && step === 'form'" #footer>
-      <div class="sum" aria-live="polite">
+      <div v-if="!keyboardEntry && padTarget" class="padwrap" data-recipe-pad @mousedown.prevent>
+        <div class="row padhead">
+          <span class="t-label c2 grow padcap" aria-live="polite">{{ padCaption }}</span>
+          <button type="button" class="chip t-label" @click="closePad">Done</button>
+        </div>
+        <Keypad @key="onPadKey" />
+        <p class="t-label c2 sumline" aria-live="polite" data-recipe-sumline>
+          Total {{ linesOk ? int(total.kcal) : "–" }} kcal · per portion {{ per ? int(per.kcal) : "–" }} kcal<template v-if="per"> · P {{ recipeMacro(per.protein) }}</template>
+        </p>
+      </div>
+      <div v-else class="sum" aria-live="polite">
         <div class="metric">
           <span class="t-cap c2">Total</span>
-          <span class="t-nm num">{{ recipeFigure(total.kcal) }}</span>
+          <span class="t-nm num">{{ linesOk ? int(total.kcal) : "–" }}</span>
           <span class="t-label c2">kcal</span>
-          <span class="t-label c2">P {{ recipeMacro(total.protein) }} · F {{ recipeMacro(total.fat) }} · C {{ recipeMacro(total.carbs) }}</span>
+          <span v-if="linesOk" class="t-label c2">P {{ recipeMacro(total.protein) }} · F {{ recipeMacro(total.fat) }} · C {{ recipeMacro(total.carbs) }}</span>
+          <span v-else class="t-label c2">Fix the amount marked above.</span>
         </div>
         <div class="metric">
           <span class="t-cap c2">Per portion</span>
-          <span class="t-nm num">{{ per ? recipeFigure(per.kcal) : "–" }}</span>
+          <span class="t-nm num">{{ per ? int(per.kcal) : "–" }}</span>
           <span class="t-label c2">kcal</span>
           <span v-if="per" class="t-label c2" data-recipe-portion>P {{ recipeMacro(per.protein) }} · F {{ recipeMacro(per.fat) }} · C {{ recipeMacro(per.carbs) }}</span>
-          <span v-else class="t-label c2">Enter portions to see the amount per portion.</span>
+          <span v-else-if="linesOk" class="t-label c2">Enter portions to see the amount per portion.</span>
         </div>
-        <p v-if="per" class="sr-only">{{ sentence }} · {{ recipeMacro(per.fat) }} g fat · {{ recipeMacro(per.carbs) }} g carbs · {{ recipeFigure(per.kcal) }} kcal</p>
+        <p v-if="per" class="sr-only">{{ sentence }} · {{ recipeMacro(per.fat) }} g fat · {{ recipeMacro(per.carbs) }} g carbs · {{ int(per.kcal) }} kcal</p>
       </div>
       <p v-if="error" class="t-label err" role="alert">{{ error }}</p>
       <button type="button" class="primary-btn t-bodys" :disabled="saving || !formReady" @click="save">
@@ -714,6 +807,10 @@ async function addLog() {
 .rtext { gap: 2px; min-width: 0; align-items: flex-start; }
 .name, .facts { min-width: 0; white-space: normal; overflow-wrap: anywhere; }
 .pad { margin-top: var(--space-gap); }
+.padwrap { display: flex; flex-direction: column; gap: 8px; }
+.padhead { align-items: center; gap: 8px; min-width: 0; }
+.sumline { margin: 0; }
+.padcap { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .err, .note, .need { margin: 0; }
 .add-btn {
   min-height: 44px; width: 100%; border-radius: var(--radius-control);

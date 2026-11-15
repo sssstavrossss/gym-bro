@@ -35,6 +35,10 @@ public sealed class NutrientPanelSnapshotTests(ApiFactory factory)
         var readd = await client.PostAsync("/api/groups/" + groupId + "/log", Json(
             """{"localDate":"2026-11-14","timeZone":"UTC","idempotencyKey":"panel-g-readd","time":"12:00"}"""));
         Assert.Equal(HttpStatusCode.Created, readd.StatusCode);
+        var readdBody = await readd.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Contains(readdBody.GetProperty("entries").EnumerateArray(),
+            row => row.GetProperty("nutrients").GetProperty("sodium").ValueKind == JsonValueKind.Number
+                && row.GetProperty("nutrients").GetProperty("sodium").GetDecimal() == 1000m);
 
         var day = await client.GetFromJsonAsync<JsonElement>("/api/log-entries?date=2026-11-14");
         var readded = day.GetProperty("entries").EnumerateArray()
@@ -64,6 +68,8 @@ public sealed class NutrientPanelSnapshotTests(ApiFactory factory)
         var portion = await client.PostAsync("/api/recipes/" + recipeId + "/log", Json(
             """{"localDate":"2026-11-14","timeZone":"UTC","idempotencyKey":"panel-r-portion","amount":1,"unit":"portion","time":"12:00"}"""));
         Assert.Equal(HttpStatusCode.Created, portion.StatusCode);
+        var portionBody = await portion.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(600m, portionBody.GetProperty("nutrients").GetProperty("sodium").GetDecimal());
         var grams = await client.PostAsync("/api/recipes/" + recipeId + "/log", Json(
             """{"localDate":"2026-11-14","timeZone":"UTC","idempotencyKey":"panel-r-grams","amount":100,"unit":"g","time":"13:00"}"""));
         Assert.Equal(HttpStatusCode.Created, grams.StatusCode);

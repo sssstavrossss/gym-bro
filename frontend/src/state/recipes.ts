@@ -6,6 +6,7 @@ import {
   getRecipe,
   listRecipes,
   logRecipe,
+  restoreRecipe,
   ServerUnreachable,
   updateRecipe,
   type Recipe,
@@ -60,6 +61,36 @@ export async function retireRecipe(id: string): Promise<boolean> {
     if (error instanceof ServerUnreachable) log.unreachable = true;
     return false;
   }
+}
+
+/** Undo a delete. The recipe goes back to the place it had in the list. */
+export async function unretireRecipe(id: string, index: number): Promise<boolean> {
+  try {
+    const recipe = await restoreRecipe(id);
+    const rest = savedRecipes.list.filter((row) => row.id !== id);
+    const at = Math.max(0, Math.min(index, rest.length));
+    savedRecipes.list = [...rest.slice(0, at), recipe, ...rest.slice(at)];
+    savedRecipes.loaded = true;
+    return true;
+  } catch (error) {
+    if (error instanceof ServerUnreachable) log.unreachable = true;
+    return false;
+  }
+}
+
+/** Delete with an Undo toast. Returns false when the delete itself failed. */
+export async function deleteRecipeWithUndo(recipe: { id: string; name: string }, notify: (text: string, action?: { label: string; run: () => void }) => void): Promise<boolean> {
+  const index = savedRecipes.list.findIndex((row) => row.id === recipe.id);
+  if (!(await retireRecipe(recipe.id))) return false;
+  notify(`Deleted ${recipe.name} · past logs kept`, {
+    label: "Undo",
+    run: () => {
+      void unretireRecipe(recipe.id, index).then((ok) => {
+        if (!ok) notify("Couldn't restore that recipe.");
+      });
+    },
+  });
+  return true;
 }
 
 export async function fetchRecipe(id: string): Promise<{ ok: true; recipe: Recipe } | { ok: false; message: string }> {

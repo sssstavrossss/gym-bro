@@ -123,7 +123,7 @@ test("create a recipe, see per-portion protein update, log it, and retire it", a
   await sheet.getByRole("button", { name: /Fictional recipe chicken/ }).click();
   await sheet.getByLabel("Amount of Fictional recipe chicken").fill("250");
   await sheet.getByRole("button", { name: "Add to recipe" }).click();
-  await expect(sheet.getByText("250 g protein · 1000 kcal")).toBeVisible();
+  await expect(sheet.getByText("250 g protein · 1,000 kcal")).toBeVisible();
   await sheet.getByLabel("Portions").fill("5");
   await expect(sheet.locator("[data-recipe-portion]")).toHaveText("P 50 · F 5 · C 0");
   await sheet.getByLabel("Portions").fill("10");

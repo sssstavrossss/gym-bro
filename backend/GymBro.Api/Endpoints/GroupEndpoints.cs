@@ -420,7 +420,8 @@ public static class GroupEndpoints
         entry.SaturatedFat,
         entry.Sugars,
         entry.Fiber,
-        entry.Salt);
+        entry.Salt,
+        NutrientPanel.Amount(entry));
 
     private sealed record GroupListResponse(IReadOnlyList<GroupResponse> Groups);
 
@@ -481,7 +482,8 @@ public static class GroupEndpoints
         decimal? SaturatedFat = null,
         decimal? Sugars = null,
         decimal? Fiber = null,
-        decimal? Salt = null);
+        decimal? Salt = null,
+        Dictionary<string, decimal?>? Nutrients = null);
 
     private sealed class PlanContext(Dictionary<Guid, Food> foods, List<UserServing> servings)
     {

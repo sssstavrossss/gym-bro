@@ -741,6 +741,11 @@ export async function deleteRecipe(id: string): Promise<void> {
   await jsonOrThrow(response);
 }
 
+/** Undo for deleteRecipe. */
+export async function restoreRecipe(id: string): Promise<Recipe> {
+  return jsonOrThrow(await request(`/api/recipes/${id}/restore`, { method: "POST" }));
+}
+
 export async function logRecipe(id: string, body: { localDate: string; timeZone: string; time: string | null; idempotencyKey: string; amount: number; unit: "portion" | "g" }): Promise<LogEntryResponse> {
   return jsonOrThrow(await request(`/api/recipes/${id}/log`, {
     method: "POST",
