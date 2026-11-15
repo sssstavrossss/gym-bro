@@ -5,6 +5,8 @@ export interface NutrientRow {
   key: string;
   label: string;
   unit: string;
+  /** Two decimals below 1, for a nutrient whose daily amount is about 1 (copper: 0.04 mg, not 0). */
+  fine?: boolean;
 }
 
 export interface NutrientPanelDef {
@@ -16,6 +18,12 @@ export interface NutrientPanelDef {
   halves?: boolean;
   /** Names that sit in from the left edge, such as Saturated under Fat. */
   indent?: string[];
+  /** Least important first. Dropped, in this order, when a layout has fewer rows than keys. */
+  spare?: string[];
+  /** Rows that fit on the food sheet (Per 100 g and Amount in one column). No limit when unset. */
+  pairedMax?: number;
+  /** Rows at the largest text size: the page count stays what it was, four rows a page. */
+  largeMax?: number;
 }
 
 const ROWS: Record<string, NutrientRow> = {
@@ -25,10 +33,12 @@ const ROWS: Record<string, NutrientRow> = {
   polyFat: { key: "polyFat", label: "Poly", unit: "g" },
   transFat: { key: "transFat", label: "Trans", unit: "g" },
   omega3: { key: "omega3", label: "Omega-3", unit: "g" },
+  epaDha: { key: "epaDha", label: "EPA + DHA", unit: "g" },
   omega6: { key: "omega6", label: "Omega-6", unit: "g" },
   cholesterol: { key: "cholesterol", label: "Cholesterol", unit: "mg" },
   sugars: { key: "sugars", label: "Sugars", unit: "g" },
   addedSugars: { key: "addedSugars", label: "Added sugars", unit: "g" },
+  starch: { key: "starch", label: "Starch", unit: "g" },
   fiber: { key: "fiber", label: "Fibre", unit: "g" },
   sodium: { key: "sodium", label: "Sodium", unit: "mg" },
   vitaminA: { key: "vitaminA", label: "Vit A", unit: "µg" },
@@ -49,19 +59,31 @@ const ROWS: Record<string, NutrientRow> = {
   phosphorus: { key: "phosphorus", label: "Phosphorus", unit: "mg" },
   selenium: { key: "selenium", label: "Selenium", unit: "µg" },
   iodine: { key: "iodine", label: "Iodine", unit: "µg" },
+  copper: { key: "copper", label: "Copper", unit: "mg", fine: true },
 };
 
-const FATS_LEFT = ["fat", "saturatedFat", "monoFat", "polyFat"];
-const FATS_RIGHT = ["transFat", "omega3", "omega6", "cholesterol"];
+/**
+ * Five rows is the most a panel shows at default text (Vitamins: two columns of five), so the
+ * fixed Home card height holds. Where a layout has room for fewer rows, the `spare` keys give
+ * way, least important first, instead of adding a page.
+ */
+const FATS = ["fat", "saturatedFat", "monoFat", "polyFat", "transFat", "omega3", "epaDha", "omega6", "cholesterol"];
 const VITAMINS = ["vitaminA", "vitaminD", "vitaminE", "vitaminC", "thiamin", "riboflavin", "niacin", "vitaminB6", "folate", "vitaminB12"];
-const MINERALS = ["calcium", "iron", "zinc", "magnesium", "potassium", "phosphorus", "selenium", "iodine"];
+const MINERALS = ["calcium", "iron", "zinc", "magnesium", "copper", "potassium", "phosphorus", "selenium", "iodine"];
 
 export const NUTRIENT_PANELS: NutrientPanelDef[] = [
-  { id: "fats", title: "Fats", grid: true, indent: ["saturatedFat"], keys: [...FATS_LEFT, ...FATS_RIGHT] },
-  { id: "carbs", title: "Carbs & sodium", keys: ["sugars", "addedSugars", "fiber", "sodium"] },
+  { id: "fats", title: "Fats", grid: true, indent: ["saturatedFat", "epaDha"], keys: FATS, spare: ["omega6"], pairedMax: 8, largeMax: 8 },
+  { id: "carbs", title: "Carbs & sodium", keys: ["sugars", "addedSugars", "starch", "fiber", "sodium"], spare: ["starch"], largeMax: 4 },
   { id: "vitamins", title: "Vitamins", grid: true, halves: true, keys: VITAMINS },
-  { id: "minerals", title: "Minerals", grid: true, halves: true, keys: MINERALS },
+  { id: "minerals", title: "Minerals", grid: true, halves: true, keys: MINERALS, spare: ["copper"], largeMax: 8 },
 ];
+
+/** The panel's keys cut to `max` rows by dropping its spare keys, least important first. */
+export function fitKeys(panel: NutrientPanelDef, max: number | undefined): string[] {
+  if (max == null || panel.keys.length <= max) return panel.keys;
+  const drop = new Set((panel.spare ?? []).slice(0, panel.keys.length - max));
+  return panel.keys.filter((key) => !drop.has(key));
+}
 
 export function nutrientRow(key: string): NutrientRow {
   return ROWS[key];
@@ -122,42 +144,45 @@ export function panelHasData(entries: readonly NutrientSource[], keys: readonly 
 /**
  * Default text keeps Vitamins and Minerals as one two-column panel each.
  * Largest text drops the two-column merge and shows single-column groups of
- * four, so the fixed card height does not have to grow.
+ * four, so the fixed card height does not have to grow. `paired` is the food
+ * sheet, which shows per 100 g beside the amount in one column. Neither adds a
+ * page: a layout with fewer rows drops the panel's spare keys instead.
  */
-export function panelsForSize(entries: readonly NutrientSource[], large: boolean): NutrientPanelDef[] {
+export function panelsForSize(entries: readonly NutrientSource[], large: boolean, paired = false): NutrientPanelDef[] {
   const shown: NutrientPanelDef[] = [];
   for (const panel of NUTRIENT_PANELS) {
     if (!panelHasData(entries, panel.keys)) continue;
     if (!large) {
-      shown.push(panel);
+      shown.push({ ...panel, keys: paired ? fitKeys(panel, panel.pairedMax) : panel.keys });
       continue;
     }
-    if (panel.id === "fats") {
-      shown.push({ id: "fats-0", title: panel.title, keys: FATS_LEFT, indent: ["saturatedFat"] });
-      shown.push({ id: "fats-1", title: panel.title, keys: FATS_RIGHT });
-      continue;
-    }
-    if (panel.keys.length > 4) {
-      for (let index = 0; index < panel.keys.length; index += 4) {
-        const keys = panel.keys.slice(index, index + 4);
-        shown.push({ id: `${panel.id}-${index}`, title: panel.title, keys, grid: false });
+    const keys = fitKeys(panel, panel.largeMax);
+    if (keys.length > 4) {
+      for (let index = 0; index < keys.length; index += 4) {
+        shown.push({ id: `${panel.id}-${index / 4}`, title: panel.title, keys: keys.slice(index, index + 4), indent: panel.indent, grid: false });
       }
     } else {
-      shown.push({ ...panel, grid: false });
+      shown.push({ ...panel, keys, grid: false });
     }
   }
   return shown;
 }
 
-export function formatNutrient(value: number | null | undefined, unit: string): string {
-  const parts = nutrientParts(value, unit);
+export function formatNutrient(value: number | null | undefined, unit: string, fine = false): string {
+  const parts = nutrientParts(value, unit, fine);
   if (!parts.unit) return parts.whole;
   return `${parts.whole}${parts.frac} ${parts.unit}`;
 }
 
 /** Number split so the ones place, the decimal, and the unit each have a fixed slot. */
-export function nutrientParts(value: number | null | undefined, unit: string): { whole: string; frac: string; unit: string } {
+export function nutrientParts(value: number | null | undefined, unit: string, fine = false): { whole: string; frac: string; unit: string } {
   if (value == null || !Number.isFinite(value)) return { whole: "—", frac: "", unit: "" };
+  if (fine && Math.abs(value) < 1) {
+    const small = Math.round(value * 100) / 100;
+    if (small === 0) return { whole: "0", frac: "", unit };
+    const [whole, dec] = Math.abs(small).toFixed(2).replace(/0$/, "").split(".");
+    return { whole: `${small < 0 ? "-" : ""}${whole}`, frac: `.${dec}`, unit };
+  }
   const rounded = Math.abs(value) >= 100 ? Math.round(value) : Math.round(value * 10) / 10;
   const sign = rounded < 0 ? "-" : "";
   const abs = Math.abs(rounded);
@@ -242,6 +267,10 @@ export function referenceAmount(key: string, sex: string, age: number): number |
       return male ? 90 : 75;
     case "iodine":
       return 150;
+    case "copper":
+      // NNR 2023: RI 900 µg/day for women and men (adopted from IOM 2001). Shown as mg.
+      // https://pub.norden.org/nord2023-003/copper.html
+      return 0.9;
     case "sodium":
       return 1500;
     default:

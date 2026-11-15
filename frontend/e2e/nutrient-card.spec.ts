@@ -114,9 +114,8 @@ test("the home nutrient card is 358 by 212 on every panel", async ({ page }) => 
   await dots.nth(1).click();
   const fats = card.locator("[data-panel='fats']");
   const labels = fats.locator(".name");
-  await expect(labels).toHaveText(["Fat", "Saturated", "Mono", "Poly", "Trans", "Omega-3", "Omega-6", "Cholesterol"]);
-  const indent = await fats.locator(".name.indent").evaluate((node) => node.textContent);
-  expect(indent).toBe("Saturated");
+  await expect(labels).toHaveText(["Fat", "Saturated", "Mono", "Poly", "Trans", "Omega-3", "EPA + DHA", "Omega-6", "Cholesterol"]);
+  await expect(fats.locator(".name.indent")).toHaveText(["Saturated", "EPA + DHA"]);
   const aligned = await fats.locator(".nrow").evaluateAll((nodes) => {
     const rows = nodes.map((node) => {
       const box = node.getBoundingClientRect();

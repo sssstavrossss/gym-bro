@@ -50,16 +50,47 @@ describe("NNR percents", () => {
     const small = panelsForSize(entries, false);
     expect(small.map((panel) => panel.id)).toEqual(["fats", "vitamins"]);
     expect(small[0].keys[0]).toBe("fat");
-    expect(small[0].indent).toEqual(["saturatedFat"]);
+    expect(small[0].indent).toEqual(["saturatedFat", "epaDha"]);
+    expect(small[0].keys).toEqual(["fat", "saturatedFat", "monoFat", "polyFat", "transFat", "omega3", "epaDha", "omega6", "cholesterol"]);
     expect(small[1].grid).toBe(true);
     expect(small[1].title).toBe("Vitamins");
     const large = panelsForSize(entries, true);
-    expect(large.map((panel) => panel.id)).toEqual(["fats-0", "fats-1", "vitamins-0", "vitamins-4", "vitamins-8"]);
+    expect(large.map((panel) => panel.id)).toEqual(["fats-0", "fats-1", "vitamins-0", "vitamins-1", "vitamins-2"]);
     expect(large[0].keys).toEqual(["fat", "saturatedFat", "monoFat", "polyFat"]);
+    expect(large[1].keys).toEqual(["transFat", "omega3", "epaDha", "cholesterol"]);
     expect(large[2].grid).toBe(false);
     expect(large[2].keys).toEqual(["vitaminA", "vitaminD", "vitaminE", "vitaminC"]);
     expect(large[3].keys).toEqual(["thiamin", "riboflavin", "niacin", "vitaminB6"]);
     expect(large[4].keys).toEqual(["folate", "vitaminB12"]);
     expect(panelsForSize([{ nutrients: {} }], false)).toEqual([]);
+  });
+
+  it("adds copper, starch and EPA + DHA where they fit and never adds a page", () => {
+    const entries = [{ fat: 5, nutrients: { copper: 0.5, starch: 10, sodium: 100, epaDha: 0.2 } }];
+    const home = panelsForSize(entries, false);
+    expect(home.find((panel) => panel.id === "minerals")!.keys).toContain("copper");
+    expect(home.find((panel) => panel.id === "carbs")!.keys).toEqual(["sugars", "addedSugars", "starch", "fiber", "sodium"]);
+    expect(home.find((panel) => panel.id === "fats")!.keys).toHaveLength(9);
+    // Food sheet: one column of Per 100 g and Amount holds eight fat rows, so Omega-6 gives way.
+    const sheet = panelsForSize(entries, false, true);
+    expect(sheet.map((panel) => panel.id)).toEqual(home.map((panel) => panel.id));
+    expect(sheet.find((panel) => panel.id === "fats")!.keys).not.toContain("omega6");
+    expect(sheet.find((panel) => panel.id === "fats")!.keys).toHaveLength(8);
+    // Largest text: the same pages as before (fats 2, carbs 1, minerals 2), the least important row drops.
+    const large = panelsForSize(entries, true);
+    const pages = (id: string) => large.filter((panel) => panel.id === id || panel.id.startsWith(`${id}-`));
+    expect(pages("fats")).toHaveLength(2);
+    expect(pages("carbs")).toHaveLength(1);
+    expect(pages("carbs")[0].keys).not.toContain("starch");
+    expect(pages("minerals")).toHaveLength(2);
+    expect(pages("minerals").flatMap((panel) => panel.keys)).not.toContain("copper");
+    expect(large.every((panel) => panel.keys.length <= 4)).toBe(true);
+    expect(formatNutrient(0.04, "mg", true)).toBe("0.04 mg");
+    expect(formatNutrient(0.69, "mg", true)).toBe("0.69 mg");
+    expect(formatNutrient(0.5, "mg", true)).toBe("0.5 mg");
+    expect(formatNutrient(1.234, "mg", true)).toBe("1.2 mg");
+    expect(formatNutrient(0.04, "mg")).toBe("0 mg");
+    expect(referenceAmount("copper", "female", 30)).toBe(0.9);
+    expect(nutrientPercent("copper", 0.9, "male", 40, 2500)).toBe(100);
   });
 });

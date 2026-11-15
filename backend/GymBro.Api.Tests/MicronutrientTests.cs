@@ -99,6 +99,27 @@ public sealed class MicronutrientMapTests
     }
 
     [Fact]
+    public void EPA_plus_DHA_needs_both_halves_and_copper_is_read_in_mg()
+    {
+        var food = new Food();
+        NutrientPanel.ApplyMatvare(food,
+        [
+            new MatvareConstituent("Cu", "mg", 0.05m),
+            new MatvareConstituent("C20:5n-3Eikosapentaensyre", "g", 0.4m),
+        ]);
+        Assert.Equal(0.05m, food.CopperPer100);
+        Assert.Null(food.EpaDhaPer100);
+        Assert.Null(food.StarchPer100);
+
+        var off = NutrientPanel.ReadOff(System.Text.Json.JsonDocument.Parse("""
+            { "copper_100g": 0.00012, "starch_100g": 12, "eicosapentaenoic-acid_100g": 0.1, "docosahexaenoic-acid_100g": 0.2 }
+            """).RootElement);
+        Assert.Equal(0.12m, off["copper"]);
+        Assert.Equal(12m, off["starch"]);
+        Assert.Equal(0.3m, off["epaDha"]);
+    }
+
+    [Fact]
     public void Matvaretabellen_vitamin_A_and_E_keep_the_published_equivalent_and_drop_an_unknown_unit()
     {
         var both = new Food();
@@ -160,13 +181,18 @@ public sealed class MicronutrientMapTests
     }
 
     [Fact]
-    public void Open_food_facts_sodium_and_cholesterol_are_stored_in_milligrams()
+    public void Open_food_facts_grams_become_the_panel_units()
     {
-        using var doc = JsonDocument.Parse("""{"sodium_100g":0.08,"cholesterol_100g":0.012,"vitamin-c_100g":4}""");
+        // Open Food Facts gives every _100g value in grams. Rounding before scaling would turn 2.1 mg of iron into 0.
+        using var doc = JsonDocument.Parse("""{"sodium_100g":0.08,"cholesterol_100g":0.012,"vitamin-c_100g":0.004,"iron_100g":0.0021,"vitamin-d_100g":0.0000015,"selenium_100g":0.00002,"monounsaturated-fat_100g":1.25}""");
         var panel = NutrientPanel.ReadOff(doc.RootElement);
         Assert.Equal(80m, panel["sodium"]);
         Assert.Equal(12m, panel["cholesterol"]);
         Assert.Equal(4m, panel["vitaminC"]);
+        Assert.Equal(2.1m, panel["iron"]);
+        Assert.Equal(1.5m, panel["vitaminD"]);
+        Assert.Equal(20m, panel["selenium"]);
+        Assert.Equal(1.25m, panel["monoFat"]);
     }
 }
 
@@ -278,7 +304,11 @@ public sealed class MicronutrientLogTests(ApiFactory factory)
                     { "nutrientId": "K", "quantity": 200, "unit": "mg" },
                     { "nutrientId": "P", "quantity": 90, "unit": "mg" },
                     { "nutrientId": "Se", "quantity": 8, "unit": "µg" },
-                    { "nutrientId": "I", "quantity": 6, "unit": "µg" }
+                    { "nutrientId": "I", "quantity": 6, "unit": "µg" },
+                    { "nutrientId": "Cu", "quantity": 0.12, "unit": "mg" },
+                    { "nutrientId": "Stivel", "quantity": 5.5, "unit": "g" },
+                    { "nutrientId": "C20:5n-3Eikosapentaensyre", "quantity": 0.3, "unit": "g" },
+                    { "nutrientId": "C22:6n-3Dokosaheksaensyre", "quantity": 0.5, "unit": "g" }
                   ],
                   "portions": []
                 },
@@ -319,6 +349,13 @@ public sealed class MicronutrientLogTests(ApiFactory factory)
         Assert.Equal(4m, full.VitaminCPer100);
         Assert.Equal(90m, full.VitaminAPer100);
         Assert.Equal(0.8m, full.VitaminEPer100);
+        Assert.Equal(0.12m, full.CopperPer100);
+        Assert.Equal(5.5m, full.StarchPer100);
+        Assert.Equal(0.8m, full.EpaDhaPer100);
+        Assert.Contains("copper", result.Coverage, StringComparison.Ordinal);
+        Assert.Null(gap.CopperPer100);
+        Assert.Null(gap.StarchPer100);
+        Assert.Null(gap.EpaDhaPer100);
         Assert.Contains("vitamin A", result.Coverage, StringComparison.Ordinal);
         Assert.Contains("vitamin E", result.Coverage, StringComparison.Ordinal);
         Assert.Null(gap.SodiumPer100);

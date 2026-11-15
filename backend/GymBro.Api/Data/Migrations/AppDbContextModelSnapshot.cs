@@ -257,6 +257,21 @@ namespace GymBro.Api.Data.Migrations
                         .HasColumnType("numeric(8,2)")
                         .HasColumnName("iodine");
 
+                    b.Property<decimal?>("Copper")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("copper");
+
+                    b.Property<decimal?>("Starch")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("starch");
+
+                    b.Property<decimal?>("EpaDha")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("epa_dha");
+
                     b.Property<decimal?>("Fiber")
                         .HasPrecision(8, 2)
                         .HasColumnType("numeric(8,2)")
@@ -504,6 +519,21 @@ namespace GymBro.Api.Data.Migrations
                         .HasPrecision(8, 2)
                         .HasColumnType("numeric(8,2)")
                         .HasColumnName("iodine_per_100");
+
+                    b.Property<decimal?>("CopperPer100")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("copper_per_100");
+
+                    b.Property<decimal?>("StarchPer100")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("starch_per_100");
+
+                    b.Property<decimal?>("EpaDhaPer100")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("epa_dha_per_100");
 
                     b.Property<decimal?>("FiberPer100")
                         .HasPrecision(8, 2)
@@ -913,6 +943,21 @@ namespace GymBro.Api.Data.Migrations
                         .HasPrecision(8, 2)
                         .HasColumnType("numeric(8,2)")
                         .HasColumnName("iodine");
+
+                    b.Property<decimal?>("Copper")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("copper");
+
+                    b.Property<decimal?>("Starch")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("starch");
+
+                    b.Property<decimal?>("EpaDha")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("epa_dha");
 
                     b.Property<decimal?>("Fiber")
                         .HasPrecision(8, 2)
@@ -1385,6 +1430,21 @@ namespace GymBro.Api.Data.Migrations
                         .HasColumnType("numeric(8,2)")
                         .HasColumnName("iodine");
 
+                    b.Property<decimal?>("Copper")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("copper");
+
+                    b.Property<decimal?>("Starch")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("starch");
+
+                    b.Property<decimal?>("EpaDha")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("epa_dha");
+
                     b.Property<decimal?>("Fiber")
                         .HasPrecision(8, 2)
                         .HasColumnType("numeric(8,2)")
@@ -1615,6 +1675,21 @@ namespace GymBro.Api.Data.Migrations
                         .HasPrecision(8, 2)
                         .HasColumnType("numeric(8,2)")
                         .HasColumnName("iodine");
+
+                    b.Property<decimal?>("Copper")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("copper");
+
+                    b.Property<decimal?>("Starch")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("starch");
+
+                    b.Property<decimal?>("EpaDha")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("epa_dha");
 
                     b.Property<decimal?>("Fiber")
                         .HasPrecision(8, 2)
