@@ -305,8 +305,9 @@ test("only weigh-in offers Edit, and one reading labels its own kilogram", async
     await expect(line).toBeVisible();
     const edit = sheet.getByRole("button", { name: "Edit your only weigh-in" });
     const editBox = await edit.boundingBox();
-    expect(editBox?.width).toBeGreaterThanOrEqual(44);
-    expect(editBox?.height).toBeGreaterThanOrEqual(44);
+    // WebKit can report 43.9999 for a 44px box.
+    expect(editBox?.width).toBeGreaterThanOrEqual(43.9);
+    expect(editBox?.height).toBeGreaterThanOrEqual(43.9);
     const lineBox = await line.boundingBox();
     expect(lineBox?.height).toBeLessThan(44);
     await expect(sheet.locator(".ymark", { hasText: "83.6" })).toBeVisible();

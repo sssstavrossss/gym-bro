@@ -49,7 +49,8 @@ async function ready(request: APIRequestContext, oid: string, date: string, zone
   })).ok()).toBeTruthy();
 }
 
-test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+// The data is dated in Oslo, so the browser must agree on "today" (CI runs in UTC; near midnight they differ).
+test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true, timezoneId: "Europe/Oslo" });
 
 /** The last row's ink, including a descender such as µ, stays inside the track and above the dots. */
 async function expectRowsClear(page: Page, root: string) {
