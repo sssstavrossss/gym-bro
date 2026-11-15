@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { completeSum, dayNutrients, formatNutrient, nutrientPercent, panelsForSize, referenceAmount, sodiumMg } from "../src/lib/nutrients";
+import { dayNutrients, knownSum, formatNutrient, nutrientPercent, panelsForSize, referenceAmount, sodiumMg } from "../src/lib/nutrients";
 
 describe("sodium", () => {
   it("uses the source sodium, otherwise salt divided by 2.5", () => {
@@ -12,16 +12,19 @@ describe("sodium", () => {
 });
 
 describe("day totals", () => {
-  it("stays null when any entry is missing the nutrient", () => {
-    expect(completeSum([])).toBeNull();
-    expect(completeSum([1, null])).toBeNull();
-    expect(completeSum([0])).toBe(0);
+  it("adds what is known and counts an unknown value as 0", () => {
+    expect(knownSum([])).toBeNull();
+    expect(knownSum([null, undefined])).toBeNull();
+    expect(knownSum([1, null])).toBe(1);
+    expect(knownSum([0])).toBe(0);
     const day = dayNutrients([
       { salt: 1, nutrients: { vitaminC: 10 } },
       { salt: null, nutrients: { vitaminC: null } },
     ]);
-    expect(day.sodium).toBeNull();
-    expect(day.vitaminC).toBeNull();
+    expect(day.sodium).toBe(400);
+    expect(day.vitaminC).toBe(10);
+    expect(day.iron).toBe(0);
+    expect(dayNutrients([{ nutrients: { vitaminC: null } }]).vitaminC).toBe(0);
     expect(formatNutrient(0, "mg")).toBe("0 mg");
     expect(formatNutrient(null, "mg")).toBe("—");
   });

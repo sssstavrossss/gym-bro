@@ -399,62 +399,62 @@ public static class NutrientPanel
     public static void SumOnto(Recipe target, IEnumerable<RecipeIngredient> rows)
     {
         var list = rows.ToList();
-        target.MonoFat = Micronutrients.CompleteSum(rows.Select(row => row.MonoFat));
-        target.PolyFat = Micronutrients.CompleteSum(rows.Select(row => row.PolyFat));
-        target.Omega3 = Micronutrients.CompleteSum(rows.Select(row => row.Omega3));
-        target.Omega6 = Micronutrients.CompleteSum(rows.Select(row => row.Omega6));
-        target.TransFat = Micronutrients.CompleteSum(rows.Select(row => row.TransFat));
-        target.Cholesterol = Micronutrients.CompleteSum(rows.Select(row => row.Cholesterol));
-        target.AddedSugars = Micronutrients.CompleteSum(rows.Select(row => row.AddedSugars));
-        target.Sodium = Micronutrients.CompleteSum(rows.Select(row => row.Sodium));
-        target.VitaminA = Micronutrients.CompleteSum(rows.Select(row => row.VitaminA));
-        target.VitaminD = Micronutrients.CompleteSum(rows.Select(row => row.VitaminD));
-        target.VitaminE = Micronutrients.CompleteSum(rows.Select(row => row.VitaminE));
-        target.Thiamin = Micronutrients.CompleteSum(rows.Select(row => row.Thiamin));
-        target.Riboflavin = Micronutrients.CompleteSum(rows.Select(row => row.Riboflavin));
-        target.Niacin = Micronutrients.CompleteSum(rows.Select(row => row.Niacin));
-        target.VitaminB6 = Micronutrients.CompleteSum(rows.Select(row => row.VitaminB6));
-        target.Folate = Micronutrients.CompleteSum(rows.Select(row => row.Folate));
-        target.VitaminB12 = Micronutrients.CompleteSum(rows.Select(row => row.VitaminB12));
-        target.VitaminC = Micronutrients.CompleteSum(rows.Select(row => row.VitaminC));
-        target.Calcium = Micronutrients.CompleteSum(rows.Select(row => row.Calcium));
-        target.Iron = Micronutrients.CompleteSum(rows.Select(row => row.Iron));
-        target.Zinc = Micronutrients.CompleteSum(rows.Select(row => row.Zinc));
-        target.Magnesium = Micronutrients.CompleteSum(rows.Select(row => row.Magnesium));
-        target.Potassium = Micronutrients.CompleteSum(rows.Select(row => row.Potassium));
-        target.Phosphorus = Micronutrients.CompleteSum(rows.Select(row => row.Phosphorus));
-        target.Selenium = Micronutrients.CompleteSum(rows.Select(row => row.Selenium));
-        target.Iodine = Micronutrients.CompleteSum(rows.Select(row => row.Iodine));
+        target.MonoFat = Micronutrients.KnownSum(rows.Select(row => row.MonoFat));
+        target.PolyFat = Micronutrients.KnownSum(rows.Select(row => row.PolyFat));
+        target.Omega3 = Micronutrients.KnownSum(rows.Select(row => row.Omega3));
+        target.Omega6 = Micronutrients.KnownSum(rows.Select(row => row.Omega6));
+        target.TransFat = Micronutrients.KnownSum(rows.Select(row => row.TransFat));
+        target.Cholesterol = Micronutrients.KnownSum(rows.Select(row => row.Cholesterol));
+        target.AddedSugars = Micronutrients.KnownSum(rows.Select(row => row.AddedSugars));
+        target.Sodium = Micronutrients.KnownSum(rows.Select(row => row.Sodium));
+        target.VitaminA = Micronutrients.KnownSum(rows.Select(row => row.VitaminA));
+        target.VitaminD = Micronutrients.KnownSum(rows.Select(row => row.VitaminD));
+        target.VitaminE = Micronutrients.KnownSum(rows.Select(row => row.VitaminE));
+        target.Thiamin = Micronutrients.KnownSum(rows.Select(row => row.Thiamin));
+        target.Riboflavin = Micronutrients.KnownSum(rows.Select(row => row.Riboflavin));
+        target.Niacin = Micronutrients.KnownSum(rows.Select(row => row.Niacin));
+        target.VitaminB6 = Micronutrients.KnownSum(rows.Select(row => row.VitaminB6));
+        target.Folate = Micronutrients.KnownSum(rows.Select(row => row.Folate));
+        target.VitaminB12 = Micronutrients.KnownSum(rows.Select(row => row.VitaminB12));
+        target.VitaminC = Micronutrients.KnownSum(rows.Select(row => row.VitaminC));
+        target.Calcium = Micronutrients.KnownSum(rows.Select(row => row.Calcium));
+        target.Iron = Micronutrients.KnownSum(rows.Select(row => row.Iron));
+        target.Zinc = Micronutrients.KnownSum(rows.Select(row => row.Zinc));
+        target.Magnesium = Micronutrients.KnownSum(rows.Select(row => row.Magnesium));
+        target.Potassium = Micronutrients.KnownSum(rows.Select(row => row.Potassium));
+        target.Phosphorus = Micronutrients.KnownSum(rows.Select(row => row.Phosphorus));
+        target.Selenium = Micronutrients.KnownSum(rows.Select(row => row.Selenium));
+        target.Iodine = Micronutrients.KnownSum(rows.Select(row => row.Iodine));
     }
 
     public static Dictionary<string, decimal?> Day(IReadOnlyList<LogEntry> rows) => new()
     {
-        ["monoFat"] = Micronutrients.CompleteSum(rows.Select(row => row.MonoFat)),
-        ["polyFat"] = Micronutrients.CompleteSum(rows.Select(row => row.PolyFat)),
-        ["omega3"] = Micronutrients.CompleteSum(rows.Select(row => row.Omega3)),
-        ["omega6"] = Micronutrients.CompleteSum(rows.Select(row => row.Omega6)),
-        ["transFat"] = Micronutrients.CompleteSum(rows.Select(row => row.TransFat)),
-        ["cholesterol"] = Micronutrients.CompleteSum(rows.Select(row => row.Cholesterol)),
-        ["addedSugars"] = Micronutrients.CompleteSum(rows.Select(row => row.AddedSugars)),
-        ["sodium"] = Micronutrients.CompleteSum(rows.Select(row => row.Sodium)),
-        ["vitaminA"] = Micronutrients.CompleteSum(rows.Select(row => row.VitaminA)),
-        ["vitaminD"] = Micronutrients.CompleteSum(rows.Select(row => row.VitaminD)),
-        ["vitaminE"] = Micronutrients.CompleteSum(rows.Select(row => row.VitaminE)),
-        ["thiamin"] = Micronutrients.CompleteSum(rows.Select(row => row.Thiamin)),
-        ["riboflavin"] = Micronutrients.CompleteSum(rows.Select(row => row.Riboflavin)),
-        ["niacin"] = Micronutrients.CompleteSum(rows.Select(row => row.Niacin)),
-        ["vitaminB6"] = Micronutrients.CompleteSum(rows.Select(row => row.VitaminB6)),
-        ["folate"] = Micronutrients.CompleteSum(rows.Select(row => row.Folate)),
-        ["vitaminB12"] = Micronutrients.CompleteSum(rows.Select(row => row.VitaminB12)),
-        ["vitaminC"] = Micronutrients.CompleteSum(rows.Select(row => row.VitaminC)),
-        ["calcium"] = Micronutrients.CompleteSum(rows.Select(row => row.Calcium)),
-        ["iron"] = Micronutrients.CompleteSum(rows.Select(row => row.Iron)),
-        ["zinc"] = Micronutrients.CompleteSum(rows.Select(row => row.Zinc)),
-        ["magnesium"] = Micronutrients.CompleteSum(rows.Select(row => row.Magnesium)),
-        ["potassium"] = Micronutrients.CompleteSum(rows.Select(row => row.Potassium)),
-        ["phosphorus"] = Micronutrients.CompleteSum(rows.Select(row => row.Phosphorus)),
-        ["selenium"] = Micronutrients.CompleteSum(rows.Select(row => row.Selenium)),
-        ["iodine"] = Micronutrients.CompleteSum(rows.Select(row => row.Iodine))
+        ["monoFat"] = Micronutrients.KnownSum(rows.Select(row => row.MonoFat)) ?? 0,
+        ["polyFat"] = Micronutrients.KnownSum(rows.Select(row => row.PolyFat)) ?? 0,
+        ["omega3"] = Micronutrients.KnownSum(rows.Select(row => row.Omega3)) ?? 0,
+        ["omega6"] = Micronutrients.KnownSum(rows.Select(row => row.Omega6)) ?? 0,
+        ["transFat"] = Micronutrients.KnownSum(rows.Select(row => row.TransFat)) ?? 0,
+        ["cholesterol"] = Micronutrients.KnownSum(rows.Select(row => row.Cholesterol)) ?? 0,
+        ["addedSugars"] = Micronutrients.KnownSum(rows.Select(row => row.AddedSugars)) ?? 0,
+        ["sodium"] = Micronutrients.KnownSum(rows.Select(row => row.Sodium)) ?? 0,
+        ["vitaminA"] = Micronutrients.KnownSum(rows.Select(row => row.VitaminA)) ?? 0,
+        ["vitaminD"] = Micronutrients.KnownSum(rows.Select(row => row.VitaminD)) ?? 0,
+        ["vitaminE"] = Micronutrients.KnownSum(rows.Select(row => row.VitaminE)) ?? 0,
+        ["thiamin"] = Micronutrients.KnownSum(rows.Select(row => row.Thiamin)) ?? 0,
+        ["riboflavin"] = Micronutrients.KnownSum(rows.Select(row => row.Riboflavin)) ?? 0,
+        ["niacin"] = Micronutrients.KnownSum(rows.Select(row => row.Niacin)) ?? 0,
+        ["vitaminB6"] = Micronutrients.KnownSum(rows.Select(row => row.VitaminB6)) ?? 0,
+        ["folate"] = Micronutrients.KnownSum(rows.Select(row => row.Folate)) ?? 0,
+        ["vitaminB12"] = Micronutrients.KnownSum(rows.Select(row => row.VitaminB12)) ?? 0,
+        ["vitaminC"] = Micronutrients.KnownSum(rows.Select(row => row.VitaminC)) ?? 0,
+        ["calcium"] = Micronutrients.KnownSum(rows.Select(row => row.Calcium)) ?? 0,
+        ["iron"] = Micronutrients.KnownSum(rows.Select(row => row.Iron)) ?? 0,
+        ["zinc"] = Micronutrients.KnownSum(rows.Select(row => row.Zinc)) ?? 0,
+        ["magnesium"] = Micronutrients.KnownSum(rows.Select(row => row.Magnesium)) ?? 0,
+        ["potassium"] = Micronutrients.KnownSum(rows.Select(row => row.Potassium)) ?? 0,
+        ["phosphorus"] = Micronutrients.KnownSum(rows.Select(row => row.Phosphorus)) ?? 0,
+        ["selenium"] = Micronutrients.KnownSum(rows.Select(row => row.Selenium)) ?? 0,
+        ["iodine"] = Micronutrients.KnownSum(rows.Select(row => row.Iodine)) ?? 0
     };
 
     public static Dictionary<string, decimal?> Amount(LogEntry row) => new()

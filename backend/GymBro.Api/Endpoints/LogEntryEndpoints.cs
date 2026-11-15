@@ -593,10 +593,10 @@ public static class LogEntryEndpoints
         protein = rows.Sum(row => row.Protein),
         fat = rows.Sum(row => row.Fat),
         carbs = rows.Sum(row => row.Carbs),
-        saturatedFat = Micronutrients.CompleteSum(rows.Select(row => row.SaturatedFat)),
-        sugars = Micronutrients.CompleteSum(rows.Select(row => row.Sugars)),
-        fiber = Micronutrients.CompleteSum(rows.Select(row => row.Fiber)),
-        salt = Micronutrients.CompleteSum(rows.Select(row => row.Salt)),
+        saturatedFat = Micronutrients.KnownSum(rows.Select(row => row.SaturatedFat)) ?? 0,
+        sugars = Micronutrients.KnownSum(rows.Select(row => row.Sugars)) ?? 0,
+        fiber = Micronutrients.KnownSum(rows.Select(row => row.Fiber)) ?? 0,
+        salt = Micronutrients.KnownSum(rows.Select(row => row.Salt)) ?? 0,
         nutrients = NutrientPanel.Day(rows),
     };
 

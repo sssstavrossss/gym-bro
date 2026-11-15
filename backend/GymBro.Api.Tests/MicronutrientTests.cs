@@ -62,12 +62,13 @@ public sealed class MicronutrientMapTests
     }
 
     [Fact]
-    public void A_day_total_is_null_unless_every_entry_has_the_value()
+    public void A_sum_adds_the_known_values_and_counts_an_unknown_one_as_zero()
     {
-        Assert.Null(Micronutrients.CompleteSum([]));
-        Assert.Null(Micronutrients.CompleteSum([1m, null]));
-        Assert.Equal(0, Micronutrients.CompleteSum([0m]));
-        Assert.Equal(2.5m, Micronutrients.CompleteSum([1m, 1.5m]));
+        Assert.Null(Micronutrients.KnownSum([]));
+        Assert.Null(Micronutrients.KnownSum([null, null]));
+        Assert.Equal(1m, Micronutrients.KnownSum([1m, null]));
+        Assert.Equal(0, Micronutrients.KnownSum([0m]));
+        Assert.Equal(2.5m, Micronutrients.KnownSum([1m, 1.5m]));
         Assert.Equal(50.0m, Micronutrients.Percent(1, 2));
         Assert.Null(Micronutrients.Percent(0, 0));
     }
@@ -225,8 +226,9 @@ public sealed class MicronutrientLogTests(ApiFactory factory)
             """, Encoding.UTF8, "application/json"));
         Assert.Equal(HttpStatusCode.Created, quick.StatusCode);
         var after = await client.GetFromJsonAsync<JsonElement>("/api/log-entries?date=2026-11-14");
-        Assert.Equal(JsonValueKind.Null, after.GetProperty("totals").GetProperty("salt").ValueKind);
-        Assert.Equal(JsonValueKind.Null, after.GetProperty("totals").GetProperty("saturatedFat").ValueKind);
+        Assert.Equal(0.05m, after.GetProperty("totals").GetProperty("salt").GetDecimal());
+        Assert.Equal(0, after.GetProperty("totals").GetProperty("saturatedFat").GetDecimal());
+        Assert.Equal(0, after.GetProperty("totals").GetProperty("nutrients").GetProperty("vitaminC").GetDecimal());
     }
 
     [Fact]
