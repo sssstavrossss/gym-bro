@@ -36,3 +36,7 @@ blob-report/
 *.db
 *.db-wal
 *.db-shm
+
+# Local navigation notes for Claude
+CLAUDE.md
+CODEMAP.md
