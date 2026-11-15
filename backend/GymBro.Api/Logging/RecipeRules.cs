@@ -188,6 +188,9 @@ public static class RecipeRules
         Totals Nutrients,
         string? Error)
     {
+        /// <summary>What the recipe's saved totals were multiplied by for this entry.</summary>
+        public decimal Factor { get; init; }
+
         public static LoggedScale Fail(string error) => new(0, "", null, default, error);
     }
 
@@ -212,7 +215,7 @@ public static class RecipeRules
                 return LoggedScale.Fail(LogTooLarge);
             }
 
-            return new LoggedScale(rounded, "g", rounded, byGram, null);
+            return new LoggedScale(rounded, "g", rounded, byGram, null) { Factor = rounded / finishedGrams.Value };
         }
 
         if (rounded <= 0 || rounded > LogEntryRules.CountMax)
@@ -253,7 +256,7 @@ public static class RecipeRules
             }
         }
 
-        return new LoggedScale(rounded, PortionUnit, grams, byPortion, null);
+        return new LoggedScale(rounded, PortionUnit, grams, byPortion, null) { Factor = factor };
     }
 
     public enum BuildStatus

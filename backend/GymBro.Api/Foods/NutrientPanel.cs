@@ -1,5 +1,6 @@
 using System.Text.Json;
 using GymBro.Api.Data;
+using GymBro.Api.Logging;
 
 namespace GymBro.Api.Foods;
 
@@ -197,6 +198,52 @@ public static class NutrientPanel
         target.Phosphorus = Micronutrients.Scale(food.PhosphorusPer100, factor);
         target.Selenium = Micronutrients.Scale(food.SeleniumPer100, factor);
         target.Iodine = Micronutrients.Scale(food.IodinePer100, factor);
+    }
+
+    /// <summary>
+    /// A logged share of a saved recipe: the recipe's summed panel times the same
+    /// factor as its kcal and macros. A value the column cannot hold stays unknown.
+    /// </summary>
+    public static void ScaleOnto(LogEntry target, Recipe recipe, decimal factor)
+    {
+        target.MonoFat = Share(recipe.MonoFat, factor);
+        target.PolyFat = Share(recipe.PolyFat, factor);
+        target.Omega3 = Share(recipe.Omega3, factor);
+        target.Omega6 = Share(recipe.Omega6, factor);
+        target.TransFat = Share(recipe.TransFat, factor);
+        target.Cholesterol = Share(recipe.Cholesterol, factor);
+        target.AddedSugars = Share(recipe.AddedSugars, factor);
+        target.Sodium = Share(recipe.Sodium, factor);
+        target.VitaminA = Share(recipe.VitaminA, factor);
+        target.VitaminD = Share(recipe.VitaminD, factor);
+        target.VitaminE = Share(recipe.VitaminE, factor);
+        target.Thiamin = Share(recipe.Thiamin, factor);
+        target.Riboflavin = Share(recipe.Riboflavin, factor);
+        target.Niacin = Share(recipe.Niacin, factor);
+        target.VitaminB6 = Share(recipe.VitaminB6, factor);
+        target.Folate = Share(recipe.Folate, factor);
+        target.VitaminB12 = Share(recipe.VitaminB12, factor);
+        target.VitaminC = Share(recipe.VitaminC, factor);
+        target.Calcium = Share(recipe.Calcium, factor);
+        target.Iron = Share(recipe.Iron, factor);
+        target.Zinc = Share(recipe.Zinc, factor);
+        target.Magnesium = Share(recipe.Magnesium, factor);
+        target.Potassium = Share(recipe.Potassium, factor);
+        target.Phosphorus = Share(recipe.Phosphorus, factor);
+        target.Selenium = Share(recipe.Selenium, factor);
+        target.Iodine = Share(recipe.Iodine, factor);
+    }
+
+    private static decimal? Share(decimal? total, decimal factor)
+    {
+        try
+        {
+            return Micronutrients.Scale(total, factor) is decimal value && value <= RecipeRules.NutrientMax ? value : null;
+        }
+        catch (OverflowException)
+        {
+            return null;
+        }
     }
 
     public static void ScaleOnto(RecipeIngredient target, Food food, decimal factor)

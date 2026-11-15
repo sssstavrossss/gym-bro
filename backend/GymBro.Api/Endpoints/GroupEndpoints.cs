@@ -265,8 +265,7 @@ public static class GroupEndpoints
                 }
                 else if (context.Food(item.FoodId.Value) is Food food)
                 {
-                    var factor = food.KcalPer100 == 0 ? 0 : entry.Kcal / food.KcalPer100;
-                    NutrientPanel.ScaleOnto(entry, food, factor);
+                    NutrientPanel.ScaleOnto(entry, food, plan.Factor);
                 }
                 db.LogEntries.Add(entry);
                 created.Add(entry);

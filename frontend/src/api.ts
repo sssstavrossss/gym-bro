@@ -359,14 +359,23 @@ async function authHeaders(): Promise<Record<string, string>> {
   return { Authorization: `Bearer ${token}` };
 }
 
+let onReachable: (() => void) | null = null;
+
+/** Called whenever the API answers with anything but a gateway error, so an "unreachable" banner can clear. */
+export function whenReachable(listener: () => void): void {
+  onReachable = listener;
+}
+
 async function request(path: string, init?: RequestInit): Promise<Response> {
   try {
     const headers = await authHeaders();
-    return await fetch(path, {
+    const response = await fetch(path, {
       ...init,
       cache: "no-store",
       headers: { ...headers, ...(init?.headers as Record<string, string> | undefined) },
     });
+    if (response.status !== 502 && response.status !== 503 && response.status !== 504) onReachable?.();
+    return response;
   } catch (error) {
     if (error instanceof AuthRedirect) throw error;
     throw new ServerUnreachable();

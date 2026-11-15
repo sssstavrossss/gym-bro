@@ -14,6 +14,7 @@ import {
   ServerUnreachable,
   type LogEntryResponse,
   type TargetsResponse,
+  whenReachable,
 } from "../api";
 import { byTime } from "../lib/dayLog";
 import { addDays, todayInZone, todayIso, weekStart } from "../lib/dates";
@@ -95,6 +96,12 @@ export const viewed = reactive({
   pendingDate: "",
   /** True only after a day switch has already been waiting ~150ms. */
   dim: false,
+});
+
+// A failed call raises the banner. The next answer from the server lowers it again,
+// unless an add is still waiting for its Retry.
+whenReachable(() => {
+  if (log.unreachable && log.pending.length === 0) log.unreachable = false;
 });
 
 export interface DayTotals {
@@ -215,6 +222,16 @@ function dropPending(key: string): void {
   rememberPending();
 }
 
+/** A pending add whose request did reach the server is already in this list. Stop showing it twice. */
+function settlePending(entries: readonly LogEntry[]): void {
+  if (!log.pending.length) return;
+  const saved = new Set(entries.map((row) => row.idempotencyKey));
+  const left = log.pending.filter((row) => !saved.has(row.idempotencyKey));
+  if (left.length === log.pending.length) return;
+  log.pending = left;
+  rememberPending();
+}
+
 export function dayTotals(): DayTotals {
   return totalsOf(log.entries);
 }
@@ -235,6 +252,7 @@ export async function loadToday(): Promise<void> {
     if (gen !== generation) return;
     log.date = body.localDate;
     log.entries = body.entries.map(fromResponse);
+    settlePending(log.entries);
     log.loaded = true;
   } catch (error) {
     if (gen !== generation) return;
@@ -353,6 +371,7 @@ export async function loadDay(date: string): Promise<void> {
     viewed.today = today;
     viewed.loggedDates = days.loggedDates;
     dayCache.set(snap.date, snap);
+    settlePending(snap.entries);
     showCached(snap);
     prefetchDay(addDays(snap.date, -1), zone, today);
     prefetchDay(addDays(snap.date, 1), zone, today);
@@ -412,8 +431,9 @@ export async function saveQuickAdd(pending: PendingAdd): Promise<SaveResult> {
       ...(pending.foodId ? { foodId: pending.foodId, amount: pending.amount, unit: pending.unit } : {}),
     });
     if (saved.deletedAt) {
-      keepPending(pending);
-      return { ok: false, unreachable: true };
+      // This key was saved before and that entry has since been deleted. Retrying cannot bring it back.
+      dropPending(pending.idempotencyKey);
+      return { ok: false, message: "That entry was already deleted." };
     }
     dropPending(pending.idempotencyKey);
     const entry = fromResponse(saved);
