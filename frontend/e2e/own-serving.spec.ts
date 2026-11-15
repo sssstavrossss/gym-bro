@@ -114,7 +114,7 @@ test("add a private serving, log with it, and keep the old gram snapshot", async
 
   const slice = foodSheet(page).getByRole("radio", { name: "1 slice = 35 g" });
   await expect(slice).toBeChecked();
-  await expect(foodSheet(page).getByText("= 35 g · 1 slice = 35 g")).toBeVisible();
+  await expect(foodSheet(page).getByText("= 35 g", { exact: true })).toBeVisible();
   await expect(foodSheet(page).getByRole("button", { name: /Add · 70 kcal/ })).toBeVisible();
   const results = await new AxeBuilder({ page }).analyze();
   const serious = results.violations.filter((item) => item.impact === "serious" || item.impact === "critical");
