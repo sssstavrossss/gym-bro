@@ -5,6 +5,7 @@ import { getProgress } from "../api";
 import { addDays, weekStart } from "../lib/dates";
 import { dayShade } from "../lib/dayShade";
 import { weekDays, weekPageSelection } from "../lib/dayLog";
+import { swipeAxis, swipeSpeed, swipeTurn, type SwipeSample } from "../lib/weekSwipe";
 
 const props = withDefaults(defineProps<{
   anchor: string;
@@ -14,7 +15,7 @@ const props = withDefaults(defineProps<{
   loggedDates: string[];
   swipe?: boolean;
 }>(), { swipe: false });
-const emit = defineEmits<{ select: [string] }>();
+const emit = defineEmits<{ select: [string]; range: [string, string] }>();
 
 const shown = ref(weekStart(props.selected || props.anchor || props.today));
 const pager = ref<HTMLElement | null>(null);
@@ -30,6 +31,8 @@ let mode: "none" | "h" | "v" = "none";
 let suppressClick = false;
 let fallback = 0;
 let lastY = 0;
+/** Recent pointer positions, so a quick flick turns the week without a long drag. */
+let samples: SwipeSample[] = [];
 const openKey = "gymbro-home-week-open";
 const expanded = ref(false);
 const reduceMotion = ref(false);
@@ -38,20 +41,21 @@ const intake = ref<Record<string, { logged: boolean; kcal: number | null; target
 const todayStart = computed(() => weekStart(props.today || props.anchor));
 const starts = computed(() => {
   const current = shown.value || todayStart.value;
-  const list = [addDays(current, -7), current];
-  const next = addDays(current, 7);
-  if (next <= todayStart.value) list.push(next);
-  return list;
+  return [addDays(current, -7), current, addDays(current, 7)];
 });
+/** The span the header names: the shown week, or the four weeks when the calendar is open. */
+const range = computed<[string, string]>(() => {
+  const current = shown.value || todayStart.value;
+  return [addDays(current, expanded.value ? -21 : 0), addDays(current, 6)];
+});
+watch(range, (next) => emit("range", next[0], next[1]), { immediate: true });
 const pages = computed(() => starts.value.map((start) => ({
   start,
   days: weekDays(start, props.selected, props.today, props.setupDate, props.loggedDates),
 })));
 
 function showWeekOf(date: string) {
-  const start = weekStart(date);
-  const limit = todayStart.value;
-  const next = start > limit ? limit : start;
+  const next = weekStart(date);
   if (next === shown.value) return;
   pendingStart = null;
   animating.value = false;
@@ -72,40 +76,47 @@ function trackStyle() {
 }
 
 function down(event: PointerEvent) {
-  if (!props.swipe || event.button !== 0 || animating.value) return;
+  if (!props.swipe || event.button !== 0 || pendingStart) return;
   originX = event.clientX;
   originY = event.clientY;
+  lastY = event.clientY;
+  samples = [{ t: event.timeStamp, x: event.clientX }];
   mode = "none";
+  // Catch a strip that is still springing back instead of waiting for it.
+  window.clearTimeout(fallback);
+  animating.value = false;
   dragging.value = true;
   window.addEventListener("pointerup", up, { once: true });
   window.addEventListener("pointercancel", up, { once: true });
 }
 function move(event: PointerEvent) {
   if (!dragging.value) return;
-  const dx = event.clientX - originX;
+  let dx = event.clientX - originX;
   const dy = event.clientY - originY;
   lastY = event.clientY;
+  samples.push({ t: event.timeStamp, x: event.clientX });
+  while (samples.length > 2 && event.timeStamp - samples[0].t > 100) samples.shift();
   if (expanded.value) {
     if (Math.abs(dy) > 8) mode = "v";
     return;
   }
   if (mode === "none") {
-    if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
-    if (Math.abs(dy) >= Math.abs(dx)) {
-      mode = "v";
-      return;
-    }
+    mode = swipeAxis(dx, dy);
+    if (mode !== "h") return;
+    pager.value?.setPointerCapture(event.pointerId);
+  } else if (mode === "v") {
+    // The page did not take the gesture (no pointercancel) and it has turned sideways: page after all.
+    if (Math.abs(dx) < 24 || Math.abs(dx) < Math.abs(dy)) return;
     mode = "h";
+    originX = event.clientX;
+    dx = 0;
     pager.value?.setPointerCapture(event.pointerId);
   }
   if (mode !== "h") return;
   const width = pager.value?.clientWidth || 1;
-  let next = dx;
-  if (next > width) next = width;
-  if (next < -width) next = -width;
-  if (next < 0 && starts.value.length < 3) next /= 4;
-  dragX.value = next;
+  dragX.value = Math.max(-width, Math.min(width, dx));
 }
+
 function up() {
   if (!dragging.value) return;
   dragging.value = false;
@@ -122,22 +133,22 @@ function up() {
   if (vertical && dy < -40 && expanded.value) setExpanded(false);
   if (!horizontal || expanded.value) return;
   const width = pager.value?.clientWidth || 1;
-  const threshold = Math.min(72, width * 0.22);
-  if (dx > threshold) settle(-1, width);
-  else if (dx < -threshold && starts.value.length > 2) settle(1, width);
-  else {
-    animating.value = true;
-    dragX.value = 0;
+  const turn = swipeTurn(dx, swipeSpeed(samples), width);
+  if (turn) settle(turn, width);
+  else snapBack();
+}
+function snapBack() {
+  window.clearTimeout(fallback);
+  if (dragX.value === 0) {
+    animating.value = false;
+    return;
   }
+  animating.value = true;
+  dragX.value = 0;
+  fallback = window.setTimeout(() => { animating.value = false; }, 320);
 }
 function settle(direction: -1 | 1, width: number) {
   pendingStart = addDays(shown.value, direction * 7);
-  if (weekStart(pendingStart) > todayStart.value) {
-    pendingStart = null;
-    animating.value = true;
-    dragX.value = 0;
-    return;
-  }
   animating.value = true;
   dragX.value = direction === -1 ? width : -width;
   window.clearTimeout(fallback);
@@ -154,9 +165,10 @@ function commit() {
   if (picked && picked !== props.selected) emit("select", picked);
 }
 function onTransitionEnd(event: TransitionEvent) {
-  if (event.propertyName !== "transform" || !pendingStart) return;
+  if (event.propertyName !== "transform") return;
   window.clearTimeout(fallback);
-  commit();
+  if (pendingStart) commit();
+  else animating.value = false;
 }
 function choose(event: MouseEvent, date: string, disabled: boolean) {
   if (suppressClick) {
@@ -167,12 +179,27 @@ function choose(event: MouseEvent, date: string, disabled: boolean) {
   }
   if (!disabled) emit("select", date);
 }
-function pageBy(direction: -1 | 1) {
-  if (animating.value || dragging.value) return;
-  const width = pager.value?.clientWidth || 1;
-  if (direction === 1 && starts.value.length < 3) return;
-  settle(direction, width);
+async function pageBy(direction: -1 | 1) {
+  if (dragging.value) return;
+  if (pendingStart) {
+    // A quick second tap: land the week that is sliding in now, then slide on from there.
+    window.clearTimeout(fallback);
+    commit();
+    await nextTick();
+    void pager.value?.offsetWidth;
+  }
+  if (expanded.value || reduceMotion.value) {
+    // The pager is hidden (or still), so there is no slide to wait for.
+    shown.value = addDays(shown.value, direction * 7);
+    if (!expanded.value) {
+      const picked = weekPageSelection(props.selected, shown.value, props.today, props.setupDate);
+      if (picked && picked !== props.selected) emit("select", picked);
+    }
+    return;
+  }
+  settle(direction, pager.value?.clientWidth || 1);
 }
+defineExpose({ pageBy });
 
 const calendar = computed(() => [3, 2, 1, 0].map((ago) => {
   const start = addDays(shown.value, -7 * ago);
@@ -295,8 +322,6 @@ onBeforeUnmount(() => {
         </button>
       </div>
     </div>
-    <button type="button" class="sr-only" @click="pageBy(-1)">Previous week</button>
-    <button type="button" class="sr-only" :disabled="starts.length < 3" @click="pageBy(1)">Next week</button>
   </div>
     <div class="cal face" :class="{ on: expanded }" role="group" aria-label="Last 4 weeks" :inert="!expanded" :aria-hidden="!expanded">
       <div class="calrow letters">
