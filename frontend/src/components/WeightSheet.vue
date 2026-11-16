@@ -4,15 +4,18 @@ import type { ConfirmWeighInBody } from "../api";
 import BottomSheet from "./BottomSheet.vue";
 import AccuracyDot from "./AccuracyDot.vue";
 import Icon from "./Icon.vue";
-import WeightChart from "./WeightChart.vue";
+import InfoTip from "./InfoTip.vue";
+import Keypad from "./Keypad.vue";
+import ProgressChart from "./ProgressChart.vue";
+import type { ProgressDay } from "../api";
 import { dayMonth, diffDays, shortDate, todayIso } from "../lib/dates";
-import { toKg, typoGuardDetail, weightRange } from "../lib/units";
-import { parseDecimal } from "../lib/numbers";
+import { kgTo, toKg, typoGuardDetail, weightRange } from "../lib/units";
+import { nudgeTenth, parseDecimal, typeInto } from "../lib/numbers";
 import { earliestNewWeighInDate, gapLabel, isFreshStart, isLowAccuracy, newWeighInDates, trendChange } from "../lib/weightDisplay";
 import { profile, removeWeighIn, saveWeighIn } from "../state/profile";
 import { weightUnit, wt, wtSigned, wtUnit } from "../state/units";
 import { closeSheet, toast, ui } from "../ui";
-import { vp } from "../lib/viewport";
+import { keyboardEntry } from "../lib/viewport";
 import { armReplace } from "../lib/focusField";
 import { afterInsertion, markWholeSelection, nextQuickInput, tookWholeSelection } from "../lib/quickEntry";
 
@@ -178,12 +181,26 @@ const invalid = computed(() => value.value.trim() !== "" && parsed.value === nul
 const low = computed(() => isLowAccuracy(profile.weight));
 const fresh = computed(() => isFreshStart(profile.weight));
 const week = computed(() => trendChange(profile.chart?.series, 7, fresh.value));
-const month = computed(() => trendChange(profile.chart?.series, 29, fresh.value));
-const history = computed(() => profile.weighIns
-  .filter((row) => row.localDate !== ui.weightDate && row.localDate <= today.value)
-  .slice(0, 4));
+
+/** The same chart as Home's Progress → Weight, fed from the sheet's 30-day series. */
+const chartDays = computed<ProgressDay[]>(() => (profile.chart?.series ?? []).map((point) => ({
+  date: point.date, trendKg: point.trendKg, logged: false, kcal: null, protein: null, targetKcal: null, targetProtein: null,
+})));
+const chartWeighIns = computed(() => (profile.chart?.series ?? []).flatMap((point) => (
+  point.realWeighIn && point.weighInKg != null ? [{ date: point.date, kg: point.weighInKg }] : []
+)));
+/** How far the typed weight sits from the trend, in the shown unit. */
+const trendNote = computed(() => {
+  const trend = profile.weight?.trendKg;
+  if (parsed.value == null || trend == null) return "";
+  const gap = Math.round(kgTo(parsed.value - trend, weightUnit()) * 10) / 10;
+  if (gap === 0) return "on the trend";
+  return `${wt(Math.abs(parsed.value - trend))} ${weightUnit()} ${gap < 0 ? "under" : "over"} trend`;
+});
+const saveLabel = computed(() => (parsed.value == null ? "Save" : `Save ${wtUnit(parsed.value)}`));
 
 const hint = computed(() => {
+  if (ownKg.value != null && parsed.value != null) return `Replaces ${ui.weightDate === today.value ? "today's" : "this day's"} ${wtUnit(ownKg.value)}`;
   if (ownKg.value != null) return `${ui.weightDate === today.value ? "Today's" : "This day's"} weigh-in is ${wtUnit(ownKg.value)} · saving replaces it`;
   const earlier = profile.weighIns.filter((row) => row.localDate < ui.weightDate);
   const prev = earlier[0];
@@ -225,6 +242,25 @@ function focusWeight(el: HTMLInputElement | null) {
   replaceFirst.value = true;
   el.focus();
   armReplace(el);
+}
+
+/** The keypad types into the same text the field shows. The first key replaces what is there. */
+function padKey(key: string) {
+  localError.value = "";
+  const start = replaceFirst.value && key !== "⌫" ? "" : value.value;
+  replaceFirst.value = false;
+  value.value = typeInto(start, key, 3, 1);
+}
+
+/** − / + step a tenth from what is typed, or from the last weigh-in when nothing is. */
+function nudge(step: -1 | 1) {
+  const base = parseDecimal(value.value) ?? parseDecimal(placeholder.value);
+  if (base == null) return;
+  const range = weightRange(weightUnit());
+  const next = nudgeTenth(base, step, Number(parseDecimal(range.min)), Number(parseDecimal(range.max)));
+  value.value = next.toFixed(1);
+  replaceFirst.value = true;
+  localError.value = "";
 }
 
 function fix() {
@@ -313,15 +349,15 @@ const diffText = computed(() => (
       </div>
     </template>
     <form class="row wfield" @submit.prevent="save(false)">
-      <label class="base grow">
-        <span class="sr-only">Weight in kilograms</span>
+      <button type="button" class="cbtn" :aria-label="`0.1 ${weightUnit()} less`" @mousedown.prevent @click="nudge(-1)"><Icon name="minus" :size="18" /></button>
+      <label class="base wlabel">
         <span class="autosize">
           <span class="mirror wfig" aria-hidden="true">{{ value || placeholder || "0" }}</span>
-          <input ref="input" data-no-autofocus :value="value" :placeholder="placeholder" data-replace="1" class="wfig winput" size="1" inputmode="decimal" enterkeyhint="done" autocomplete="off" :aria-label="`Weight in ${weightUnit() === 'lb' ? 'pounds' : 'kilograms'}`" @beforeinput="markWholeSelection" @focus="onWeightFocus" @input="onWeightInput" />
+          <input ref="input" data-no-autofocus :value="value" :placeholder="placeholder" data-replace="1" class="wfig winput" size="1" :inputmode="keyboardEntry ? 'decimal' : 'none'" enterkeyhint="done" autocomplete="off" :aria-label="`Weight in ${weightUnit() === 'lb' ? 'pounds' : 'kilograms'}`" @beforeinput="markWholeSelection" @focus="onWeightFocus" @input="onWeightInput" />
         </span>
         <span class="t-head c2">{{ weightUnit() }}</span>
       </label>
-      <button type="button" class="cbtn filled" aria-label="Save weight" :disabled="parsed === null" @click="save(false)"><Icon name="check" :size="20" :sw="2.6" /></button>
+      <button type="button" class="cbtn" :aria-label="`0.1 ${weightUnit()} more`" @mousedown.prevent @click="nudge(1)"><Icon name="plus" :size="18" /></button>
     </form>
     <div v-if="confirm" ref="confirmEl" class="card outline tguard" role="alertdialog" aria-labelledby="tg-h" aria-describedby="tg-d" tabindex="-1">
       <h3 id="tg-h" class="t-head m0">Is {{ wtUnit(confirm.kg) }} right?</h3>
@@ -333,61 +369,42 @@ const diffText = computed(() => (
     </div>
     <p v-if="invalid || localError" class="t-label m0" role="alert">{{ localError || rangeHint }}</p>
     <template v-else-if="onlyWeighIn">
-      <p class="t-capn c3 m0">{{ hint }}</p>
+      <p class="t-capn c2 m0" aria-live="polite">{{ hint }}<template v-if="trendNote"> · {{ trendNote }}</template></p>
       <div class="row only">
         <p class="t-capn c2 m0 grow">This is your only weigh-in, so it can't be deleted.</p>
         <button type="button" class="btn sm secondary t-label" aria-label="Edit your only weigh-in" @click="editOnly"><Icon name="edit" :size="14" /> Edit</button>
       </div>
     </template>
     <div v-else class="row only">
-      <p class="t-capn c2 m0 grow">{{ hint }}</p>
+      <p class="t-capn c2 m0 grow" aria-live="polite">{{ hint }}<template v-if="trendNote"> · {{ trendNote }}</template></p>
       <button v-if="canDelete" type="button" class="btn sm secondary t-label" @click="del"><Icon name="trash" :size="14" /> Delete</button>
     </div>
     <div v-if="!profile.weighIns.length" class="card outline wempty">
       <span class="t-label c2">Your chart starts with this weigh-in</span>
       <span class="t-capn c2">Your trend starts with it, and gets more accurate with 2+ weigh-ins a week.</span>
     </div>
-    <div v-else-if="profile.chart" class="card inset chart-card">
-      <div class="row legend">
+    <section v-else-if="profile.chart" class="col wchart" aria-label="Last 30 days">
+      <div class="chead">
         <span class="t-cap c2 section-title">Last 30 days</span>
         <span class="grow" />
-        <span class="row lg"><i class="dot" /> <span class="t-capn c2">weigh-in</span></span>
-        <span class="row lg"><i class="dash" /> <span class="t-capn c2">trend</span></span>
+        <span v-if="profile.weight?.trendKg != null" class="row trendline t-capn c2" data-trend-line>
+          <span>Trend {{ wtUnit(profile.weight.trendKg) }}<template v-if="week != null"> · {{ wtSigned(week) }} {{ weightUnit() }} this week</template></span>
+          <AccuracyDot v-if="low" from="weight" />
+        </span>
+        <InfoTip label="What is the trend?">The trend smooths out day-to-day swings (water, salt, food), so one high or low weigh-in barely moves it.<template v-if="low"> It is low accuracy until you weigh in 2+ times a week.</template></InfoTip>
       </div>
-      <WeightChart :series="profile.chart.series" :fluid="vp.tablet" />
-    </div>
+      <ProgressChart page="weight" title="Weight" range="30d" :days="chartDays" :intake="[]" :weigh-ins="chartWeighIns" :selected="ui.weightDate" unit="" :pan="0" :preview="parsed" />
+    </section>
     <div v-if="fresh && profile.weight?.freshStart" class="card outline fresh">
       <span class="t-bodys">Fresh start</span>
       <span class="t-label c2">It had been {{ gapLabel(profile.weight.freshStart.daysSincePrevious) }} since the weigh-in before, so the trend restarted from this one. No line is drawn across the gap.</span>
     </div>
-    <div v-if="profile.weight?.trendKg != null" class="row stats">
-      <div class="col grow">
-        <span class="row lblrow"><span class="t-capm c2">Trend</span><AccuracyDot v-if="low" from="weight" /></span>
-        <span class="base"><span class="t-ns">{{ wt(profile.weight.trendKg) }}</span><span class="t-label c2">{{ weightUnit() }}</span></span>
-        <span v-if="low" class="t-capn c2">low accuracy</span>
+    <template #footer>
+      <div class="wfoot" @mousedown.prevent>
+        <Keypad v-if="!keyboardEntry" @key="padKey" />
+        <button type="button" class="btn primary block t-bodys" :disabled="parsed === null" @click="save(false)">{{ saveLabel }}</button>
       </div>
-      <div class="col grow">
-        <span class="t-capm c2">This week</span>
-        <span class="base">
-          <template v-if="week != null"><span class="t-ns">{{ wtSigned(week) }}</span><span class="t-label c2">{{ weightUnit() }}</span></template>
-          <span v-else class="t-ns c2"><span aria-hidden="true">—</span><span class="sr-only">{{ fresh ? "not available after a fresh start" : "not available yet" }}</span></span>
-        </span>
-      </div>
-      <div class="col grow">
-        <span class="t-capm c2">30 days</span>
-        <span class="base">
-          <template v-if="month != null"><span class="t-ns">{{ wtSigned(month) }}</span><span class="t-label c2">{{ weightUnit() }}</span></template>
-          <span v-else class="t-ns c2"><span aria-hidden="true">—</span><span class="sr-only">{{ fresh ? "not available after a fresh start" : "not available yet" }}</span></span>
-        </span>
-      </div>
-    </div>
-    <p v-if="profile.weight?.trendKg != null" class="t-capn c2 m0">The trend smooths out day-to-day swings (water, salt, food), so one high or low weigh-in barely moves it.</p>
-    <div class="col">
-      <button v-for="row in history" :key="row.localDate" type="button" class="row hrow" @click="ui.weightDate = row.localDate">
-        <span class="t-body c2 grow">{{ shortDate(row.localDate) }}</span>
-        <span class="hval"><span class="t-bodys">{{ wt(row.kg) }}</span><span class="t-label c2"> {{ weightUnit() }}</span></span>
-      </button>
-    </div>
+    </template>
   </BottomSheet>
 </template>
 
@@ -415,36 +432,35 @@ const diffText = computed(() => (
 .dt-l .dayopt .grow { min-width: 0; overflow-wrap: anywhere; }
 .dt-xl .dayopt { flex-wrap: wrap; align-items: flex-start; row-gap: 0; padding: var(--space-s) var(--space-m); }
 .dt-xl .dayopt .grow { flex: 1 1 100%; overflow-wrap: break-word; }
-.wfield { gap: var(--space-m); align-items: center; }
-.wfield label { gap: var(--space-s); min-width: 0; }
+/* − and + sit at the edges, the number in the middle. */
+.wfield { gap: var(--space-s); align-items: center; justify-content: space-between; }
+.wlabel { display: inline-flex; align-items: baseline; justify-content: center; gap: var(--space-s); min-width: 0; flex: 0 1 auto; }
 .autosize { display: inline-grid; min-height: 44px; }
 .autosize > * { grid-area: 1 / 1; }
 .mirror { visibility: hidden; white-space: pre; padding-right: var(--space-xs); }
-.wfig { font-size: 3rem; line-height: 1.1; font-weight: 700; letter-spacing: -0.03em; }
+/* Capped so − and + keep their room at the largest text sizes. */
+.wfig { font-size: min(3rem, 64px); line-height: 1.1; font-weight: 700; letter-spacing: -0.03em; }
+.dt-xl .wfield { flex-wrap: nowrap; }
 .winput {
   width: 0; min-width: 100%; min-height: 44px; background: transparent;
   border: 0; outline: none; box-shadow: none; padding: 0 var(--space-xs); border-radius: var(--radius-m);
-  caret-color: var(--text-primary); font-size: 3rem;
+  caret-color: var(--text-primary); font-size: min(3rem, 64px);
 }
 .winput::placeholder { color: var(--text-tertiary); opacity: 1; }
 .winput:focus, .winput:focus-visible {
   outline: none; border: 0; box-shadow: none;
   background: var(--color-surface-2);
 }
-.cbtn.filled { --s: var(--control-hit); }
-.legend, .lg, .lblrow, .tgb { gap: var(--space-s); }
-.dot { width: 7px; height: 7px; border-radius: 50%; background: rgba(125, 177, 255, .75); display: inline-block; }
-.dash { width: 14px; height: 3px; border-radius: 2px; background: var(--chart-line); display: inline-block; }
-.stats { gap: var(--space-s); align-items: flex-start; flex-wrap: wrap; }
-.stats .col { gap: var(--space-2xs); min-width: 5.5rem; }
+.tgb { gap: var(--space-s); }
+.wchart { gap: var(--space-s); min-width: 0; }
+.trendline { gap: var(--space-xs); min-width: 0; text-align: right; }
+.wchart .chead :deep(.itip) { margin-block: calc((var(--control-hit) - 1rem) / -2); }
+.wfoot { display: flex; flex-direction: column; gap: var(--space-m); }
+.dt-xl .wchart .chead { flex-wrap: wrap; }
 .wempty, .fresh, .tguard { gap: var(--space-s); }
 .card.fresh { border-style: dashed; border-color: var(--text-tertiary); }
 .tgb { flex-wrap: wrap; }
 .tguard:focus-visible { outline: 2px solid var(--text-primary); outline-offset: 2px; }
-.hrow { min-height: 44px; border-top: 1px solid var(--color-border); width: 100%; text-align: left; }
-.dt-xl .hrow { flex-wrap: wrap; align-items: flex-start; }
-.dt-xl .hrow > .grow { flex: 1 0 100%; }
-.hval { display: inline-flex; align-items: baseline; white-space: nowrap; flex: none; }
 .only { gap: var(--space-m); align-items: center; }
 .only p { min-width: 0; text-wrap: pretty; }
 .dt-xl .only { flex-wrap: wrap; }

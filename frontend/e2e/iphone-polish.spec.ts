@@ -58,11 +58,12 @@ test("home, progress, pads, search, and recalculate preview on an iPhone", async
   await page.getByRole("button", { name: "Weigh in" }).click();
   const weight = page.getByRole("dialog", { name: "Log weight" });
   const field = weight.getByRole("textbox", { name: "Weight in kilograms" });
-  await expect(field).toHaveAttribute("inputmode", "decimal");
+  // Phones type with the app's own keypad, so the system keyboard stays down.
+  await expect(field).toHaveAttribute("inputmode", "none");
   await expect(field).not.toBeFocused();
   await expect(field).toHaveValue("");
   await expect(field).toHaveAttribute("placeholder", "83.6");
-  await expect(weight.getByRole("group", { name: "Number keypad" })).toHaveCount(0);
+  await expect(weight.getByRole("group", { name: "Number keypad" })).toHaveCount(1);
   if (test.info().project.name === "chromium") {
     await weight.screenshot({ path: "/opt/cursor/artifacts/iphone38-weight-unfocused.png" });
   }
@@ -78,8 +79,11 @@ test("home, progress, pads, search, and recalculate preview on an iPhone", async
   if (test.info().project.name === "chromium") {
     await weight.screenshot({ path: "/opt/cursor/artifacts/iphone38-weight-focused.png" });
   }
-  await page.keyboard.type("70");
+  const keypad = weight.getByRole("group", { name: "Number keypad" });
+  await keypad.getByRole("button", { name: "7", exact: true }).click();
+  await keypad.getByRole("button", { name: "0", exact: true }).click();
   await expect(field).toHaveValue("70");
+  await expect(weight.getByRole("button", { name: "Save 70.0 kg" })).toBeEnabled();
   await weight.getByRole("button", { name: "Close", exact: true }).click();
 
   await page.getByRole("button", { name: "Log your first food today" }).click();

@@ -144,9 +144,9 @@ test("fresh start asks, and Not now writes nothing", async ({ page }) => {
     await expect(page.getByText("Recalculate your targets from today's weight?")).toBeVisible();
     await expect(page.getByText(/\d[\d,]* → \d[\d,]* kcal/)).toBeVisible();
     await page.getByRole("button", { name: /Open weight|Weigh in/ }).first().click();
-    await expect(page.locator(".stats")).toContainText("—");
-    await expect(page.getByRole("dialog", { name: "Log weight" }).getByText("This week")).toBeVisible();
-    await expect(page.getByText("30 days", { exact: true })).toBeVisible();
+    const sheet = page.getByRole("dialog", { name: "Log weight" });
+    await expect(sheet.getByRole("region", { name: "Last 30 days" })).toBeVisible();
+    await expect(sheet.locator("[data-trend-line]")).toContainText("Trend 90.0 kg");
     await page.getByRole("button", { name: "Close", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Log weight" })).toHaveCount(0);
     await expectClean(page);
@@ -186,10 +186,10 @@ test("typo guard asks inline and Fix it saves nothing", async ({ page }) => {
     await page.getByRole("button", { name: /Open weight|Log weight|Weigh in/ }).first().click();
     await expect(page.getByRole("heading", { name: "Log weight" })).toBeVisible();
     await expect(page.getByText("Last 30 days")).toBeVisible();
-    await expect(page.getByText("weigh-in").first()).toBeVisible();
+    await expect(page.getByRole("dialog", { name: "Log weight" }).getByRole("img", { name: "Weight chart" })).toBeVisible();
     const field = page.getByRole("textbox", { name: "Weight in kilograms" });
     await field.fill("38.6");
-    await page.getByRole("button", { name: "Save weight" }).click();
+    await page.getByRole("button", { name: /^Save( |$)/ }).click();
     await expect(page.getByRole("heading", { name: "Is 38.6 kg right?" })).toBeVisible();
     const guard = page.getByRole("alertdialog");
     await expect(guard).toContainText("83.6 kg");
@@ -203,7 +203,7 @@ test("typo guard asks inline and Fix it saves nothing", async ({ page }) => {
   }
   await page.getByRole("button", { name: /Open weight|Log weight|Weigh in/ }).first().click();
   await page.getByRole("textbox", { name: "Weight in kilograms" }).fill("38.6");
-  await page.getByRole("button", { name: "Save weight" }).click();
+  await page.getByRole("button", { name: /^Save( |$)/ }).click();
   await page.getByRole("button", { name: "Yes, save 38.6 kg", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Log weight" })).toHaveCount(0);
   const saved = await (await page.request.get(`/api/weigh-ins?from=${when.today}&to=${when.today}`, { headers: headers(oid) })).json();
@@ -223,7 +223,7 @@ test("a back-dated weigh-in is checked against the day before it", async ({ page
   await page.getByRole("button", { name: "Weigh-in day" }).click();
   await page.getByRole("option").nth(1).click();
   await page.getByRole("textbox", { name: "Weight in kilograms" }).fill("90");
-  await page.getByRole("button", { name: "Save weight" }).click();
+  await page.getByRole("button", { name: /^Save( |$)/ }).click();
   await expect(page.getByRole("heading", { name: "Is 90.0 kg right?" })).toBeVisible();
   const guard = page.getByRole("alertdialog");
   await expect(guard).toContainText("83.6 kg");
@@ -278,7 +278,7 @@ test("35.2b editing the only weigh-in updates the trend", async ({ page }) => {
   await openApp(page, oid, 390);
   await page.getByRole("button", { name: /Open weight|Log weight|Weigh in/ }).first().click();
   await page.getByRole("textbox", { name: "Weight in kilograms" }).fill("84");
-  await page.getByRole("button", { name: "Save weight" }).click();
+  await page.getByRole("button", { name: /^Save( |$)/ }).click();
   await expect(page.getByRole("heading", { name: "Log weight" })).toHaveCount(0);
   await expect(page.locator("[data-home-summary]")).toContainText("84.0");
   const trend = await (await page.request.get("/api/weight/trend", { headers: headers(oid) })).json();
@@ -308,11 +308,11 @@ test("35.7b weights outside 30 to 300 kg are rejected in the sheet", async ({ pa
   const field = page.getByRole("textbox", { name: "Weight in kilograms" });
   await field.fill("29.9");
   await expect(page.getByRole("alert")).toContainText("between 30 and 300");
-  await expect(page.getByRole("button", { name: "Save weight" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: /^Save( |$)/ })).toBeDisabled();
   await field.fill("300.1");
   await expect(page.getByRole("alert")).toContainText("between 30 and 300");
   await field.fill("300");
-  await page.getByRole("button", { name: "Save weight" }).click();
+  await page.getByRole("button", { name: /^Save( |$)/ }).click();
   await expect(page.getByRole("heading", { name: "Is 300.0 kg right?" })).toBeVisible();
 });
 

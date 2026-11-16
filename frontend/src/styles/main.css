@@ -422,6 +422,6 @@ input, select { font-size: 1rem; }
     font-size: max(16px, 1rem);
   }
   input.winput:not(.t-dxl):not(.t-dl):not(.t-nm) {
-    font-size: 3rem;
+    font-size: min(3rem, 64px);
   }
 }

@@ -226,29 +226,24 @@ test("day kilograms, autosized input, 1 kg axis, and the typo confirmation", asy
     const field = page.getByRole("textbox", { name: "Weight in kilograms" });
     const sized = await field.evaluate((input) => {
       const box = input.getBoundingClientRect();
-      const label = input.closest("label")!.getBoundingClientRect();
-      return { width: box.width, height: box.height, label: label.width };
+      const row = input.closest("form")!.getBoundingClientRect();
+      return { width: box.width, height: box.height, row: row.width };
     });
     expect(sized.height).toBeGreaterThanOrEqual(44);
-    expect(sized.width).toBeLessThan(sized.label * 0.75);
+    // The field grows with the number instead of filling the row between − and +.
+    expect(sized.width).toBeLessThan(sized.row / 2);
     const sheet = page.getByRole("dialog", { name: "Log weight" });
-    await expect(sheet.locator(".ymark").first()).toBeVisible();
-    const marks = await sheet.locator(".ymark").evaluateAll((nodes) => nodes.map((node) => Number((node as HTMLElement).dataset.kg)));
-    expect(marks.length).toBeGreaterThan(1);
-    const sorted = [...marks].sort((a, b) => b - a);
-    for (let index = 1; index < sorted.length; index += 1) {
-      expect(sorted[index - 1] - sorted[index]).toBeCloseTo(1, 5);
-    }
-    if (width === 820) {
-      const boxes = await sheet.locator(".ymark").evaluateAll((nodes) => nodes.map((node) => node.getBoundingClientRect().toJSON()));
-      for (let index = 0; index < boxes.length; index += 1) {
-        for (let other = index + 1; other < boxes.length; other += 1) {
-          expect(intersects(boxes[index], boxes[other])).toBe(false);
-        }
+    // The sheet uses Home's chart: weight labels sit in their own column and never overlap.
+    await expect(sheet.locator(".ylab").first()).toBeVisible();
+    const boxes = await sheet.locator(".ylab").evaluateAll((nodes) => nodes.map((node) => node.getBoundingClientRect().toJSON()));
+    expect(boxes.length).toBeGreaterThan(1);
+    for (let index = 0; index < boxes.length; index += 1) {
+      for (let other = index + 1; other < boxes.length; other += 1) {
+        expect(intersects(boxes[index], boxes[other])).toBe(false);
       }
     }
     await field.fill("38.6");
-    await page.getByRole("button", { name: "Save weight" }).click();
+    await page.getByRole("button", { name: /^Save( |$)/ }).click();
     const guard = page.getByRole("alertdialog");
     await expect(guard.getByRole("button", { name: "Yes, save 38.6 kg", exact: true })).toBeVisible();
     await expect(guard).toHaveCSS("border-top-color", "rgb(110, 116, 130)");
@@ -316,7 +311,7 @@ test("only weigh-in offers Edit, and one reading labels its own kilogram", async
     expect(editBox?.height).toBeGreaterThanOrEqual(43.9);
     const lineBox = await line.boundingBox();
     expect(lineBox?.height).toBeLessThan(44);
-    await expect(sheet.locator(".ymark", { hasText: "83.6" })).toBeVisible();
+    await expect(sheet.locator(".ylab").first()).toBeVisible();
     await edit.click();
     const field = sheet.getByRole("textbox", { name: "Weight in kilograms" });
     await expect(field).toBeFocused();
@@ -560,18 +555,16 @@ test("large text keeps the close button, units, and the info hit target", async 
       return "ok";
     }).toBe("ok");
 
-    const historyRow = sheet.locator(".hrow").first();
-    const history = historyRow.locator(".hval");
-    await history.scrollIntoViewIfNeeded();
-    expect((await history.innerText()).replace(/\s+/g, " ").trim()).toBe("80.0 kg");
-    const historyLines = await history.evaluate((node) => node.getClientRects().length);
-    expect(historyLines).toBe(1);
-    if (px >= 28) {
-      const dateBox = await historyRow.locator(".t-body").boundingBox();
-      const valueBox = await history.boundingBox();
-      expect(dateBox && valueBox).toBeTruthy();
-      expect(valueBox!.y).toBeGreaterThanOrEqual(dateBox!.y + dateBox!.height - 1);
-    }
+    // − and + stay on the number's row, and the sheet never scrolls sideways.
+    // Measured in one pass so the sheet's slide-in can't skew one box against another.
+    await expect.poll(() => sheet.locator("form.wfield").evaluate((row) => {
+      const [less, more] = [...row.querySelectorAll(":scope > button")].map((node) => node.getBoundingClientRect());
+      const input = row.querySelector("input")!.getBoundingClientRect();
+      const sameRow = Math.abs(less.top - more.top) < 1 && less.top < input.bottom && less.bottom > input.top;
+      return sameRow ? "ok" : JSON.stringify({ less: less.top, more: more.top, input: [input.top, input.bottom] });
+    })).toBe("ok");
+    const sideways = await sheet.locator(".sheet-body").evaluate((node) => node.scrollWidth - node.clientWidth);
+    expect(sideways).toBeLessThanOrEqual(1);
 
     if (px === 53) {
       await sheet.getByRole("button", { name: "Weigh-in day" }).click();

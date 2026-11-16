@@ -152,7 +152,9 @@ test("home title, progress pickers, and remembered metric", async ({ page }) => 
   await page.getByRole("button", { name: "Weigh in" }).click();
   const sheet = page.getByRole("dialog", { name: "Log weight" });
   const field = sheet.getByRole("textbox", { name: "Weight in kilograms" });
-  await expect(field).toHaveAttribute("inputmode", "decimal");
+  // The phone sheet types on the app keypad, so the system keyboard stays down.
+  await expect(field).toHaveAttribute("inputmode", "none");
+  await expect(sheet.getByRole("group", { name: "Number keypad" })).toBeVisible();
   await expect(field).not.toBeFocused();
   await page.keyboard.press("Escape");
   const topAfter = await main.getByRole("heading", { level: 1 }).evaluate((el) => el.offsetTop);
