@@ -1122,14 +1122,22 @@ namespace GymBro.Api.Data.Migrations
                         .HasColumnName("goal");
 
                     b.Property<decimal>("GoalWeightKg")
-                        .HasPrecision(5, 1)
-                        .HasColumnType("numeric(5,1)")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("numeric(5,2)")
                         .HasColumnName("goal_weight_kg");
 
                     b.Property<decimal>("HeightCm")
                         .HasPrecision(5, 1)
                         .HasColumnType("numeric(5,1)")
                         .HasColumnName("height_cm");
+
+                    b.Property<string>("HeightUnit")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(4)
+                        .HasColumnType("character varying(4)")
+                        .HasDefaultValue("cm")
+                        .HasColumnName("height_unit");
 
                     b.Property<bool>("NotifyRecalculate")
                         .ValueGeneratedOnAdd()
@@ -1180,6 +1188,14 @@ namespace GymBro.Api.Data.Migrations
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("updated_at");
+
+                    b.Property<string>("WeightUnit")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(4)
+                        .HasColumnType("character varying(4)")
+                        .HasDefaultValue("kg")
+                        .HasColumnName("weight_unit");
 
                     b.HasKey("UserId");
 
@@ -2008,8 +2024,8 @@ namespace GymBro.Api.Data.Migrations
                         .HasColumnName("id");
 
                     b.Property<decimal>("Kg")
-                        .HasPrecision(5, 1)
-                        .HasColumnType("numeric(5,1)")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("numeric(5,2)")
                         .HasColumnName("kg");
 
                     b.Property<DateOnly>("LocalDate")

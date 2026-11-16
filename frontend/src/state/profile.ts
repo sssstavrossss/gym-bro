@@ -24,7 +24,6 @@ import {
   type WeighInWriteResult,
 } from "../api";
 import { todayInZone } from "../lib/dates";
-import { kg } from "../lib/format";
 import {
   ACTIVITY,
   DEFAULT_FAT,
@@ -37,25 +36,47 @@ import {
   type MacroSetting,
   type Sex,
 } from "../lib/nutrition";
-import { formatGoalWeight } from "../lib/format";
 import { atMostOneDecimal, formatMeasure, parseDecimal, sameNumber } from "../lib/numbers";
+import {
+  cmToFtIn,
+  goalText,
+  heightRangeError,
+  heightUnitOf,
+  KG_PER_LB,
+  parseFtIn,
+  parseWeight,
+  rateText,
+  weightRangeError,
+  weightText,
+  weightUnitOf,
+  type HeightUnit,
+  type WeightUnit,
+} from "../lib/units";
 import { isFreshStart, isLowAccuracy, profileTrendLabel } from "../lib/weightDisplay";
 import { boot } from "./boot";
 
 export interface ProfileForm {
   sex: Sex | "";
   birthYear: string;
+  /** Height when it is shown in cm. */
   heightCm: string;
+  /** Height when it is shown in feet and inches. */
+  heightFt: string;
+  heightIn: string;
   activity: ActivityKey | "";
   goal: Goal | "";
   rate: string;
-  goalWeightKg: string;
-  weighInKg: string;
+  /** Goal and first weigh-in as typed, in weightUnit. */
+  goalWeight: string;
+  weighIn: string;
   proteinSetting: MacroSetting;
   proteinGramsPerKg: string;
   fatSetting: MacroSetting;
   fatPercent: string;
   timeZone: string;
+  /** Display units. Saved as settings, not with the targets. */
+  weightUnit: WeightUnit;
+  heightUnit: HeightUnit;
 }
 
 export function deviceTimeZone(): string {
@@ -71,16 +92,20 @@ export function emptyForm(): ProfileForm {
     sex: "",
     birthYear: "",
     heightCm: "",
+    heightFt: "",
+    heightIn: "",
     activity: "",
     goal: "",
     rate: "",
-    goalWeightKg: "",
-    weighInKg: "",
+    goalWeight: "",
+    weighIn: "",
     proteinSetting: "normal",
     proteinGramsPerKg: DEFAULT_PROTEIN.toFixed(1),
     fatSetting: "normal",
     fatPercent: String(DEFAULT_FAT),
     timeZone: deviceTimeZone(),
+    weightUnit: "kg",
+    heightUnit: "cm",
   };
 }
 
@@ -90,22 +115,64 @@ function formatRate(rate: number | null): string {
   return String(rate);
 }
 
+/** Feet and inches for the form. Whole inches stay bare ("5", "11.7"). */
+function ftInFields(cm: number): { heightFt: string; heightIn: string } {
+  const { ft, inches } = cmToFtIn(cm);
+  return { heightFt: String(ft), heightIn: formatMeasure(inches) };
+}
+
 export function formFromProfile(profile: ProfileResponse): ProfileForm {
+  const weightUnit = weightUnitOf(profile.weightUnit);
   return {
     sex: profile.sex,
     birthYear: String(profile.birthYear),
     heightCm: formatMeasure(profile.heightCm),
+    ...ftInFields(profile.heightCm),
     activity: profile.activity as ActivityKey,
     goal: profile.goal,
     rate: formatRate(profile.rateKgPerWeek),
-    goalWeightKg: formatGoalWeight(profile.goalWeightKg),
-    weighInKg: "",
+    goalWeight: goalText(profile.goalWeightKg, weightUnit),
+    weighIn: "",
     proteinSetting: profile.proteinSetting as MacroSetting,
     proteinGramsPerKg: profile.proteinGramsPerKg.toFixed(1),
     fatSetting: profile.fatSetting as MacroSetting,
     fatPercent: formatMeasure(profile.fatPercent),
     timeZone: profile.timeZone,
+    weightUnit,
+    heightUnit: heightUnitOf(profile.heightUnit),
   };
+}
+
+/**
+ * Moves the typed weights and height to new units. A field that still shows the saved value is re-derived from it,
+ * so 80 kg doesn't drift to 80.01 kg through 176.4 lb.
+ */
+export function convertFormUnits(form: ProfileForm, weightUnit: WeightUnit, heightUnit: HeightUnit, saved: ProfileResponse | null): void {
+  if (form.weightUnit !== weightUnit) {
+    const from = form.weightUnit;
+    const goalKg = saved && sameNumber(form.goalWeight, Number(goalText(saved.goalWeightKg, from)))
+      ? saved.goalWeightKg
+      : looseKg(form.goalWeight, from);
+    if (goalKg != null) form.goalWeight = goalText(goalKg, weightUnit);
+    const weighInKg = looseKg(form.weighIn, from);
+    if (weighInKg != null) form.weighIn = weightText(weighInKg, weightUnit);
+    form.weightUnit = weightUnit;
+  }
+  if (form.heightUnit !== heightUnit) {
+    const cm = form.heightUnit === "cm" ? parseDecimal(form.heightCm) : parseFtIn(form.heightFt, form.heightIn);
+    const exact = saved && cm != null && Math.abs(cm - saved.heightCm) < 0.2 ? saved.heightCm : cm;
+    if (exact != null) {
+      form.heightCm = formatMeasure(exact);
+      Object.assign(form, ftInFields(exact));
+    }
+    form.heightUnit = heightUnit;
+  }
+}
+
+function looseKg(raw: string, unit: WeightUnit): number | null {
+  const value = parseDecimal(raw);
+  if (value == null) return null;
+  return unit === "lb" ? value * KG_PER_LB : value;
 }
 
 interface Draft {
@@ -115,7 +182,7 @@ interface Draft {
 }
 
 function draftKey(accountId: string): string {
-  return `gymbro-draft:${accountId}`;
+  return `gymbro-draft:v2:${accountId}`;
 }
 
 export const profile = reactive({
@@ -183,11 +250,11 @@ export function isDirty(): boolean {
   const form = profile.form;
   return form.sex !== saved.sex
     || form.birthYear !== String(saved.birthYear)
-    || !sameNumber(form.heightCm, saved.heightCm)
+    || heightChanged(form, saved)
     || form.activity !== saved.activity
     || form.goal !== saved.goal
     || !sameRate(form.rate, saved.rateKgPerWeek)
-    || !sameNumber(form.goalWeightKg, saved.goalWeightKg)
+    || !sameNumber(form.goalWeight, Number(goalText(saved.goalWeightKg, form.weightUnit)))
     || form.proteinSetting !== saved.proteinSetting
     || !sameNumber(form.proteinGramsPerKg, saved.proteinGramsPerKg)
     || form.fatSetting !== saved.fatSetting
@@ -195,21 +262,45 @@ export function isDirty(): boolean {
     || form.timeZone !== saved.timeZone;
 }
 
+function heightChanged(form: ProfileForm, saved: ProfileResponse): boolean {
+  if (form.heightUnit === "cm") return !sameNumber(form.heightCm, saved.heightCm);
+  const shown = ftInFields(saved.heightCm);
+  return !sameNumber(form.heightFt, Number(shown.heightFt)) || !sameNumber(form.heightIn.trim() || "0", Number(shown.heightIn));
+}
+
+/** Centimetres typed before a switch to feet stay exact while the feet and inches still show them. */
+function typedCmStillShown(form: ProfileForm): number | null {
+  const typed = parseDecimal(form.heightCm);
+  if (typed == null || !atMostOneDecimal(typed) || typed < 100 || typed > 250) return null;
+  const shown = ftInFields(typed);
+  return sameNumber(form.heightFt, Number(shown.heightFt)) && sameNumber(form.heightIn.trim() || "0", Number(shown.heightIn)) ? typed : null;
+}
+
 function sameRate(raw: string, rate: number | null): boolean {
   if (rate == null) return raw.trim() === "";
   return sameNumber(raw, rate);
 }
 
-export function buildBody(form: ProfileForm, year = new Date().getFullYear()): { body: ProfileBody } | { error: string } {
+/**
+ * The profile as the API takes it: kilograms and centimetres. With `saved`, a weight or height that still shows the
+ * saved value sends that value, so a round trip through pounds or feet never nudges it.
+ */
+export function buildBody(form: ProfileForm, saved: ProfileResponse | null = null, year = new Date().getFullYear()): { body: ProfileBody } | { error: string } {
   if (form.sex !== "male" && form.sex !== "female") return { error: "Choose male or female." };
   const birthYear = Number(form.birthYear);
   if (!/^\d{4}$/.test(form.birthYear.trim()) || birthYear < year - 100 || birthYear > year - 13) {
     return { error: "Enter a birth year that makes you between 13 and 100." };
   }
-  const height = parseDecimal(form.heightCm);
-  if (height == null || !atMostOneDecimal(height) || height < 100 || height > 250) {
-    return { error: "Height should be between 100 and 250 cm, with at most one decimal." };
+  let height: number | null;
+  if (saved && !heightChanged(form, saved)) {
+    height = saved.heightCm;
+  } else if (form.heightUnit === "ftin") {
+    height = typedCmStillShown(form) ?? parseFtIn(form.heightFt, form.heightIn);
+  } else {
+    const cm = parseDecimal(form.heightCm);
+    height = cm != null && atMostOneDecimal(cm) && cm >= 100 && cm <= 250 ? cm : null;
   }
+  if (height == null) return { error: heightRangeError(form.heightUnit) };
   if (!form.activity || !(form.activity in ACTIVITY)) return { error: "Choose an activity level." };
   if (form.goal !== "lose" && form.goal !== "maintain" && form.goal !== "gain") {
     return { error: "Choose lose, maintain, or gain." };
@@ -218,14 +309,15 @@ export function buildBody(form: ProfileForm, year = new Date().getFullYear()): {
   if (form.goal !== "maintain") {
     const parsed = parseDecimal(form.rate);
     if (parsed == null || !RATES.some((item) => Math.abs(item - parsed) < 1e-6)) {
-      return { error: "Choose a rate of 0.25, 0.5, 0.75, or 1.0 kg per week." };
+      const rates = RATES.map((item) => rateText(item, form.weightUnit));
+      return { error: `Choose a rate of ${rates.slice(0, -1).join(", ")}, or ${rates.at(-1)} ${form.weightUnit} per week.` };
     }
     rate = parsed;
   }
-  const goalWeight = parseDecimal(form.goalWeightKg);
-  if (goalWeight == null || !atMostOneDecimal(goalWeight) || goalWeight < 30 || goalWeight > 300) {
-    return { error: "Goal weight should be between 30 and 300 kg, with one decimal." };
-  }
+  const goalWeight = saved && sameNumber(form.goalWeight, Number(goalText(saved.goalWeightKg, form.weightUnit)))
+    ? saved.goalWeightKg
+    : parseWeight(form.goalWeight, form.weightUnit);
+  if (goalWeight == null) return { error: weightRangeError("Goal weight", form.weightUnit) };
   const protein = parseDecimal(form.proteinGramsPerKg);
   if (protein == null || !proteinAllowed(form.proteinSetting, protein)) {
     return { error: "Protein should be 1.6, 2.0, or 2.4 g/kg, or an exact value from 1.2 to 3.0 in steps of 0.1." };
@@ -285,7 +377,7 @@ async function loadChart(): Promise<void> {
     profile.proposal = null;
     const weight = profile.weight;
     if (weight?.freshStart?.recalculatePending && profile.saved) {
-      const built = buildBody(formFromProfile(profile.saved));
+      const built = buildBody(formFromProfile(profile.saved), profile.saved);
       if (!("error" in built)) profile.proposal = await previewTargets(built.body);
     }
   } catch (error) {
@@ -320,6 +412,10 @@ export async function loadProfile(): Promise<void> {
     if (draft) {
       profile.form = { ...emptyForm(), ...draft.form };
       profile.hasSaved = state.profile !== null;
+      // Units are the account's. A draft typed before they changed elsewhere moves to them.
+      if (state.profile) {
+        convertFormUnits(profile.form, weightUnitOf(state.profile.weightUnit), heightUnitOf(state.profile.heightUnit), state.profile);
+      }
     } else if (state.profile) {
       profile.form = formFromProfile(state.profile);
       profile.hasSaved = true;
@@ -343,12 +439,39 @@ export async function loadProfile(): Promise<void> {
   }
 }
 
-/** Settings saved on their own (time zone). The form follows, so the profile never looks unsaved. */
+/** Settings saved on their own (time zone, units). The form follows, so the profile never looks unsaved. */
 export function applySettings(settings: SettingsResponse): void {
+  const weightUnit = weightUnitOf(settings.weightUnit);
+  const heightUnit = heightUnitOf(settings.heightUnit);
   if (profile.saved) {
-    profile.saved = { ...profile.saved, timeZone: settings.timeZone, timeZoneFollowsDevice: settings.timeZoneFollowsDevice };
+    profile.saved = {
+      ...profile.saved,
+      timeZone: settings.timeZone,
+      timeZoneFollowsDevice: settings.timeZoneFollowsDevice,
+      weightUnit,
+      heightUnit,
+    };
   }
   profile.form.timeZone = settings.timeZone;
+  convertFormUnits(profile.form, weightUnit, heightUnit, profile.saved);
+}
+
+/**
+ * Saves the display units on the account. The screen switches at once and switches back if the save fails.
+ * Before there is a profile (Setup) they only change the form; saveSetup saves them. Returns an error, or "".
+ */
+export async function setUnits(weightUnit: WeightUnit, heightUnit: HeightUnit): Promise<string> {
+  const before = { weightUnit: profile.form.weightUnit, heightUnit: profile.form.heightUnit };
+  convertFormUnits(profile.form, weightUnit, heightUnit, profile.saved);
+  if (!profile.saved) return "";
+  try {
+    applySettings(await putSettings({ weightUnit, heightUnit }));
+    return "";
+  } catch (error) {
+    convertFormUnits(profile.form, before.weightUnit, before.heightUnit, profile.saved);
+    if (error instanceof ServerUnreachable) return "Server unreachable, so the units weren't changed.";
+    return error instanceof ApiError ? error.message : "Couldn't save the units.";
+  }
 }
 
 /** Keeps the profile on this device's zone, unless a zone was picked by hand. Quiet on failure; it retries next start. */
@@ -365,7 +488,7 @@ export async function followDeviceZone(): Promise<void> {
 }
 
 export async function commitProfile(): Promise<boolean> {
-  const built = buildBody(profile.form);
+  const built = buildBody(profile.form, profile.saved);
   if ("error" in built) {
     profile.error = built.error;
     return false;
@@ -393,12 +516,13 @@ export async function commitProfile(): Promise<boolean> {
 }
 
 export async function saveSetup(): Promise<boolean> {
-  const kg = parseDecimal(profile.form.weighInKg);
-  if (kg == null || !atMostOneDecimal(kg) || kg < 30 || kg > 300) {
-    profile.error = "Enter a first weigh-in between 30 and 300 kg.";
+  const unit = profile.form.weightUnit;
+  const kg = parseWeight(profile.form.weighIn, unit);
+  if (kg == null) {
+    profile.error = weightRangeError("Your first weigh-in", unit);
     return false;
   }
-  const built = buildBody(profile.form);
+  const built = buildBody(profile.form, profile.saved);
   if ("error" in built) {
     profile.error = built.error;
     return false;
@@ -414,8 +538,10 @@ export async function saveSetup(): Promise<boolean> {
     }
     const state = await putProfile(built.body);
     applyState(state);
+    const units = { weightUnit: profile.form.weightUnit, heightUnit: profile.form.heightUnit };
+    if (units.weightUnit !== "kg" || units.heightUnit !== "cm") applySettings(await putSettings(units));
     await loadChart();
-    profile.form.weighInKg = "";
+    profile.form.weighIn = "";
     profile.error = "";
     profile.offline = false;
     clearDraft();
@@ -429,8 +555,8 @@ export async function saveSetup(): Promise<boolean> {
 }
 
 export async function saveWeighIn(date: string, kg: number, confirm = false): Promise<WeighInWriteResult | null> {
-  if (!atMostOneDecimal(kg) || kg < 30 || kg > 300) {
-    profile.error = "Weight should be between 30 and 300 kg, with one decimal.";
+  if (Math.abs(Math.round(kg * 100) - kg * 100) > 1e-6 || kg < 30 || kg > 300) {
+    profile.error = weightRangeError("Weight", profile.form.weightUnit);
     return null;
   }
   try {
@@ -490,7 +616,7 @@ async function refreshPreview(): Promise<void> {
     profile.preview = null;
     return;
   }
-  const built = buildBody(profile.form);
+  const built = buildBody(profile.form, profile.saved);
   if ("error" in built) return;
   try {
     profile.preview = await previewTargets(built.body);
@@ -514,13 +640,13 @@ export async function retryLoad(): Promise<void> {
   if (profile.hasSaved && isDirty()) await refreshPreview();
 }
 
-export function weightCaption(weight: WeightResponse | null): { label: string; value: string; note: string; low: boolean; fresh: boolean } {
+export function weightCaption(weight: WeightResponse | null, unit: WeightUnit = "kg"): { label: string; value: string; note: string; low: boolean; fresh: boolean } {
   const low = isLowAccuracy(weight);
   const fresh = isFreshStart(weight);
   if (weight?.trendKg != null) {
     return {
       label: profileTrendLabel(weight),
-      value: `${kg(weight.trendKg)} kg`,
+      value: `${weightText(weight.trendKg, unit)} ${unit}`,
       note: low ? "low accuracy" : fresh ? "fresh start" : "",
       low,
       fresh,

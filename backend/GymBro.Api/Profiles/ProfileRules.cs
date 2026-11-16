@@ -121,9 +121,9 @@ public static class ProfileRules
             return "Enter a goal weight.";
         }
 
-        if (!NutritionMath.AtMostOneDecimal(request.GoalWeightKg) || request.GoalWeightKg < 30 || request.GoalWeightKg > 300)
+        if (!NutritionMath.AtMostTwoDecimals(request.GoalWeightKg) || request.GoalWeightKg < 30 || request.GoalWeightKg > 300)
         {
-            return "Goal weight should be between 30 and 300 kg, with one decimal.";
+            return "Goal weight should be between 30 and 300 kg, with at most two decimals.";
         }
 
         var proteinSetting = Lower(request.ProteinSetting);

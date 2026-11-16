@@ -85,7 +85,7 @@ public static class WeighInEndpoints
             return ApiResults.Error(DateWindowMessage);
         }
 
-        var kg = decimal.Round(body.Kg, 1, MidpointRounding.AwayFromZero);
+        var kg = decimal.Round(body.Kg, 2, MidpointRounding.AwayFromZero);
         if (!body.Confirm)
         {
             var guard = await TypoGuardAsync(db, userId, localDate, kg, existing is null, cancellationToken);
@@ -410,9 +410,9 @@ public static class WeighInEndpoints
             return (0, null, false, "Enter a weight, using a comma or a point.");
         }
 
-        if (!NutritionMath.AtMostOneDecimal(kg) || kg < 30 || kg > 300)
+        if (!NutritionMath.AtMostTwoDecimals(kg) || kg < 30 || kg > 300)
         {
-            return (0, null, false, "Weight should be between 30 and 300 kg, with one decimal.");
+            return (0, null, false, "Weight should be between 30 and 300 kg, with at most two decimals.");
         }
 
         string? timeZone = null;

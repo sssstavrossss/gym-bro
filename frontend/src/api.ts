@@ -53,6 +53,9 @@ export interface ProfileResponse {
   timeZone: string;
   /** The app keeps timeZone on the device's zone. False once a zone was picked by hand. */
   timeZoneFollowsDevice?: boolean;
+  /** Display units. Values stay in kg and cm. */
+  weightUnit?: "kg" | "lb";
+  heightUnit?: "cm" | "ftin";
 }
 
 export type TrendState = "normal" | "low_accuracy" | "fresh_start";
@@ -423,11 +426,15 @@ export async function putProfile(body: ProfileBody): Promise<ProfileStateRespons
 export interface SettingsBody {
   timeZone?: string;
   timeZoneFollowsDevice?: boolean;
+  weightUnit?: "kg" | "lb";
+  heightUnit?: "cm" | "ftin";
 }
 
 export interface SettingsResponse {
   timeZone: string;
   timeZoneFollowsDevice: boolean;
+  weightUnit: "kg" | "lb";
+  heightUnit: "cm" | "ftin";
 }
 
 /** Display preferences. Saving one never changes the targets or adds history. */

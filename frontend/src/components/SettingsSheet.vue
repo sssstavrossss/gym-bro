@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from "vue";
 import BottomSheet from "./BottomSheet.vue";
+import Segmented from "./Segmented.vue";
 import Icon from "./Icon.vue";
 import { putSettings } from "../api";
 import { signOut } from "../auth/session";
@@ -8,7 +9,8 @@ import { buildLabel } from "../lib/buildInfo";
 import { applyTheme, readTheme, themes, type ThemeId } from "../lib/theme";
 import { allZones, searchZones, suggestedZones, zoneLabel, zoneOffset, zoneTime } from "../lib/timeZones";
 import { boot } from "../state/boot";
-import { applySettings, clearAllDrafts, deviceTimeZone, profile } from "../state/profile";
+import type { HeightUnit, WeightUnit } from "../lib/units";
+import { applySettings, clearAllDrafts, deviceTimeZone, profile, setUnits } from "../state/profile";
 import { closeSheet, ui } from "../ui";
 
 const open = computed(() => ui.sheet === "settings");
@@ -32,6 +34,7 @@ watch(open, (value) => {
   view.value = "main";
   query.value = "";
   error.value = "";
+  unitsError.value = "";
   theme.value = readTheme();
 });
 
@@ -62,6 +65,14 @@ async function save(body: { timeZone: string; timeZoneFollowsDevice: boolean }) 
   }
 }
 
+const unitsError = ref("");
+async function chooseWeight(unit: WeightUnit) {
+  unitsError.value = await setUnits(unit, profile.form.heightUnit);
+}
+async function chooseHeight(unit: HeightUnit) {
+  unitsError.value = await setUnits(profile.form.weightUnit, unit);
+}
+
 async function onSignOut() {
   if (!boot.config) return;
   clearAllDrafts();
@@ -88,6 +99,20 @@ async function onSignOut() {
             <span class="t-label">{{ item.label }}</span>
           </button>
         </div>
+      </section>
+
+      <section class="col group" aria-labelledby="set-units" data-units>
+        <h3 id="set-units" class="t-cap c3 m0">Units</h3>
+        <div class="frow urow">
+          <span class="t-body grow">Weight</span>
+          <Segmented label="Weight unit" :model-value="profile.form.weightUnit" :options="[{ value: 'kg', label: 'kg' }, { value: 'lb', label: 'lb' }]" @update:model-value="chooseWeight" />
+        </div>
+        <div class="frow urow">
+          <span class="t-body grow">Height</span>
+          <Segmented label="Height unit" :model-value="profile.form.heightUnit" :options="[{ value: 'cm', label: 'cm' }, { value: 'ftin', label: 'ft·in', ariaLabel: 'feet and inches' }]" @update:model-value="chooseHeight" />
+        </div>
+        <span class="t-capn c2">Food stays in grams.</span>
+        <p v-if="unitsError" class="t-body m0" role="alert">{{ unitsError }}</p>
       </section>
 
       <section class="col group" aria-labelledby="set-region">
@@ -171,6 +196,11 @@ async function onSignOut() {
 .frow .grow { min-width: 0; gap: 2px; }
 .zval { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 55%; }
 .fchev { color: var(--text-tertiary); flex: none; }
+/* The compact segmented control from Profile (Sex), with a 44px hit area. */
+.urow { min-height: var(--control-hit); }
+.urow :deep(.seg) { width: 132px; flex: none; min-height: 30px; padding: 3px; border-radius: 10px; }
+html:not(.dt-xl) .urow :deep(.seg-btn) { min-width: 44px; min-height: 24px; padding: 2px 8px; border-radius: 8px; }
+html:not(.dt-xl) .urow :deep(.seg-btn)::after { content: ""; position: absolute; inset: min(0px, calc((100% - 44px) / 2)) 0; }
 .who { overflow-wrap: anywhere; }
 .signout { align-self: flex-start; }
 .build { text-align: center; }

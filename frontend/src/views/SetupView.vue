@@ -4,7 +4,8 @@ import { useRouter } from "vue-router";
 import Icon from "../components/Icon.vue";
 import Segmented from "../components/Segmented.vue";
 import { ACTIVITY, RATES, type ActivityKey, type Goal, type Sex } from "../lib/nutrition";
-import { profile, saveSetup } from "../state/profile";
+import { rateText, type HeightUnit, type WeightUnit } from "../lib/units";
+import { profile, saveSetup, setUnits } from "../state/profile";
 
 const router = useRouter();
 const actOpen = ref(false);
@@ -26,6 +27,10 @@ function setActivity(key: ActivityKey) {
 function setRate(rate: number) {
   profile.form.rate = rate === 1 ? "1.0" : String(rate);
 }
+
+function setWeightUnit(value: string) { void setUnits(value as WeightUnit, profile.form.heightUnit); }
+function setHeightUnit(value: string) { void setUnits(profile.form.weightUnit, value as HeightUnit); }
+const weightWord = computed(() => (profile.form.weightUnit === "lb" ? "pounds" : "kilograms"));
 
 async function onContinue() {
   if (await saveSetup()) await router.push("/profile");
@@ -51,11 +56,28 @@ async function onContinue() {
         <input v-autofocus v-model="profile.form.birthYear" class="ninput" type="text" inputmode="numeric" maxlength="4" autocomplete="off" aria-label="Birth year" />
         <span v-if="age !== null" class="t-label c2">{{ age }} y</span>
       </label>
-      <label class="frow">
+      <div class="frow unitrow">
+        <span class="t-body c2">Weight in</span>
+        <span class="grow" />
+        <Segmented label="Weight unit" :model-value="profile.form.weightUnit" :options="[{ value: 'kg', label: 'kg' }, { value: 'lb', label: 'lb' }]" @update:model-value="setWeightUnit" />
+      </div>
+      <div class="frow unitrow">
+        <span class="t-body c2">Height in</span>
+        <span class="grow" />
+        <Segmented label="Height unit" :model-value="profile.form.heightUnit" :options="[{ value: 'cm', label: 'cm' }, { value: 'ftin', label: 'ft·in', ariaLabel: 'feet and inches' }]" @update:model-value="setHeightUnit" />
+      </div>
+      <label v-if="profile.form.heightUnit === 'cm'" class="frow">
         <span class="t-body c2">Height</span>
         <input v-model="profile.form.heightCm" class="ninput" type="text" inputmode="decimal" autocomplete="off" aria-label="Height in centimetres" />
         <span class="t-label c2">cm</span>
       </label>
+      <div v-else class="frow" role="group" aria-label="Height">
+        <span class="t-body c2">Height</span>
+        <input v-model="profile.form.heightFt" class="ninput ft" type="text" inputmode="numeric" maxlength="1" autocomplete="off" aria-label="Height, feet" />
+        <span class="t-label c2">ft</span>
+        <input v-model="profile.form.heightIn" class="ninput inch" type="text" inputmode="decimal" maxlength="4" autocomplete="off" aria-label="Height, inches" />
+        <span class="t-label c2">in</span>
+      </div>
       <button type="button" class="frow" :aria-expanded="actOpen" @click="actOpen = !actOpen">
         <span class="t-body c2">Activity</span>
         <span class="grow" />
@@ -79,13 +101,13 @@ async function onContinue() {
       <Segmented label="Goal" :model-value="profile.form.goal" :options="[{ value: 'lose', label: 'Lose' }, { value: 'maintain', label: 'Maintain' }, { value: 'gain', label: 'Gain' }]" @update:model-value="setGoal" />
       <div v-if="profile.form.goal && profile.form.goal !== 'maintain'" class="rate" role="group" aria-label="Rate">
         <span class="t-body c2">Rate</span>
-        <button v-for="rate in RATES" :key="rate" type="button" class="chip t-label" :class="{ on: Number(profile.form.rate) === rate }" @click="setRate(rate)">{{ rate === 1 ? "1.0" : rate }}</button>
-        <span class="t-label c2">kg/wk</span>
+        <button v-for="rate in RATES" :key="rate" type="button" class="chip t-label" :class="{ on: Number(profile.form.rate) === rate }" @click="setRate(rate)">{{ rateText(rate, profile.form.weightUnit) }}</button>
+        <span class="t-label c2">{{ profile.form.weightUnit }}/wk</span>
       </div>
       <label class="frow">
         <span class="t-body c2">Goal weight</span>
-        <input v-model="profile.form.goalWeightKg" class="ninput" type="text" inputmode="decimal" autocomplete="off" aria-label="Goal weight in kilograms" />
-        <span class="t-label c2">kg</span>
+        <input v-model="profile.form.goalWeight" class="ninput" type="text" inputmode="decimal" autocomplete="off" :aria-label="`Goal weight in ${weightWord}`" />
+        <span class="t-label c2">{{ profile.form.weightUnit }}</span>
       </label>
     </section>
 
@@ -93,8 +115,8 @@ async function onContinue() {
       <h2 class="t-head section-title">Your starting weight</h2>
       <label class="frow last">
         <span class="t-body c2">Today</span>
-        <input v-model="profile.form.weighInKg" class="ninput" type="text" inputmode="decimal" autocomplete="off" aria-label="Starting weight in kilograms" />
-        <span class="t-label c2">kg</span>
+        <input v-model="profile.form.weighIn" class="ninput" type="text" inputmode="decimal" autocomplete="off" :aria-label="`Starting weight in ${weightWord}`" />
+        <span class="t-label c2">{{ profile.form.weightUnit }}</span>
       </label>
       <p class="t-label c2">Saved as your first weigh-in, in {{ profile.form.timeZone }}. The trend that day is this weight. A comma or a point both work.</p>
       <p class="t-capn c2 hint"><i class="odot" aria-hidden="true" />Until you have 2 weigh-ins within 7 days, the trend shows a small grey dot: it's less accurate. Weigh in 2+ times a week, ideally each morning.</p>
@@ -115,6 +137,9 @@ async function onContinue() {
 .odot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-secondary); flex: none; margin-top: 4px; }
 .frow.last { border-bottom: 0; }
 .ninput { width: 88px; margin-left: auto; text-align: right; background: transparent; border: 0; min-height: 44px; }
+.ninput.ft { width: 32px; }
+.ninput.inch { width: 4.2ch; margin-left: 0; }
+.unitrow :deep(.seg) { width: 160px; flex: none; }
 .tz { margin-left: auto; width: 180px; text-align: right; background: transparent; border: 0; min-height: 44px; }
 .acts { display: flex; flex-direction: column; }
 .act { min-height: 44px; display: flex; align-items: center; gap: 10px; text-align: left; border-radius: 10px; padding: 0 8px; }

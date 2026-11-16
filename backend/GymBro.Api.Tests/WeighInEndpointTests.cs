@@ -43,7 +43,7 @@ public sealed class WeighInEndpointTests(ApiFactory factory)
     [Theory]
     [InlineData("29.9")]
     [InlineData("300.1")]
-    [InlineData("83.44")]
+    [InlineData("83.444")]
     [InlineData("nope")]
     public async Task Rejects_weights_outside_30_to_300_or_with_extra_decimals(string kg)
     {

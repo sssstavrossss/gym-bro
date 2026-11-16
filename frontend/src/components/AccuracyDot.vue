@@ -2,6 +2,7 @@
 import { computed } from "vue";
 import { accuracyCopy } from "../lib/weightDisplay";
 import { profile } from "../state/profile";
+import { weightUnit } from "../state/units";
 import { openAccuracy } from "../ui";
 
 const props = withDefaults(defineProps<{ label?: boolean; interactive?: boolean; from?: "weight" }>(), {
@@ -9,7 +10,7 @@ const props = withDefaults(defineProps<{ label?: boolean; interactive?: boolean;
   interactive: true,
 });
 const aria = computed(() => {
-  const reason = accuracyCopy(profile.weight).short || "fewer than 2 weigh-ins in 7 days";
+  const reason = accuracyCopy(profile.weight, weightUnit()).short || "fewer than 2 weigh-ins in 7 days";
   return `Low accuracy: ${reason}. What does this mean?`;
 });
 </script>

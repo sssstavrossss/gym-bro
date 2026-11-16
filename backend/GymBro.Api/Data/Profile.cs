@@ -37,6 +37,12 @@ public sealed class Profile
     /// <summary>The app moves <see cref="TimeZone"/> to the device's zone when they differ. Off once a zone is picked by hand.</summary>
     public bool TimeZoneFollowsDevice { get; set; } = true;
 
+    /// <summary>How body weight is shown: <c>kg</c> or <c>lb</c>. Storage is always kilograms.</summary>
+    public string WeightUnit { get; set; } = Units.Kilograms;
+
+    /// <summary>How height is shown: <c>cm</c> or <c>ftin</c>. Storage is always centimetres.</summary>
+    public string HeightUnit { get; set; } = Units.Centimetres;
+
     /// <summary>Monday morning push asking the person to recalculate. Off until they turn it on.</summary>
     public bool RemindersEnabled { get; set; }
 
@@ -46,4 +52,17 @@ public sealed class Profile
     public DateTimeOffset CreatedAt { get; set; }
 
     public DateTimeOffset UpdatedAt { get; set; }
+}
+
+/// <summary>Display units. Only what is shown and typed changes; the database stays metric.</summary>
+public static class Units
+{
+    public const string Kilograms = "kg";
+    public const string Pounds = "lb";
+    public const string Centimetres = "cm";
+    public const string FeetInches = "ftin";
+
+    public static bool IsWeight(string value) => value is Kilograms or Pounds;
+
+    public static bool IsHeight(string value) => value is Centimetres or FeetInches;
 }

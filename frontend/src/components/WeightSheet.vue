@@ -6,10 +6,11 @@ import AccuracyDot from "./AccuracyDot.vue";
 import Icon from "./Icon.vue";
 import WeightChart from "./WeightChart.vue";
 import { dayMonth, diffDays, shortDate, todayIso } from "../lib/dates";
-import { kg, signed, typoGuardDetail } from "../lib/format";
+import { toKg, typoGuardDetail, weightRange } from "../lib/units";
 import { parseDecimal } from "../lib/numbers";
 import { earliestNewWeighInDate, gapLabel, isFreshStart, isLowAccuracy, newWeighInDates, trendChange } from "../lib/weightDisplay";
 import { profile, removeWeighIn, saveWeighIn } from "../state/profile";
+import { weightUnit, wt, wtSigned, wtUnit } from "../state/units";
 import { closeSheet, toast, ui } from "../ui";
 import { vp } from "../lib/viewport";
 import { armReplace } from "../lib/focusField";
@@ -41,7 +42,7 @@ const dayOptions = computed(() => {
     const own = profile.weighIns.find((row) => row.localDate === date);
     const index = diffDays(today.value, date);
     const title = index === 0 ? `Today, ${dayMonth(date)}` : index === 1 ? `Yesterday, ${dayMonth(date)}` : shortDate(date);
-    return { value: date, title, kgText: own ? kg(own.kg) : "" };
+    return { value: date, title, kgText: own ? wt(own.kg) : "" };
   });
 });
 const longDayLabel = computed(() => {
@@ -123,8 +124,8 @@ const onlyWeighIn = computed(() => selected.value != null && selected.value.canD
 const placeholder = computed(() => {
   const own = ownKg.value;
   const latest = profile.weight?.latestKg;
-  if (own != null) return kg(own);
-  if (latest != null) return kg(latest);
+  if (own != null) return wt(own);
+  if (latest != null) return wt(latest);
   return "";
 });
 
@@ -160,9 +161,18 @@ watch(() => ui.weightDate, () => {
   clearEntry();
 });
 
+/** The typed weight in kilograms: one decimal in the shown unit, so pounds keep two kilogram decimals. */
 const parsed = computed(() => {
   const number = parseDecimal(value.value);
-  return number != null && number >= 30 && number <= 300 ? Math.round(number * 10) / 10 : null;
+  if (number == null) return null;
+  const kgValue = toKg(Math.round(number * 10) / 10, weightUnit());
+  return kgValue >= 30 && kgValue <= 300 ? kgValue : null;
+});
+const rangeHint = computed(() => {
+  const unit = weightUnit();
+  const range = weightRange(unit);
+  const example = unit === "lb" ? "184,3 or 184.3" : "83,4 or 83.4";
+  return `Enter a weight between ${range.min} and ${range.max} ${unit}, e.g. ${example}`;
 });
 const invalid = computed(() => value.value.trim() !== "" && parsed.value === null);
 const low = computed(() => isLowAccuracy(profile.weight));
@@ -174,17 +184,17 @@ const history = computed(() => profile.weighIns
   .slice(0, 4));
 
 const hint = computed(() => {
-  if (ownKg.value != null) return `${ui.weightDate === today.value ? "Today's" : "This day's"} weigh-in is ${kg(ownKg.value)} kg · saving replaces it`;
+  if (ownKg.value != null) return `${ui.weightDate === today.value ? "Today's" : "This day's"} weigh-in is ${wtUnit(ownKg.value)} · saving replaces it`;
   const earlier = profile.weighIns.filter((row) => row.localDate < ui.weightDate);
   const prev = earlier[0];
   if (!prev) return "First weigh-in";
   const ago = diffDays(ui.weightDate, prev.localDate);
-  return `Last weigh-in ${kg(prev.kg)} kg ${ago === 1 ? "yesterday" : `${ago} days before`}`;
+  return `Last weigh-in ${wtUnit(prev.kg)} ${ago === 1 ? "yesterday" : `${ago} days before`}`;
 });
 
 async function save(force = false) {
   if (parsed.value == null) {
-    localError.value = "Enter a weight between 30 and 300 kg, e.g. 83,4 or 83.4";
+    localError.value = rangeHint.value;
     input.value?.focus();
     return;
   }
@@ -205,8 +215,8 @@ async function save(force = false) {
   const trend = result.saved.trend;
   const note = trend.trendState === "fresh_start" && trend.freshStart
     ? `fresh start after ${gapLabel(trend.freshStart.daysSincePrevious)}`
-    : `trend now ${trend.trendKg != null ? kg(trend.trendKg) : "—"} kg${isLowAccuracy(trend) ? " · low accuracy" : ""}`;
-  toast(replaced ? `Replaced the weigh-in with ${kg(result.saved.kg)} kg · ${note}` : `Saved ${kg(result.saved.kg)} kg · ${note}`);
+    : `trend now ${trend.trendKg != null ? wtUnit(trend.trendKg) : `— ${weightUnit()}`}${isLowAccuracy(trend) ? " · low accuracy" : ""}`;
+  toast(replaced ? `Replaced the weigh-in with ${wtUnit(result.saved.kg)} · ${note}` : `Saved ${wtUnit(result.saved.kg)} · ${note}`);
   closeSheet();
 }
 
@@ -257,7 +267,7 @@ async function del() {
     return;
   }
   const kilograms = old;
-  toast(`Deleted weigh-in ${kg(kilograms)} kg · ${shortDate(date)}`, {
+  toast(`Deleted weigh-in ${wtUnit(kilograms)} · ${shortDate(date)}`, {
     label: "Undo",
     run: () => { void restoreWeighIn(date, kilograms); },
   });
@@ -274,7 +284,7 @@ async function restoreWeighIn(date: string, kilograms: number) {
 }
 
 const diffText = computed(() => (
-  confirm.value ? typoGuardDetail(confirm.value.kg, confirm.value.previousTrendKg) : ""
+  confirm.value ? typoGuardDetail(confirm.value.kg, confirm.value.previousTrendKg, weightUnit()) : ""
 ));
 </script>
 
@@ -307,21 +317,21 @@ const diffText = computed(() => (
         <span class="sr-only">Weight in kilograms</span>
         <span class="autosize">
           <span class="mirror wfig" aria-hidden="true">{{ value || placeholder || "0" }}</span>
-          <input ref="input" data-no-autofocus :value="value" :placeholder="placeholder" data-replace="1" class="wfig winput" size="1" inputmode="decimal" enterkeyhint="done" autocomplete="off" aria-label="Weight in kilograms" @beforeinput="markWholeSelection" @focus="onWeightFocus" @input="onWeightInput" />
+          <input ref="input" data-no-autofocus :value="value" :placeholder="placeholder" data-replace="1" class="wfig winput" size="1" inputmode="decimal" enterkeyhint="done" autocomplete="off" :aria-label="`Weight in ${weightUnit() === 'lb' ? 'pounds' : 'kilograms'}`" @beforeinput="markWholeSelection" @focus="onWeightFocus" @input="onWeightInput" />
         </span>
-        <span class="t-head c2">kg</span>
+        <span class="t-head c2">{{ weightUnit() }}</span>
       </label>
       <button type="button" class="cbtn filled" aria-label="Save weight" :disabled="parsed === null" @click="save(false)">✓</button>
     </form>
     <div v-if="confirm" ref="confirmEl" class="tguard col" role="alertdialog" aria-labelledby="tg-h" aria-describedby="tg-d" tabindex="-1">
-      <h3 id="tg-h" class="t-head m0">Is {{ kg(confirm.kg) }} kg right?</h3>
+      <h3 id="tg-h" class="t-head m0">Is {{ wtUnit(confirm.kg) }} right?</h3>
       <p id="tg-d" class="t-label c2 m0">{{ diffText }}</p>
       <div class="row tgb">
         <button type="button" class="chip on t-label big" @click="fix">Fix it</button>
-        <button type="button" class="chip t-label big" @click="save(true)">Yes, save {{ kg(confirm.kg) }} kg</button>
+        <button type="button" class="chip t-label big" @click="save(true)">Yes, save {{ wtUnit(confirm.kg) }}</button>
       </div>
     </div>
-    <p v-if="invalid || localError" class="t-label m0" role="alert">{{ localError || "Enter a weight between 30 and 300 kg, e.g. 83,4 or 83.4" }}</p>
+    <p v-if="invalid || localError" class="t-label m0" role="alert">{{ localError || rangeHint }}</p>
     <template v-else-if="onlyWeighIn">
       <p class="t-capn c3 m0">{{ hint }}</p>
       <div class="row only">
@@ -350,20 +360,20 @@ const diffText = computed(() => (
     <div v-if="profile.weight?.trendKg != null" class="row stats">
       <div class="col grow">
         <span class="row lblrow"><span class="t-capm c2">Trend</span><AccuracyDot v-if="low" from="weight" /></span>
-        <span class="base"><span class="t-ns">{{ kg(profile.weight.trendKg) }}</span><span class="t-label c2">kg</span></span>
+        <span class="base"><span class="t-ns">{{ wt(profile.weight.trendKg) }}</span><span class="t-label c2">{{ weightUnit() }}</span></span>
         <span v-if="low" class="t-capn c2">low accuracy</span>
       </div>
       <div class="col grow">
         <span class="t-capm c2">This week</span>
         <span class="base">
-          <template v-if="week != null"><span class="t-ns">{{ signed(week) }}</span><span class="t-label c2">kg</span></template>
+          <template v-if="week != null"><span class="t-ns">{{ wtSigned(week) }}</span><span class="t-label c2">{{ weightUnit() }}</span></template>
           <span v-else class="t-ns c2"><span aria-hidden="true">—</span><span class="sr-only">{{ fresh ? "not available after a fresh start" : "not available yet" }}</span></span>
         </span>
       </div>
       <div class="col grow">
         <span class="t-capm c2">30 days</span>
         <span class="base">
-          <template v-if="month != null"><span class="t-ns">{{ signed(month) }}</span><span class="t-label c2">kg</span></template>
+          <template v-if="month != null"><span class="t-ns">{{ wtSigned(month) }}</span><span class="t-label c2">{{ weightUnit() }}</span></template>
           <span v-else class="t-ns c2"><span aria-hidden="true">—</span><span class="sr-only">{{ fresh ? "not available after a fresh start" : "not available yet" }}</span></span>
         </span>
       </div>
@@ -372,7 +382,7 @@ const diffText = computed(() => (
     <div class="col">
       <button v-for="row in history" :key="row.localDate" type="button" class="row hrow" @click="ui.weightDate = row.localDate">
         <span class="t-body c2 grow">{{ shortDate(row.localDate) }}</span>
-        <span class="hval"><span class="t-bodys">{{ kg(row.kg) }}</span><span class="t-label c2"> kg</span></span>
+        <span class="hval"><span class="t-bodys">{{ wt(row.kg) }}</span><span class="t-label c2"> {{ weightUnit() }}</span></span>
       </button>
     </div>
   </BottomSheet>
