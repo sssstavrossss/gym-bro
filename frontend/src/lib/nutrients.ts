@@ -298,3 +298,33 @@ export function scaleMap(source: NutrientMap, factor: number): NutrientMap {
   }
   return out;
 }
+
+/** Fat, saturated fat, sugars, and fibre: on nearly every label, so they say nothing about a food's panel. */
+const LABEL_BASICS = new Set(["fat", "saturatedFat", "sugars", "fiber"]);
+
+/** The panel keys a search row's ring counts: everything beyond the label basics (29). */
+export const MICRO_KEYS: readonly string[] = Object.keys(ROWS).filter((key) => !LABEL_BASICS.has(key));
+
+export type MicroLevel = 0 | 1 | 2 | 3 | 4;
+export const MICRO_LEVEL_NAMES = ["none", "few", "some", "many", "all"] as const;
+
+export interface MicroCoverage {
+  level: MicroLevel;
+  known: number;
+  total: number;
+}
+
+/**
+ * How much of the nutrient panel a food knows: none, few (under a third), some (under two
+ * thirds), many, or all. Null when the row carries no panel, so nothing is shown.
+ */
+export function microCoverage(nutrients: NutrientMap | null | undefined): MicroCoverage | null {
+  if (!nutrients) return null;
+  const total = MICRO_KEYS.length;
+  const known = MICRO_KEYS.filter((key) => {
+    const value = nutrients[key];
+    return value != null && Number.isFinite(value);
+  }).length;
+  const level: MicroLevel = known === 0 ? 0 : known === total ? 4 : known * 3 < total ? 1 : known * 3 < total * 2 ? 2 : 3;
+  return { level, known, total };
+}

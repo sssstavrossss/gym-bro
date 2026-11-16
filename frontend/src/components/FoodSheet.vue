@@ -5,6 +5,7 @@ import BottomSheet from "./BottomSheet.vue";
 import FoodEditor from "./FoodEditor.vue";
 import Bar from "./Bar.vue";
 import Icon from "./Icon.vue";
+import MicroRing from "./MicroRing.vue";
 import Keypad from "./Keypad.vue";
 import { typeInto } from "../lib/numbers";
 import Segmented from "./Segmented.vue";
@@ -1433,6 +1434,7 @@ async function deleteEdited() {
               <span class="t-body ell">{{ food.name }}</span>
               <span class="t-label c2 ell">{{ rowSub(food) }}</span>
             </button>
+            <MicroRing :nutrients="food.nutrients" />
             <button type="button" class="cbtn"  :aria-label="`Edit ${food.name}`" @click="editMine(food, 'list')"><Icon name="edit" :size="17" /></button>
             <button type="button" class="cbtn filled"  :aria-label="needTime ? `Pick a time to add ${food.name}` : `Add ${amountLabel(Number(listedPreset(food).amount), listedPreset(food).unit)} ${food.name}`" :disabled="saving || needTime" @click="addListed(food)">
               <Icon :name="justAdded === food.id ? 'check' : 'plus'" :size="18" :sw="2.4" />
@@ -1451,6 +1453,7 @@ async function deleteEdited() {
               <span class="row gap6 nm"><span class="t-body ell">{{ food.name }}</span><span v-if="isMyFood(food)" class="tag t-capn">my food</span></span>
               <span class="t-label c2 ell">{{ withBrand(food.brand, recentSubtitle(food, food.amount, food.unit)) }}</span>
             </button>
+            <MicroRing :nutrients="food.nutrients" />
             <button type="button" class="cbtn filled"  :aria-label="needTime ? `Pick a time to add ${food.name}` : `Add ${amountLabel(food.amount, food.unit)} ${food.name}`" :disabled="saving || needTime" @click="addRecent(food)">
               <Icon :name="justAdded === food.id ? 'check' : 'plus'" :size="18" :sw="2.4" />
             </button>
@@ -1472,6 +1475,7 @@ async function deleteEdited() {
               <span class="row gap6 nm"><span class="t-body ell">{{ food.name }}</span><span v-if="isMyFood(food)" class="tag t-capn">my food</span></span>
               <span class="t-label c2 ell">{{ rowSub(food) }}</span>
             </span>
+            <MicroRing :nutrients="food.nutrients" />
           </button>
           <div v-if="off.results.length" class="row lhead"><span class="t-cap c2 section-title">Open Food Facts</span></div>
           <button v-for="food in off.results" :key="food.id" type="button" class="rrow row" @pointerdown="pressFood($event, food)" @click="pickFood($event, food)">
@@ -1479,6 +1483,7 @@ async function deleteEdited() {
               <span class="t-body ell">{{ food.name }}</span>
               <span class="t-label c2 ell">{{ rowSub(food) }}</span>
             </span>
+            <MicroRing :nutrients="food.nutrients" />
           </button>
           <p v-if="off.status === 'loading'" class="t-capn c2 skl" role="status">Searching Open Food Facts…</p>
           <div v-else-if="offCopy" class="err col" role="alert">
