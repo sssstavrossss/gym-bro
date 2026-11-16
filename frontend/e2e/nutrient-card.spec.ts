@@ -64,9 +64,10 @@ async function expectRowsClear(page: Page, root: string) {
     return panels.map((panel) => {
       const row = panel.querySelector(".nrow:last-child, .mrow:last-of-type");
       if (!row) {
-        // The Fats card and the ring grids: their last block ends inside the track, above the dots.
+        // The cards and the ring grids: their last block ends inside the track, at most at the top
+        // of the dot strip, whose own 12px keep it clear of the dots.
         const last = panel.lastElementChild!.getBoundingClientRect();
-        return { id: panel.getAttribute("data-panel"), ok: last.bottom <= clip.bottom + 0.5 && last.bottom <= dotsTop - 1, bottom: last.bottom, clip: clip.bottom, dotsTop };
+        return { id: panel.getAttribute("data-panel"), ok: last.bottom <= clip.bottom + 0.5 && last.bottom <= dotsTop + 0.5, bottom: last.bottom, clip: clip.bottom, dotsTop };
       }
       const text = row.querySelector(".num, .vals") ?? row;
       const cs = getComputedStyle(text);
@@ -94,7 +95,7 @@ async function expectRowsClear(page: Page, root: string) {
   expect(clipped, JSON.stringify(clipped)).toEqual([]);
 }
 
-test("the home nutrient card is 358 by 222 on every panel", async ({ page }) => {
+test("the home nutrient card is 358 by 214 on every panel", async ({ page }) => {
   const oid = `e2e-nutrients-${Date.now()}`;
   const when = await clock(page);
   await ready(page.request, oid, when.today, when.zone);
@@ -113,8 +114,14 @@ test("the home nutrient card is 358 by 222 on every panel", async ({ page }) => 
     await dots.nth(i).click();
     const box = await card.boundingBox();
     expect(Math.round(box!.width)).toBe(358);
-    expect(Math.round(box!.height)).toBe(222);
+    expect(Math.round(box!.height)).toBe(214);
   }
+
+  // Macros: what is left beside each bar, "to go" for the protein minimum.
+  await dots.nth(0).click();
+  await expect(card.locator("[data-macro='kcal'] [data-left]")).toHaveText(/^[\d,]+ left$/);
+  await expect(card.locator("[data-macro='p'] [data-left]")).toHaveText(/^[\d,]+ to go$/);
+  await expect(card.locator("[data-macro] [data-adding]")).toHaveCount(0);
 
   await dots.nth(1).click();
   const fats = card.locator("[data-panel='fats']");
@@ -141,9 +148,24 @@ test("the home nutrient card is 358 by 222 on every panel", async ({ page }) => 
   const rights = await fats.locator("[data-fat-part] .num, [data-fat-row] .end").evaluateAll((nodes) => [...new Set(nodes.map((node) => Math.round(node.getBoundingClientRect().right)))].length);
   expect(rights).toBe(2);
 
+  // Carbs: 100 g of Oats is 60 g of carbs, 1 g of it sugars, and no starch on the label.
+  await dots.nth(2).click();
+  const carbs = card.locator("[data-panel='carbs']");
+  await expect(carbs.locator("[data-carb-total]")).toHaveText("60 g");
+  await expect(carbs.locator("[data-carb-part] .t-label:not(.num)")).toHaveText(["Sugars", "Starch", "Added", "Not broken down"]);
+  await expect(carbs.locator("[data-carb-part='sugars'] .num")).toHaveText("1 g");
+  await expect(carbs.locator("[data-carb-part='rest'] .num")).toHaveText("59 g");
+  const fibre = carbs.locator("[data-carb-limit='fiber']");
+  // The Progress card's minimum: 35 g for a man.
+  await expect(fibre.locator(".end")).toHaveText("10 / 35 g");
+  await expect(fibre.locator("[data-to-go]")).toHaveText(/^[\d.]+ to go$/);
+  await expect(carbs.locator("[data-carb-limit='addedSugars']")).toContainText("≤ 10% of kcal");
+  await expect(carbs.locator("[data-carb-limit='sodium'] .end")).toHaveText("400 / 2300 mg");
+  await expect(carbs.locator(".overtag")).toHaveCount(0);
+
   const strip = await card.locator(".strip").evaluate((node) => node.getBoundingClientRect().height);
   const hit = await card.locator("button.dot").first().evaluate((node) => node.getBoundingClientRect().height);
-  expect(Math.round(strip)).toBe(18);
+  expect(Math.round(strip)).toBe(30);
   expect(hit).toBeGreaterThanOrEqual(44);
   await expectDotBand(page, "[data-nutrient-card]");
   await expectDotBand(page, ".home-progress");
@@ -164,7 +186,7 @@ test("the home nutrient card is 358 by 222 on every panel", async ({ page }) => 
   await expect(card.locator("[data-panel^='fats-'] .name").first()).toHaveText("Fat");
   await expect(card.locator("[data-ring]")).toHaveCount(0);
   expect(Math.round(grown!.width)).toBe(358);
-  expect(Math.round(grown!.height)).toBe(222);
+  expect(Math.round(grown!.height)).toBe(214);
   await expectRowsClear(page, "[data-nutrient-card]");
   const largeDots = card.locator("button.dot");
   const largeCount = await largeDots.count();
@@ -193,14 +215,42 @@ test("the home nutrient card is 358 by 222 on every panel", async ({ page }) => 
   await page.getByRole("button", { name: /^Oats/ }).first().click();
   const preview = page.locator(".preview");
   await expect(preview).toBeVisible();
+  // The Home card again, the same size, for the day with this food in it.
+  expect(Math.round((await preview.boundingBox())!.height)).toBe(214);
+  await expect(preview.locator("[data-panel='macros'] .panel-title")).toHaveText("Today after adding");
+  await expect(preview.locator("[data-macro='kcal'] [data-adding]")).toHaveText(/^\+[\d,]+$/);
+  await expect(preview.locator("[data-macro='kcal'] [data-added]")).toHaveCount(1);
   const sheetStrip = await preview.locator(".strip").evaluate((node) => node.getBoundingClientRect().height);
   const sheetHit = await preview.locator("button.dot").first().evaluate((node) => node.getBoundingClientRect().height);
-  expect(Math.round(sheetStrip)).toBe(18);
+  expect(Math.round(sheetStrip)).toBe(30);
   expect(sheetHit).toBeGreaterThanOrEqual(44);
   await expectDotBand(page, ".preview");
   await expectRowsClear(page, ".preview");
+  const sheetDots = preview.locator("button.dot");
+  await sheetDots.nth(1).click();
+  await expect(preview.locator("[data-panel='fats'] [data-fat-total]")).toHaveText("7 g");
+  await sheetDots.nth(2).click();
+  // One food: the fibre bar, without the day's "to go".
+  await expect(preview.locator("[data-carb-limit='fiber']")).toBeVisible();
+  await expect(preview.locator("[data-to-go]")).toHaveCount(0);
+  // The rings show the portion and don't open the day's nutrient sheet over this one.
+  await expect(preview.locator("[data-ring]").first()).toHaveAttribute("role", "img");
+  await expect(preview.locator("button[data-ring]")).toHaveCount(0);
+  // 12px between the keypad and the Add button, as on the weight sheet.
+  const keypadGap = await page.locator(".keypad").evaluate((pad) => {
+    const button = pad.parentElement!.querySelector(".actions")!.getBoundingClientRect();
+    return Math.round(button.top - pad.getBoundingClientRect().bottom);
+  });
+  expect(keypadGap).toBe(12);
+
+  // Largest text: plain rows with Per 100 g beside the amount.
+  await page.evaluate(() => {
+    document.documentElement.style.fontSize = "53px";
+    window.dispatchEvent(new Event("resize"));
+  });
+  await expect(preview.locator("[data-panel='fats-0']")).toHaveCount(1);
   await expectAmountFlush(page);
-  const sheetSlots = await preview.locator("[data-panel='fats'] .fig").evaluateAll((figs) => {
+  const sheetSlots = await preview.locator("[data-panel='fats-0'] .fig").evaluateAll((figs) => {
     const groups = new Map<number, { numbers: number[]; units: number[] }>();
     for (const fig of figs) {
       const column = Math.round(fig.getBoundingClientRect().left / 8);
@@ -218,16 +268,11 @@ test("the home nutrient card is 358 by 222 on every panel", async ({ page }) => 
     expect(new Set(group.numbers).size).toBe(1);
     expect(new Set(group.units).size).toBe(1);
   }
-  await page.evaluate(() => {
-    document.documentElement.style.fontSize = "53px";
-    window.dispatchEvent(new Event("resize"));
-  });
-  await expectAmountFlush(page);
 });
 
 /**
- * 6px, the dots, 6px: the strip ends at the card's bottom edge. The 44px tap box still works
- * just below the card, so a clipped card must not cut it off.
+ * 12px, the dots, 12px: the strip ends at the card's bottom edge. The 44px tap box reaches 7px
+ * below the card, so a clipped card must not cut it off.
  */
 async function expectDotBand(page: Page, root: string) {
   await page.locator(root).first().evaluate((card) => card.scrollIntoView({ block: "center" }));
@@ -237,7 +282,7 @@ async function expectDotBand(page: Page, root: string) {
     const pip = dot.querySelector(".pip")!.getBoundingClientRect();
     const edge = card.getBoundingClientRect().bottom;
     const x = pip.left + pip.width / 2;
-    const below = document.elementFromPoint(x, Math.min(edge + 10, window.innerHeight - 1));
+    const below = document.elementFromPoint(x, Math.min(edge + 5, window.innerHeight - 1));
     return {
       above: Math.round(pip.top - strip.top),
       below: Math.round(strip.bottom - pip.bottom),
@@ -245,16 +290,15 @@ async function expectDotBand(page: Page, root: string) {
       tap: below === dot || dot.contains(below),
     };
   });
-  expect(band).toEqual({ above: 6, below: 6, edge: 0, tap: true });
+  expect(band).toEqual({ above: 12, below: 12, edge: 0, tap: true });
 }
 
-/** Amount's right edge matches the panel's inner right edge. Per 100 g sits just before it. */
+/** Amount's right edge matches its panel's inner right edge. Per 100 g sits just before it. */
 async function expectAmountFlush(page: Page) {
   const gaps = await page.locator(".preview").evaluate((root) => {
-    const panel = root.querySelector("[data-panel]")!;
-    const box = panel.getBoundingClientRect();
-    const right = box.right - parseFloat(getComputedStyle(panel).paddingRight);
     return [...root.querySelectorAll(".nrow, .heads, .cols")].flatMap((row) => {
+      const panel = row.closest("[data-panel]")!;
+      const right = panel.getBoundingClientRect().right - parseFloat(getComputedStyle(panel).paddingRight);
       const directNums = [...row.querySelectorAll(":scope > .num")];
       const table = row.classList.contains("heads") || row.classList.contains("cols") || row.querySelector(":scope > .amt") || directNums.length > 1;
       if (!table) return [];
@@ -269,8 +313,9 @@ async function expectAmountFlush(page: Page) {
       }];
     });
   });
+  expect(gaps.length).toBeGreaterThan(0);
   for (const row of gaps) {
-    expect(row.gap).toBeLessThanOrEqual(1);
+    expect(Math.abs(row.gap)).toBeLessThanOrEqual(1);
     expect(row.order).toBe(true);
   }
 }

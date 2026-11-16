@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
+  carbBreakdown,
+  carbLimits,
   coverageNote,
   daySources,
   fatBreakdown,
   fatLimits,
   fatLimitsOf,
+  goalStatus,
   limitStatus,
   nutrientRing,
   panelCoverage,
@@ -60,6 +63,41 @@ describe("fat limits", () => {
     expect(limitStatus(10, 20)).toEqual({ fraction: 0.5, over: null });
     expect(limitStatus(20, 20).over).toBeNull();
     expect(limitStatus(5, 0)).toEqual({ fraction: 0, over: null });
+  });
+});
+
+describe("carbs and sodium", () => {
+  it("splits carbs into sugars, starch, and what is not broken down", () => {
+    const { total, parts, addedSugars } = carbBreakdown(114, { sugars: 32.1, addedSugars: 4, starch: 20 });
+    expect(total).toBe(114);
+    expect(parts.map((part) => [part.key, part.label])).toEqual([["sugars", "Sugars"], ["starch", "Starch"], ["rest", "Not broken down"]]);
+    expect(parts[2].grams).toBeCloseTo(61.9, 5);
+    expect(addedSugars).toBe(4);
+  });
+
+  it("never goes below zero and treats unknown as nothing", () => {
+    expect(carbBreakdown(10, { sugars: 8, starch: 5 }).parts[2].grams).toBe(0);
+    const empty = carbBreakdown(Number.NaN, { sugars: null, starch: -1 });
+    expect(empty.total).toBe(0);
+    expect(empty.parts.every((part) => part.grams === 0)).toBe(true);
+  });
+
+  it("uses the Progress fibre minimum and keeps added sugars under 10% of the kcal target", () => {
+    // 10% of 1884 kcal is 188.4 kcal of sugar: 47.1 g.
+    expect(carbLimits({ sex: "male", kcalTarget: 1884 })).toEqual({ fibreGrams: 35, addedSugarsGrams: 47.1, sodiumMg: 2300 });
+    expect(carbLimits({ sex: "female", kcalTarget: 1884 }).fibreGrams).toBe(25);
+  });
+
+  it("keeps the sodium limit without a sex or a kcal target", () => {
+    expect(carbLimits({ sex: "", kcalTarget: null })).toEqual({ fibreGrams: null, addedSugarsGrams: null, sodiumMg: 2300 });
+    expect(carbLimits({ sex: "male", kcalTarget: 0 }).addedSugarsGrams).toBeNull();
+  });
+
+  it("reports how far short of a minimum a value is", () => {
+    expect(goalStatus(2.9, 35)).toEqual({ fraction: 2.9 / 35, toGo: 35 - 2.9 });
+    expect(goalStatus(40, 35).toGo).toBeNull();
+    expect(goalStatus(35, 35).toGo).toBeNull();
+    expect(goalStatus(5, 0)).toEqual({ fraction: 0, toGo: null });
   });
 });
 

@@ -71,11 +71,6 @@ describe("NNR percents", () => {
     expect(home.find((panel) => panel.id === "minerals")!.keys).toContain("copper");
     expect(home.find((panel) => panel.id === "carbs")!.keys).toEqual(["sugars", "addedSugars", "starch", "fiber", "sodium"]);
     expect(home.find((panel) => panel.id === "fats")!.keys).toHaveLength(9);
-    // Food sheet: one column of Per 100 g and Amount holds eight fat rows, so Omega-6 gives way.
-    const sheet = panelsForSize(entries, false, true);
-    expect(sheet.map((panel) => panel.id)).toEqual(home.map((panel) => panel.id));
-    expect(sheet.find((panel) => panel.id === "fats")!.keys).not.toContain("omega6");
-    expect(sheet.find((panel) => panel.id === "fats")!.keys).toHaveLength(8);
     // Largest text: the same pages as before (fats 2, carbs 1, minerals 2), the least important row drops.
     const large = panelsForSize(entries, true);
     const pages = (id: string) => large.filter((panel) => panel.id === id || panel.id.startsWith(`${id}-`));

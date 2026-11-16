@@ -61,7 +61,7 @@ test("the week strip is its own padded band", async ({ page }) => {
   await expect(week).toBeVisible();
   const top = await week.evaluate((el) => el.getBoundingClientRect().top);
   expect(top).toBeGreaterThanOrEqual(54);
-  await expectBand(week, "rgb(32, 35, 42)", "rgb(142, 147, 160)");
+  await expectBand(week, "rgb(32, 35, 42)", "rgb(146, 151, 164)");
   if (test.info().project.name === "chromium") {
     await page.screenshot({ path: "/opt/cursor/artifacts/iphone40-week-home.png" });
     await page.screenshot({ path: "/opt/cursor/artifacts/iphone40-week-dots.png" });
@@ -70,14 +70,14 @@ test("the week strip is its own padded band", async ({ page }) => {
   await page.goto("/log");
   await page.evaluate(() => document.documentElement.classList.add("demo-statusbar"));
   const logWeek = page.getByRole("group", { name: "This week" });
-  await expectBand(logWeek, "rgb(32, 35, 42)", "rgb(142, 147, 160)");
+  await expectBand(logWeek, "rgb(32, 35, 42)", "rgb(146, 151, 164)");
   expect(await logWeek.evaluate((el) => el.getBoundingClientRect().top)).toBeGreaterThanOrEqual(54);
   if (test.info().project.name === "chromium") {
     await page.screenshot({ path: "/opt/cursor/artifacts/iphone40-week-log.png" });
   }
 
   await page.evaluate(() => { document.documentElement.dataset.theme = "midnight"; });
-  await expectBand(logWeek, "rgb(27, 34, 51)", "rgb(139, 151, 176)");
+  await expectBand(logWeek, "rgb(27, 34, 51)", "rgb(142, 154, 179)");
   if (test.info().project.name === "chromium") {
     await page.screenshot({ path: "/opt/cursor/artifacts/iphone40-week-midnight.png" });
   }

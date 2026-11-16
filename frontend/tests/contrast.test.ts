@@ -4,7 +4,11 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 const css = readFileSync(new URL("../src/styles/main.css", import.meta.url), "utf8");
-const tokens = Object.fromEntries([...css.matchAll(/--([\w-]+):\s*(#[0-9a-fA-F]{3,8})/g)].map((match) => [match[1], match[2].toLowerCase()]));
+const tokenRe = /--([\w-]+):\s*(#[0-9a-fA-F]{3,8})/g;
+const tokensOf = (block: string) => Object.fromEntries([...block.matchAll(tokenRe)].map((match) => [match[1], match[2].toLowerCase()]));
+/** Each theme's own block of tokens, so every theme is checked, not only the last one in the file. */
+const themes = Object.fromEntries([...css.matchAll(/html\[data-theme="(\w+)"\]\s*\{([^}]*)\}/g)].map((match) => [match[1], tokensOf(match[2])]));
+const tokens = themes.black;
 
 function channels(hex: string): number[] {
   const value = hex.replace("#", "");
@@ -26,13 +30,11 @@ function ratio(foreground: string, background: string): number {
   return (lighter + 0.05) / (darker + 0.05);
 }
 
-const backgrounds = {
-  "color-bg": tokens["color-bg"],
-  "color-surface": tokens["color-surface"],
-  "color-surface-2": tokens["color-surface-2"],
-  "#202023": "#202023",
-  "#303036": "#303036",
-};
+const backgrounds = (theme: Record<string, string>) => ({
+  "color-bg": theme["color-bg"],
+  "color-surface": theme["color-surface"],
+  "color-surface-2": theme["color-surface-2"],
+});
 
 describe("contrast tokens", () => {
   it("uses the prototype secondary, tertiary, and strong border", () => {
@@ -41,14 +43,21 @@ describe("contrast tokens", () => {
     expect(tokens["color-border-strong"]).toBe("#737379");
   });
 
-  it("keeps text at 4.5:1 and the strong border at 3:1", () => {
-    for (const name of ["text-primary", "text-secondary", "text-tertiary"]) {
-      for (const [backgroundName, background] of Object.entries(backgrounds)) {
-        expect(ratio(tokens[name], background), `${name} on ${backgroundName}`).toBeGreaterThanOrEqual(4.5);
+  it("finds every theme", () => {
+    expect(Object.keys(themes)).toEqual(["graphite", "midnight", "charcoal", "black"]);
+  });
+
+  it.each(Object.keys(themes))("%s keeps text at 4.5:1, on the raised box too", (name) => {
+    const theme = themes[name];
+    for (const text of ["text-primary", "text-secondary", "text-tertiary"]) {
+      for (const [backgroundName, background] of Object.entries(backgrounds(theme))) {
+        expect(ratio(theme[text], background), `${text} on ${backgroundName}`).toBeGreaterThanOrEqual(4.5);
       }
     }
+  });
+
+  it("keeps the strong border at 3:1", () => {
     expect(ratio(tokens["color-border-strong"], tokens["color-surface"])).toBeGreaterThanOrEqual(3);
     expect(ratio(tokens["color-border-strong"], tokens["color-surface-2"])).toBeGreaterThanOrEqual(3);
-    expect(ratio(tokens["text-secondary"], tokens["color-surface"])).toBeGreaterThanOrEqual(3);
   });
 });

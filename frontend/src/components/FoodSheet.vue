@@ -3,19 +3,20 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue"
 import { ApiError, createCustomFood, createServing, deleteServing, getFood, listMyFoods, listRecentFoods, searchFoods, searchOpenFoodFacts, ServerUnreachable, updateServing, type FoodSearchRow, type OffFoodRow, type RecentFood, type SavedGroup } from "../api";
 import BottomSheet from "./BottomSheet.vue";
 import FoodEditor from "./FoodEditor.vue";
-import Bar from "./Bar.vue";
 import Icon from "./Icon.vue";
 import MicroRing from "./MicroRing.vue";
 import Keypad from "./Keypad.vue";
 import { typeInto } from "../lib/numbers";
 import Segmented from "./Segmented.vue";
 import TimeChip from "./TimeChip.vue";
-import NutrientRows from "./NutrientRows.vue";
+import MacroRows from "./MacroRows.vue";
+import NutrientPanelSet from "./NutrientPanelSet.vue";
 import SwipePanels from "./SwipePanels.vue";
 import { dayMonth, todayInZone } from "../lib/dates";
 import { focusField, primeKeyboard } from "../lib/focusField";
 import { int } from "../lib/format";
-import { osloYear, panelsForSize, scaleMap, valuesOf, type NutrientMap } from "../lib/nutrients";
+import { panelsForSize, scaleMap, valuesOf, type NutrientMap } from "../lib/nutrients";
+import { fatLimitsOf } from "../lib/nutrientCards";
 import {
   amountError,
   amountLabel,
@@ -66,11 +67,11 @@ import {
   typeForLocalSearch,
 } from "../lib/foodSheet";
 import { quickAddFoodWrite } from "../lib/customFood";
-import { kcalFromMacros, macroStatus } from "../lib/macros";
+import { kcalFromMacros, type MacroAmounts } from "../lib/macros";
 import { bindPick, clickPick } from "../lib/cleanTap";
 import { afterInsertion, markWholeSelection, nextQuickInput, nextQuickNumber, tookWholeSelection } from "../lib/quickEntry";
 import { keyboardEntry } from "../lib/viewport";
-import { deviceTimeZone, profile } from "../state/profile";
+import { deviceTimeZone, nutrientPerson, profile } from "../state/profile";
 import { findEntry, log, removeEntries, removeEntry, saveQuickAdd, totalsOf, updateFoodAmount, updateQuickAdd, viewed, type LogEntry } from "../state/log";
 import SavedGroups from "./SavedGroups.vue";
 import RecipeList from "./RecipeList.vue";
@@ -291,12 +292,6 @@ const per100 = computed(() => {
   const each = entry.amount || 1;
   return `per serving · ${int(entry.kcal / each)} kcal · P${macroFigure(entry.protein / each)} F${macroFigure(entry.fat / each)} C${macroFigure(entry.carbs / each)}`;
 });
-const previewItems = computed(() => [
-  { label: "KCAL", value: preview.value.kcal },
-  { label: "PROTEIN", value: preview.value.protein },
-  { label: "FAT", value: preview.value.fat },
-  { label: "CARBS", value: preview.value.carbs },
-]);
 const sheetSource = computed(() => {
   const food = shownFood.value;
   if (food && !editingFood.value) {
@@ -327,23 +322,22 @@ const sheetPer100 = computed<NutrientMap>(() => {
 });
 const sheetAmount = computed<NutrientMap>(() => scaleMap(sheetPer100.value, sheetFactor.value));
 const sheetLarge = ref(false);
-const sheetPanels = computed(() => panelsForSize(sheetSource.value ? [sheetSource.value] : [], sheetLarge.value, true));
-const sheetAge = computed(() => {
-  const year = profile.saved?.birthYear;
-  return typeof year === "number" ? osloYear() - year : 0;
-});
-const after = computed(() => {
-  const goal = foodTarget.value ?? (ui.foodDate === foodToday.value ? profile.targets : null);
-  if (!goal || !keyboardEntry.value) return null;
+const sheetSources = computed(() => (sheetSource.value ? [sheetSource.value] : []));
+const sheetPanels = computed(() => panelsForSize(sheetSources.value, sheetLarge.value));
+/** The preview is the Home card for the day the food goes to, with this food in it. */
+const sheetGoal = computed(() => foodTarget.value ?? (ui.foodDate === foodToday.value ? profile.targets : null));
+const sheetPerson = computed(() => nutrientPerson(sheetGoal.value?.kcal ?? null));
+const sheetFatLimits = computed(() => fatLimitsOf(profile.saved?.fatLimits));
+const adding = computed<MacroAmounts>(() => ({ kcal: preview.value.kcal, p: preview.value.protein, f: preview.value.fat, c: preview.value.carbs }));
+/** The day's totals once this food is in: an edited entry's old amounts come out first. */
+const dayAfter = computed<MacroAmounts>(() => {
   const totals = foodTotals.value;
   const old = editing.value ?? { kcal: 0, protein: 0, fat: 0, carbs: 0 };
-  const next = preview.value;
-  return [
-    { k: "kcal" as const, label: "Calories", v: totals.kcal - old.kcal + next.kcal, tgt: goal.kcal, unit: "kcal" },
-    { k: "p" as const, label: "Protein", v: totals.p - old.protein + next.protein, tgt: goal.protein, unit: "g" },
-    { k: "f" as const, label: "Fat", v: totals.f - old.fat + next.fat, tgt: goal.fat, unit: "g" },
-    { k: "c" as const, label: "Carbs", v: totals.c - old.carbs + next.carbs, tgt: goal.carbs, unit: "g" },
-  ];
+  return { kcal: totals.kcal - old.kcal + adding.value.kcal, p: totals.p - old.protein + adding.value.p, f: totals.f - old.fat + adding.value.f, c: totals.c - old.carbs + adding.value.c };
+});
+const macroTitle = computed(() => {
+  if (!sheetGoal.value) return "Macros";
+  return `${ui.foodDate === foodToday.value ? "Today" : "That day"} after ${editing.value ? "saving" : "adding"}`;
 });
 
 function rowSub(food: FoodSearchRow): string {
@@ -1328,29 +1322,10 @@ async function deleteEdited() {
         </div>
       </div>
       <div class="preview" aria-live="polite">
-        <SwipePanels tight :count="sheetPanels.length + 1" :height="208" label="Food nutrients">
-          <div class="panel" data-panel="macros">
-            <span class="section-title panel-title">Macros</span>
-            <div class="cols t-capn c2"><span></span><span>Per 100 g</span><span>Amount</span></div>
-            <div v-for="item in previewItems" :key="item.label" class="nrow">
-              <span class="t-label name">{{ item.label }}</span>
-              <span class="t-bodys num" data-num>{{ int(sheetFactor ? item.value / sheetFactor : item.value) }}</span>
-              <span class="t-bodys num" data-num>{{ int(item.value) }}</span>
-            </div>
-          </div>
-          <NutrientRows v-for="panel in sheetPanels" :key="panel.id" :panel="panel" :values="sheetAmount" :per100="sheetPer100" :sex="profile.saved?.sex ?? ''" :age="sheetAge" :kcal-target="profile.targets?.kcal ?? null" />
+        <SwipePanels tight :count="sheetPanels.length + 1" :lock-index="-1" label="Food nutrients">
+          <MacroRows :title="macroTitle" :goal="sheetGoal" :eaten="dayAfter" :adding="adding" />
+          <NutrientPanelSet :panels="sheetPanels" :values="sheetAmount" :entries="sheetSources" :carbs="preview.carbs" :person="sheetPerson" :fat-limits="sheetFatLimits" :large="sheetLarge" portion :per100="sheetPer100" />
         </SwipePanels>
-      </div>
-      <div v-if="after" class="after col">
-        <div class="row">
-          <span class="t-cap c3">{{ ui.foodDate === foodToday ? "Today" : "That day" }} after {{ editing ? "saving" : "adding" }}</span>
-          <span class="grow" />
-          <span class="t-capn c3">{{ after[0].v <= after[0].tgt ? `${int(after[0].tgt - after[0].v)} kcal left` : `${int(after[0].v - after[0].tgt)} kcal over` }}</span>
-        </div>
-        <div v-for="item in after" :key="item.label" class="col arow">
-          <div class="row"><span class="t-label c2 grow">{{ item.label }}</span><span class="t-bodys" data-num>{{ int(item.v) }}</span><span class="t-label c3">&nbsp;/ {{ int(item.tgt) }} {{ item.unit }}</span></div>
-          <Bar :pct="item.tgt ? item.v / item.tgt : 0" :hit="macroStatus(item.k, item.v, item.tgt) === 'hit'" :over="macroStatus(item.k, item.v, item.tgt) === 'over'" />
-        </div>
       </div>
       <div class="grow" />
       <p v-if="formError" class="err t-label" role="alert">{{ formError }}</p>
@@ -1627,7 +1602,8 @@ async function deleteEdited() {
 .actions .btn.primary { width: auto; flex: 1 1 160px; min-width: 0; }
 .base { min-width: 0; max-width: 100%; display: flex; align-items: baseline; gap: var(--space-s); flex-wrap: wrap; }
 .dname { margin: 0; overflow-wrap: anywhere; }
-.preview { display: block; padding: var(--space-s) var(--space-s) 0; border-radius: var(--radius-l); background: var(--color-surface-2); flex: none; width: 100%; align-self: stretch; box-sizing: border-box; }
+/* The Home nutrient card, the same size, on the sheet's grey. */
+.preview { display: flex; flex-direction: column; height: var(--nutrient-card-height); padding: var(--space-box) var(--space-box) 0; border-radius: var(--radius-l); background: var(--color-surface-2); flex: none; width: 100%; align-self: stretch; box-sizing: border-box; }
 .detail { gap: calc(var(--space-m) / 6); }
 .detail .lead { gap: 0; }
 .detail .lead .wrapc { flex-wrap: nowrap; max-width: 100%; }
@@ -1637,13 +1613,8 @@ async function deleteEdited() {
 .detail .ginput { font-size: max(16px, min(1.15rem, 22px)); line-height: 1; }
 .detail .unitword { font-size: max(16px, 0.8824rem); line-height: 1.1; }
 .detail .units, .detail .chips, .detail .unit-radios { gap: var(--space-xs); }
-.detail .preview { padding-top: 0; padding-bottom: 0; }
-.preview .panel, .preview .cols, .preview .nrow, .preview :deep(.panel), .preview :deep(.heads), .preview :deep(.nrow) { width: 100%; box-sizing: border-box; }
-.preview .panel, .preview :deep(.panel) { padding: var(--space-xs) var(--space-xs) 0; }
-.preview .cols, .preview .nrow { display: grid; grid-template-columns: minmax(0, 1fr) 4.6rem 4.6rem; column-gap: var(--space-m); align-items: baseline; }
-.preview .num, .preview .cols span:not(:first-child) { text-align: right; justify-self: stretch; font-variant-numeric: tabular-nums; }
-.preview .name, .preview .cols span:first-child { text-align: left; justify-self: start; }
-.preview .num { font-variant-numeric: tabular-nums; text-align: right; }
+/* 12px between the keypad and the button under it, as on the weight sheet. The detail's own gap is 2px. */
+.detail .actions { margin-top: calc(var(--space-m) - var(--space-m) / 6); }
 .units, .chips { gap: var(--space-s); flex-wrap: wrap; justify-content: center; max-width: 100%; }
 .unit-radios { display: flex; flex-wrap: wrap; gap: var(--space-s); justify-content: center; max-width: 100%; }
 .ug { color: var(--text-secondary); }
@@ -1652,8 +1623,6 @@ async function deleteEdited() {
 .sinp.num { width: 72px; }
 .errline { margin: 0; color: var(--text-secondary); min-height: 1.2em; }
 .chip.on .ug { color: var(--color-on-action); }
-.after { gap: var(--space-m); padding: var(--space-l); border-radius: var(--radius-l); border: 1px solid var(--color-border); }
-.arow { gap: var(--space-s); }
 .session { display: flex; flex-direction: column; align-items: stretch; gap: var(--space-s); flex: none; min-width: 0; max-width: 100%; box-sizing: border-box; }
 .stext { min-width: 0; }
 .sbtns { display: flex; flex-wrap: wrap; align-items: stretch; gap: var(--space-s); margin: 0; min-width: 0; max-width: 100%; }
@@ -1661,7 +1630,6 @@ async function deleteEdited() {
 .sbtns .btn span { min-width: 0; }
 html.dt-xl .sbtns .btn { flex-basis: 100%; }
 .dt-l .units, .dt-l .chips { justify-content: center; }
-html.dt-xl .preview { display: block; }
 /* The header, name, amount, and unit stay near the default size so the largest
    text cannot cover them. The sheet body can still scroll. */
 html.dt-xl .hdr { flex-wrap: nowrap; }
@@ -1674,14 +1642,11 @@ html.dt-xl .detail .lead .wrapc { flex-wrap: wrap; }
 html.dt-xl .detail .lead .wrapc > span { overflow: visible; text-overflow: clip; white-space: normal; }
 /* Type inside the card stays near the default size. Value columns stay narrow
    enough that "Added sugars" stays on one line. */
-html.dt-xl .preview .cols,
-html.dt-xl .preview .nrow,
 html.dt-xl .preview :deep(.heads),
 html.dt-xl .preview :deep(.list.paired .nrow) { grid-template-columns: minmax(max-content, 1fr) 72px 72px; }
 html.dt-xl .preview :deep(.heads.pcts),
 html.dt-xl .preview :deep(.list.paired.pcts .nrow) { grid-template-columns: minmax(max-content, 1fr) 64px 40px 72px; }
-html.dt-xl .preview :deep(.name),
-html.dt-xl .preview .name { white-space: nowrap; overflow: visible; text-overflow: clip; }
+html.dt-xl .preview :deep(.name) { white-space: nowrap; overflow: visible; text-overflow: clip; }
 .dt-xl .qgrid { grid-template-columns: 1fr; }
 .fchips { gap: var(--space-m); flex-wrap: wrap; flex: none; }
 .nm { min-width: 0; max-width: 100%; }

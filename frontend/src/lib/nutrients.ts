@@ -22,8 +22,6 @@ export interface NutrientPanelDef {
   indent?: string[];
   /** Least important first. Dropped, in this order, when a layout has fewer rows than keys. */
   spare?: string[];
-  /** Rows that fit on the food sheet (Per 100 g and Amount in one column). No limit when unset. */
-  pairedMax?: number;
   /** Rows at the largest text size: the page count stays what it was, four rows a page. */
   largeMax?: number;
 }
@@ -74,7 +72,7 @@ const VITAMINS = ["vitaminA", "vitaminD", "vitaminE", "vitaminC", "thiamin", "ri
 const MINERALS = ["calcium", "iron", "zinc", "magnesium", "copper", "potassium", "phosphorus", "selenium", "iodine"];
 
 export const NUTRIENT_PANELS: NutrientPanelDef[] = [
-  { id: "fats", title: "Fats", grid: true, indent: ["saturatedFat", "epaDha"], keys: FATS, spare: ["omega6"], pairedMax: 8, largeMax: 8 },
+  { id: "fats", title: "Fats", grid: true, indent: ["saturatedFat", "epaDha"], keys: FATS, spare: ["omega6"], largeMax: 8 },
   { id: "carbs", title: "Carbs & sodium", keys: ["sugars", "addedSugars", "starch", "fiber", "sodium"], spare: ["starch"], largeMax: 4 },
   { id: "vitamins", title: "Vitamins", grid: true, halves: true, keys: VITAMINS },
   { id: "minerals", title: "Minerals", grid: true, halves: true, keys: MINERALS, spare: ["copper"], largeMax: 8 },
@@ -150,18 +148,16 @@ export function panelHasData(entries: readonly NutrientSource[], keys: readonly 
 }
 
 /**
- * Default text keeps Vitamins and Minerals as one two-column panel each.
- * Largest text drops the two-column merge and shows single-column groups of
- * four, so the fixed card height does not have to grow. `paired` is the food
- * sheet, which shows per 100 g beside the amount in one column. Neither adds a
- * page: a layout with fewer rows drops the panel's spare keys instead.
+ * Default text shows each panel whole: the Fats and Carbs cards and the ring grids.
+ * Largest text shows single-column groups of four, so the fixed card height does not
+ * have to grow. That never adds a page: the panel's spare keys drop instead.
  */
-export function panelsForSize(entries: readonly NutrientSource[], large: boolean, paired = false): NutrientPanelDef[] {
+export function panelsForSize(entries: readonly NutrientSource[], large: boolean): NutrientPanelDef[] {
   const shown: NutrientPanelDef[] = [];
   for (const panel of NUTRIENT_PANELS) {
     if (!panelHasData(entries, panel.keys)) continue;
     if (!large) {
-      shown.push({ ...panel, keys: paired ? fitKeys(panel, panel.pairedMax) : panel.keys });
+      shown.push({ ...panel });
       continue;
     }
     const keys = fitKeys(panel, panel.largeMax);
