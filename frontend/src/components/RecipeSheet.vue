@@ -4,6 +4,7 @@ import { getFood, listMyFoods, listRecentFoods, searchFoods, type FoodSearchRow,
 import BottomSheet from "./BottomSheet.vue";
 import Icon from "./Icon.vue";
 import Keypad from "./Keypad.vue";
+import MicroRing from "./MicroRing.vue";
 import TimeChip from "./TimeChip.vue";
 import { dayMonth, todayInZone } from "../lib/dates";
 import { amountError, amountLabel, convertAmount, defaultAmount, distinctUnits, parseAmount, servingName, unitsForFood, type CatalogFood, type UnitChoice } from "../lib/foodAmount";
@@ -720,7 +721,7 @@ async function addLog() {
     <div v-else-if="step === 'search'" class="stack search">
       <label class="field row finder">
         <Icon name="search" :size="18" class="c2" />
-        <input v-autofocus v-model="q" class="t-body grow" type="search" placeholder="Search foods" aria-label="Search foods" autocomplete="off" />
+        <input v-autofocus v-model="q" class="t-body grow" type="search" placeholder="Search foods" aria-label="Search foods" autocomplete="off" enterkeyhint="search" />
       </label>
       <p v-if="searching" class="t-label c2" role="status">Searching…</p>
       <section v-for="section in searchSections" :key="section.title" class="col">
@@ -730,6 +731,7 @@ async function addLog() {
             <span class="t-body name">{{ food.name }}</span>
             <span class="t-label c2 facts">{{ rowFacts(food) }}</span>
           </span>
+          <MicroRing :nutrients="food.nutrients" />
         </button>
       </section>
       <p v-if="searchEmpty" class="t-label c2" role="status">{{ searchEmpty }}</p>
