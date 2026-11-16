@@ -12,6 +12,11 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [vue()],
+    // Shown in Settings. The Docker build passes GIT_SHA; a local build shows only the date.
+    define: {
+      __BUILD_SHA__: JSON.stringify(process.env.GIT_SHA ?? env.GIT_SHA ?? ""),
+      __BUILD_TIME__: JSON.stringify(new Date().toISOString()),
+    },
     test: {
       include: ["tests/**/*.ts"],
       environment: "node",

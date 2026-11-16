@@ -10,6 +10,8 @@ import SelectBar from "./components/SelectBar.vue";
 import SideNav from "./components/SideNav.vue";
 import TabBar from "./components/TabBar.vue";
 import Toast from "./components/Toast.vue";
+import SettingsSheet from "./components/SettingsSheet.vue";
+import NotificationsSheet from "./components/NotificationsSheet.vue";
 import AccuracySheet from "./components/AccuracySheet.vue";
 import RecalculateSheet from "./components/RecalculateSheet.vue";
 import WeightSheet from "./components/WeightSheet.vue";
@@ -20,7 +22,7 @@ import { bindFocusProxy } from "./lib/focusField";
 import { isTypingTarget, screenLayoutFromFlags, shortcutEffect } from "./lib/layout";
 import { vp } from "./lib/viewport";
 import { boot } from "./state/boot";
-import { loadProfile, profile, retryLoad } from "./state/profile";
+import { followDeviceZone, loadProfile, profile, retryLoad } from "./state/profile";
 import { refreshInbox } from "./state/inbox";
 import { loadToday, log, viewed } from "./state/log";
 import { closeCopy, closeFoodLayer, closeGroupSheet, closeRecipeSheet, closeSheet, endSelect, openFood, openWeight, ui } from "./ui";
@@ -64,6 +66,7 @@ onMounted(async () => {
   if (boot.signedIn) {
     await loadProfile();
     if (profile.hasSaved) {
+      void followDeviceZone();
       await loadToday();
       await refreshInbox();
     }
@@ -137,6 +140,8 @@ function onKey(event: KeyboardEvent) {
     <WeightSheet />
     <RecalculateSheet />
     <AccuracySheet />
+    <SettingsSheet />
+    <NotificationsSheet />
     <AddChooser />
     <FoodSheet />
     <Toast />

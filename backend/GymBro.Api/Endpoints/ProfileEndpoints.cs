@@ -15,6 +15,7 @@ public static class ProfileEndpoints
         api.MapGet("/profile", Get);
         api.MapGet("/profile/history", History);
         api.MapPut("/profile", Put);
+        api.MapPut("/profile/settings", PutSettings);
         api.MapPost("/targets/preview", Preview);
         api.MapGet("/targets", GetTargets);
         return api;
@@ -173,6 +174,45 @@ public static class ProfileEndpoints
         return Results.Ok(new ProfileStateResponse(ToResponse(profile), ToWeight(weight), ToTargets(saved), Matvaretabellen.Citation, OpenFoodFactsCredit.Citation));
     }
 
+    private static async Task<IResult> PutSettings(
+        ClaimsPrincipal principal,
+        SettingsRequest request,
+        AppDbContext db,
+        TimeProvider clock,
+        CancellationToken cancellationToken)
+    {
+        if (Caller.MissingOid(principal) is { } denied)
+        {
+            return denied;
+        }
+
+        var profile = await db.Profiles.FirstOrDefaultAsync(row => row.UserId == Caller.Id(principal), cancellationToken);
+        if (profile is null)
+        {
+            return ApiResults.Error(RecalculateEndpoints.NeedProfile);
+        }
+
+        if (request.TimeZone is not null)
+        {
+            var zone = request.TimeZone.Trim();
+            if (zone.Length > 64 || !LocalDates.TryToday(zone, clock, out _))
+            {
+                return ApiResults.Error("That time zone is not known.");
+            }
+
+            profile.TimeZone = zone;
+        }
+
+        if (request.TimeZoneFollowsDevice is { } follows)
+        {
+            profile.TimeZoneFollowsDevice = follows;
+        }
+
+        profile.UpdatedAt = clock.GetUtcNow();
+        await db.SaveChangesAsync(cancellationToken);
+        return Results.Ok(new SettingsResponse(profile.TimeZone, profile.TimeZoneFollowsDevice));
+    }
+
     private static async Task<IResult> Preview(
         ClaimsPrincipal principal,
         ProfileRequest request,
@@ -254,7 +294,8 @@ public static class ProfileEndpoints
             profile.ProteinGramsPerKg,
             profile.FatSetting,
             profile.FatPercent,
-            profile.TimeZone);
+            profile.TimeZone,
+            profile.TimeZoneFollowsDevice);
 
     public static WeightResponse ToWeight(WeightSnapshot weight) => new(
         weight.AsOf,
@@ -308,7 +349,13 @@ public sealed record ProfileResponse(
     decimal ProteinGramsPerKg,
     string FatSetting,
     decimal FatPercent,
-    string TimeZone);
+    string TimeZone,
+    bool TimeZoneFollowsDevice);
+
+/// <summary>Display preferences. None of them changes the targets, so saving one writes no target history.</summary>
+public sealed record SettingsRequest(string? TimeZone, bool? TimeZoneFollowsDevice);
+
+public sealed record SettingsResponse(string TimeZone, bool TimeZoneFollowsDevice);
 
 public sealed record WeightResponse(
     DateOnly AsOf,

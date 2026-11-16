@@ -6,6 +6,8 @@ export const SHOWN_ON_HOME = ["recalculate"];
 export interface RecentNote {
   id: number;
   label: string;
+  /** The full text, kept only while the notification is open. Read ones collapse to their label. */
+  body: string;
   /** "today": open and shown on Home. "new": open, shown only here. "done": read, dismissed, or acted on. */
   state: "today" | "new" | "done";
   date: string;
@@ -21,13 +23,14 @@ export function noteDate(iso: string, zone: string): string {
 }
 
 /** The newest few, newest first. Older ones stay on the server but are not listed. */
-export function recentNotes(items: readonly InboxItem[], zone: string, limit = 3): RecentNote[] {
+export function recentNotes(items: readonly InboxItem[], zone: string, limit = 10): RecentNote[] {
   return [...items]
     .sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : b.id - a.id))
     .slice(0, limit)
     .map((item) => ({
       id: item.id,
-      label: item.type === "recalculate" ? "Recalculate reminder" : item.title,
+      label: item.type === "recalculate" ? "Recalculate this week" : item.title,
+      body: item.readAt ? "" : item.body,
       state: item.readAt ? "done" : SHOWN_ON_HOME.includes(item.type) ? "today" : "new",
       date: noteDate(item.createdAt, zone),
     }));

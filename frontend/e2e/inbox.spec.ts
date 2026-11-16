@@ -53,19 +53,19 @@ test("the weekly reminder shows on Today and Profile until it is dismissed", asy
   await expect(page.getByRole("dialog", { name: "Recalculate" })).toHaveCount(0);
   await expect(prompt).toBeVisible();
 
-  // Profile lists it as on Today instead of repeating it.
+  // The bell on Profile lists it as on Today instead of repeating it.
   await page.getByRole("link", { name: "Profile" }).click();
-  const section = page.getByRole("region", { name: "Notifications" });
+  await page.getByRole("button", { name: /^Notifications/ }).click();
+  const section = page.getByRole("dialog", { name: "Notifications" });
   await expect(section.getByRole("switch", { name: /Weekly recalculate reminder/ })).toBeVisible();
   await expect(section.getByText("Monday morning", { exact: false })).toBeVisible();
   await expect(section.getByText("Time to recalculate your target")).toHaveCount(0);
   await expect(section.getByRole("button", { name: "Mark all read" })).toHaveCount(0);
-  const recent = section.locator("[data-recent-notes] li");
+  const recent = section.locator("[data-note-list] li");
   await expect(recent).toHaveCount(1);
-  await expect(recent.first()).toContainText("Recalculate reminder");
+  await expect(recent.first()).toContainText("Recalculate this week");
   await expect(recent.first().getByRole("link", { name: "On Today" })).toBeVisible();
   if (test.info().project.name === "chromium") {
-    await section.scrollIntoViewIfNeeded();
     await page.screenshot({ path: "/opt/cursor/artifacts/notifications-phone.png" });
   }
 
@@ -77,5 +77,6 @@ test("the weekly reminder shows on Today and Profile until it is dismissed", asy
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
   await expect(page.getByRole("region", { name: "Recalculate this week" })).toHaveCount(0);
   await page.getByRole("link", { name: "Profile" }).click();
-  await expect(page.getByRole("region", { name: "Notifications" }).locator("[data-recent-notes] li").first()).toContainText("Done");
+  await page.getByRole("button", { name: /^Notifications/ }).click();
+  await expect(page.getByRole("dialog", { name: "Notifications" }).locator("[data-note-list] li").first()).toContainText("Done");
 });

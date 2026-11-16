@@ -150,8 +150,9 @@ public static class NotificationEndpoints
         }
 
         var userId = Caller.Id(principal);
+        // The ones on Home stay open until the person acts on them or dismisses them there.
         var unread = await db.UserNotifications
-            .Where(row => row.UserId == userId && row.ReadAt == null)
+            .Where(row => row.UserId == userId && row.ReadAt == null && !NotificationTypes.ShownOnHome.Contains(row.Type))
             .ToListAsync(cancellationToken);
         var now = clock.GetUtcNow();
         foreach (var row in unread)

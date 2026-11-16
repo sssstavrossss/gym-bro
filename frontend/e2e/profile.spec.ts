@@ -57,7 +57,8 @@ for (const layout of widths) {
     expect(csp).toContain("https://*.ciamlogin.com");
     expect(csp).not.toContain("unsafe-eval");
     await expect(page.getByText("Matvaretabellen 2026. Mattilsynet. www.matvaretabellen.no")).toHaveCount(0);
-    await expect(page.getByRole("button", { name: "Sign out" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Sign out" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Settings" })).toBeVisible();
     await expect(page.getByText("More carbs means less protein or fat.")).toHaveCount(0);
 
     if (layout.nav === "tabs") {
@@ -75,7 +76,7 @@ for (const layout of widths) {
 
     if (layout.width !== 390) return;
 
-    await page.getByRole("button", { name: "Customise" }).click();
+    await page.getByRole("button", { name: /Macro balance/ }).click();
     await expect(page.getByText("More carbs means less protein or fat.")).toBeVisible();
     await page.getByRole("group", { name: "Protein" }).getByRole("button", { name: "More" }).click();
     await expect(page.locator("[data-field=protein]")).toHaveText("201");

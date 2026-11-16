@@ -51,6 +51,8 @@ export interface ProfileResponse {
   fatSetting: string;
   fatPercent: number;
   timeZone: string;
+  /** The app keeps timeZone on the device's zone. False once a zone was picked by hand. */
+  timeZoneFollowsDevice?: boolean;
 }
 
 export type TrendState = "normal" | "low_accuracy" | "fresh_start";
@@ -412,6 +414,25 @@ export async function getProfile(): Promise<ProfileStateResponse> {
 
 export async function putProfile(body: ProfileBody): Promise<ProfileStateResponse> {
   return jsonOrThrow(await request("/api/profile", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  }));
+}
+
+export interface SettingsBody {
+  timeZone?: string;
+  timeZoneFollowsDevice?: boolean;
+}
+
+export interface SettingsResponse {
+  timeZone: string;
+  timeZoneFollowsDevice: boolean;
+}
+
+/** Display preferences. Saving one never changes the targets or adds history. */
+export async function putSettings(body: SettingsBody): Promise<SettingsResponse> {
+  return jsonOrThrow(await request("/api/profile/settings", {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),

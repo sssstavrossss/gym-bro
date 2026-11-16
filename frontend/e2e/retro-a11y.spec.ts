@@ -50,7 +50,7 @@ test("setup, profile, weight sheet, and placeholders", async ({ page }, info) =>
   await expect(page.locator("[data-field=kcal]")).toHaveText("2,218");
   await check(page, `${info.project.name} profile`);
 
-  await page.getByRole("button", { name: "Customise" }).click();
+  await page.getByRole("button", { name: /Macro balance/ }).click();
   await expect(page.getByText("More carbs means less protein or fat.")).toBeVisible();
   await check(page, `${info.project.name} customise`);
 

@@ -1,82 +1,19 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, ref } from "vue";
 import AccuracyDot from "../components/AccuracyDot.vue";
 import Icon from "../components/Icon.vue";
 import Segmented from "../components/Segmented.vue";
 import TargetHistory from "../components/TargetHistory.vue";
 import { ACTIVITY, FAT_PRESETS, PROTEIN_PRESETS, RATES, type ActivityKey, type Goal, type MacroSetting, type Sex } from "../lib/nutrition";
-import { int } from "../lib/format";
+import { dayMonth, todayInZone } from "../lib/dates";
+import { int, kg } from "../lib/format";
+import { goalLine } from "../lib/goalLine";
 import { parseDecimal } from "../lib/numbers";
-import { boot } from "../state/boot";
-import { clearAllDrafts, commitProfile, profile, shownTargets, weightCaption } from "../state/profile";
-import { signOut } from "../auth/session";
-import { enableReminders, getNotifications, notificationHint } from "../lib/notifications";
-import { getInbox, putNotificationType, type InboxItem, type NotificationSettings } from "../api";
-import { recentNotes } from "../lib/inboxView";
+import { commitProfile, deviceTimeZone, profile, shownTargets, weightCaption } from "../state/profile";
 import { inbox } from "../state/inbox";
-import { openRecalculate, openWeight } from "../ui";
+import { openNotifications, openRecalculate, openSettings, openWeight } from "../ui";
 import { vp } from "../lib/viewport";
-import { applyTheme, readTheme, themes, type ThemeId } from "../lib/theme";
 
-const theme = ref<ThemeId>(readTheme());
-function chooseTheme(id: ThemeId) {
-  theme.value = id;
-  applyTheme(id);
-}
-
-const notes = ref<NotificationSettings | null>(null);
-const noteError = ref("");
-const noteBusy = ref(false);
-const items = ref<InboxItem[]>([]);
-const hint = notificationHint();
-const recent = computed(() => recentNotes(items.value, profile.form.timeZone || deviceZone()));
-function deviceZone() {
-  try {
-    return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
-  } catch {
-    return "UTC";
-  }
-}
-const reminderLine = computed(() => {
-  if (!notes.value) return "Monday morning";
-  if (!notes.value.configured) return "Monday morning · push isn't set up on the server";
-  return `Monday morning · push ${notes.value.enabled ? "on" : "off"} on this device`;
-});
-onMounted(() => {
-  void getNotifications().then((value) => { notes.value = value; }).catch(() => { noteError.value = "Couldn't load notification settings."; });
-  void loadInbox();
-});
-async function loadInbox() {
-  try {
-    const body = await getInbox();
-    items.value = body.items;
-    inbox.unread = body.unread;
-    inbox.badge = body.badge ?? body.unread;
-  } catch {
-    noteError.value = "Couldn't load notifications.";
-  }
-}
-const typeOn = computed(() => {
-  const settings = notes.value;
-  if (!settings?.configured) return false;
-  return settings.types?.find((item) => item.id === "recalculate")?.enabled ?? false;
-});
-async function onType() {
-  if (!notes.value || noteBusy.value) return;
-  noteBusy.value = true;
-  noteError.value = "";
-  const next = !typeOn.value;
-  try {
-    if (next && notes.value.configured && !notes.value.enabled) {
-      notes.value = await enableReminders(notes.value);
-    }
-    notes.value = await putNotificationType("recalculate", next);
-  } catch (error) {
-    noteError.value = error instanceof Error ? error.message : "Couldn't update reminders.";
-  } finally {
-    noteBusy.value = false;
-  }
-}
 const actOpen = ref(false);
 const customOpen = ref(false);
 const year = new Date().getFullYear();
@@ -86,6 +23,27 @@ const age = computed(() => {
 });
 const shown = computed(() => shownTargets());
 const caption = computed(() => weightCaption(profile.weight));
+/** The date the targets in effect started. A preview of unsaved edits has none. */
+const updated = computed(() => (shown.value && shown.value === profile.targets ? profile.targets.effectiveDate : null));
+
+const balance = computed(() => {
+  const form = profile.form;
+  if (form.proteinSetting === "normal" && form.fatSetting === "normal") return "Normal";
+  const protein = PROTEIN_PRESETS.find((item) => item.key === form.proteinSetting)?.label ?? `${form.proteinGramsPerKg} g/kg`;
+  const fat = FAT_PRESETS.find((item) => item.key === form.fatSetting)?.label ?? `${form.fatPercent}%`;
+  return `Protein ${protein.toLowerCase()} · fat ${fat.toLowerCase()}`;
+});
+
+const line = computed(() => {
+  const weight = profile.weight;
+  return goalLine({
+    goal: profile.form.goal,
+    weightKg: weight?.trendKg ?? weight?.usedKg ?? null,
+    goalKg: parseDecimal(profile.form.goalWeightKg),
+    rateKg: parseDecimal(profile.form.rate),
+    today: todayInZone(profile.form.timeZone || deviceTimeZone()),
+  });
+});
 
 function setSex(value: string) {
   profile.form.sex = value as Sex;
@@ -139,32 +97,110 @@ function resetMacros() {
 function onTextCommit() {
   void commitProfile();
 }
-async function onSignOut() {
-  if (!boot.config) return;
-  clearAllDrafts();
-  await signOut(boot.config);
-}
 </script>
 
 <template>
   <main class="screen">
-    <header class="screen-head">
-      <h1 class="t-title">Profile</h1>
+    <header class="screen-head phead">
+      <h1 class="t-title grow">Profile</h1>
+      <button type="button" class="cbtn hbtn" :aria-label="inbox.badge > 0 ? 'Notifications, new' : 'Notifications'" data-bell @click="openNotifications">
+        <Icon name="bell" :size="18" />
+        <span v-if="inbox.badge > 0" class="hdot" aria-hidden="true" />
+      </button>
+      <button type="button" class="cbtn hbtn" aria-label="Settings" data-cog @click="openSettings">
+        <Icon name="cog" :size="18" />
+      </button>
     </header>
 
     <div class="pgrid" :class="{ two: vp.tablet, desk: vp.desktop }">
       <div class="pcol">
-        <section class="card" aria-labelledby="theme-h">
-          <h2 id="theme-h" class="section-title c2">Theme</h2>
-          <div class="themes" role="radiogroup" aria-label="Theme">
-            <button v-for="item in themes" :key="item.id" type="button" role="radio" class="theme" :aria-checked="theme === item.id" @click="chooseTheme(item.id)">
-              <span class="swatch" :style="{ background: item.background }" aria-hidden="true"></span>
-              <span class="t-label">{{ item.label }}</span>
+        <section v-if="shown" class="card o1" aria-labelledby="tg-h" data-targets>
+          <div class="row thead">
+            <h2 id="tg-h" class="section-title c2 grow">Your targets</h2>
+            <span v-if="updated" class="t-capn c3" data-updated>Updated {{ dayMonth(updated) }}</span>
+          </div>
+          <div class="stats top">
+            <div><span class="t-label c2">Eat</span><span class="figure"><span class="t-nm" data-field="kcal">{{ int(shown.kcal) }}</span><span class="t-label c2">kcal</span></span></div>
+            <div><span class="t-label c2">Daily burn</span><span class="figure"><span class="t-ns" data-field="tdee">{{ int(shown.tdee) }}</span><span class="t-label c2">kcal</span></span></div>
+            <div><span class="t-label c2">BMR</span><span class="figure"><span class="t-ns" data-field="bmr">{{ int(shown.bmr) }}</span><span class="t-label c2">kcal</span></span></div>
+          </div>
+          <div class="divider" />
+          <div class="stats">
+            <div><span class="t-label c2">Protein</span><span class="figure"><span class="t-ns" data-field="protein">{{ int(shown.protein) }}</span><span class="t-label c2">g</span></span></div>
+            <div><span class="t-label c2">Fat</span><span class="figure"><span class="t-ns" data-field="fat">{{ int(shown.fat) }}</span><span class="t-label c2">g</span></span></div>
+            <div><span class="t-label c2">Carbs</span><span class="figure"><span class="t-ns" data-field="carbs">{{ int(shown.carbs) }}</span><span class="t-label c2">g</span></span></div>
+          </div>
+          <p v-if="shown.floorApplied" class="t-body" data-floor="true">Raised to your BMR so the target does not go below it.</p>
+          <button type="button" class="chip t-label recalc" @click="openRecalculate">Recalculate</button>
+        </section>
+
+        <TargetHistory class="o4" />
+      </div>
+
+      <div class="pcol">
+        <section class="card o2" aria-labelledby="goal-h">
+          <h2 id="goal-h" class="section-title c2">Goal</h2>
+          <div class="compact-seg">
+            <Segmented label="Goal" :model-value="profile.form.goal" :options="[{ value: 'lose', label: 'Lose' }, { value: 'maintain', label: 'Maintain' }, { value: 'gain', label: 'Gain' }]" @update:model-value="setGoal" />
+          </div>
+          <div v-if="profile.form.goal !== 'maintain'" class="rate" role="group" aria-label="Rate">
+            <span class="t-body c2">Rate</span>
+            <button v-for="rate in RATES" :key="rate" type="button" class="chip t-label" :class="{ on: Number(profile.form.rate) === rate }" @click="setRate(rate)">{{ rate === 1 ? "1.0" : rate }}</button>
+            <span class="t-label c2">kg/wk</span>
+          </div>
+          <div class="col">
+            <label class="frow">
+              <span class="t-body c2">Goal weight</span>
+              <span class="fval">
+                <input v-model="profile.form.goalWeightKg" class="ninput" type="text" inputmode="decimal" autocomplete="off" aria-label="Goal weight in kilograms" @blur="onTextCommit" />
+                <span class="t-label c2">kg</span>
+              </span>
+            </label>
+            <button type="button" class="frow" :class="{ last: !customOpen }" :aria-expanded="customOpen" data-macro-balance @click="customOpen = !customOpen">
+              <span class="t-body c2">Macro balance</span>
+              <span class="grow" />
+              <span class="t-body bal">{{ balance }}</span>
+              <Icon :name="customOpen ? 'down' : 'right'" :size="16" class="fchev" />
             </button>
           </div>
+          <div v-if="customOpen" class="custom">
+            <div role="group" aria-label="Protein">
+              <span class="t-label c2">Protein</span>
+              <div class="rate">
+                <button v-for="item in PROTEIN_PRESETS" :key="item.key" type="button" class="chip t-label" :class="{ on: profile.form.proteinSetting === item.key }" @click="setProtein(item.key, item.value)">{{ item.label }}</button>
+              </div>
+              <label class="frow last">
+                <span class="t-body c2">Exact</span>
+                <span class="fval">
+                  <input v-model="profile.form.proteinGramsPerKg" class="ninput" type="text" inputmode="decimal" aria-label="Exact protein, grams per kilogram" @blur="onExactProtein" />
+                  <span class="t-label c2">g/kg</span>
+                </span>
+              </label>
+            </div>
+            <div role="group" aria-label="Fat">
+              <span class="t-label c2">Fat</span>
+              <div class="rate">
+                <button v-for="item in FAT_PRESETS" :key="item.key" type="button" class="chip t-label" :class="{ on: profile.form.fatSetting === item.key }" @click="setFat(item.key, item.value)">{{ item.label }}</button>
+              </div>
+              <label class="frow last">
+                <span class="t-body c2">Exact</span>
+                <span class="fval">
+                  <input v-model="profile.form.fatPercent" class="ninput" type="text" inputmode="decimal" aria-label="Exact fat, percent" @blur="onExactFat" />
+                  <span class="t-label c2">%</span>
+                </span>
+              </label>
+            </div>
+            <button type="button" class="chip t-label reset" @click="resetMacros">Reset to default</button>
+            <p class="t-body c2 m0">More carbs means less protein or fat.</p>
+          </div>
+          <p v-if="line" class="t-label c2 m0 gline" data-goal-line>
+            <template v-if="line.kind === 'reached'">You're at your goal weight.</template>
+            <template v-else>{{ kg(line.fromKg) }} → {{ kg(line.toKg) }} kg · <b>{{ kg(line.leftKg) }} kg to go</b>, about <b>{{ line.weeks }} {{ line.weeks === 1 ? "week" : "weeks" }}</b> ({{ line.by }})</template>
+          </p>
         </section>
-        <section class="card about">
-          <span class="section-title c2 about-kicker">About you</span>
+
+        <section class="card about o3" aria-labelledby="about-h">
+          <h2 id="about-h" class="section-title c2 about-kicker">About you</h2>
           <div class="frow sexrow compact-seg">
             <span class="t-body c2">Sex</span>
             <span class="grow" />
@@ -194,7 +230,7 @@ async function onSignOut() {
             <span class="fval t-ns">{{ caption.value }}</span>
             <Icon name="right" :size="16" class="fchev" />
           </button>
-          <button type="button" class="frow" :aria-expanded="actOpen" @click="actOpen = !actOpen">
+          <button type="button" class="frow last" :aria-expanded="actOpen" @click="actOpen = !actOpen">
             <span class="t-body c2">Activity</span>
             <span class="grow" />
             <span class="t-body">{{ profile.form.activity ? ACTIVITY[profile.form.activity].label : "Choose" }}</span>
@@ -206,124 +242,7 @@ async function onSignOut() {
               <span class="t-label c2">{{ item.hint }}</span>
             </button>
           </div>
-          <label class="frow last">
-            <span class="t-body c2">Time zone</span>
-            <input v-model="profile.form.timeZone" class="tz" type="text" autocomplete="off" aria-label="Time zone" @blur="onTextCommit" />
-          </label>
         </section>
-
-        <section class="card">
-          <span class="section-title c2">Goal</span>
-          <div class="compact-seg">
-            <Segmented label="Goal" :model-value="profile.form.goal" :options="[{ value: 'lose', label: 'Lose' }, { value: 'maintain', label: 'Maintain' }, { value: 'gain', label: 'Gain' }]" @update:model-value="setGoal" />
-          </div>
-          <div v-if="profile.form.goal !== 'maintain'" class="rate" role="group" aria-label="Rate">
-            <span class="t-body c2">Rate</span>
-            <button v-for="rate in RATES" :key="rate" type="button" class="chip t-label" :class="{ on: Number(profile.form.rate) === rate }" @click="setRate(rate)">{{ rate === 1 ? "1.0" : rate }}</button>
-            <span class="t-label c2">kg/wk</span>
-          </div>
-          <label class="frow last">
-            <span class="t-body c2">Goal weight</span>
-            <span class="fval">
-              <input v-model="profile.form.goalWeightKg" class="ninput" type="text" inputmode="decimal" autocomplete="off" aria-label="Goal weight in kilograms" @blur="onTextCommit" />
-              <span class="t-label c2">kg</span>
-            </span>
-          </label>
-        </section>
-      </div>
-
-      <div class="pcol">
-        <section v-if="shown" class="card">
-          <h2 class="section-title c2">Your targets</h2>
-          <div class="stats">
-            <div><span class="t-label c2">BMR</span><span class="figure"><span class="t-ns" data-field="bmr">{{ int(shown.bmr) }}</span><span class="t-label c2">kcal</span></span></div>
-            <div><span class="t-label c2">Daily burn</span><span class="figure"><span class="t-ns" data-field="tdee">{{ int(shown.tdee) }}</span><span class="t-label c2">kcal</span></span></div>
-            <div><span class="t-label c2">Eat</span><span class="figure"><span class="t-nm" data-field="kcal">{{ int(shown.kcal) }}</span><span class="t-label c2">kcal</span></span></div>
-          </div>
-          <div class="divider" />
-          <div class="stats">
-            <div><span class="t-label c2">Protein</span><span class="figure"><span class="t-ns" data-field="protein">{{ int(shown.protein) }}</span><span class="t-label c2">g</span></span></div>
-            <div><span class="t-label c2">Fat</span><span class="figure"><span class="t-ns" data-field="fat">{{ int(shown.fat) }}</span><span class="t-label c2">g</span></span></div>
-            <div><span class="t-label c2">Carbs</span><span class="figure"><span class="t-ns" data-field="carbs">{{ int(shown.carbs) }}</span><span class="t-label c2">g</span></span></div>
-          </div>
-          <p v-if="shown.floorApplied" class="t-body" data-floor="true">Raised to your BMR so the target does not go below it.</p>
-          <button type="button" class="chip t-label recalc" @click="openRecalculate">Recalculate</button>
-        </section>
-
-        <TargetHistory />
-
-        <section class="card notes" aria-labelledby="remind-heading">
-          <h2 id="remind-heading" class="section-title c2">Notifications</h2>
-          <button
-            type="button"
-            class="srow"
-            role="switch"
-            :aria-checked="typeOn"
-            :disabled="noteBusy || !notes?.configured"
-            data-reminder-switch
-            @click="onType"
-          >
-            <span class="col grow">
-              <span class="t-body">Weekly recalculate reminder</span>
-              <span class="t-capn c2">{{ reminderLine }}</span>
-            </span>
-            <span class="switch" :class="{ on: typeOn }" aria-hidden="true"><i /></span>
-          </button>
-          <p v-if="hint" class="t-capn c2 status">{{ hint }}</p>
-          <template v-if="recent.length">
-            <h3 class="t-cap c3 sub">Recent</h3>
-            <ul class="recent" data-recent-notes>
-              <li v-for="note in recent" :key="note.id" class="rrow">
-                <span class="t-label grow">{{ note.label }}</span>
-                <RouterLink v-if="note.state === 'today'" to="/today" class="tag t-capn" data-on-today>On Today</RouterLink>
-                <span v-else-if="note.state === 'new'" class="tag t-capn">New</span>
-                <span class="t-capn c3 when">{{ note.state === "done" ? `Done · ${note.date}` : note.date }}</span>
-              </li>
-            </ul>
-          </template>
-          <p v-if="noteError" class="t-body" role="alert">{{ noteError }}</p>
-        </section>
-
-        <section class="card">
-          <button type="button" class="frow last" :aria-expanded="customOpen" @click="customOpen = !customOpen">
-            <span class="t-body">Customise</span>
-            <span class="grow" />
-            <span class="t-label c2">{{ customOpen ? "Hide" : "Normal balance" }}</span>
-            <Icon :name="customOpen ? 'down' : 'right'" :size="16" class="fchev" />
-          </button>
-          <div v-if="customOpen" class="custom">
-            <div role="group" aria-label="Protein">
-              <span class="t-label c2">Protein</span>
-              <div class="rate">
-                <button v-for="item in PROTEIN_PRESETS" :key="item.key" type="button" class="chip t-label" :class="{ on: profile.form.proteinSetting === item.key }" @click="setProtein(item.key, item.value)">{{ item.label }}</button>
-              </div>
-              <label class="frow last">
-                <span class="t-body c2">Exact</span>
-                <span class="fval">
-                  <input v-model="profile.form.proteinGramsPerKg" class="ninput" type="text" inputmode="decimal" aria-label="Exact protein, grams per kilogram" @blur="onExactProtein" />
-                  <span class="t-label c2">g/kg</span>
-                </span>
-              </label>
-            </div>
-            <div role="group" aria-label="Fat">
-              <span class="t-label c2">Fat</span>
-              <div class="rate">
-                <button v-for="item in FAT_PRESETS" :key="item.key" type="button" class="chip t-label" :class="{ on: profile.form.fatSetting === item.key }" @click="setFat(item.key, item.value)">{{ item.label }}</button>
-              </div>
-              <label class="frow last">
-                <span class="t-body c2">Exact</span>
-                <span class="fval">
-                  <input v-model="profile.form.fatPercent" class="ninput" type="text" inputmode="decimal" aria-label="Exact fat, percent" @blur="onExactFat" />
-                  <span class="t-label c2">%</span>
-                </span>
-              </label>
-            </div>
-            <button type="button" class="chip t-label" @click="resetMacros">Reset to default</button>
-            <p class="t-body c2">More carbs means less protein or fat.</p>
-          </div>
-        </section>
-
-        <button type="button" class="chip t-label signout" @click="onSignOut">Sign out</button>
       </div>
     </div>
     <p v-if="profile.error" class="alert" role="alert">{{ profile.error }}</p>
@@ -331,6 +250,22 @@ async function onSignOut() {
 </template>
 
 <style scoped>
+.phead { gap: 4px; }
+.phead .t-title { min-width: 0; }
+/* The discs line up with the page's right edge: the 44px hit box overhangs by the gap around the 32px disc. */
+.hbtn { color: var(--text-secondary); }
+.hbtn:last-child { margin-right: calc((var(--control-s) - var(--control-hit)) / 2); }
+.hdot { position: absolute; top: 8px; right: 8px; width: 8px; height: 8px; border-radius: 50%; background: var(--text-primary); box-shadow: 0 0 0 2px var(--color-bg); }
+.thead { align-items: baseline; gap: 8px; }
+[data-targets] { container-type: inline-size; }
+/* Narrow phones: Eat gets its own line. */
+@container (max-width: 290px) {
+  .stats.top { flex-wrap: wrap; row-gap: var(--space-gap); }
+  .stats.top > div:first-child { flex-basis: 100%; }
+}
+.gline b { color: var(--text-primary); font-weight: 600; }
+.m0 { margin: 0; }
+.bal { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .frow { min-height: 44px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--color-border); width: 100%; text-align: left; }
 .sexrow { flex-wrap: wrap; }
 .compact-seg :deep(.seg) { min-height: 30px; padding: 3px; border-radius: 10px; }
@@ -347,30 +282,8 @@ html:not(.dt-xl) .compact-seg :deep(.seg-btn)::after {
 .fval { display: inline-flex; align-items: baseline; gap: 8px; margin-left: auto; white-space: nowrap; flex-wrap: nowrap; flex: none; }
 .fval .ninput { margin-left: 0; }
 .ninput { width: 88px; margin-left: auto; text-align: right; background: transparent; border: 0; min-height: 44px; }
-.tz { margin-left: auto; width: 180px; text-align: right; background: transparent; border: 0; min-height: 44px; }
-.recalc { align-self: flex-start; }
-.status { margin: 0; }
-.notes { gap: 10px; }
-.notes p { margin: 0; overflow-wrap: anywhere; }
-.notes h2, .notes h3 { margin: 0; }
-.srow { min-height: 52px; width: 100%; display: flex; align-items: center; gap: var(--space-gap); text-align: left; padding: 0; }
-.srow:disabled { opacity: 1; }
-.switch { position: relative; width: 46px; height: 28px; border-radius: 14px; background: var(--color-track); flex: none; transition: background .15s; }
-.switch i { position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 11px; background: var(--text-tertiary); transition: transform .15s, background .15s; }
-.switch.on { background: var(--color-action); }
-.switch.on i { transform: translateX(18px); background: var(--color-on-action); }
-.srow:disabled .switch { opacity: .45; }
-.sub { margin-top: 4px; }
-.recent { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
-/* At large text the date drops under the label instead of squeezing it. */
-.rrow { display: flex; flex-wrap: wrap; align-items: center; column-gap: 8px; row-gap: 2px; min-height: 40px; padding: 4px 0; border-top: 1px solid var(--color-border); min-width: 0; }
-.rrow .grow { flex: 1 1 8rem; min-width: 0; white-space: normal; overflow-wrap: anywhere; color: var(--text-secondary); }
-.tag { flex: none; padding: 2px 8px; border-radius: 9px; background: var(--color-action); color: var(--color-on-action); font-weight: 600; text-decoration: none; }
-.when { flex: none; white-space: nowrap; font-variant-numeric: tabular-nums; }
-.head { gap: var(--space-gap); align-items: center; min-height: var(--control-hit); }
-.feed { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: calc(var(--space-gap) / 2); }
-.note { width: 100%; min-height: var(--control-hit); gap: var(--space-gap); text-align: left; align-items: flex-start; }
-.wrap { overflow-wrap: anywhere; }
+.fchev { color: var(--text-tertiary); flex: none; }
+.recalc, .reset { align-self: flex-start; }
 .acts, .custom { display: flex; flex-direction: column; gap: var(--space-gap); }
 .act { min-height: 44px; display: flex; align-items: center; gap: 10px; text-align: left; border-radius: 10px; padding: 0 8px; }
 .act.on { background: var(--color-surface-2); }
@@ -378,21 +291,16 @@ html:not(.dt-xl) .compact-seg :deep(.seg-btn)::after {
 .stats { display: flex; gap: 12px; }
 .stats > div { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .figure { display: inline-flex; align-items: baseline; gap: 4px; flex-wrap: nowrap; white-space: nowrap; min-width: 0; }
+/* Phone: one column in order of importance. Wider: outputs (targets, history) left, inputs (goal, about you) right. */
 .pgrid, .pcol { display: flex; flex-direction: column; gap: var(--space-gap); min-width: 0; }
+.pgrid:not(.two):not(.desk) .pcol { display: contents; }
+.pgrid:not(.two):not(.desk) .o1 { order: 1; }
+.pgrid:not(.two):not(.desk) .o2 { order: 2; }
+.pgrid:not(.two):not(.desk) .o3 { order: 3; }
+.pgrid:not(.two):not(.desk) .o4 { order: 4; }
 .two.pgrid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start; }
 .desk.pgrid { grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 24px; }
 .two .frow, .desk .frow { min-width: 0; }
-.two .tz, .desk .tz { width: min(180px, 100%); max-width: 100%; }
-.signout { align-self: flex-start; }
-.themes { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-gap); }
-.theme {
-  min-height: var(--control-hit); min-width: 0; width: 100%;
-  display: inline-flex; align-items: center; gap: 8px;
-  padding: 0 var(--space-gap); border-radius: 12px; background: var(--color-surface-2); color: var(--text-primary);
-}
-.dt-xl .themes { grid-template-columns: 1fr; }
-.theme[aria-checked="true"] { box-shadow: inset 0 0 0 1.5px var(--text-primary); }
-.swatch { width: 14px; height: 14px; border-radius: 4px; box-shadow: inset 0 0 0 1px var(--color-border-strong); flex: none; }
 h2 { margin: 0; }
 /* xxxL and up: label on top, value under it, left-aligned. A value never splits from its unit. */
 .dt-l .about-kicker { letter-spacing: 0.04em; text-transform: uppercase; }
@@ -408,7 +316,7 @@ h2 { margin: 0; }
 }
 .dt-l .sexrow :deep(.seg) { flex: 1 1 auto; width: 100%; max-width: 100%; min-width: 0; align-self: stretch; }
 .dt-l .lowrow { white-space: normal; max-width: 100%; }
-.dt-l .tz { width: 100%; max-width: 100%; margin-left: 0; text-align: left; min-width: 0; }
+.dt-l .bal { white-space: normal; }
 .dt-xl .stats { flex-direction: column; align-items: stretch; }
 .dt-xl .stats > div { width: 100%; max-width: 100%; }
 .dt-xl .pcol > p { max-width: 100%; overflow-wrap: anywhere; }
