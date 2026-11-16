@@ -280,21 +280,31 @@ test("the swipe cards wrap like a carousel at both ends", async ({ page }) => {
     await track.dispatchEvent("touchend", { touches: [], changedTouches: [{ identifier: 1, clientX: to, clientY: y + 6 }] });
   };
 
-  // Past the last card is the first.
+  // Past the last card is the first, sliding in from the right like any next card:
+  // the track never scrolls back across the cards in between.
   await dots.nth(count - 1).click();
   await expect.poll(() => at("end")).toBe(true);
+  await track.evaluate((el) => {
+    const seen: number[] = [];
+    (window as unknown as { seen: number[] }).seen = seen;
+    el.addEventListener("scroll", () => seen.push(el.scrollLeft / el.clientWidth));
+  });
   await swipe(300, 120);
   await expect(dots.nth(0)).toHaveAttribute("aria-current", "true");
   await expect.poll(() => at("start")).toBe(true);
   await expect(track).not.toHaveClass(/wrapping/);
+  const pages = await page.evaluate(() => (window as unknown as { seen: number[] }).seen);
+  expect(pages.length).toBeGreaterThan(0);
+  expect(pages.filter((p) => p > 0.01).every((p) => p >= count - 2 - 0.01)).toBe(true);
+  expect(await track.evaluate((el) => [...el.children].every((child) => (child as HTMLElement).style.order === ""))).toBe(true);
 
   // Before the first card is the last.
   await swipe(80, 260);
   await expect(dots.nth(count - 1)).toHaveAttribute("aria-current", "true");
   await expect.poll(() => at("end")).toBe(true);
 
-  // A short or mostly vertical drag does nothing.
-  await swipe(300, 280);
+  // A tiny drag does nothing.
+  await swipe(300, 290);
   await expect(dots.nth(count - 1)).toHaveAttribute("aria-current", "true");
 
   // The side tap zone wraps too.

@@ -83,6 +83,8 @@ test.describe("on a phone", () => {
     for (const key of ["8", "2", ".", "4"]) await keypad.getByRole("button", { name: key, exact: true }).click();
     await expect(field).toHaveValue("82.4");
     await expect(field).not.toBeFocused();
+    // The field is as wide as the number: nothing is clipped on the right.
+    expect(await field.evaluate((input) => input.scrollWidth - input.clientWidth)).toBeLessThanOrEqual(0);
     await expect(sheet.getByText(/Last weigh-in 83\.6 kg yesterday · \d+\.\d kg under trend/)).toBeVisible();
     await expect(sheet.locator("[data-preview]")).toHaveCount(1);
     await keypad.getByRole("button", { name: "5", exact: true }).click();
