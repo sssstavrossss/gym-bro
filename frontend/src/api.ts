@@ -439,13 +439,6 @@ export async function putSettings(body: SettingsBody): Promise<SettingsResponse>
   }));
 }
 
-/** The person has looked at their targets. Automatic changes up to now stop showing as new. */
-export async function markTargetsSeen(): Promise<void> {
-  const response = await request("/api/profile/targets-seen", { method: "POST" });
-  if (response.status === 204) return;
-  await jsonOrThrow(response);
-}
-
 export async function previewTargets(body: ProfileBody): Promise<PreviewResponse> {
   return jsonOrThrow(await request("/api/targets/preview", {
     method: "POST",
@@ -893,8 +886,6 @@ export interface NotificationSettings {
 
 export interface TargetHistoryRow {
   date: string;
-  /** An automatic change (the Monday update) made after the person last looked at Profile. */
-  isNew?: boolean;
   kcal: number;
   suggestedKcal?: number | null;
   protein: number;
@@ -925,7 +916,7 @@ export async function getInbox(): Promise<InboxResponse> {
   return jsonOrThrow(await request("/api/notifications/inbox"));
 }
 
-export async function getUnreadCount(): Promise<{ count: number; badge?: number; targetsChanged?: boolean }> {
+export async function getUnreadCount(): Promise<{ count: number; badge?: number }> {
   return jsonOrThrow(await request("/api/notifications/inbox/unread"));
 }
 

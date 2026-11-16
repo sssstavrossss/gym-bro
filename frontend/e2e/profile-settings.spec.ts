@@ -7,7 +7,7 @@ function sql(statement: string) {
   execFileSync("psql", ["-h", "127.0.0.1", "-U", "gymbro", "-d", "gymbro", "-c", statement], { env: { ...process.env, PGPASSWORD: "gymbro" } });
 }
 
-test("profile: bell, cog, the Monday update marked new, and a time zone that follows the device", async ({ page }) => {
+test("profile: bell, cog, goal line, and a time zone that follows the device", async ({ page }) => {
   const oid = `e2e-settings-${Date.now()}-${test.info().project.name}`;
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "UTC" }).format(new Date());
   const headers = { "X-Test-Oid": oid, "X-Test-Name": "Test User", "Content-Type": "application/json" };
@@ -21,12 +21,8 @@ test("profile: bell, cog, the Monday update marked new, and a time zone that fol
       fatSetting: "normal", fatPercent: 25, timeZone: "UTC",
     },
   })).ok()).toBeTruthy();
-  // Last week's row, then this Monday's update made after Profile was last seen, plus one unread note not shown on Home.
-  sql(`UPDATE profiles SET created_at = created_at - interval '60 days', targets_seen_at = now() - interval '1 hour' WHERE user_id = '${oid}';
-    INSERT INTO target_history (user_id, effective_date, bmr, tdee, kcal, protein_grams, fat_grams, carb_grams, floor_applied, weight_kg, created_at, reasons)
-      SELECT user_id, effective_date - 7, bmr, tdee, kcal + 29, protein_grams, fat_grams, carb_grams, false, weight_kg, now() - interval '7 days', '{weekly_recalculation}' FROM target_history WHERE user_id = '${oid}';
-    UPDATE target_history SET reasons = '{weekly_recalculation}', created_at = now() WHERE user_id = '${oid}' AND effective_date = '${today}';
-    INSERT INTO notifications (user_id, type, title, body, link, created_at) VALUES ('${oid}', 'tip', 'Log a weigh-in', 'Two weigh-ins a week keep your trend accurate.', '/today', now());`);
+  // One unread note that isn't shown on Home, so the bell has something to show.
+  sql(`INSERT INTO notifications (user_id, type, title, body, link, created_at) VALUES ('${oid}', 'tip', 'Log a weigh-in', 'Two weigh-ins a week keep your trend accurate.', '/today', now());`);
 
   await page.addInitScript((id) => {
     sessionStorage.setItem("gymbro-e2e", "1");
@@ -38,22 +34,12 @@ test("profile: bell, cog, the Monday update marked new, and a time zone that fol
   await page.getByRole("link", { name: /Profile/ }).click();
   const targets = page.locator("[data-targets]");
   await expect(targets.locator("[data-updated]")).toContainText("Updated");
-  const strip = targets.locator("[data-target-change]");
-  await expect(strip).toContainText("New");
-  await expect(strip).toContainText("→");
-  await expect(page.locator("[data-history-row][data-new]")).toHaveCount(1);
   await expect(page.locator("[data-goal-line]")).toContainText("kg to go");
   if (test.info().project.name === "chromium") {
     await page.screenshot({ path: "/opt/cursor/artifacts/profile-settings-phone.png" });
   }
 
-  // The Monday update has been seen now, on the account: a reload shows it as an ordinary row.
-  await page.reload();
-  await expect(page.locator("[data-targets]")).toBeVisible();
-  await expect(page.locator("[data-target-change]")).toHaveCount(0);
-  await expect(page.locator("[data-history-row][data-new]")).toHaveCount(0);
-
-  // The bell still has the unread note. Opening it reads it.
+  // The bell has the unread note. Opening it reads it.
   const bell = page.getByRole("button", { name: "Notifications, new" });
   await bell.click();
   const notes = page.getByRole("dialog", { name: "Notifications" });
@@ -92,7 +78,7 @@ test("profile: bell, cog, the Monday update marked new, and a time zone that fol
   expect(saved.profile.timeZone).toBe("Asia/Tokyo");
   expect(saved.profile.timeZoneFollowsDevice).toBe(false);
   const history = await (await page.request.get("/api/profile/history", { headers })).json();
-  expect(history.rows).toHaveLength(2);
+  expect(history.rows).toHaveLength(1);
 
   // A zone set by hand stays after a reload on this device.
   await page.reload();

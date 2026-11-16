@@ -10,7 +10,6 @@ import { int, kg } from "../lib/format";
 import { goalLine } from "../lib/goalLine";
 import { parseDecimal } from "../lib/numbers";
 import { commitProfile, deviceTimeZone, profile, shownTargets, weightCaption } from "../state/profile";
-import { history, latestChange } from "../state/history";
 import { inbox } from "../state/inbox";
 import { openNotifications, openRecalculate, openSettings, openWeight } from "../ui";
 import { vp } from "../lib/viewport";
@@ -26,7 +25,6 @@ const shown = computed(() => shownTargets());
 const caption = computed(() => weightCaption(profile.weight));
 /** The date the targets in effect started. A preview of unsaved edits has none. */
 const updated = computed(() => (shown.value && shown.value === profile.targets ? profile.targets.effectiveDate : null));
-const change = computed(() => (history.loaded ? latestChange() : null));
 
 const balance = computed(() => {
   const form = profile.form;
@@ -46,12 +44,6 @@ const line = computed(() => {
     today: todayInZone(profile.form.timeZone || deviceTimeZone()),
   });
 });
-
-function showChange() {
-  const index = change.value?.index;
-  if (index == null) return;
-  document.querySelector(`[data-history-row="${index}"]`)?.scrollIntoView({ behavior: "smooth", block: "center" });
-}
 
 function setSex(value: string) {
   profile.form.sex = value as Sex;
@@ -127,11 +119,6 @@ function onTextCommit() {
             <h2 id="tg-h" class="section-title c2 grow">Your targets</h2>
             <span v-if="updated" class="t-capn c3" data-updated>Updated {{ dayMonth(updated) }}</span>
           </div>
-          <button v-if="change" type="button" class="change" data-target-change @click="showChange">
-            <span class="newtag t-capn">New</span>
-            <span class="t-label grow ctext"><span class="clbl">Weekly update · </span><b>{{ change.before != null ? `${int(change.before)} → ` : "" }}{{ int(change.row.kcal) }} kcal</b></span>
-            <Icon name="right" :size="16" class="fchev" />
-          </button>
           <div class="stats top">
             <div><span class="t-label c2">Eat</span><span class="figure"><span class="t-nm" data-field="kcal">{{ int(shown.kcal) }}</span><span class="t-label c2">kcal</span></span></div>
             <div><span class="t-label c2">Daily burn</span><span class="figure"><span class="t-ns" data-field="tdee">{{ int(shown.tdee) }}</span><span class="t-label c2">kcal</span></span></div>
@@ -271,19 +258,11 @@ function onTextCommit() {
 .hdot { position: absolute; top: 8px; right: 8px; width: 8px; height: 8px; border-radius: 50%; background: var(--text-primary); box-shadow: 0 0 0 2px var(--color-bg); }
 .thead { align-items: baseline; gap: 8px; }
 [data-targets] { container-type: inline-size; }
-/* Narrow phones: Eat gets its own line and the strip keeps the numbers, not the words. */
+/* Narrow phones: Eat gets its own line. */
 @container (max-width: 290px) {
   .stats.top { flex-wrap: wrap; row-gap: var(--space-gap); }
   .stats.top > div:first-child { flex-basis: 100%; }
-  .clbl { display: none; }
 }
-.change {
-  display: flex; align-items: center; gap: 8px; width: 100%; min-height: var(--control-hit); min-width: 0;
-  padding: 0 var(--space-gap); border-radius: 12px; background: var(--color-surface-2); color: var(--text-secondary); text-align: left;
-}
-.change b { color: var(--text-primary); font-weight: 600; }
-.ctext { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.newtag { flex: none; padding: 2px 8px; border-radius: 9px; background: var(--color-action); color: var(--color-on-action); font-weight: 600; }
 .gline b { color: var(--text-primary); font-weight: 600; }
 .m0 { margin: 0; }
 .bal { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
@@ -330,7 +309,6 @@ h2 { margin: 0; }
 .dt-l .frow > * { max-width: 100%; }
 .dt-l .frow:has(.fchev) { padding-right: 28px; }
 .dt-l .fchev { position: absolute; right: 0; top: 50%; transform: translateY(-50%); }
-.dt-l .change .fchev { position: static; transform: none; }
 .dt-l .fval { margin-left: 0; }
 .dt-l .fval .ninput { width: 6.5ch; min-width: 2ch; text-align: left; }
 @supports (field-sizing: content) {
@@ -339,7 +317,6 @@ h2 { margin: 0; }
 .dt-l .sexrow :deep(.seg) { flex: 1 1 auto; width: 100%; max-width: 100%; min-width: 0; align-self: stretch; }
 .dt-l .lowrow { white-space: normal; max-width: 100%; }
 .dt-l .bal { white-space: normal; }
-.dt-l .ctext { white-space: normal; }
 .dt-xl .stats { flex-direction: column; align-items: stretch; }
 .dt-xl .stats > div { width: 100%; max-width: 100%; }
 .dt-xl .pcol > p { max-width: 100%; overflow-wrap: anywhere; }

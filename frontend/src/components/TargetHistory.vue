@@ -1,10 +1,12 @@
 <script setup lang="ts">
-import { onMounted, watch } from "vue";
+import { onMounted, ref, watch } from "vue";
 import CappedList from "./CappedList.vue";
 import { dayMonth, weekdayShort } from "../lib/dates";
 import { int } from "../lib/format";
-import { history, loadHistory } from "../state/history";
+import { getTargetHistory, type TargetHistoryRow } from "../api";
 import { ui } from "../ui";
+
+const rows = ref<TargetHistoryRow[]>([]);
 
 function title(reasons: string[]): string {
   if (reasons.includes("recalculation_declined")) return "Declined";
@@ -23,34 +25,29 @@ function hint(reasons: string[]): string {
   return "";
 }
 
-/** Profile opening counts as seeing the targets; the dots still show for this visit. */
-onMounted(() => { void loadHistory(true); });
+async function reload() {
+  try { rows.value = (await getTargetHistory()).rows; } catch { rows.value = []; }
+}
+onMounted(() => { void reload(); });
 watch(() => ui.sheet, (sheet, previous) => {
-  if (previous === "recalculate" && sheet !== "recalculate") void loadHistory();
+  if (previous === "recalculate" && sheet !== "recalculate") void reload();
 });
 </script>
 
 <template>
-  <section v-if="history.rows.length" class="card hist" aria-labelledby="th-h" data-target-history>
+  <section v-if="rows.length" class="card hist" aria-labelledby="th-h" data-target-history>
     <div class="row thead">
       <h2 id="th-h" class="section-title c2 grow">Target history</h2>
-      <span class="t-capn c3">{{ history.rows.length }} {{ history.rows.length === 1 ? "change" : "changes" }}</span>
+      <span class="t-capn c3">{{ rows.length }} {{ rows.length === 1 ? "change" : "changes" }}</span>
     </div>
-    <CappedList tag="ol" :max-rows="5" :watch-key="history.rows.length" class="list" data-history-list>
-      <li
-        v-for="(row, index) in history.rows"
-        :key="`${row.date}-${index}`"
-        class="hrow"
-        :class="{ quiet: row.reasons.includes('recalculation_declined') }"
-        :data-history-row="index"
-        :data-new="history.fresh.includes(index) || undefined"
-      >
+    <CappedList tag="ol" :max-rows="5" :watch-key="rows.length" class="list" data-history-list>
+      <li v-for="(row, index) in rows" :key="`${row.date}-${index}`" class="hrow" :class="{ quiet: row.reasons.includes('recalculation_declined') }">
         <span class="col dt">
           <span class="t-label">{{ dayMonth(row.date) }}</span>
           <span class="t-capn c2">{{ weekdayShort(row.date) }}</span>
         </span>
         <span class="col grow mid">
-          <span class="t-label rtitle"><i v-if="history.fresh.includes(index)" class="ndot" aria-hidden="true" />{{ title(row.reasons) }}<span v-if="history.fresh.includes(index)" class="sr-only">, new</span></span>
+          <span class="t-label">{{ title(row.reasons) }}</span>
           <span v-if="row.suggestedKcal != null" class="t-capn c2">Suggested {{ int(row.suggestedKcal) }} · kept {{ int(row.kcal) }}</span>
           <span v-else-if="hint(row.reasons)" class="t-capn c2">{{ hint(row.reasons) }}</span>
         </span>
@@ -71,8 +68,6 @@ watch(() => ui.sheet, (sheet, previous) => {
 .hrow { display: flex; flex-wrap: wrap; gap: var(--space-gap); align-items: flex-start; padding: 10px 0; border-bottom: 1px solid var(--color-border); }
 .hrow:last-child { border-bottom: 0; }
 .quiet .t-label { color: var(--text-tertiary); }
-/* Same dot as the Profile tab: new since you last looked. */
-.ndot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--text-primary); margin-right: 6px; vertical-align: 0.1em; }
 .dt { width: 3.75rem; max-width: 100%; flex: none; gap: 1px; }
 /* Narrow enough that date, reason and numbers share one row on a 375px phone; the reason ellipses. */
 .mid { min-width: 0; flex: 1 1 5.5rem; gap: 2px; }

@@ -3,7 +3,6 @@ using System.Text.Json;
 using GymBro.Api.Data;
 using GymBro.Api.Hosting;
 using GymBro.Api.Notifications;
-using GymBro.Api.Profiles;
 using GymBro.Api.Users;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -108,8 +107,7 @@ public static class NotificationEndpoints
         var badge = await db.UserNotifications.CountAsync(
             row => row.UserId == userId && row.ReadAt == null && !NotificationTypes.ShownOnHome.Contains(row.Type),
             cancellationToken);
-        var targetsChanged = profile is not null && await TargetNews.AnyAsync(db, userId, profile.TargetsSeenAt, cancellationToken);
-        return Results.Ok(new { count, badge, targetsChanged });
+        return Results.Ok(new { count, badge });
     }
 
     private static async Task<IResult> ReadOne(

@@ -16,7 +16,6 @@ public static class ProfileEndpoints
         api.MapGet("/profile/history", History);
         api.MapPut("/profile", Put);
         api.MapPut("/profile/settings", PutSettings);
-        api.MapPost("/profile/targets-seen", TargetsSeen);
         api.MapPost("/targets/preview", Preview);
         api.MapGet("/targets", GetTargets);
         return api;
@@ -53,10 +52,6 @@ public static class ProfileEndpoints
         }
 
         var userId = Caller.Id(principal);
-        var seenAt = await db.Profiles.AsNoTracking()
-            .Where(row => row.UserId == userId)
-            .Select(row => row.TargetsSeenAt)
-            .FirstOrDefaultAsync(cancellationToken);
         var rows = await db.TargetHistories.AsNoTracking()
             .Where(row => row.UserId == userId)
             .OrderByDescending(row => row.EffectiveDate)
@@ -80,7 +75,6 @@ public static class ProfileEndpoints
             carbs = row.CarbGrams,
             reasons = row.Reasons,
             floorApplied = row.FloorApplied,
-            isNew = TargetNews.IsNew(row, seenAt),
         }).Concat(declines.Select(row => new
         {
             sort = row.CreatedAt,
@@ -93,7 +87,6 @@ public static class ProfileEndpoints
             carbs = row.SuggestedCarbs,
             reasons = new[] { "recalculation_declined" },
             floorApplied = false,
-            isNew = false,
         })).OrderByDescending(row => row.sort).ThenByDescending(row => row.id);
         return Results.Ok(new
         {
@@ -107,7 +100,6 @@ public static class ProfileEndpoints
                 carbs = row.carbs,
                 reasons = row.reasons,
                 floorApplied = row.floorApplied,
-                isNew = row.isNew,
             }),
         });
     }
@@ -168,7 +160,7 @@ public static class ProfileEndpoints
         var reasons = ProfileRules.ReasonFor(profile, normalized);
         if (profile is null)
         {
-            profile = new Profile { UserId = userId, CreatedAt = now, TargetsSeenAt = now };
+            profile = new Profile { UserId = userId, CreatedAt = now };
             db.Profiles.Add(profile);
         }
 
@@ -219,28 +211,6 @@ public static class ProfileEndpoints
         profile.UpdatedAt = clock.GetUtcNow();
         await db.SaveChangesAsync(cancellationToken);
         return Results.Ok(new SettingsResponse(profile.TimeZone, profile.TimeZoneFollowsDevice));
-    }
-
-    private static async Task<IResult> TargetsSeen(
-        ClaimsPrincipal principal,
-        AppDbContext db,
-        TimeProvider clock,
-        CancellationToken cancellationToken)
-    {
-        if (Caller.MissingOid(principal) is { } denied)
-        {
-            return denied;
-        }
-
-        var profile = await db.Profiles.FirstOrDefaultAsync(row => row.UserId == Caller.Id(principal), cancellationToken);
-        if (profile is null)
-        {
-            return Results.NoContent();
-        }
-
-        profile.TargetsSeenAt = clock.GetUtcNow();
-        await db.SaveChangesAsync(cancellationToken);
-        return Results.NoContent();
     }
 
     private static async Task<IResult> Preview(
