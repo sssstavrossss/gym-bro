@@ -29,7 +29,7 @@ onMounted(() => {
 onBeforeUnmount(() => window.removeEventListener("resize", readSize));
 const sources = computed(() => props.entries ?? []);
 const nutrientValues = computed(() => dayNutrients(sources.value));
-const panels = computed(() => panelsForSize(sources.value, large.value));
+const panels = computed(() => panelsForSize(large.value));
 const kcalTarget = computed(() => target.value?.kcal ?? null);
 const person = computed(() => nutrientPerson(kcalTarget.value));
 const fatLimits = computed(() => fatLimitsOf(profile.saved?.fatLimits));

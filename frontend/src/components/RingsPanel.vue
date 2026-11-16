@@ -34,8 +34,11 @@ function centre(ring: NutrientRing): string {
 }
 
 function label(ring: NutrientRing): string {
-  const parts = [`${ring.name} ${ring.amount}`];
-  if (ring.percent != null) parts.push(`${ring.percent}% of the daily reference`);
+  // The text on screen, in its order ("48% Vit A, 48.8 µg"), so voice control can say what it
+  // sees. The bracket carries the full name and what the percent means.
+  const notes = [ring.name === ring.label ? "" : ring.name, ring.percent == null ? "" : "of the daily reference"].filter(Boolean);
+  const head = `${ring.percent == null ? "" : `${centre(ring)}% `}${ring.label}${notes.length ? ` (${notes.join(", ")})` : ""}`;
+  const parts = [head, ring.amount];
   if (ring.overLimit) parts.push("above the upper limit");
   // A button opens the nutrient sheet; on the food sheet the ring is only a picture.
   return props.portion ? parts.join(", ") : `${parts.join(", ")}. Details`;
@@ -73,9 +76,8 @@ function label(ring: NutrientRing): string {
             </template>
           </svg>
           <span class="pc" :class="{ long: centre(ring).length > 2 }">{{ centre(ring) }}</span>
-        </span>
-        <span class="t-capn name">{{ ring.label }}</span>
-        <span class="amt c3">{{ ring.amount }}</span>
+        <!-- Each closing tag shares a line with the next span, so a space parts the words ("48 Vit A 48.8 µg"), as in the name. -->
+        </span> <span class="t-capn name">{{ ring.label }}</span> <span class="amt c3">{{ ring.amount }}</span>
       </component>
     </div>
   </div>

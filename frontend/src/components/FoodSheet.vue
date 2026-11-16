@@ -323,7 +323,7 @@ const sheetPer100 = computed<NutrientMap>(() => {
 const sheetAmount = computed<NutrientMap>(() => scaleMap(sheetPer100.value, sheetFactor.value));
 const sheetLarge = ref(false);
 const sheetSources = computed(() => (sheetSource.value ? [sheetSource.value] : []));
-const sheetPanels = computed(() => panelsForSize(sheetSources.value, sheetLarge.value));
+const sheetPanels = computed(() => panelsForSize(sheetLarge.value));
 /** The preview is the Home card for the day the food goes to, with this food in it. */
 const sheetGoal = computed(() => foodTarget.value ?? (ui.foodDate === foodToday.value ? profile.targets : null));
 const sheetPerson = computed(() => nutrientPerson(sheetGoal.value?.kcal ?? null));

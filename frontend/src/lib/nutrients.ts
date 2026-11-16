@@ -143,19 +143,16 @@ export function dayNutrients(entries: readonly NutrientSource[]): NutrientMap {
   return out;
 }
 
-export function panelHasData(entries: readonly NutrientSource[], keys: readonly string[]): boolean {
-  return keys.some((key) => entries.some((entry) => sourceValue(entry, key) != null));
-}
-
 /**
+ * Every panel, always, so the card keeps its pages and dots on a day with nothing logged
+ * (it reads 0, and a coverage note says when foods know nothing of a panel).
  * Default text shows each panel whole: the Fats and Carbs cards and the ring grids.
  * Largest text shows single-column groups of four, so the fixed card height does not
  * have to grow. That never adds a page: the panel's spare keys drop instead.
  */
-export function panelsForSize(entries: readonly NutrientSource[], large: boolean): NutrientPanelDef[] {
+export function panelsForSize(large: boolean): NutrientPanelDef[] {
   const shown: NutrientPanelDef[] = [];
   for (const panel of NUTRIENT_PANELS) {
-    if (!panelHasData(entries, panel.keys)) continue;
     if (!large) {
       shown.push({ ...panel });
       continue;
