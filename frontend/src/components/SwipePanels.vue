@@ -10,7 +10,7 @@ const props = withDefaults(defineProps<{
   remember?: boolean;
   storageKey?: string;
   label?: string;
-  /** Home only: the strip takes half the layout height. The 44px hit box overlaps it. */
+  /** A 30px dot strip: 12px either side of the dots. The 44px hit box overlaps it. */
   tight?: boolean;
   /** Names for the dots ("Weight", "Calories"…), read out instead of "Panel 2 of 6". */
   names?: string[];
@@ -347,11 +347,11 @@ defineExpose({ go, step, index });
 }
 .edge.left { left: 0; }
 .edge.right { right: 0; }
-/* 6px of space, the 6px dots, 6px of space. The 44px hit box reaches 13px past each side. */
-.tight .strip { height: 18px; }
-.tight .dot { height: 44px; margin-top: -13px; margin-bottom: -13px; }
-.tight .half { top: -13px; height: 44px; bottom: auto; }
-.tight .edge { bottom: 31px; }
+/* 12px of space, the 6px dots, 12px of space. The 44px hit box reaches 7px past each side. */
+.tight .strip { height: 30px; }
+.tight .dot { height: 44px; margin-top: -7px; margin-bottom: -7px; }
+.tight .half { top: -7px; height: 44px; bottom: auto; }
+.tight .edge { bottom: 37px; }
 @media (prefers-reduced-motion: reduce) {
   .track { scroll-behavior: auto; }
 }

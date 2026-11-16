@@ -11,6 +11,8 @@ const props = defineProps<{
   week: NutrientMap;
   entries: readonly NutrientSource[];
   person: NutrientPerson;
+  /** One food's portion on the food sheet: the rings don't open the day's nutrient sheet. */
+  portion?: boolean;
 }>();
 
 const OUTER = 16;
@@ -35,7 +37,8 @@ function label(ring: NutrientRing): string {
   const parts = [`${ring.name} ${ring.amount}`];
   if (ring.percent != null) parts.push(`${ring.percent}% of the daily reference`);
   if (ring.overLimit) parts.push("above the upper limit");
-  return `${parts.join(", ")}. Details`;
+  // A button opens the nutrient sheet; on the food sheet the ring is only a picture.
+  return props.portion ? parts.join(", ") : `${parts.join(", ")}. Details`;
 }
 </script>
 
@@ -47,15 +50,17 @@ function label(ring: NutrientRing): string {
       <span v-if="note" class="t-capn c3 note">{{ note }}</span>
     </div>
     <div class="grid">
-      <button
+      <component
+        :is="portion ? 'div' : 'button'"
         v-for="ring in rings"
         :key="ring.key"
-        type="button"
-        class="ring pressable"
-        :class="{ hit: ring.hit, over: ring.overLimit }"
+        :type="portion ? undefined : 'button'"
+        :role="portion ? 'img' : undefined"
+        class="ring"
+        :class="{ pressable: !portion, hit: ring.hit, over: ring.overLimit }"
         :data-ring="ring.key"
         :aria-label="label(ring)"
-        @click="openNutrient(ring.key, person.kcalTarget)"
+        @click="portion || openNutrient(ring.key, person.kcalTarget)"
       >
         <span class="dial" aria-hidden="true">
           <svg width="40" height="40" viewBox="0 0 40 40">
@@ -71,7 +76,7 @@ function label(ring: NutrientRing): string {
         </span>
         <span class="t-capn name">{{ ring.label }}</span>
         <span class="amt c3">{{ ring.amount }}</span>
-      </button>
+      </component>
     </div>
   </div>
 </template>

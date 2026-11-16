@@ -1,3 +1,4 @@
+import { fiberMinimum } from "./progressCard";
 import { formatNutrient, nutrientName, nutrientPercent, nutrientRow, referenceFor, sourceValue, upperLimit, type NutrientMap, type NutrientSource } from "./nutrients";
 
 /** Who the references are for. kcalTarget sets thiamin, niacin, and the saturated fat limit. */
@@ -51,7 +52,7 @@ export function fatLimits(setting: FatLimitsSetting, kcalTarget: number | null |
   const lower = setting === "lower";
   const saturatedPercent = lower ? 7 : 10;
   const saturatedGrams = kcalTarget != null && Number.isFinite(kcalTarget) && kcalTarget > 0
-    ? Math.round(((kcalTarget * saturatedPercent) / 100 / 9) * 10) / 10
+    ? oneDecimal((kcalTarget * saturatedPercent) / 100 / 9)
     : null;
   return { setting: lower ? "lower" : "normal", saturatedPercent, saturatedGrams, cholesterolMg: lower ? 200 : null };
 }
@@ -66,6 +67,68 @@ export interface LimitStatus {
 export function limitStatus(value: number, limit: number): LimitStatus {
   if (!(limit > 0)) return { fraction: 0, over: null };
   return { fraction: value / limit, over: value > limit ? value - limit : null };
+}
+
+/** How far toward a minimum a value is, such as fibre's. */
+export interface GoalStatus {
+  /** Eaten ÷ goal, for the bar. */
+  fraction: number;
+  /** Amount still to reach the goal, or null once it is reached. */
+  toGo: number | null;
+}
+
+export function goalStatus(value: number, goal: number): GoalStatus {
+  if (!(goal > 0)) return { fraction: 0, toGo: null };
+  return { fraction: value / goal, toGo: value < goal ? goal - value : null };
+}
+
+/* ---------------------------------------------------------------- Carbs and sodium */
+
+export type CarbPartKey = "sugars" | "starch" | "rest";
+
+export interface CarbPart {
+  key: CarbPartKey;
+  label: string;
+  grams: number;
+}
+
+/**
+ * The day's carbs in sugars and starch, plus what no label broke down: the carbs total minus
+ * those two, never below 0. Added sugars are part of sugars, so they are not a part of their own.
+ */
+export function carbBreakdown(total: number, values: NutrientMap): { total: number; parts: CarbPart[]; addedSugars: number } {
+  const carbs = positive(total);
+  const sugars = positive(values.sugars);
+  const starch = positive(values.starch);
+  return {
+    total: carbs,
+    parts: [
+      { key: "sugars", label: "Sugars", grams: sugars },
+      { key: "starch", label: "Starch", grams: starch },
+      { key: "rest", label: "Not broken down", grams: Math.max(0, carbs - sugars - starch) },
+    ],
+    addedSugars: positive(values.addedSugars),
+  };
+}
+
+/** NNR 2023 limits sodium to 2.3 g a day. 1.5 g is the adequate intake, not a limit. */
+export const SODIUM_LIMIT_MG = 2300;
+
+export interface CarbLimits {
+  /** Fibre to reach, the Progress card's minimum: 25 g for women, 35 g for men. Null without a sex. */
+  fibreGrams: number | null;
+  /** Added sugars below 10% of the kcal target (NNR 2023), at 4 kcal a gram. Null without a target. */
+  addedSugarsGrams: number | null;
+  sodiumMg: number;
+}
+
+export function carbLimits(person: Pick<NutrientPerson, "sex" | "kcalTarget">): CarbLimits {
+  const kcal = person.kcalTarget != null && Number.isFinite(person.kcalTarget) && person.kcalTarget > 0 ? person.kcalTarget : null;
+  return {
+    fibreGrams: fiberMinimum(person.sex),
+    addedSugarsGrams: kcal == null ? null : oneDecimal((kcal * 0.1) / 4),
+    sodiumMg: SODIUM_LIMIT_MG,
+  };
 }
 
 /* ---------------------------------------------------------------- Rings */
@@ -165,6 +228,10 @@ export function referenceText(key: string, person: NutrientPerson): string {
 
 function positive(value: number | null | undefined): number {
   return value != null && Number.isFinite(value) && value > 0 ? value : 0;
+}
+
+function oneDecimal(value: number): number {
+  return Math.round(value * 10) / 10;
 }
 
 function clamp01(value: number): number {

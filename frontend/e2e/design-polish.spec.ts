@@ -113,10 +113,10 @@ test("tokens, sex control, starting-weight hint, profile dot, and tab labels", a
       };
     });
     expect(tokens.secondaryToken).toBe("#b4b8c2");
-    expect(tokens.tertiaryToken).toBe("#8e93a0");
+    expect(tokens.tertiaryToken).toBe("#9297a4");
     expect(tokens.borderStrong).toBe("#6e7482");
     expect(tokens.secondary).toBe("rgb(180, 184, 194)");
-    expect(tokens.tertiary).toBe("rgb(142, 147, 160)");
+    expect(tokens.tertiary).toBe("rgb(146, 151, 164)");
 
     const sex = page.getByRole("radiogroup", { name: "Sex" });
     const male = sex.getByRole("radio", { name: "Male", exact: true });

@@ -23,7 +23,7 @@ html[data-theme="graphite"] {
   --color-on-action: #16181d;
   --text-primary: #e6e8ec;
   --text-secondary: #b4b8c2;
-  --text-tertiary: #8e93a0;
+  --text-tertiary: #9297a4;
   --color-border-strong: #6e7482;
   --chart-line: #7db1ff;
   --shade-on-target: #e6e8ec;
@@ -43,7 +43,7 @@ html[data-theme="midnight"] {
   --color-on-action: #121826;
   --text-primary: #e4e8f1;
   --text-secondary: #b3bdd0;
-  --text-tertiary: #8b97b0;
+  --text-tertiary: #8e9ab3;
   --color-border-strong: #6c7a98;
   --shade-on-target: #e4e8f1;
   --shade-close: #aeb6c8;
@@ -62,7 +62,7 @@ html[data-theme="charcoal"] {
   --color-on-action: #1a1816;
   --text-primary: #ece7e1;
   --text-secondary: #c4bdb4;
-  --text-tertiary: #9a9188;
+  --text-tertiary: #9d948b;
   --color-border-strong: #7a7268;
   --shade-on-target: #ece7e1;
   --shade-close: #b7aea4;
@@ -102,6 +102,9 @@ html[data-theme="black"] {
   /* The page gutter, and the padding of every box (card, notice, panel). */
   --space-screen: var(--space-l);
   --space-box: var(--space-l);
+  /* The swipe card of nutrients on Home and the food sheet: the tallest panel (a ring grid), 16px
+     above it, and the 30px dot strip. Every page of the card is this tall. */
+  --nutrient-card-height: 214px;
   /* Corners. Boxes are l, fields and segmented controls m, their inner parts s, tags xs. */
   --radius-xs: 6px;
   --radius-s: 8px;

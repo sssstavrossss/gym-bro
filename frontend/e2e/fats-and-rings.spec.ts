@@ -103,7 +103,7 @@ test("lower fat limits show on the Fats card", async ({ page }) => {
   await expect(cholesterol.locator(".overval")).toHaveText("300");
   await expect(cholesterol.locator(".sr-only")).toHaveText("over the limit");
   const box = await card.boundingBox();
-  expect(Math.round(box!.height)).toBe(222);
+  expect(Math.round(box!.height)).toBe(214);
   const fits = await fats.evaluate((panel) => {
     const bottom = panel.lastElementChild!.getBoundingClientRect().bottom;
     const dots = panel.closest("[data-nutrient-card]")!.querySelector(".strip")!.getBoundingClientRect().top;
@@ -111,7 +111,8 @@ test("lower fat limits show on the Fats card", async ({ page }) => {
     const overflow = [...panel.querySelectorAll("*")]
       .filter((node) => !node.classList.contains("sr-only") && node.getBoundingClientRect().right > right + 0.5)
       .map((node) => `${node.className} ${Math.round(node.getBoundingClientRect().right)}/${Math.round(right)}`);
-    return { below: bottom <= dots - 1 ? "" : `${bottom} > ${dots - 1}`, overflow };
+    // At most at the top of the dot strip: the strip's own 12px keep it clear of the dots.
+    return { below: bottom <= dots + 0.5 ? "" : `${bottom} > ${dots}`, overflow };
   });
   expect(fits).toEqual({ below: "", overflow: [] });
 });
