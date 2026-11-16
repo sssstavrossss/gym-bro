@@ -1,42 +1,27 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
-import { ApiError, createCustomFood, createServing, deleteServing, getFood, listMyFoods, listRecentFoods, searchFoods, searchOpenFoodFacts, ServerUnreachable, updateServing, type FoodSearchRow, type OffFoodRow, type RecentFood, type SavedGroup } from "../api";
+import { ApiError, createCustomFood, getFood, listMyFoods, listRecentFoods, searchFoods, searchOpenFoodFacts, ServerUnreachable, type FoodSearchRow, type OffFoodRow, type RecentFood, type SavedGroup } from "../api";
 import BottomSheet from "./BottomSheet.vue";
 import FoodEditor from "./FoodEditor.vue";
 import Icon from "./Icon.vue";
 import MicroRing from "./MicroRing.vue";
 import Keypad from "./Keypad.vue";
-import { typeInto } from "../lib/numbers";
 import Segmented from "./Segmented.vue";
 import TimeChip from "./TimeChip.vue";
-import MacroRows from "./MacroRows.vue";
-import NutrientPanelSet from "./NutrientPanelSet.vue";
-import SwipePanels from "./SwipePanels.vue";
+import FoodAmountView from "./FoodAmountView.vue";
 import { dayMonth, todayInZone } from "../lib/dates";
 import { focusField, primeKeyboard } from "../lib/focusField";
 import { int } from "../lib/format";
-import { panelsForSize, scaleMap, valuesOf, type NutrientMap } from "../lib/nutrients";
-import { fatLimitsOf } from "../lib/nutrientCards";
+import { useFoodAmount } from "../lib/useFoodAmount";
 import {
   amountError,
   amountLabel,
   defaultAmount,
-  gramText,
-  hasGramBasis,
   macrosForFood,
   normalizeUnit,
-  parseAmount,
-  macroFigure,
   per100Line,
-  scaleStored,
-  servingDefinitionError,
   servingName,
-  convertAmount,
-  distinctUnits,
-  unitsForEntry,
-  unitsForFood,
   type OwnServing,
-  type UnitChoice,
 } from "../lib/foodAmount";
 import { acceptSearchResult, preparedSearch, searchDebounceMs } from "../lib/foodSearch";
 import {
@@ -71,7 +56,7 @@ import { kcalFromMacros, type MacroAmounts } from "../lib/macros";
 import { bindPick, clickPick } from "../lib/cleanTap";
 import { afterInsertion, markWholeSelection, nextQuickInput, nextQuickNumber, tookWholeSelection } from "../lib/quickEntry";
 import { keyboardEntry } from "../lib/viewport";
-import { deviceTimeZone, nutrientPerson, profile } from "../state/profile";
+import { deviceTimeZone, profile } from "../state/profile";
 import { findEntry, log, removeEntries, removeEntry, saveQuickAdd, totalsOf, updateFoodAmount, updateQuickAdd, viewed, type LogEntry } from "../state/log";
 import SavedGroups from "./SavedGroups.vue";
 import RecipeList from "./RecipeList.vue";
@@ -137,11 +122,7 @@ const searchView = ref(false);
 const searchScroll = ref(0);
 let keepSearch = false;
 const resultsMax = ref("");
-const amountEl = ref<HTMLInputElement | null>(null);
-const detailFood = ref<FoodSearchRow | null>(null);
-const amountText = ref("100");
-const unit = ref<UnitChoice["unit"]>("g");
-const fresh = ref(true);
+const amountView = ref<InstanceType<typeof FoodAmountView> | null>(null);
 const foodChanged = ref(false);
 const session = ref<{ id: string; name: string; kcal: number }[]>([]);
 const justGroup = ref<string | null>(null);
@@ -248,92 +229,16 @@ function fill(entry: LogEntry | null) {
   idempotencyKey.value = "";
 }
 
-const shownFood = computed(() => detailFood.value);
-const units = computed(() => {
-  const entry = editing.value;
-  if (entry?.source === "recipe" && (entry.grams == null || entry.grams <= 0)) {
-    return [{ unit: "portion", label: "portion", gramsEach: null }];
-  }
-  if (editingFood.value) return unitsForEntry(editingFood.value);
-  return shownFood.value ? distinctUnits(unitsForFood(shownFood.value), unit.value) : [];
-});
-const amountNumber = computed(() => parseAmount(amountText.value));
-const preview = computed(() => {
-  if (editingFood.value) return scaleStored(editingFood.value, amountNumber.value, unit.value);
-  if (shownFood.value) return macrosForFood(shownFood.value, amountNumber.value, unit.value);
-  return { kcal: 0, protein: 0, fat: 0, carbs: 0, grams: null as number | null };
-});
-const isCount = computed(() => unit.value !== "g" && unit.value !== "ml");
-const canAddServing = computed(() => Boolean(shownFood.value && hasGramBasis(shownFood.value) && !editingFood.value));
-const ownServings = computed(() => (shownFood.value?.servings ?? []).filter((row) => row.grams > 0 && servingName(row.name)));
-const svOpen = ref(false);
-const svName = ref("");
-const svGrams = ref("");
-const svEditId = ref<string | null>(null);
-const savingServing = ref(false);
-const servingDraftError = computed(() => servingDefinitionError(svName.value, parseAmount(svGrams.value)));
-const unitWord = computed(() => amountLabel(amountNumber.value || 0, unit.value).replace(/^[\d.]+ /, ""));
-const unitWord1 = computed(() => amountLabel(1, unit.value).replace(/^[\d.]+ /, ""));
-const gramsEach = computed(() => units.value.find((item) => item.unit === unit.value)?.gramsEach ?? null);
-const quickAmounts = computed(() => (unit.value === "g" ? [100, 150, 200] : unit.value === "ml" ? [100, 250, 500] : [0.5, 1, 2, 3]));
-const detailTitle = computed(() => detailFood.value?.name ?? editingFood.value?.name ?? "");
-const per100 = computed(() => {
-  if (shownFood.value && !editingFood.value) return per100Line(shownFood.value);
-  const entry = editingFood.value;
-  if (!entry) return "";
-  if (entry.source === "recipe" && entry.unit === "portion") {
-    const each = entry.amount || 1;
-    return `per portion · ${int(entry.kcal / each)} kcal · P${macroFigure(entry.protein / each)} F${macroFigure(entry.fat / each)} C${macroFigure(entry.carbs / each)}`;
-  }
-  if (entry.grams && entry.grams > 0) {
-    const factor = 100 / entry.grams;
-    return `per 100 ${entry.unit === "ml" ? "ml" : "g"} · ${int(entry.kcal * factor)} kcal · P${macroFigure(entry.protein * factor)} F${macroFigure(entry.fat * factor)} C${macroFigure(entry.carbs * factor)}`;
-  }
-  const each = entry.amount || 1;
-  return `per serving · ${int(entry.kcal / each)} kcal · P${macroFigure(entry.protein / each)} F${macroFigure(entry.fat / each)} C${macroFigure(entry.carbs / each)}`;
-});
-const sheetSource = computed(() => {
-  const food = shownFood.value;
-  if (food && !editingFood.value) {
-    return {
-      fat: food.fatPer100,
-      saturatedFat: food.saturatedFatPer100,
-      sugars: food.sugarsPer100,
-      fiber: food.fiberPer100,
-      salt: food.saltPer100,
-      nutrients: food.nutrients,
-    };
-  }
-  return editingFood.value;
-});
-const sheetFactor = computed(() => {
-  const grams = preview.value.grams;
-  if (grams != null && grams > 0) return grams / 100;
-  const base = editingFood.value?.amount || 1;
-  return amountNumber.value / base;
-});
-const sheetPer100 = computed<NutrientMap>(() => {
-  const source = sheetSource.value;
-  if (!source) return {};
-  if (shownFood.value && !editingFood.value) return valuesOf(source);
-  const entry = editingFood.value;
-  const perUnit = entry?.grams && entry.grams > 0 ? 100 / entry.grams : 1 / (entry?.amount || 1);
-  return scaleMap(valuesOf(source), perUnit);
-});
-const sheetAmount = computed<NutrientMap>(() => scaleMap(sheetPer100.value, sheetFactor.value));
-const sheetLarge = ref(false);
-const sheetSources = computed(() => (sheetSource.value ? [sheetSource.value] : []));
-const sheetPanels = computed(() => panelsForSize(sheetLarge.value));
+/** The amount screen. A serving saved there also updates this sheet's lists. */
+const amount = useFoodAmount({ entry: () => editingFood.value, formError, saveError, onServings: applyServings });
+const { food: detailFood, amountText, unit, fresh, amountNumber, preview } = amount;
 /** The preview is the Home card for the day the food goes to, with this food in it. */
 const sheetGoal = computed(() => foodTarget.value ?? (ui.foodDate === foodToday.value ? profile.targets : null));
-const sheetPerson = computed(() => nutrientPerson(sheetGoal.value?.kcal ?? null));
-const sheetFatLimits = computed(() => fatLimitsOf(profile.saved?.fatLimits));
-const adding = computed<MacroAmounts>(() => ({ kcal: preview.value.kcal, p: preview.value.protein, f: preview.value.fat, c: preview.value.carbs }));
-/** The day's totals once this food is in: an edited entry's old amounts come out first. */
-const dayAfter = computed<MacroAmounts>(() => {
+/** The day's totals before this food: an edited entry's old amounts come out first. */
+const dayBefore = computed<MacroAmounts>(() => {
   const totals = foodTotals.value;
   const old = editing.value ?? { kcal: 0, protein: 0, fat: 0, carbs: 0 };
-  return { kcal: totals.kcal - old.kcal + adding.value.kcal, p: totals.p - old.protein + adding.value.p, f: totals.f - old.fat + adding.value.f, c: totals.c - old.carbs + adding.value.c };
+  return { kcal: totals.kcal - old.kcal, p: totals.p - old.protein, f: totals.f - old.fat, c: totals.c - old.carbs };
 });
 const macroTitle = computed(() => {
   if (!sheetGoal.value) return "Macros";
@@ -346,26 +251,15 @@ function rowSub(food: FoodSearchRow): string {
     : "";
   return withBrand(food.brand, english + per100Line(food));
 }
-const detailIsMine = computed(() => (shownFood.value ? isMyFood(shownFood.value) : false));
+const detailIsMine = computed(() => (detailFood.value ? isMyFood(detailFood.value) : false));
 
-function resetServingForm() {
-  svOpen.value = false;
-  svName.value = "";
-  svGrams.value = "";
-  svEditId.value = null;
-}
 function showFood(food: FoodSearchRow, preset?: { amount: number; unit: string }) {
-  const start = preset ? amountForRecent(food, preset.amount, preset.unit) : defaultAmount(food);
   ui.detailFoodId = food.id;
-  detailFood.value = food;
-  unit.value = start.unit;
-  amountText.value = start.amount;
-  fresh.value = true;
+  amount.show(food, preset);
   foodChanged.value = false;
   formError.value = "";
   saveError.value = false;
   idempotencyKey.value = "";
-  resetServingForm();
 }
 function holdSearchPlace() {
   if (!searchFocused.value && !searchView.value) return;
@@ -455,38 +349,6 @@ function openSeedEditor() {
     ret: "list",
   };
 }
-function setUnit(next: UnitChoice) {
-  if (next.unit === unit.value) return;
-  if ((unit.value === "g" || unit.value === "ml") && (next.unit === "g" || next.unit === "ml")) {
-    unit.value = next.unit;
-    fresh.value = true;
-    formError.value = "";
-    return;
-  }
-  const current = units.value.find((item) => item.unit === unit.value);
-  const amount = amountNumber.value;
-  unit.value = next.unit;
-  fresh.value = true;
-  formError.value = "";
-  amountText.value = convertAmount(amount, current, next);
-}
-function setAmount(value: number) {
-  amountText.value = String(value);
-  fresh.value = false;
-  formError.value = "";
-}
-function amountKey(key: string) {
-  const maxInt = unit.value === "g" || unit.value === "ml" ? 5 : 2;
-  const decimals = isCount.value ? 2 : 1;
-  if (fresh.value && key !== ".") {
-    amountText.value = key === "⌫" ? "0" : key;
-    fresh.value = false;
-    return;
-  }
-  fresh.value = false;
-  const next = typeInto(amountText.value === "0" && key !== "⌫" && key !== "." ? "0" : amountText.value, key, maxInt, decimals);
-  amountText.value = next === "" ? "0" : next;
-}
 function onSearchFocus() {
   searchView.value = true;
   searchFocused.value = true;
@@ -515,21 +377,6 @@ function outsideSearch(event: PointerEvent) {
   if (searchEl.value?.closest("label")?.contains(target)) return;
   if (listEl.value?.contains(target)) return;
   closeSearchKeyboard();
-}
-function amountInput(event: Event) {
-  const input = event.target as HTMLInputElement;
-  const replace = fresh.value;
-  afterInsertion(input, (raw) => {
-    let text = replace && !tookWholeSelection(input) ? nextQuickInput(amountText.value, raw, true, 8) : raw;
-    fresh.value = false;
-    text = text.replace(",", ".").replace(/[^0-9.]/g, "");
-    const decimals = isCount.value ? 2 : 1;
-    const maxInt = unit.value === "g" || unit.value === "ml" ? 5 : 2;
-    const [whole, fraction] = text.split(".");
-    const value = fraction === undefined ? (whole ?? "").slice(0, maxInt) : `${(whole ?? "").slice(0, maxInt)}.${fraction.slice(0, decimals)}`;
-    amountText.value = value;
-    if (input.value !== value) input.value = value;
-  });
 }
 const trimmedQuery = computed(() => q.value.trim());
 const mineListed = computed(() => {
@@ -802,7 +649,8 @@ function focusFor() {
   if (ui.sheet !== "food" || ui.foodEditor) return;
   if (!showDetail.value) return;
   void nextTick(() => {
-    if (amountEl.value) focusField(amountEl.value);
+    const field = amountView.value?.field;
+    if (field) focusField(field);
   });
 }
 function onAddTabPointer(event: PointerEvent) {
@@ -817,16 +665,12 @@ watch(searchFocused, (focused) => {
   }
   void nextTick(fitResults);
 });
-function readSheetSize() { sheetLarge.value = document.documentElement.classList.contains("dt-xl"); }
 onMounted(() => {
-  readSheetSize();
-  window.addEventListener("resize", readSheetSize);
   window.visualViewport?.addEventListener("resize", fitResults);
   window.visualViewport?.addEventListener("scroll", fitResults);
   window.addEventListener("pointerdown", outsideSearch, true);
 });
 onBeforeUnmount(() => {
-  window.removeEventListener("resize", readSheetSize);
   window.visualViewport?.removeEventListener("resize", fitResults);
   window.visualViewport?.removeEventListener("scroll", fitResults);
   window.removeEventListener("pointerdown", outsideSearch, true);
@@ -879,7 +723,7 @@ watch(open, (isOpen) => {
   off.value = idleOff();
   filter.value = "all";
   detailFood.value = null;
-  resetServingForm();
+  amount.resetServingForm();
   if (!editingFood.value) ui.detailFoodId = null;
   fill(editing.value);
   if (editingFood.value) {
@@ -1049,110 +893,13 @@ async function addQuick() {
   }
 }
 
-function toggleServingForm() {
-  if (!svOpen.value) primeKeyboard();
-  svOpen.value = !svOpen.value;
-  svEditId.value = null;
-  svName.value = "";
-  svGrams.value = "";
-}
-function beginEditServing(row: OwnServing) {
-  primeKeyboard();
-  svOpen.value = true;
-  svEditId.value = row.id;
-  svName.value = row.name;
-  svGrams.value = gramText(row.grams);
-}
 function applyServings(foodId: string, servings: OwnServing[]) {
   const next = <T extends { id: string }>(food: T): T => food.id === foodId ? { ...food, servings } : food;
-  if (detailFood.value?.id === foodId) detailFood.value = next(detailFood.value);
   recents.value = recents.value.map(next);
   results.value = results.value.map(next);
   mine.value = mine.value.map(next);
   if (off.value.results.some((row) => row.id === foodId)) {
     off.value = { ...off.value, results: off.value.results.map((row) => row.id === foodId ? { ...row, servings } : row) };
-  }
-}
-function servingsOf(foodId: string): OwnServing[] {
-  const found = detailFood.value?.id === foodId
-    ? detailFood.value
-    : recents.value.find((row) => row.id === foodId)
-      ?? results.value.find((row) => row.id === foodId)
-      ?? mine.value.find((row) => row.id === foodId);
-  return found?.servings ?? [];
-}
-function rememberServing(foodId: string, saved: OwnServing) {
-  const current = servingsOf(foodId);
-  const next = [
-    ...current.filter((row) => row.id !== saved.id && row.name.localeCompare(saved.name, undefined, { sensitivity: "accent" }) !== 0),
-    saved,
-  ].sort((a, b) => a.name.localeCompare(b.name));
-  applyServings(foodId, next);
-}
-async function saveServing() {
-  const food = detailFood.value;
-  if (!food || savingServing.value) return;
-  const grams = parseAmount(svGrams.value);
-  const error = servingDefinitionError(svName.value, grams);
-  if (error) {
-    formError.value = error;
-    return;
-  }
-  const name = servingName(svName.value);
-  if (!name) return;
-  const sameName = (food.servings ?? []).find((row) => row.name.localeCompare(name, undefined, { sensitivity: "accent" }) === 0);
-  const targetId = svEditId.value ?? sameName?.id ?? null;
-  savingServing.value = true;
-  formError.value = "";
-  try {
-    const saved = targetId
-      ? await updateServing(food.id, targetId, { name, grams })
-      : await createServing(food.id, { name, grams });
-    rememberServing(food.id, saved);
-    unit.value = saved.name;
-    amountText.value = "1";
-    fresh.value = true;
-    resetServingForm();
-    toast(`Saved 1 ${saved.name} = ${gramText(saved.grams)} g for ${food.name} · only you see it`);
-  } catch (error) {
-    if (error instanceof ServerUnreachable) saveError.value = true;
-    else formError.value = error instanceof ApiError ? error.message : "Couldn't save that serving.";
-  } finally {
-    savingServing.value = false;
-  }
-}
-async function restoreServing(foodId: string, name: string, grams: number) {
-  try {
-    const saved = await createServing(foodId, { name, grams });
-    rememberServing(foodId, saved);
-  } catch (error) {
-    formError.value = error instanceof ApiError ? error.message : "Couldn't restore that serving.";
-  }
-}
-async function dropServing(row: OwnServing) {
-  const food = detailFood.value;
-  if (!food || savingServing.value) return;
-  savingServing.value = true;
-  formError.value = "";
-  try {
-    await deleteServing(food.id, row.id);
-    applyServings(food.id, (food.servings ?? []).filter((item) => item.id !== row.id));
-    if (servingName(unit.value)?.localeCompare(row.name, undefined, { sensitivity: "accent" }) === 0) {
-      const total = Math.round(amountNumber.value * row.grams);
-      unit.value = "g";
-      amountText.value = String(total > 0 ? total : 100);
-      fresh.value = true;
-    }
-    if (svEditId.value === row.id) resetServingForm();
-    toast(`Removed serving “${row.name}”`, {
-      label: "Undo",
-      run: () => { void restoreServing(food.id, row.name, row.grams); },
-    });
-  } catch (error) {
-    if (error instanceof ServerUnreachable) saveError.value = true;
-    else formError.value = error instanceof ApiError ? error.message : "Couldn't remove that serving.";
-  } finally {
-    savingServing.value = false;
   }
 }
 async function addDetail() {
@@ -1275,71 +1022,30 @@ async function deleteEdited() {
       <FoodEditor :key="ui.foodEditor.id ?? 'new'" :edit-id="ui.foodEditor.id" :seed="ui.foodEditor.seed" :namesakes="mine" @saved="onFoodSaved" @deleted="onFoodDeleted" @cancel="back" />
     </div>
 
-    <div v-else-if="showDetail" class="body detail">
-      <div class="col center lead">
-        <h3 class="t-head dname">{{ detailTitle }}</h3>
-        <span class="row gap6 t-label c2 wrapc">
-          <span v-if="detailIsMine" class="tag t-capn"><Icon name="lock" :size="10" :sw="2.4" /> my food</span>
-          <span v-if="detailFood?.brand">{{ detailFood.brand }} ·</span>
-          <span>{{ per100 }}</span>
-          <button v-if="detailIsMine && !editing" type="button" class="btn sm secondary t-label" @click="detailFood && editMine(detailFood, 'detail')"><Icon name="edit" :size="14" /> Edit</button>
-        </span>
+    <FoodAmountView v-else-if="showDetail" ref="amountView" :amount="amount" :macro-title="macroTitle" :goal="sheetGoal" :before="dayBefore" @submit="addDetail">
+      <template #meta>
+        <span v-if="detailIsMine" class="tag t-capn"><Icon name="lock" :size="10" :sw="2.4" /> my food</span>
+        <span v-if="detailFood?.brand">{{ detailFood.brand }} ·</span>
+      </template>
+      <template #meta-end>
+        <button v-if="detailIsMine && !editing" type="button" class="btn sm secondary t-label" @click="detailFood && editMine(detailFood, 'detail')"><Icon name="edit" :size="14" /> Edit</button>
+      </template>
+      <template #notice>
         <span v-if="editingFood && foodChanged" class="t-capn c2">Using the values it was logged with — this food has changed since.</span>
-      </div>
-      <div class="col center amount-block">
-        <div class="base">
-          <input ref="amountEl" v-autofocus :value="amountText" data-replace="1" class="t-dl num ginput" :inputmode="keyboardEntry ? 'decimal' : 'none'" autocomplete="off" :aria-label="`Amount in ${unit}`"
-            @beforeinput="markWholeSelection" @focus="fresh = true" @input="amountInput" @keydown.enter.prevent="addDetail" />
-          <span class="t-head c2 unitword">{{ unitWord }}</span>
+      </template>
+      <template #alerts>
+        <p v-if="formError" class="err t-label" role="alert">{{ formError }}</p>
+        <div v-if="saveError" class="err row" role="alert">
+          <Icon name="alert" :size="18" class="c2" />
+          <span class="col grow">
+            <span class="t-bodys">Server unreachable</span>
+            <span class="t-label c2">Nothing was lost — your entry is still here. Try again in a moment.</span>
+          </span>
+          <button type="button" class="btn sm secondary t-label" @click="saveError = false">Dismiss</button>
         </div>
-        <span v-if="isCount && preview.grams != null && gramsEach" class="t-label c2" aria-live="polite">= {{ int(preview.grams) }} g<template v-if="amountNumber !== 1"> · 1 {{ unitWord1 }} = {{ gramsEach }} g</template></span>
-        <div class="row units">
-          <div class="unit-radios" role="radiogroup" aria-label="Unit">
-            <button v-for="choice in units" :key="choice.unit" type="button" role="radio" class="chip t-label" :class="{ on: choice.unit === unit }" :aria-checked="choice.unit === unit" @click="setUnit(choice)">
-              {{ choice.label }}<span v-if="choice.gramsEach && choice.unit !== 'g' && choice.unit !== 'ml' && !choice.named" class="ug"> · {{ choice.gramsEach }} g</span><span v-if="choice.named" class="sr-only"> your serving</span>
-            </button>
-          </div>
-          <button v-if="canAddServing" type="button" class="btn sm secondary t-label" :aria-expanded="svOpen" @click="toggleServingForm"><Icon name="plus" :size="14" :sw="2.4" /> Serving</button>
-        </div>
-        <div v-if="svOpen" class="well svform col">
-          <div class="row gap8 wrapc">
-            <span class="t-label">1</span>
-            <input v-model="svName" v-autofocus class="field sinp t-body" type="text" maxlength="16" autocomplete="off" aria-label="Serving name" placeholder="slice" />
-            <span class="t-label">=</span>
-            <input v-model="svGrams" class="field sinp t-body num" inputmode="decimal" autocomplete="off" aria-label="Grams in one serving" placeholder="35" @keydown.enter.prevent="saveServing" />
-            <span class="t-label c2">g</span>
-            <button type="button" class="btn sm primary t-label" :disabled="Boolean(servingDraftError) || savingServing" @click="saveServing"><Icon name="check" :size="14" :sw="2.4" /> Save</button>
-          </div>
-          <div class="row gap8 wrapc">
-            <span class="t-capn c2"><Icon name="lock" :size="10" :sw="2.4" /> Private — only you see your servings.</span>
-            <button v-for="row in ownServings" :key="'e' + row.id" type="button" class="btn sm secondary t-label" @click="beginEditServing(row)"><Icon name="edit" :size="14" /> Edit “{{ row.name }}”</button>
-            <button v-for="row in ownServings" :key="'d' + row.id" type="button" class="btn sm secondary t-label" :aria-label="`Remove serving ${row.name}`" @click="dropServing(row)"><Icon name="trash" :size="14" /> Remove “{{ row.name }}”</button>
-          </div>
-          <p v-if="servingDraftError && (svName.trim() || svGrams.trim())" class="t-capn errline" role="status">{{ servingDraftError }}</p>
-        </div>
-        <div class="row gap8 chips">
-          <button v-for="amount in quickAmounts" :key="amount" type="button" class="chip t-label" @click="setAmount(amount)">{{ amountLabel(amount, unit) }}</button>
-        </div>
-      </div>
-      <div class="preview" aria-live="polite">
-        <SwipePanels tight :count="sheetPanels.length + 1" :lock-index="-1" label="Food nutrients">
-          <MacroRows :title="macroTitle" :goal="sheetGoal" :eaten="dayAfter" :adding="adding" />
-          <NutrientPanelSet :panels="sheetPanels" :values="sheetAmount" :entries="sheetSources" :carbs="preview.carbs" :person="sheetPerson" :fat-limits="sheetFatLimits" :large="sheetLarge" portion :per100="sheetPer100" />
-        </SwipePanels>
-      </div>
-      <div class="grow" />
-      <p v-if="formError" class="err t-label" role="alert">{{ formError }}</p>
-      <div v-if="saveError" class="err row" role="alert">
-        <Icon name="alert" :size="18" class="c2" />
-        <span class="col grow">
-          <span class="t-bodys">Server unreachable</span>
-          <span class="t-label c2">Nothing was lost — your entry is still here. Try again in a moment.</span>
-        </span>
-        <button type="button" class="btn sm secondary t-label" @click="saveError = false">Dismiss</button>
-      </div>
-      <Keypad v-if="!keyboardEntry" @key="amountKey" />
-      <p v-else class="t-capn c3 khint keyhint"><kbd>Enter</kbd> {{ editing ? "save" : "add" }} · <kbd>Esc</kbd> {{ editing ? "close" : "back to search" }}</p>
-      <div class="row gap8 actions">
+      </template>
+      <template #hint><kbd>Enter</kbd> {{ editing ? "save" : "add" }} · <kbd>Esc</kbd> {{ editing ? "close" : "back to search" }}</template>
+      <template #actions>
         <button v-if="editing" type="button" class="btn secondary t-bodys" aria-label="Copy to another day" :disabled="saving" @click="copyEdited">
           <Icon name="copy" :size="16" /><span>Copy to…</span>
         </button>
@@ -1349,8 +1055,8 @@ async function deleteEdited() {
         <button type="button" class="btn primary block t-bodys grow" :disabled="saving || (!editing && needTime)" @click="addDetail">
           {{ saveError ? "Try again" : addVerb }}<template v-if="!needTime"> · {{ int(preview.kcal) }} kcal</template>
         </button>
-      </div>
-    </div>
+      </template>
+    </FoodAmountView>
 
     <template v-else-if="!editing && ui.foodTab === 'search'">
       <label class="field row">
@@ -1570,7 +1276,6 @@ async function deleteEdited() {
 .toast-pad { display: flex; flex-direction: column; gap: var(--space-m); padding-top: var(--food-toast-space, 0px); }
 .gap2 { gap: var(--space-2xs); }
 .gap8 { gap: var(--space-s); }
-.center { align-items: center; text-align: center; }
 .field { flex: none; }
 .field input::-webkit-search-cancel-button { display: none; }
 .list { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
@@ -1585,7 +1290,7 @@ async function deleteEdited() {
 .qgrid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-s); flex: none; min-width: 0; }
 .qf { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-2xs); padding: var(--space-m) var(--space-l); min-height: 72px; border-radius: var(--radius-m); background: var(--color-surface-2); text-align: left; min-width: 0; }
 .qf.on, .qf:focus-within { box-shadow: inset 0 0 0 1.5px var(--color-action); }
-.qinput, .ginput { width: 8ch; min-width: 0; max-width: 100%; background: transparent; border: 0; outline: 0; padding: 0; }
+.qinput { width: 8ch; min-width: 0; max-width: 100%; background: transparent; border: 0; outline: 0; padding: 0; }
 .qinput::placeholder { color: var(--text-tertiary); }
 .note, .khint { margin: 0; }
 .khint { text-align: center; }
@@ -1601,52 +1306,18 @@ async function deleteEdited() {
 .actions { flex: none; flex-wrap: wrap; }
 .actions .btn.primary { width: auto; flex: 1 1 160px; min-width: 0; }
 .base { min-width: 0; max-width: 100%; display: flex; align-items: baseline; gap: var(--space-s); flex-wrap: wrap; }
-.dname { margin: 0; overflow-wrap: anywhere; }
 /* The Home nutrient card, the same size, on the sheet's grey. */
-.preview { display: flex; flex-direction: column; height: var(--nutrient-card-height); padding: var(--space-box) var(--space-box) 0; border-radius: var(--radius-l); background: var(--color-surface-2); flex: none; width: 100%; align-self: stretch; box-sizing: border-box; }
-.detail { gap: calc(var(--space-m) / 6); }
-.detail .lead { gap: 0; }
-.detail .lead .wrapc { flex-wrap: nowrap; max-width: 100%; }
-.detail .lead .wrapc > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.detail .dname { font-size: max(16px, 0.8824rem); line-height: 1.1; }
-.detail .amount-block { gap: var(--space-2xs); }
-.detail .ginput { font-size: max(16px, min(1.15rem, 22px)); line-height: 1; }
-.detail .unitword { font-size: max(16px, 0.8824rem); line-height: 1.1; }
-.detail .units, .detail .chips, .detail .unit-radios { gap: var(--space-xs); }
-/* 12px between the keypad and the button under it, as on the weight sheet. The detail's own gap is 2px. */
-.detail .actions { margin-top: calc(var(--space-m) - var(--space-m) / 6); }
-.units, .chips { gap: var(--space-s); flex-wrap: wrap; justify-content: center; max-width: 100%; }
-.unit-radios { display: flex; flex-wrap: wrap; gap: var(--space-s); justify-content: center; max-width: 100%; }
-.ug { color: var(--text-secondary); }
-.svform { gap: var(--space-s); align-items: center; width: 100%; }
-.sinp { width: 110px; }
-.sinp.num { width: 72px; }
-.errline { margin: 0; color: var(--text-secondary); min-height: 1.2em; }
-.chip.on .ug { color: var(--color-on-action); }
 .session { display: flex; flex-direction: column; align-items: stretch; gap: var(--space-s); flex: none; min-width: 0; max-width: 100%; box-sizing: border-box; }
 .stext { min-width: 0; }
 .sbtns { display: flex; flex-wrap: wrap; align-items: stretch; gap: var(--space-s); margin: 0; min-width: 0; max-width: 100%; }
 .sbtns .btn { flex: 1 1 0; min-width: 0; }
 .sbtns .btn span { min-width: 0; }
 html.dt-xl .sbtns .btn { flex-basis: 100%; }
-.dt-l .units, .dt-l .chips { justify-content: center; }
-/* The header, name, amount, and unit stay near the default size so the largest
-   text cannot cover them. The sheet body can still scroll. */
+/* The header stays near the default size so the largest text cannot cover it.
+   The sheet body can still scroll. (The amount screen does the same for its name and amount.) */
 html.dt-xl .hdr { flex-wrap: nowrap; }
 html.dt-xl .hdr :deep(.tchip.t-label),
 html.dt-xl .hdr :deep(.now) { font-size: 15px; line-height: 1.2; }
-html.dt-xl .detail .dname { font-size: 22px; line-height: 1.15; overflow-wrap: normal; }
-html.dt-xl .detail .ginput { font-size: 22px; }
-html.dt-xl .detail .unitword { font-size: 18px; }
-html.dt-xl .detail .lead .wrapc { flex-wrap: wrap; }
-html.dt-xl .detail .lead .wrapc > span { overflow: visible; text-overflow: clip; white-space: normal; }
-/* Type inside the card stays near the default size. Value columns stay narrow
-   enough that "Added sugars" stays on one line. */
-html.dt-xl .preview :deep(.heads),
-html.dt-xl .preview :deep(.list.paired .nrow) { grid-template-columns: minmax(max-content, 1fr) 72px 72px; }
-html.dt-xl .preview :deep(.heads.pcts),
-html.dt-xl .preview :deep(.list.paired.pcts .nrow) { grid-template-columns: minmax(max-content, 1fr) 64px 40px 72px; }
-html.dt-xl .preview :deep(.name) { white-space: nowrap; overflow: visible; text-overflow: clip; }
 .dt-xl .qgrid { grid-template-columns: 1fr; }
 .fchips { gap: var(--space-m); flex-wrap: wrap; flex: none; }
 .nm { min-width: 0; max-width: 100%; }

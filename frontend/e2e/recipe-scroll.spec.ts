@@ -114,7 +114,7 @@ for (const size of [
       await sheet.getByRole("button", { name: "Add ingredient" }).click();
       await sheet.getByLabel("Search foods").fill(foodName);
       await sheet.getByRole("button", { name: new RegExp(foodName) }).click();
-      await sheet.getByLabel(`Amount of ${foodName}`).fill(String(40 + i));
+      await sheet.getByLabel("Amount in g").fill(String(40 + i));
       await sheet.getByRole("button", { name: "Add to recipe" }).click();
     }
 

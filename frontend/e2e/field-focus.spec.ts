@@ -222,7 +222,8 @@ for (const width of [375, 390]) {
       const ingredientSearch = recipe.getByRole("searchbox", { name: "Search foods" });
       await expectReplace(page, ingredientSearch, foodName);
       await recipe.getByRole("button", { name: new RegExp(foodName) }).click();
-      await expectReplace(page, recipe.getByRole("textbox", { name: `Amount of ${foodName}` }), "40", "caret");
+      // The same amount screen as logging a food.
+      await expectReplace(page, recipe.getByRole("textbox", { name: "Amount in g" }), "40", "caret");
       await recipe.getByRole("button", { name: "Add to recipe" }).click();
       // Back on the form, Name keeps its text and does not grab focus, so the next key can't replace it.
       await expect(recipe.getByRole("textbox", { name: `Amount of ${foodName}` })).toBeVisible();
