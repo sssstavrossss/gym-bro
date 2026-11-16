@@ -21,6 +21,8 @@ const index = ref(0);
 const width = ref(0);
 const locked = ref<number | null>(null);
 const reduce = ref(false);
+/** True while a wrap scrolls across the middle pages; snapping is off and the pages it passes are not "shown". */
+const wrapping = ref(false);
 
 const visualOnly = computed(() => props.count * 44 > width.value && width.value > 0);
 const trackStyle = computed(() => {
@@ -61,9 +63,97 @@ function go(next: number, behavior?: ScrollBehavior) {
   trackEl.scrollTo({ left: clamped * trackEl.clientWidth, behavior: motion });
 }
 
+/** Next and previous wrap like a carousel: past the last page is the first, before the first is the last. */
+function step(by: 1 | -1) {
+  const count = props.count;
+  if (count < 2) return;
+  const next = index.value + by;
+  if (next >= 0 && next < count) go(next);
+  else wrapTo(next < 0 ? count - 1 : 0);
+}
+
+let wrapTimer = 0;
+/** Scrolls straight back across the cards with snapping off, so it rewinds smoothly instead of jumping. */
+function wrapTo(target: number) {
+  const trackEl = track.value;
+  if (!trackEl) return;
+  if (reduce.value) {
+    go(target, "auto");
+    return;
+  }
+  index.value = target;
+  remember();
+  wrapping.value = true;
+  window.clearTimeout(wrapTimer);
+  const settle = () => {
+    window.clearTimeout(wrapTimer);
+    trackEl.removeEventListener("scrollend", settle);
+    wrapping.value = false;
+    trackEl.scrollTo({ left: target * trackEl.clientWidth, behavior: "auto" });
+  };
+  trackEl.addEventListener("scrollend", settle);
+  // Browsers without scrollend still land: a long rewind takes well under a second.
+  wrapTimer = window.setTimeout(settle, 900);
+  trackEl.scrollTo({ left: target * trackEl.clientWidth, behavior: "smooth" });
+}
+
+/** A swipe that starts on the first or last card and pulls past its end wraps around. */
+let touch: { x: number; y: number; edge: "first" | "last" | null; inner: boolean } | null = null;
+const WRAP_PULL = 48;
+
+function atEdge(trackEl: HTMLElement): "first" | "last" | null {
+  const max = trackEl.scrollWidth - trackEl.clientWidth;
+  if (index.value === props.count - 1 && trackEl.scrollLeft >= max - 2) return "last";
+  if (index.value === 0 && trackEl.scrollLeft <= 2) return "first";
+  return null;
+}
+
+/** A chart or list inside a card that scrolls sideways keeps its own swipe. */
+function insideScroller(target: EventTarget | null, trackEl: HTMLElement): boolean {
+  let node = target instanceof Element ? target : null;
+  while (node && node !== trackEl) {
+    if (node instanceof HTMLElement && node.scrollWidth > node.clientWidth + 1) {
+      const overflow = getComputedStyle(node).overflowX;
+      if (overflow === "auto" || overflow === "scroll") return true;
+    }
+    node = node.parentElement;
+  }
+  return false;
+}
+
+function onTouchStart(event: TouchEvent) {
+  const trackEl = track.value;
+  if (!trackEl || props.count < 2 || event.touches.length !== 1 || wrapping.value) {
+    touch = null;
+    return;
+  }
+  const point = event.touches[0];
+  touch = { x: point.clientX, y: point.clientY, edge: atEdge(trackEl), inner: insideScroller(event.target, trackEl) };
+}
+
+function onTouchEnd(event: TouchEvent) {
+  const start = touch;
+  touch = null;
+  const trackEl = track.value;
+  if (!start || !start.edge || start.inner || !trackEl) return;
+  const point = event.changedTouches[0];
+  if (!point) return;
+  const dx = point.clientX - start.x;
+  const dy = point.clientY - start.y;
+  if (Math.abs(dx) < WRAP_PULL || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+  // Still on the same end card: the swipe pulled past it rather than paging.
+  if (atEdge(trackEl) !== start.edge) return;
+  if (start.edge === "last" && dx < 0) wrapTo(0);
+  else if (start.edge === "first" && dx > 0) wrapTo(props.count - 1);
+}
+
+function onTouchCancel() {
+  touch = null;
+}
+
 function onScroll() {
   const trackEl = track.value;
-  if (!trackEl || trackEl.clientWidth < 1) return;
+  if (!trackEl || trackEl.clientWidth < 1 || wrapping.value) return;
   const next = Math.round(trackEl.scrollLeft / trackEl.clientWidth);
   if (next !== index.value && next >= 0 && next < props.count) {
     index.value = next;
@@ -74,10 +164,10 @@ function onScroll() {
 function onKey(event: KeyboardEvent) {
   if (event.key === "ArrowRight") {
     event.preventDefault();
-    go(index.value + 1);
+    step(1);
   } else if (event.key === "ArrowLeft") {
     event.preventDefault();
-    go(index.value - 1);
+    step(-1);
   }
 }
 
@@ -113,17 +203,18 @@ onMounted(() => {
   window.addEventListener("resize", measure);
 });
 onBeforeUnmount(() => {
+  window.clearTimeout(wrapTimer);
   observer?.disconnect();
   window.removeEventListener("resize", measure);
 });
 watch(() => [props.count, props.lockIndex, props.height], () => { void measure(); });
 
-defineExpose({ go, index });
+defineExpose({ go, step, index });
 </script>
 
 <template>
   <div ref="root" class="panels" :class="{ tight }">
-    <div ref="track" class="track" :class="{ fixed: height != null }" :style="trackStyle" tabindex="0" :aria-label="label" @keydown="onKey" @scroll.passive="onScroll">
+    <div ref="track" class="track" :class="{ fixed: height != null, wrapping }" :style="trackStyle" tabindex="0" :aria-label="label" @keydown="onKey" @scroll.passive="onScroll" @touchstart.passive="onTouchStart" @touchend.passive="onTouchEnd" @touchcancel.passive="onTouchCancel">
       <slot />
     </div>
     <div v-if="count > 1" class="strip" :class="{ halves: visualOnly }">
@@ -140,12 +231,12 @@ defineExpose({ go, index });
         @click="visualOnly ? undefined : go(dot - 1)"
       ><span class="pip" /></button>
       <template v-if="visualOnly">
-        <button type="button" class="half back" aria-label="Previous panel" @click="go(index - 1)" />
-        <button type="button" class="half forward" aria-label="Next panel" @click="go(index + 1)" />
+        <button type="button" class="half back" aria-label="Previous panel" @click="step(-1)" />
+        <button type="button" class="half forward" aria-label="Next panel" @click="step(1)" />
       </template>
     </div>
-    <button type="button" class="edge left" aria-label="Previous panel" @click="go(index - 1)" />
-    <button type="button" class="edge right" aria-label="Next panel" @click="go(index + 1)" />
+    <button type="button" class="edge left" aria-label="Previous panel" @click="step(-1)" />
+    <button type="button" class="edge right" aria-label="Next panel" @click="step(1)" />
   </div>
 </template>
 
@@ -164,6 +255,9 @@ defineExpose({ go, index });
   min-width: 0;
 }
 .track.fixed { flex: 0 0 auto; }
+/* Snapping would stop a rewind on the next card. */
+.track.wrapping { scroll-snap-type: none; }
+.track.wrapping > :deep(*) { scroll-snap-stop: normal; }
 .track::-webkit-scrollbar { display: none; }
 .track > :deep(*) {
   flex: 0 0 100%;

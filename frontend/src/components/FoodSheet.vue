@@ -1504,7 +1504,8 @@ async function deleteEdited() {
         </template>
         <p v-if="formError" class="err t-label" role="alert">{{ formError }}</p>
       </div>
-      <div v-if="session.length" class="well session" role="status">
+      <!-- Hidden while the search field has the keyboard: the list needs that room, and Done isn't needed mid-typing. -->
+      <div v-if="session.length" v-show="!searchFocused" class="well session" role="status" data-session>
         <span class="col stext">
           <span class="t-bodys">{{ session.length }} added · {{ int(sessionKcal) }} kcal</span>
           <span class="t-capn c2">{{ pastDay ? dayMonth(ui.foodDate) : "Today" }} · {{ int(foodTotals.kcal) }} kcal</span>

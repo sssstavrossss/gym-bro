@@ -1,6 +1,6 @@
 import { reactive } from "vue";
 import { todayInZone, todayIso } from "./lib/dates";
-import { primeKeyboard } from "./lib/focusField";
+import { primeKeyboard, rememberOpener } from "./lib/focusField";
 import { deviceTimeZone } from "./state/profile";
 
 export const ui = reactive({
@@ -73,7 +73,9 @@ export function openRecalculate(): void {
 }
 
 export function openWeight(): void {
-  primeKeyboard();
+  // No primeKeyboard: the weight field never takes focus on open, and a phone types on the app keypad.
+  // Priming would leave the hidden text proxy focused and raise the letter keyboard over the sheet.
+  rememberOpener();
   ui.editEntryId = null;
   ui.sheet = "weight";
 }
