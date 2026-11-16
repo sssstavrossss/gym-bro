@@ -45,34 +45,34 @@ describe("NNR percents", () => {
     expect(nutrientPercent("vitaminC", null, "male", 30, 2500)).toBeNull();
   });
 
-  it("splits a long panel at the largest text size and hides an empty one", () => {
-    const entries = [{ fat: 7, nutrients: { thiamin: 1, riboflavin: 1, niacin: 1, vitaminB6: 1, folate: 1, vitaminB12: 1, saturatedFat: 1 } }];
-    const small = panelsForSize(entries, false);
-    expect(small.map((panel) => panel.id)).toEqual(["fats", "vitamins"]);
+  it("shows every panel, and splits a long one at the largest text size", () => {
+    const small = panelsForSize(false);
+    expect(small.map((panel) => panel.id)).toEqual(["fats", "carbs", "vitamins", "minerals"]);
     expect(small[0].keys[0]).toBe("fat");
     expect(small[0].indent).toEqual(["saturatedFat", "epaDha"]);
     expect(small[0].keys).toEqual(["fat", "saturatedFat", "monoFat", "polyFat", "transFat", "omega3", "epaDha", "omega6", "cholesterol"]);
-    expect(small[1].grid).toBe(true);
-    expect(small[1].title).toBe("Vitamins");
-    const large = panelsForSize(entries, true);
-    expect(large.map((panel) => panel.id)).toEqual(["fats-0", "fats-1", "vitamins-0", "vitamins-1", "vitamins-2"]);
-    expect(large[0].keys).toEqual(["fat", "saturatedFat", "monoFat", "polyFat"]);
-    expect(large[1].keys).toEqual(["transFat", "omega3", "epaDha", "cholesterol"]);
-    expect(large[2].grid).toBe(false);
-    expect(large[2].keys).toEqual(["vitaminA", "vitaminD", "vitaminE", "vitaminC"]);
-    expect(large[3].keys).toEqual(["thiamin", "riboflavin", "niacin", "vitaminB6"]);
-    expect(large[4].keys).toEqual(["folate", "vitaminB12"]);
-    expect(panelsForSize([{ nutrients: {} }], false)).toEqual([]);
+    expect(small[2].grid).toBe(true);
+    expect(small[2].title).toBe("Vitamins");
+    const large = panelsForSize(true);
+    const vitamins = large.filter((panel) => panel.id.startsWith("vitamins-"));
+    expect(large.filter((panel) => panel.id.startsWith("fats-")).map((panel) => panel.keys)).toEqual([
+      ["fat", "saturatedFat", "monoFat", "polyFat"],
+      ["transFat", "omega3", "epaDha", "cholesterol"],
+    ]);
+    expect(vitamins.map((panel) => panel.id)).toEqual(["vitamins-0", "vitamins-1", "vitamins-2"]);
+    expect(vitamins[0].grid).toBe(false);
+    expect(vitamins[0].keys).toEqual(["vitaminA", "vitaminD", "vitaminE", "vitaminC"]);
+    expect(vitamins[1].keys).toEqual(["thiamin", "riboflavin", "niacin", "vitaminB6"]);
+    expect(vitamins[2].keys).toEqual(["folate", "vitaminB12"]);
   });
 
   it("adds copper, starch and EPA + DHA where they fit and never adds a page", () => {
-    const entries = [{ fat: 5, nutrients: { copper: 0.5, starch: 10, sodium: 100, epaDha: 0.2 } }];
-    const home = panelsForSize(entries, false);
+    const home = panelsForSize(false);
     expect(home.find((panel) => panel.id === "minerals")!.keys).toContain("copper");
     expect(home.find((panel) => panel.id === "carbs")!.keys).toEqual(["sugars", "addedSugars", "starch", "fiber", "sodium"]);
     expect(home.find((panel) => panel.id === "fats")!.keys).toHaveLength(9);
     // Largest text: the same pages as before (fats 2, carbs 1, minerals 2), the least important row drops.
-    const large = panelsForSize(entries, true);
+    const large = panelsForSize(true);
     const pages = (id: string) => large.filter((panel) => panel.id === id || panel.id.startsWith(`${id}-`));
     expect(pages("fats")).toHaveLength(2);
     expect(pages("carbs")).toHaveLength(1);

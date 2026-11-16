@@ -130,7 +130,7 @@ test("vitamin and mineral rings open a nutrient sheet", async ({ page }) => {
   await expect(vitamins.locator(".note")).toHaveText("from 1 of 2 foods");
   const vitaminC = vitamins.locator("[data-ring='vitaminC']");
   await expect(vitaminC).toHaveClass(/\bhit\b/);
-  await expect(vitaminC).toHaveAttribute("aria-label", "Vitamin C 240 mg, 218% of the daily reference. Details");
+  await expect(vitaminC).toHaveAttribute("aria-label", "218% Vit C (Vitamin C, of the daily reference), 240 mg. Details");
   await expect(vitaminC.locator(".pc")).toHaveText("218");
   // The week's average (this day only) draws the inner ring.
   await expect(vitaminC.locator("[data-week-ring]")).toHaveCount(1);

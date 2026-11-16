@@ -12,7 +12,7 @@ async function clock(page: Page) {
   });
 }
 
-async function ready(request: APIRequestContext, oid: string, date: string, zone: string) {
+async function ready(request: APIRequestContext, oid: string, date: string, zone: string, logFood = true) {
   expect((await request.put(`/api/weigh-ins/${date}`, { headers: headers(oid), data: { kg: 90, timeZone: zone } })).ok()).toBeTruthy();
   expect((await request.put("/api/profile", {
     headers: headers(oid),
@@ -22,6 +22,7 @@ async function ready(request: APIRequestContext, oid: string, date: string, zone
       fatSetting: "normal", fatPercent: 25, timeZone: zone,
     },
   })).ok()).toBeTruthy();
+  if (!logFood) return;
   const food = await request.post("/api/foods", {
     headers: headers(oid),
     data: {
@@ -319,6 +320,30 @@ async function expectAmountFlush(page: Page) {
     expect(row.order).toBe(true);
   }
 }
+
+test("with nothing logged the card keeps every page and its dots", async ({ page }) => {
+  const oid = `e2e-nutrients-empty-${Date.now()}`;
+  const when = await clock(page);
+  await ready(page.request, oid, when.today, when.zone, false);
+  await page.addInitScript((id) => {
+    sessionStorage.setItem("gymbro-e2e", "1");
+    sessionStorage.setItem("gymbro-e2e-oid", id);
+  }, oid);
+  await page.goto("/today");
+  const card = page.locator("[data-nutrient-card]");
+  await expect(card).toBeVisible();
+  await expect(card.locator("[data-panel]")).toHaveCount(5);
+  await expect(card.locator("button.dot")).toHaveCount(5);
+  const box = (await card.boundingBox())!;
+  expect(Math.round(box.height)).toBe(214);
+  expect(Math.round((await card.locator(".strip").boundingBox())!.height)).toBe(30);
+  await expectDotBand(page, "[data-nutrient-card]");
+  await expectRowsClear(page, "[data-nutrient-card]");
+  // Every page reads 0, with no coverage note: there are no foods to be missing data.
+  await card.locator("button.dot").nth(2).click();
+  await expect(card.locator("[data-carb-total]")).toHaveText("0 g");
+  await expect(card.locator(".note")).toHaveCount(0);
+});
 
 test("the swipe cards wrap like a carousel at both ends", async ({ page }) => {
   const oid = `e2e-carousel-${Date.now()}`;
