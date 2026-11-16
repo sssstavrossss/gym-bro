@@ -45,7 +45,9 @@ test("home, progress, pads, search, and recalculate preview on an iPhone", async
   await expect(page.getByRole("status").filter({ hasText: "Time to recalculate your target" })).toHaveCount(0);
   for (const width of [390, 820, 1440]) {
     await page.setViewportSize({ width, height: width === 390 ? 844 : 900 });
-    await expect(page.getByRole("main", { name: "Today" }).getByRole("button", { name: "Recalculate", exact: true })).toHaveCount(0);
+    // The only Recalculate on Today is the weekly prompt's.
+    const outside = await page.locator("main.today button").filter({ hasText: /^\s*Recalculate\s*$/ }).evaluateAll((nodes) => nodes.filter((node) => !node.closest("[data-recalc-prompt]")).length);
+    expect(outside).toBe(0);
   }
   await page.setViewportSize({ width: 390, height: 844 });
 

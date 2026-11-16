@@ -10,6 +10,11 @@ public static class NotificationTypes
 
     public const string RecalculateTitle = "Time to recalculate your target";
 
+    public const string RecalculateBody = "A new week has started. Recalculate to update your target from last week's weigh-ins and logs.";
+
+    /// <summary>Types the app shows on Home while open. They don't light the Profile tab's dot (the inbox "badge").</summary>
+    public static readonly string[] ShownOnHome = [Recalculate];
+
     public const string RecalculateLink = "/today?recalculate=1";
 }
 
@@ -38,7 +43,7 @@ public static class NotificationBook
                 UserId = profile.UserId,
                 Type = NotificationTypes.Recalculate,
                 Title = NotificationTypes.RecalculateTitle,
-                Body = NotificationTypes.RecalculateTitle,
+                Body = NotificationTypes.RecalculateBody,
                 Link = NotificationTypes.RecalculateLink,
                 WeekStart = week,
                 CreatedAt = UtcInstant(week, zone),
@@ -50,6 +55,14 @@ public static class NotificationBook
         {
             row.ReadAt = clock.GetUtcNow();
         }
+
+        // A new week's reminder replaces an older one that was never acted on, so at most one is open.
+        await db.UserNotifications
+            .Where(item => item.UserId == profile.UserId
+                && item.Type == NotificationTypes.Recalculate
+                && item.WeekStart < week
+                && item.ReadAt == null)
+            .ExecuteUpdateAsync(set => set.SetProperty(item => item.ReadAt, clock.GetUtcNow()), cancellationToken);
 
         return row;
     }

@@ -886,6 +886,8 @@ export interface InboxItem {
 
 export interface InboxResponse {
   unread: number;
+  /** Unread that light the Profile tab's dot. The recalculate reminder shows on Home instead, so it isn't counted. */
+  badge?: number;
   items: InboxItem[];
 }
 
@@ -893,7 +895,7 @@ export async function getInbox(): Promise<InboxResponse> {
   return jsonOrThrow(await request("/api/notifications/inbox"));
 }
 
-export async function getUnreadCount(): Promise<{ count: number }> {
+export async function getUnreadCount(): Promise<{ count: number; badge?: number }> {
   return jsonOrThrow(await request("/api/notifications/inbox/unread"));
 }
 

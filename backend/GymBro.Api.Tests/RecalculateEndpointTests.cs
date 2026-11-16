@@ -133,6 +133,12 @@ public sealed class RecalculateEndpointTests(ApiFactory factory)
         var item = inbox.GetProperty("items")[0];
         Assert.Equal("recalculate", item.GetProperty("type").GetString());
         Assert.Equal("Time to recalculate your target", item.GetProperty("title").GetString());
+        Assert.StartsWith("A new week has started.", item.GetProperty("body").GetString());
+        // The reminder shows on Home, so it doesn't light the Profile tab.
+        Assert.Equal(0, inbox.GetProperty("badge").GetInt32());
+        var counted = await client.GetFromJsonAsync<JsonElement>("/api/notifications/inbox/unread");
+        Assert.Equal(1, counted.GetProperty("count").GetInt32());
+        Assert.Equal(0, counted.GetProperty("badge").GetInt32());
         var id = item.GetProperty("id").GetInt64();
 
         var theirs = await stranger.GetFromJsonAsync<JsonElement>("/api/notifications/inbox");
@@ -146,5 +152,28 @@ public sealed class RecalculateEndpointTests(ApiFactory factory)
         Assert.Equal(0, unread.GetProperty("count").GetInt32());
         var still = await stranger.GetFromJsonAsync<JsonElement>("/api/notifications/inbox/unread");
         Assert.Equal(1, still.GetProperty("count").GetInt32());
+    }
+
+    [Fact]
+    public async Task A_new_weeks_reminder_closes_the_one_left_open_last_week()
+    {
+        factory.Clock.UtcNow = new DateTimeOffset(2026, 11, 3, 8, 0, 0, TimeSpan.Zero);
+        var owner = TestData.NewUser("inbox-weeks");
+        using var client = factory.AsUser(owner);
+        await TestData.PutWeighIn(client, "2026-11-03", """{"kg":83.6,"timeZone":"UTC"}""");
+        await TestData.PutProfile(client, TestData.Profile());
+        var first = await client.GetFromJsonAsync<JsonElement>("/api/notifications/inbox");
+        Assert.Equal(1, first.GetProperty("unread").GetInt32());
+
+        factory.Clock.UtcNow = new DateTimeOffset(2026, 11, 10, 8, 0, 0, TimeSpan.Zero);
+        var next = await client.GetFromJsonAsync<JsonElement>("/api/notifications/inbox");
+        var items = next.GetProperty("items").EnumerateArray().ToList();
+        Assert.Equal(2, items.Count);
+        Assert.Equal(1, next.GetProperty("unread").GetInt32());
+        Assert.Equal(JsonValueKind.Null, items[0].GetProperty("readAt").ValueKind);
+        Assert.NotEqual(JsonValueKind.Null, items[1].GetProperty("readAt").ValueKind);
+        var banner = await client.GetFromJsonAsync<JsonElement>("/api/recalculate/banner");
+        Assert.True(banner.GetProperty("show").GetBoolean());
+        Assert.Equal("2026-11-09", banner.GetProperty("weekStart").GetString());
     }
 }

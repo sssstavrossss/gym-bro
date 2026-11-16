@@ -74,7 +74,8 @@ test("range stays put, the safe strip is clear, rows tap cleanly, and home has n
   await page.evaluate(() => document.documentElement.style.setProperty("--sat", "47px"));
   await expect(page.getByText("kcal left")).toHaveCount(0);
   await expect(page.getByText("kcal over")).toHaveCount(0);
-  const firstCard = page.locator("main.today .c-a .card").first();
+  // The weekly recalculate prompt can sit above it; the first data card is still Macros.
+  const firstCard = page.locator("main.today .c-a .card:not([data-recalc-prompt])").first();
   await expect(firstCard).toContainText("Calories");
   await expect(firstCard.getByText("Protein")).toBeVisible();
   await expectUnderStrip(page, 47);

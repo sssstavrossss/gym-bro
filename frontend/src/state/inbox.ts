@@ -1,12 +1,16 @@
 import { reactive } from "vue";
 import { getUnreadCount } from "../api";
 
-export const inbox = reactive({ unread: 0 });
+/** `unread` is every open notification. `badge` leaves out the ones shown on Home, and drives the Profile tab's dot. */
+export const inbox = reactive({ unread: 0, badge: 0 });
 
 export async function refreshInbox(): Promise<void> {
   try {
-    inbox.unread = (await getUnreadCount()).count;
+    const body = await getUnreadCount();
+    inbox.unread = body.count;
+    inbox.badge = body.badge ?? body.count;
   } catch {
     inbox.unread = 0;
+    inbox.badge = 0;
   }
 }
