@@ -658,8 +658,7 @@ async function addLog() {
           <button
             v-if="showForm"
             type="button"
-            class="chip t-bodys savebtn"
-            :class="{ on: formReady && !saving }"
+            class="btn sm primary t-label savebtn"
             :aria-disabled="!formReady || saving"
             aria-label="Save recipe"
             data-recipe-save
@@ -669,7 +668,7 @@ async function addLog() {
             <Icon name="x" :size="18" />
           </button>
         </div>
-        <div v-if="showForm" class="sum" aria-live="polite" data-recipe-sum>
+        <div v-if="showForm" class="well sum" aria-live="polite" data-recipe-sum>
           <div class="metric">
             <span class="t-cap c2">Total</span>
             <span class="fig num">{{ linesOk ? int(total.kcal) : "–" }} <span class="t-label c2">kcal</span></span>
@@ -791,7 +790,7 @@ async function addLog() {
         <span class="grow" />
         <span class="t-cap c3">{{ lines.length }}</span>
       </div>
-      <button type="button" class="add-btn t-body" @click="openSearch">
+      <button type="button" class="field add-btn t-body" @click="openSearch">
         <Icon name="search" :size="16" /> Add ingredient
       </button>
       <p v-if="!lines.length" class="t-label" :class="tried ? 'err' : 'c2'">Add a food. The totals at the top update as you go.</p>
@@ -826,26 +825,26 @@ async function addLog() {
           </div>
         </div>
       </div>
-      <button v-if="mode === 'edit'" type="button" class="t-label gdel" :disabled="saving" @click="removeRecipe">
+      <button v-if="mode === 'edit'" type="button" class="btn sm secondary t-label gdel" :disabled="saving" @click="removeRecipe">
         <Icon name="trash" :size="14" /> Delete recipe
       </button>
     </div>
 
     <template v-if="!loading && mode === 'log'" #footer>
       <p v-if="error" class="t-label err" role="alert">{{ error }}</p>
-      <button type="button" class="primary-btn t-bodys" :disabled="saving || !logPreview || needTime" @click="addLog">
+      <button type="button" class="btn primary block t-bodys" :disabled="saving || !logPreview || needTime" @click="addLog">
         {{ saving ? "Adding…" : needTime ? "Pick a time to add" : logPreview ? `Add · ${int(logPreview.kcal)} kcal` : "Add" }}
       </button>
       <p class="t-label c3 lognote">Later edits to the recipe don't change this entry.</p>
     </template>
     <template v-else-if="!loading && step === 'amount' && picked" #footer>
-      <button type="button" class="primary-btn t-bodys" :disabled="!pickMacros" @click="addPicked">Add to recipe</button>
+      <button type="button" class="btn primary block t-bodys" :disabled="!pickMacros" @click="addPicked">Add to recipe</button>
     </template>
     <template v-else-if="showForm && !keyboardEntry && padTarget" #footer>
       <div class="padwrap" data-recipe-pad @mousedown.prevent>
         <div class="row padhead">
           <span class="t-label c2 grow padcap" aria-live="polite">{{ padCaption }}</span>
-          <button type="button" class="chip t-label" @click="donePad">Done</button>
+          <button type="button" class="btn sm primary t-label" @click="donePad">Done</button>
         </div>
         <Keypad @key="onPadKey" />
       </div>
@@ -854,56 +853,47 @@ async function addLog() {
 </template>
 
 <style scoped>
-.hwrap { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
-.hdr { gap: 8px; min-width: 0; align-items: center; }
+.hwrap { display: flex; flex-direction: column; gap: var(--space-s); min-width: 0; }
+.hdr { gap: var(--space-s); min-width: 0; align-items: center; }
 .htitle { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.savebtn { flex: none; padding-left: 16px; padding-right: 16px; color: var(--text-tertiary); }
-.savebtn.on { color: var(--color-on-action); }
-.stack { display: flex; flex-direction: column; gap: 10px; }
-.field { min-height: 44px; padding: 0 12px; gap: 8px; border-radius: var(--radius-control); background: var(--color-surface-2); flex: none; }
-.field input { border: 0; outline: 0; background: transparent; min-width: 0; width: 100%; padding: 0; color: var(--text-primary); }
-.field input::placeholder { color: var(--text-tertiary); }
-.field.tall { display: flex; flex-direction: column; justify-content: center; gap: 2px; padding: 8px 12px; min-width: 0; }
+.stack { display: flex; flex-direction: column; gap: var(--space-m); }
+.field { flex: none; }
+.field.tall { display: flex; flex-direction: column; justify-content: center; gap: var(--space-2xs); padding: var(--space-s) var(--space-m); min-width: 0; }
 .field.tall .num { text-align: left; }
-.two { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-s); }
 .num { text-align: right; font-variant-numeric: tabular-nums; }
 .finder { position: sticky; top: 0; z-index: 1; }
-.preview { display: flex; justify-content: space-around; gap: 8px; padding: 12px 8px; border-radius: var(--radius-card); background: var(--color-surface-2); flex: none; }
+.preview { display: flex; justify-content: space-around; gap: var(--space-s); padding: var(--space-m) var(--space-s); border-radius: var(--radius-l); background: var(--color-surface-2); flex: none; }
 .center { align-items: center; text-align: center; flex: 1; min-width: 0; }
-.sum { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 8px 12px; border-radius: var(--radius-control); background: var(--color-surface-2); }
+.sum { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-m); }
 .metric { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; min-width: 0; text-align: left; }
-.metric + .metric { border-left: 1px solid var(--color-border); padding-left: 12px; }
+.metric + .metric { border-left: 1px solid var(--color-border); padding-left: var(--space-m); }
 .fig { font-size: 1.0588rem; line-height: 1.3; font-weight: 700; letter-spacing: -0.01em; text-align: left; }
-.sec { align-items: center; margin-top: 8px; }
+.sec { align-items: center; margin-top: var(--space-s); }
 .sec .section-title { margin: 0; }
 .items { gap: 0; }
-.ing { display: flex; flex-direction: column; gap: 4px; padding: 2px 0; border-bottom: 1px solid var(--color-border); }
-.ingrow { display: grid; grid-template-columns: minmax(0, 1fr) auto 44px; gap: 8px; align-items: center; min-height: 52px; }
+.ing { display: flex; flex-direction: column; gap: var(--space-xs); padding: var(--space-2xs) 0; border-bottom: 1px solid var(--color-border); }
+.ingrow { display: grid; grid-template-columns: minmax(0, 1fr) auto 44px; gap: var(--space-s); align-items: center; min-height: 52px; }
 .ingtext { display: flex; flex-direction: column; min-width: 0; }
 .ingtext .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.amt { display: flex; align-items: center; gap: 4px; min-height: 40px; padding: 0 10px; border-radius: 12px; background: var(--color-surface-2); }
+.amt { display: flex; align-items: center; gap: var(--space-xs); min-height: 40px; padding: 0 var(--space-m); border-radius: var(--radius-m); background: var(--color-surface-2); }
 .amt input { width: 3.6rem; min-height: 40px; border: 0; outline: 0; background: transparent; padding: 0; color: var(--text-primary); }
 .amt input:focus-visible { outline: 0; }
 .amt.on, .amt:focus-within { box-shadow: inset 0 0 0 2px var(--text-primary); }
-.ing .units { padding-bottom: 6px; }
+.ing .units { padding-bottom: var(--space-s); }
 .gone { margin: 0; }
-.units, .chips { gap: 8px; flex-wrap: wrap; }
-.unitline { align-items: center; gap: 8px; min-width: 0; }
-.rrow { min-height: 56px; width: 100%; gap: 8px; padding: 6px 0; border: 0; border-bottom: 1px solid var(--color-border); background: transparent; text-align: left; }
-.rtext { gap: 2px; min-width: 0; align-items: flex-start; }
+.units, .chips { gap: var(--space-s); flex-wrap: wrap; }
+.unitline { align-items: center; gap: var(--space-s); min-width: 0; }
+.rrow { min-height: 56px; width: 100%; gap: var(--space-s); padding: var(--space-s) 0; border: 0; border-bottom: 1px solid var(--color-border); background: transparent; text-align: left; }
+.rtext { gap: var(--space-2xs); min-width: 0; align-items: flex-start; }
 .name, .facts { min-width: 0; white-space: normal; overflow-wrap: anywhere; }
-.section-title { margin: 8px 0 0; }
-.pad { margin-top: 4px; }
-.padwrap { display: flex; flex-direction: column; gap: 8px; }
-.padhead { align-items: center; gap: 8px; min-width: 0; }
+.section-title { margin: var(--space-s) 0 0; }
+.pad { margin-top: var(--space-xs); }
+.padwrap { display: flex; flex-direction: column; gap: var(--space-s); }
+.padhead { align-items: center; gap: var(--space-s); min-width: 0; }
 .padcap { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lognote { margin: 0; text-align: center; }
 .err, .note, .need { margin: 0; }
-.add-btn {
-  min-height: 44px; width: 100%; border-radius: var(--radius-control); padding: 0 12px;
-  border: 1px solid var(--color-border); color: var(--text-secondary);
-  display: inline-flex; align-items: center; gap: 8px;
-  background: transparent; flex: none;
-}
-.gdel { align-self: flex-start; min-height: 44px; padding: 8px 0; margin-top: 8px; display: inline-flex; align-items: center; gap: 6px; text-decoration: underline; text-underline-offset: 3px; background: transparent; color: var(--text-primary); }
+.add-btn { width: 100%; color: var(--text-secondary); text-align: left; }
+.gdel { align-self: flex-start; margin-top: var(--space-s); }
 </style>

@@ -132,11 +132,11 @@ function onMenu(event: Event) {
       <span class="eic"><Icon name="food" :size="22" /></span>
       <span class="t-head">{{ isToday ? "Nothing logged yet today" : `Nothing logged on ${dayMonth(date)}` }}</span>
       <span class="t-label c2">{{ isToday ? "Add food as you eat — each entry gets the time you add it." : "Add food to this day and pick the time it was eaten." }}</span>
-      <button type="button" class="primary-btn t-bodys ebtn" @click="add"><Icon name="plus" :size="18" :sw="2.6" /> Add food</button>
+      <button type="button" class="btn primary t-bodys ebtn" @click="add"><Icon name="plus" :size="18" :sw="2.6" /> Add food</button>
       <template v-if="groupChips.length">
         <span class="t-capn c3">or add a saved group</span>
         <div class="row gchips">
-          <button v-for="group in groupChips" :key="group.id" type="button" class="chip t-label" :aria-label="`Add group ${group.name}`" @click="quickGroup(group.id, group.name)">
+          <button v-for="group in groupChips" :key="group.id" type="button" class="btn sm secondary t-label" :aria-label="`Add group ${group.name}`" @click="quickGroup(group.id, group.name)">
             <Icon name="layers" :size="13" /> {{ group.name }}
           </button>
         </div>
@@ -145,7 +145,7 @@ function onMenu(event: Event) {
     <template v-else>
       <div v-if="rows.length && !ui.selecting && !home" class="row selhead">
         <span class="grow" />
-        <button type="button" class="chip t-label" @click="startSelect()">Select</button>
+        <button type="button" class="btn sm secondary t-label" @click="startSelect()">Select</button>
       </div>
       <CappedList
         v-if="pending.length || rows.length"
@@ -161,7 +161,7 @@ function onMenu(event: Event) {
           <span class="t-body name">{{ item.name }}</span>
           <span class="t-capn c2 sub">Pending · {{ macros(item) }}</span>
         </span>
-        <button type="button" class="chip t-label" @click="retry(item)">Retry</button>
+        <button type="button" class="btn sm primary t-label" @click="retry(item)"><Icon name="refresh" :size="14" /> Retry</button>
         <span class="t-bodys kc" data-num>{{ int(item.kcal) }}</span>
       </div>
       <SwipeRow
@@ -241,7 +241,7 @@ function onMenu(event: Event) {
 .entries > .pending:not(:first-child),
 .tl :deep(.entries > .swipe:not(:first-child)) { border-top: 1px solid var(--color-border); }
 .line {
-  position: relative; display: flex; align-items: center; gap: calc(var(--space-gap) / 2);
+  position: relative; display: flex; align-items: center; gap: var(--space-s);
   width: 100%; min-height: 52px; min-width: 0; max-width: 100%; box-sizing: border-box;
   border-radius: 0; overflow: hidden; -webkit-touch-callout: none; user-select: none;
 }
@@ -249,12 +249,12 @@ function onMenu(event: Event) {
 .frow {
   min-height: 52px; flex: 1 1 0%; min-width: 0; width: auto; max-width: 100%; text-align: left;
   display: grid; grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: center; gap: 6px; background: transparent; border-radius: 10px; padding: 4px 0;
+  align-items: center; gap: var(--space-s); background: transparent; border-radius: var(--radius-m); padding: var(--space-xs) 0;
 }
 .pending {
   min-height: 52px; min-width: 0; max-width: 100%;
   display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto;
-  align-items: center; gap: 6px; border-radius: 0; padding: 8px 0;
+  align-items: center; gap: var(--space-s); border-radius: 0; padding: var(--space-s) 0;
 }
 .time { width: auto; min-width: 2.5rem; font-variant-numeric: tabular-nums; }
 .two { gap: 1px; min-width: 0; align-items: flex-start; }
@@ -267,17 +267,17 @@ function onMenu(event: Event) {
   width: auto; min-width: 2.5rem; max-width: none; overflow-wrap: normal;
   text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums;
 }
-.addrow { min-height: var(--control-hit); gap: var(--space-gap); align-items: center; text-align: left; margin-top: 8px; }
+.addrow { min-height: var(--control-hit); gap: var(--space-m); align-items: center; text-align: left; margin-top: var(--space-s); }
 .addc { pointer-events: none; }
 .mark { position: relative; width: 44px; height: 44px; flex: none; }
-.hacts { position: absolute; right: 0; top: 0; bottom: 0; gap: 4px; align-items: center; opacity: 0; pointer-events: none; }
+.hacts { position: absolute; right: 0; top: 0; bottom: 0; gap: var(--space-xs); align-items: center; opacity: 0; pointer-events: none; }
 .hbtn {
   position: relative; width: var(--control-hit); height: var(--control-hit);
   display: flex; align-items: center; justify-content: center; color: var(--text-secondary); background: transparent; isolation: isolate;
 }
 .hbtn::before {
   content: ""; position: absolute; z-index: -1; width: var(--control-s); height: var(--control-s);
-  border-radius: 10px; background: var(--color-surface-2);
+  border-radius: var(--radius-m); background: var(--color-surface-2);
 }
 .hbtn > * { position: relative; }
 .hbtn:hover, .hbtn:focus-visible { color: var(--text-primary); }
@@ -287,8 +287,8 @@ function onMenu(event: Event) {
   .line:hover .kc, .line:focus-within .kc { opacity: 0; }
   .line:hover .mark { cursor: pointer; }
 }
-.empty { align-items: center; text-align: center; gap: 8px; padding: 28px 16px; border-radius: var(--radius-card); border: 1px dashed var(--color-border); }
+.empty { align-items: center; text-align: center; gap: var(--space-s); padding: var(--space-2xl) var(--space-l); border-radius: var(--radius-l); border: 1px dashed var(--color-border); }
 .eic { width: var(--control-s); height: var(--control-s); border-radius: 50%; background: var(--color-surface-2); display: flex; align-items: center; justify-content: center; color: var(--text-secondary); }
-.ebtn { width: auto; padding: 0 22px; min-height: 44px; margin-top: 8px; }
-.gchips { gap: 8px; flex-wrap: wrap; justify-content: center; }
+.ebtn { margin-top: var(--space-s); }
+.gchips { gap: var(--space-s); flex-wrap: wrap; justify-content: center; }
 </style>

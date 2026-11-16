@@ -111,7 +111,7 @@ test("range stays put, the safe strip is clear, rows tap cleanly, and home has n
   expect(framed.above).toBeLessThanOrEqual(1.5);
   expect(framed.below).toBeLessThanOrEqual(1.5);
   const gap = await line.locator(".frow").evaluate((el) => parseFloat(getComputedStyle(el).columnGap || getComputedStyle(el).gap));
-  expect(gap).toBeLessThanOrEqual(6);
+  expect(gap).toBeLessThanOrEqual(8);
   if (test.info().project.name === "chromium") await page.screenshot({ path: "/opt/cursor/artifacts/iphone38-log.png" });
 
   await page.goto("/progress");

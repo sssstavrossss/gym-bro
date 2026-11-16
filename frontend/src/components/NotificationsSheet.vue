@@ -73,7 +73,7 @@ async function onType() {
     <template #header>
       <div class="row hdr">
         <h2 class="t-head grow">Notifications</h2>
-        <button type="button" class="cbtn" aria-label="Close" @click="closeSheet">×</button>
+        <button type="button" class="cbtn" aria-label="Close" @click="closeSheet"><Icon name="x" :size="18" /></button>
       </div>
     </template>
     <div class="col body" data-notifications-sheet>
@@ -116,24 +116,24 @@ async function onType() {
 </template>
 
 <style scoped>
-.hdr { gap: 8px; align-items: center; }
+.hdr { gap: var(--space-s); align-items: center; }
 .m0 { margin: 0; overflow-wrap: anywhere; }
-.body { gap: var(--space-gap); }
-.sub { margin-top: 4px; }
+.body { gap: var(--space-m); }
+.sub { margin-top: var(--space-xs); }
 .body :deep(.notes) { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
-.note { display: flex; gap: var(--space-gap); align-items: center; padding: 10px 0; border-bottom: 1px solid var(--color-border); min-width: 0; }
+.note { display: flex; gap: var(--space-m); align-items: center; padding: var(--space-m) 0; border-bottom: 1px solid var(--color-border); min-width: 0; }
 .note:last-child { border-bottom: 0; }
 .note.tall { align-items: flex-start; }
 .nic { width: 28px; height: 28px; border-radius: 50%; background: var(--color-surface-2); color: var(--text-secondary); display: grid; place-items: center; flex: none; }
-.ntext { min-width: 0; gap: 2px; overflow-wrap: anywhere; }
+.ntext { min-width: 0; gap: var(--space-2xs); overflow-wrap: anywhere; }
 .done .nlabel { font-weight: 500; color: var(--text-secondary); }
-.side { align-items: flex-end; gap: 4px; flex: none; }
+.side { align-items: flex-end; gap: var(--space-xs); flex: none; }
 .when { white-space: nowrap; font-variant-numeric: tabular-nums; }
-.tag { padding: 2px 8px; border-radius: 9px; background: var(--color-action); color: var(--color-on-action); font-weight: 600; text-decoration: none; white-space: nowrap; }
-.srow { min-height: 52px; width: 100%; display: flex; align-items: center; gap: var(--space-gap); text-align: left; padding: 0; }
+.tag { padding: var(--space-2xs) var(--space-s); border-radius: var(--radius-xs); border: 0; background: var(--color-action); color: var(--color-on-action); font-weight: 600; text-decoration: none; white-space: nowrap; }
+.srow { min-height: 52px; width: 100%; display: flex; align-items: center; gap: var(--space-m); text-align: left; padding: 0; }
 .srow:disabled { opacity: 1; }
-.switch { position: relative; width: 46px; height: 28px; border-radius: 14px; background: var(--color-track); flex: none; transition: background .15s; }
-.switch i { position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 11px; background: var(--text-tertiary); transition: transform .15s, background .15s; }
+.switch { position: relative; width: 46px; height: 28px; border-radius: var(--radius-l); background: var(--color-track); flex: none; transition: background .15s; }
+.switch i { position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: var(--radius-m); background: var(--text-tertiary); transition: transform .15s, background .15s; }
 .switch.on { background: var(--color-action); }
 .switch.on i { transform: translateX(18px); background: var(--color-on-action); }
 .srow:disabled .switch { opacity: .45; }

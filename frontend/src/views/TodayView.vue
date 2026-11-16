@@ -178,7 +178,7 @@ const weekRows = computed(() => {
         <div v-else class="daycards" :class="{ stale: viewed.dim }" data-day-cards>
           <MacroBars :manual="manualSelected" :target="goal" :totals="totalsOf(entries)" :entries="entries" :label="shownDay === today ? 'Today\'s macros' : 'That day\'s macros'" />
           <button v-if="layout === 'phone' && !hasDay" type="button" class="card prompt row" @click="openFood('search', shownDay)">
-            <span class="pic"><Icon name="plus" :size="18" :sw="2.6" /></span>
+            <span class="disc filled"><Icon name="plus" :size="18" :sw="2.6" /></span>
             <span class="col grow">
               <span class="t-bodys">{{ shownDay === today ? "Log your first food today" : "Nothing logged this day" }}</span>
               <span class="t-capn c2">Search, pick a recent food or add a saved group</span>
@@ -191,7 +191,7 @@ const weekRows = computed(() => {
                 <h2 class="foods section-title c2">{{ foodTitle }}</h2>
                 <span class="t-label c3 fcount">{{ foodCount }}<span class="sr-only">{{ foodCount === 1 ? " food" : " foods" }}</span></span>
               </span>
-              <button v-if="!ui.selecting" type="button" class="chip on t-label addpill" :aria-label="addFoodName" @click="openFood('search', shownDay)">
+              <button v-if="!ui.selecting" type="button" class="btn sm primary t-label addpill" :aria-label="addFoodName" @click="openFood('search', shownDay)">
                 <Icon name="plus" :size="14" :sw="2.6" />{{ addFoodLabel }}
               </button>
             </div>
@@ -220,7 +220,7 @@ const weekRows = computed(() => {
               <span class="t-capn c2">Log your weight to start a trend</span>
             </div>
             <span class="grow" />
-            <span class="chip t-label">Log weight</span>
+            <span class="btn sm primary t-label"><Icon name="scale" :size="14" /> Log weight</span>
           </div>
           <WeightChart v-if="shown && profile.chart" :series="profile.chart.series" fluid :height="140" />
           <p v-else class="t-label c2 m0">Your 30-day chart appears here after a weigh-in.</p>
@@ -261,7 +261,7 @@ const weekRows = computed(() => {
       <section v-if="layout !== 'phone' && ready" class="card logc c-c">
         <div class="row loghead">
           <h2 class="foods section-title c2">{{ foodTitle }}</h2>
-          <button v-if="!ui.selecting" type="button" class="addfood t-label" @click="openFood('search', shownDay)">
+          <button v-if="!ui.selecting" type="button" class="btn sm primary t-label addfood" @click="openFood('search', shownDay)">
             <Icon name="plus" :size="14" :sw="2.4" />{{ addFoodLabel }}
           </button>
           <RouterLink :to="logHref" class="t-label c2 more">Open log <Icon name="right" :size="14" /></RouterLink>
@@ -273,57 +273,50 @@ const weekRows = computed(() => {
 </template>
 
 <style scoped>
-.grid, .stack, .topbar, .daycards { display: flex; flex-direction: column; gap: var(--space-gap); min-width: 0; }
+.grid, .stack, .topbar, .daycards { display: flex; flex-direction: column; gap: var(--space-m); min-width: 0; }
 .daycards.stale { opacity: 0.55; }
-.tablet .grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.tablet .grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-l); align-items: start; }
 .tablet .c-c { grid-column: 1 / -1; }
-.two .topbar, .three .topbar { flex-direction: row; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.two .topbar, .three .topbar { flex-direction: row; align-items: flex-end; justify-content: space-between; gap: var(--space-l); flex-wrap: wrap; }
 .two .topbar :deep(.week), .three .topbar :deep(.week) { flex: 0 1 auto; min-width: 0; }
-.two .grid { display: grid; grid-template-columns: minmax(0, 400px) minmax(0, 1fr); grid-template-areas: "a c" "b c"; gap: 20px; align-items: start; }
+.two .grid { display: grid; grid-template-columns: minmax(0, 400px) minmax(0, 1fr); grid-template-areas: "a c" "b c"; gap: var(--space-xl); align-items: start; }
 .two .c-a { grid-area: a; }
 .two .c-b { grid-area: b; }
 .two .c-c { grid-area: c; }
-.three .grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.25fr); gap: 20px; align-items: start; }
-.two .stack, .three .stack { gap: 20px; }
-.weekc { gap: 4px; min-width: 0; }
-.weekhead { justify-content: space-between; gap: 8px; flex-wrap: wrap; min-width: 0; }
+.three .grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.25fr); gap: var(--space-xl); align-items: start; }
+.two .stack, .three .stack { gap: var(--space-xl); }
+.weekc { gap: var(--space-xs); min-width: 0; }
+.weekhead { justify-content: space-between; gap: var(--space-s); flex-wrap: wrap; min-width: 0; }
 .weekhead h2 { margin: 0; }
 .legend { min-width: 0; overflow-wrap: anywhere; }
-.wrow { gap: 8px; min-height: 44px; width: 100%; min-width: 0; border-radius: 8px; text-align: left; }
+.wrow { gap: var(--space-s); min-height: 44px; width: 100%; min-width: 0; border-radius: var(--radius-s); text-align: left; }
 .wrow:disabled { cursor: default; }
 .wrow.sel { background: var(--color-surface-2); }
 .wl { width: 4.5rem; flex: none; }
-.tgl { gap: var(--space-gap); align-items: center; }
+.tgl { gap: var(--space-m); align-items: center; }
 .wm { width: 18px; flex: none; display: inline-flex; align-items: center; }
 .wst { width: 14px; flex: none; display: inline-flex; justify-content: center; }
 .loghead { min-height: 44px; align-items: center; }
 .foods { margin: 0; text-align: left; min-width: 0; }
-.foodhead, .loghead { justify-content: space-between; gap: var(--space-gap); min-width: 0; align-items: center; }
-.addfood {
-  margin-left: auto; flex: 0 1 auto; max-width: 100%;
-  min-height: var(--control-hit); min-width: var(--control-hit);
-  display: inline-flex; align-items: center; justify-content: flex-end;
-  gap: calc(var(--space-gap) / 3); padding: 0 calc(var(--space-gap) / 2);
-  color: var(--text-secondary); background: transparent;
-}
-.addfood:hover { color: var(--text-primary); }
+.foodhead, .loghead { justify-content: space-between; gap: var(--space-m); min-width: 0; align-items: center; }
+.addfood { margin-left: auto; flex: 0 1 auto; max-width: 100%; }
 /* Phone Home card: title row as tall as the Macros title, so the card's own padding is the only space above it. */
 .logc .foodhead { min-height: 0; margin: -10px 0 -6px; }
-.ftitle { gap: 6px; align-items: baseline; min-width: 0; }
+.ftitle { gap: var(--space-s); align-items: baseline; min-width: 0; }
 .fcount { flex: none; font-variant-numeric: tabular-nums; }
-.addpill { flex: none; font-weight: 600; padding-left: 14px; padding-right: 14px; }
+.addpill { flex: none; }
 html.dt-xl .foodhead, html.dt-xl .loghead { flex-wrap: nowrap; }
 html.dt-xl .foodhead .foods, html.dt-xl .loghead .foods { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.more { display: inline-flex; align-items: center; gap: calc(var(--space-gap) / 2); min-height: var(--control-hit); padding: 0 calc(var(--space-gap) / 2); text-decoration: none; color: var(--text-secondary); }
+.more { display: inline-flex; align-items: center; gap: var(--space-s); min-height: var(--control-hit); padding: 0 var(--space-s); text-decoration: none; color: var(--text-secondary); }
 .more:hover { color: var(--text-primary); }
 .wk { width: 3.4rem; text-align: right; flex: none; }
 .barw { position: relative; min-width: 0; height: 10px; display: flex; align-items: center; }
 .tgt { position: absolute; left: calc(100% / 1.2); top: -3px; bottom: -3px; width: 1px; background: var(--text-tertiary); }
-.remind { flex-direction: row; flex-wrap: wrap; align-items: center; gap: var(--space-gap); min-width: 0; max-width: 100%; }
+.remind { flex-direction: row; flex-wrap: wrap; align-items: center; gap: var(--space-m); min-width: 0; max-width: 100%; }
 .msg { margin: 0; flex: 1 1 8rem; min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
-.gap2 { gap: 2px; }
-.gap6 { gap: 6px; }
-.gap8 { gap: 8px; }
+.gap2 { gap: var(--space-2xs); }
+.gap6 { gap: var(--space-s); }
+.gap8 { gap: var(--space-s); }
 .m0 { margin: 0; }
 .today { min-width: 0; max-width: 100%; }
 .homehead { height: 44px; min-height: 44px; max-height: 44px; overflow: hidden; }
@@ -333,9 +326,8 @@ html.dt-xl .foodhead .foods, html.dt-xl .loghead .foods { overflow: hidden; text
   display: inline-flex; align-items: center; justify-content: flex-start;
   background: none; color: inherit; font: inherit; letter-spacing: inherit; text-align: left;
 }
-.prompt { flex-direction: row; align-items: center; gap: 12px; text-align: left; width: 100%; min-width: 0; }
-.pic { width: var(--control-s); height: var(--control-s); border-radius: 50%; background: var(--color-action); color: var(--color-on-action); display: flex; align-items: center; justify-content: center; flex: none; }
-.sk { display: block; height: 12px; width: 40%; border-radius: 6px; background: var(--color-surface-2); }
+.prompt { flex-direction: row; align-items: center; gap: var(--space-m); text-align: left; width: 100%; min-width: 0; }
+.sk { display: block; height: 12px; width: 40%; border-radius: var(--radius-xs); background: var(--color-surface-2); }
 .logc { min-width: 0; }
 [data-num] { max-width: 100%; overflow-wrap: anywhere; }
 .wcard, .wbig { position: relative; }
@@ -354,13 +346,13 @@ html.dt-xl .foodhead .foods, html.dt-xl .loghead .foods { overflow: hidden; text
 .wbig :deep(input),
 .wcard > :not(.stretch) :deep(select),
 .wbig :deep(select) { pointer-events: auto; z-index: 2; }
-.wcard.row { flex-direction: row; flex-wrap: nowrap; align-items: center; gap: 12px; text-align: left; width: 100%; }
+.wcard.row { flex-direction: row; flex-wrap: nowrap; align-items: center; gap: var(--space-m); text-align: left; width: 100%; }
 .wcard :deep(svg.spark) { flex: none; width: 132px; min-width: 132px; max-width: 132px; }
 .wcard > .col { min-width: 0; }
 .nowrap { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
-.wbig { gap: 12px; }
-.top { align-items: flex-start; gap: var(--space-gap); }
-.trendline { align-items: center; min-width: 0; max-width: 100%; gap: var(--space-gap); }
+.wbig { gap: var(--space-m); }
+.top { align-items: flex-start; gap: var(--space-m); }
+.trendline { align-items: center; min-width: 0; max-width: 100%; gap: var(--space-m); }
 .trendline .t-cap { min-width: 0; }
 .dt-xl .wcard > .grow { display: none; }
 .dt-xl .wcard > .col { flex: 1 1 auto; min-width: 0; }

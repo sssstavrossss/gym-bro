@@ -57,8 +57,8 @@ function change(event: Event) {
 </template>
 
 <style scoped>
-.tchip-wrap { position: relative; display: inline-flex; align-items: center; gap: var(--space-gap); max-width: 100%; min-height: var(--control-hit); }
-.tchip { position: relative; height: var(--control-s); min-height: var(--control-s); padding: 0 var(--space-gap); border-radius: calc(var(--control-s) / 2); display: inline-flex; align-items: center; gap: calc(var(--space-gap) / 2); background: var(--color-surface-2); color: var(--text-primary); }
+.tchip-wrap { position: relative; display: inline-flex; align-items: center; gap: var(--space-m); max-width: 100%; min-height: var(--control-hit); }
+.tchip { position: relative; height: var(--control-s); min-height: var(--control-s); padding: 0 var(--space-m); border-radius: calc(var(--control-s) / 2); display: inline-flex; align-items: center; gap: var(--space-s); background: var(--color-surface-2); color: var(--text-primary); }
 .tchip.need { box-shadow: none; outline: 1.5px dashed var(--text-primary); outline-offset: -1.5px; background: transparent; }
 .tchip.set { box-shadow: inset 0 0 0 1.5px var(--text-secondary); }
 /* opacity stays above 0 so WebKit will focus the control. It is still invisible. */
@@ -66,5 +66,5 @@ function change(event: Event) {
 /* Chrome draws its own clock icon inside the control; at 2% opacity it still showed as a ghost. */
 .tinput::-webkit-calendar-picker-indicator { opacity: 0; }
 .tchip:focus-within { outline: 2px solid var(--color-action); outline-offset: 2px; }
-.now { min-height: var(--control-hit); min-width: var(--control-hit); padding: 0 var(--space-gap); }
+.now { min-height: var(--control-hit); min-width: var(--control-hit); padding: 0 var(--space-m); }
 </style>

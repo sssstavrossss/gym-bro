@@ -81,7 +81,7 @@ function onAdd(event: MouseEvent, group: SavedGroup) {
           <span class="t-label grow ell">{{ item.name }}<template v-if="!item.available"> · won't be added</template></span>
           <span class="t-label c2">{{ groupItemLine(item) }}</span>
         </div>
-        <button type="button" class="t-label gdel" :disabled="saving" @click="emit('remove', group)">
+        <button type="button" class="btn sm secondary t-label gdel" :disabled="saving" @click="emit('remove', group)">
           <Icon name="trash" :size="14" /> Delete group
         </button>
       </div>
@@ -91,10 +91,10 @@ function onAdd(event: MouseEvent, group: SavedGroup) {
 
 <style scoped>
 .groups { gap: 0; }
-.lhead { padding: 10px 0 2px; }
-.grp { gap: 4px; }
-.gic { width: 32px; height: 32px; border-radius: 10px; background: var(--color-surface-2); display: flex; align-items: center; justify-content: center; color: var(--text-secondary); flex: none; }
-.rtext { gap: 2px; min-width: 0; min-height: 44px; align-items: flex-start; justify-content: center; text-align: left; }
+.lhead { padding: var(--space-m) 0 var(--space-2xs); }
+.grp { gap: var(--space-xs); }
+.gic { width: 32px; height: 32px; border-radius: var(--radius-m); background: var(--color-surface-2); display: flex; align-items: center; justify-content: center; color: var(--text-secondary); flex: none; }
+.rtext { gap: var(--space-2xs); min-width: 0; min-height: 44px; align-items: flex-start; justify-content: center; text-align: left; }
 .ell { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
 .gsum { display: flex; min-width: 0; width: 100%; max-width: 100%; overflow: hidden; }
 .gnum { flex: none; white-space: nowrap; }
@@ -104,13 +104,13 @@ function onAdd(event: MouseEvent, group: SavedGroup) {
   display: inline-flex; align-items: center; justify-content: center; color: var(--text-secondary); flex: none; background: transparent; isolation: isolate;
 }
 .ibtn::before {
-  content: ""; position: absolute; z-index: -1; width: var(--control-s); height: var(--control-s); border-radius: 10px;
+  content: ""; position: absolute; z-index: -1; width: var(--control-s); height: var(--control-s); border-radius: var(--radius-m);
 }
 .ibtn > * { position: relative; }
 .ibtn:hover::before { background: var(--color-surface-2); }
 .ibtn:disabled { opacity: .35; }
 .flip { transform: rotate(180deg); }
-.gitems { padding: 4px 0 8px 42px; gap: 6px; border-bottom: 1px solid var(--color-border); }
-.gi { gap: 8px; min-height: 32px; }
-.gdel { align-self: flex-start; min-height: 44px; padding: 8px 0; display: inline-flex; align-items: center; gap: 6px; text-decoration: underline; text-underline-offset: 3px; }
+.gitems { padding: var(--space-xs) 0 var(--space-s) 42px; gap: var(--space-s); border-bottom: 1px solid var(--color-border); }
+.gi { gap: var(--space-s); min-height: 32px; }
+.gdel { align-self: flex-start; }
 </style>

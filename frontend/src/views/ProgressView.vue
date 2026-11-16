@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from "vue";
+import Icon from "../components/Icon.vue";
 import Segmented from "../components/Segmented.vue";
 import { ApiError, getProgress, ServerUnreachable, type ProgressDay, type ProgressResponse } from "../api";
 import { dayMonth, spanLabel } from "../lib/dates";
@@ -162,7 +163,7 @@ function weighInOn(date: string): string {
     <p v-if="loading && !data" class="t-body c2" role="status">Loading…</p>
     <div v-else-if="error && !data" class="card" role="alert">
       <p class="t-body">{{ error }}</p>
-      <button type="button" class="chip on t-label" @click="retry">Try again</button>
+      <button type="button" class="btn sm primary t-label" @click="retry"><Icon name="refresh" :size="14" /> Try again</button>
     </div>
     <template v-if="data">
       <section class="stats" aria-label="Summary">
@@ -294,24 +295,24 @@ function weighInOn(date: string): string {
 </template>
 
 <style scoped>
-.head { display: flex; flex-direction: column; gap: 12px; min-width: 0; max-width: 100%; }
+.head { display: flex; flex-direction: column; gap: var(--space-m); min-width: 0; max-width: 100%; }
 .progress { overflow-x: clip; }
 .rangebar {
   position: sticky; top: calc(var(--sat) + 8px); z-index: 2;
-  background: var(--color-bg); padding: calc(var(--space-gap) / 2) 0;
+  background: var(--color-bg); padding: var(--space-s) 0;
 }
-.gap2 { gap: 2px; }
-.stats { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; min-width: 0; }
-.stat { display: flex; flex-direction: column; gap: 2px; min-width: 0; padding: 12px; border-radius: var(--radius-card); background: var(--color-surface); }
+.gap2 { gap: var(--space-2xs); }
+.stats { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-m); min-width: 0; }
+.stat { display: flex; flex-direction: column; gap: var(--space-2xs); min-width: 0; padding: var(--space-m); border-radius: var(--radius-l); background: var(--color-surface); }
 .note { margin: 0; }
-.charts { display: flex; flex-direction: column; gap: var(--space-gap); min-width: 0; }
+.charts { display: flex; flex-direction: column; gap: var(--space-m); min-width: 0; }
 .chart { min-width: 0; }
-.plot { display: flex; align-items: stretch; gap: 6px; min-width: 0; }
+.plot { display: flex; align-items: stretch; gap: var(--space-s); min-width: 0; }
 .fig { flex: 1 1 auto; width: auto; min-width: 0; height: auto; display: block; }
 .ylabels { position: relative; width: 2.8rem; flex: none; }
 .ylabels.wide { width: 3.6rem; }
 .ylabels span { position: absolute; right: 0; transform: translateY(-50%); white-space: nowrap; font-variant-numeric: tabular-nums; }
-.xlabels { justify-content: space-between; gap: 8px; min-width: 0; }
+.xlabels { justify-content: space-between; gap: var(--space-s); min-width: 0; }
 .head :deep(.seg), .rangebar :deep(.seg) { flex-wrap: wrap; }
 .tablet .head, .two .head, .three .head { flex-direction: row; align-items: flex-end; justify-content: space-between; }
 .tablet .head :deep(.seg), .two .head :deep(.seg), .three .head :deep(.seg) { width: auto; max-width: 520px; }

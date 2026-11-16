@@ -91,14 +91,14 @@ const sheetStyle = computed(() => {
   bottom: var(--keyboard, 0px);
   top: auto;
   max-height: calc(100dvh - var(--sat) - var(--keyboard, 0px) - 10px);
-  background: var(--color-surface); border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
-  padding: var(--space-gap) var(--space-screen) max(var(--sab), var(--space-screen));
-  display: flex; flex-direction: column; gap: var(--space-gap);
+  background: var(--color-surface); border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  padding: var(--space-m) var(--space-screen) max(var(--sab), var(--space-screen));
+  display: flex; flex-direction: column; gap: var(--space-m);
   overflow: hidden; min-height: 0;
   transition: transform .3s cubic-bezier(.2, .8, .2, 1);
 }
 .sheet.dragging { transition: none; }
-.drag-zone { display: flex; flex-direction: column; gap: 12px; touch-action: none; flex: none; }
+.drag-zone { display: flex; flex-direction: column; gap: var(--space-m); touch-action: none; flex: none; }
 .grabber-row { display: flex; justify-content: center; }
 .grabber { width: 36px; height: 5px; border-radius: 3px; background: var(--color-track); }
 .sheet-body {
@@ -107,17 +107,17 @@ const sheetStyle = computed(() => {
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
   touch-action: pan-y;
-  display: flex; flex-direction: column; gap: 12px;
+  display: flex; flex-direction: column; gap: var(--space-m);
 }
 .sheet-foot {
-  flex: none; display: flex; flex-direction: column; gap: 10px;
-  padding-top: 10px; border-top: 1px solid var(--color-border);
+  flex: none; display: flex; flex-direction: column; gap: var(--space-m);
+  padding-top: var(--space-m); border-top: 1px solid var(--color-border);
   background: var(--color-surface);
 }
 .is-tablet .sheet { left: max(16px, calc(50% - 300px)); right: max(16px, calc(50% - 300px)); }
 .is-tablet .sheet:not(.full) {
   bottom: max(16px, var(--keyboard, 0px));
-  border-radius: var(--radius-sheet);
+  border-radius: var(--radius-xl);
   max-height: calc(100dvh - var(--sat) - 32px - var(--keyboard, 0px));
 }
 /* Food sheet matches the prototype: full height, not a short panel over Today. */
@@ -134,7 +134,7 @@ const sheetStyle = computed(() => {
 .panel .sheet {
   top: 12px; bottom: max(12px, var(--keyboard, 0px)); right: 12px; left: auto;
   width: 460px; max-height: calc(100dvh - 24px - var(--keyboard, 0px));
-  border-radius: var(--radius-sheet); padding: 20px 24px 24px;
+  border-radius: var(--radius-xl); padding: var(--space-xl) var(--space-xl) var(--space-xl);
 }
 .panel .grabber-row { display: none; }
 .sheet-enter-active, .sheet-leave-active { transition: opacity .3s; }

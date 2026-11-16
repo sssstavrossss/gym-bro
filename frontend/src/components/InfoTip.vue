@@ -46,7 +46,7 @@ onBeforeUnmount(() => {
         <path d="M9 8v5M9 5.2v.1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
       </svg>
     </button>
-    <span v-if="open" ref="pop" :id="id" class="pop t-capn" :style="shift ? { transform: `translateX(${shift}px)` } : undefined" role="note"><slot /></span>
+    <span v-if="open" ref="pop" :id="id" class="well pop t-capn" :style="shift ? { transform: `translateX(${shift}px)` } : undefined" role="note"><slot /></span>
   </span>
 </template>
 
@@ -55,15 +55,14 @@ onBeforeUnmount(() => {
 .ibtn {
   position: relative; width: var(--control-hit); height: var(--control-hit); margin: 0;
   display: inline-flex; align-items: center; justify-content: center;
-  color: var(--text-secondary); border-radius: 22px;
+  color: var(--text-secondary); border-radius: var(--radius-pill);
 }
 .ibtn:hover, .ibtn[aria-expanded="true"] { color: var(--text-primary); }
 /* From AX1 the button's own box is the 44×44 hit target. The square fill keeps the corners, which a circle would miss. */
-.dt-xl .ibtn { width: 44px; height: 44px; min-width: 44px; min-height: 44px; margin: 0; flex: none; border-radius: 22px; }
+.dt-xl .ibtn { width: 44px; height: 44px; min-width: 44px; min-height: 44px; margin: 0; flex: none; border-radius: var(--radius-pill); }
 .dt-xl .ibtn::after { content: ""; position: absolute; inset: 0; }
 .pop {
   position: absolute; top: calc(100% + 4px); left: -8px; width: min(264px, calc(100vw - 32px));
-  padding: 10px 12px; border-radius: 12px; background: var(--color-surface-2);
   border: 1px solid var(--color-border); color: var(--text-primary);
   box-shadow: 0 8px 24px rgba(0, 0, 0, .5); line-height: 1.45; text-align: left;
   white-space: normal; font-weight: 400; text-transform: none; letter-spacing: 0;

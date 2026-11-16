@@ -42,7 +42,7 @@ function label(day: RecalculateCalendarDay): string {
 </script>
 
 <template>
-  <section class="card" aria-label="Days in this period">
+  <section class="card outline" aria-label="Days in this period">
     <div class="cal" role="group" aria-label="Recalculation days">
       <div class="calrow letters">
         <span v-for="(letter, index) in ['M','T','W','T','F','S','S']" :key="index" class="t-cap c3">{{ letter }}</span>
@@ -77,17 +77,12 @@ function label(day: RecalculateCalendarDay): string {
 </template>
 
 <style scoped>
-.card {
-  display: flex; flex-direction: column; gap: var(--space-gap);
-  padding: var(--space-gap); border: 1px solid var(--color-border); border-radius: var(--radius-card);
-  background: var(--color-surface);
-}
-.cal { display: flex; flex-direction: column; gap: calc(var(--space-gap) / 2); }
-.calrow { display: flex; gap: 4px; }
+.cal { display: flex; flex-direction: column; gap: var(--space-s); }
+.calrow { display: flex; gap: var(--space-xs); }
 .calrow > * { flex: 1 1 0; min-width: 0; }
 .letters { min-height: 16px; text-align: center; }
 .tile {
-  position: relative; min-height: var(--control-hit); border-radius: 10px;
+  position: relative; min-height: var(--control-hit); border-radius: var(--radius-m);
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
   color: var(--text-primary); background: var(--color-surface-2);
 }
@@ -98,8 +93,8 @@ function label(day: RecalculateCalendarDay): string {
 .tile.picked { box-shadow: inset 0 0 0 2px var(--color-action); }
 .tick { position: absolute; top: 3px; right: 3px; color: var(--text-secondary); }
 .num, .kcal { font-variant-numeric: tabular-nums; line-height: 1.1; }
-.legend { display: flex; flex-wrap: wrap; gap: 8px 12px; }
-.legend span { display: inline-flex; align-items: center; gap: 6px; min-height: 16px; }
+.legend { display: flex; flex-wrap: wrap; gap: var(--space-s) var(--space-m); }
+.legend span { display: inline-flex; align-items: center; gap: var(--space-s); min-height: 16px; }
 .sw { width: 12px; height: 12px; border-radius: 3px; flex: none; background: var(--color-surface-2); }
 .sw.low { box-shadow: inset 0 0 0 1.5px var(--text-secondary); background: transparent; }
 .sw.nolog { background: transparent; outline: 1px dashed var(--color-border); outline-offset: -2px; }

@@ -117,25 +117,25 @@ async function onFasting(event: Event) {
 </template>
 
 <style scoped>
-.log { gap: 8px; min-width: 0; }
-.body { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.log { gap: var(--space-s); min-width: 0; }
+.body { display: flex; flex-direction: column; gap: var(--space-s); min-width: 0; }
 .body.stale { opacity: 0.55; }
 .summary { display: flex; flex-direction: row; justify-content: space-between; }
-.gap6 { gap: 6px; }
-.maincol { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
-.desk.body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 340px); column-gap: 32px; row-gap: 12px; align-items: start; }
+.gap6 { gap: var(--space-s); }
+.maincol { display: flex; flex-direction: column; gap: var(--space-s); min-width: 0; }
+.desk.body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 340px); column-gap: var(--space-2xl); row-gap: var(--space-m); align-items: start; }
 .desk .maincol { grid-column: 1; grid-row: 1 / span 4; }
 .desk .summary, .desk .done, .desk .ask { grid-column: 2; }
-.desk .summary { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 16px; }
-.nav { gap: 6px; }
+.desk .summary { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-m) var(--space-l); }
+.nav { gap: var(--space-s); }
 .nav .cbtn:disabled { opacity: 1; color: var(--text-tertiary); }
 .navlbl { min-width: 108px; text-align: center; }
-.summary { padding: 12px 16px; border-radius: var(--radius-card); background: var(--color-surface); min-width: 0; }
-.is-tablet .summary { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px 16px; }
+.summary { padding: var(--space-m) var(--space-l); border-radius: var(--radius-l); background: var(--color-surface); min-width: 0; }
+.is-tablet .summary { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-m) var(--space-l); }
 .overv { text-decoration: underline dashed var(--text-secondary); text-underline-offset: 4px; }
-.dayline { min-height: 44px; gap: 0; padding-top: 4px; }
-.done { gap: 12px; padding: 12px 14px; border-radius: var(--radius-card); background: var(--color-surface); cursor: pointer; align-items: flex-start; }
+.dayline { min-height: 44px; gap: 0; padding-top: var(--space-xs); }
+.done { gap: var(--space-m); padding: var(--space-m) var(--space-l); border-radius: var(--radius-l); background: var(--color-surface); cursor: pointer; align-items: flex-start; }
 .done input { width: 22px; height: 22px; margin: 1px 0 0; accent-color: var(--color-action); flex: none; }
-.ask { gap: 12px; padding: 14px; border-radius: var(--radius-card); border: 1px solid var(--color-border); background: var(--color-surface); }
-.askb { gap: 8px; }
+.ask { gap: var(--space-m); padding: var(--space-l); border-radius: var(--radius-l); border: 1px solid var(--color-border); background: var(--color-surface); }
+.askb { gap: var(--space-s); }
 </style>

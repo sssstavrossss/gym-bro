@@ -61,18 +61,18 @@ watch(() => ui.sheet, (sheet, previous) => {
 </template>
 
 <style scoped>
-.hist { gap: calc(var(--space-gap) / 2); }
+.hist { gap: var(--space-s); }
 /* The list element is rendered by CappedList, so its rules go through :deep. Five rows show; the rest scroll. */
 .hist :deep(.list) { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
-.thead { align-items: baseline; gap: 8px; }
-.hrow { display: flex; flex-wrap: wrap; gap: var(--space-gap); align-items: flex-start; padding: 10px 0; border-bottom: 1px solid var(--color-border); }
+.thead { align-items: baseline; gap: var(--space-s); }
+.hrow { display: flex; flex-wrap: wrap; gap: var(--space-m); align-items: flex-start; padding: var(--space-m) 0; border-bottom: 1px solid var(--color-border); }
 .hrow:last-child { border-bottom: 0; }
 .quiet .t-label { color: var(--text-tertiary); }
 .dt { width: 3.75rem; max-width: 100%; flex: none; gap: 1px; }
 /* Narrow enough that date, reason and numbers share one row on a 375px phone; the reason ellipses. */
-.mid { min-width: 0; flex: 1 1 5.5rem; gap: 2px; }
+.mid { min-width: 0; flex: 1 1 5.5rem; gap: var(--space-2xs); }
 .mid > * { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
-.right { align-items: flex-end; text-align: right; gap: 2px; flex: 1 1 auto; max-width: 100%; }
+.right { align-items: flex-end; text-align: right; gap: var(--space-2xs); flex: 1 1 auto; max-width: 100%; }
 :global(html.dt-xl) .hrow { flex-direction: column; }
 :global(html.dt-xl) .right { align-items: flex-start; text-align: left; }
 h2 { margin: 0; }

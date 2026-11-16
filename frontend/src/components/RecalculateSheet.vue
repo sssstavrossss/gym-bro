@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import BottomSheet from "./BottomSheet.vue";
+import Icon from "./Icon.vue";
 import RecalcCalendar from "./RecalcCalendar.vue";
 import { declineRecalculate, getRecalculate, previewRecalculate, saveRecalculate, type RecalculateCalendarDay, type RecalculateReview } from "../api";
 import { dayMonth } from "../lib/dates";
@@ -130,9 +131,9 @@ function delta(next: number | undefined, prev: number | undefined): string {
     <template #header>
       <div class="row hdr">
         <h2 class="t-head recalc-title">Recalculate</h2>
-        <button type="button" class="chip t-label preview" :disabled="busy || !review" @click="load(true)">Preview</button>
+        <button type="button" class="btn sm secondary t-label preview" :disabled="busy || !review" @click="load(true)"><Icon name="refresh" :size="14" /> Preview</button>
         <span class="grow" />
-        <button type="button" class="cbtn" aria-label="Close" @click="closeSheet">×</button>
+        <button type="button" class="cbtn" aria-label="Close" @click="closeSheet"><Icon name="x" :size="18" /></button>
       </div>
       <p class="t-capn c2 saved">Nothing is saved until you accept.</p>
       <p v-if="review && review.periodDays > 0" class="t-body period recalc-period">
@@ -146,12 +147,12 @@ function delta(next: number | undefined, prev: number | undefined): string {
         <RecalcCalendar :days="review.calendar" :selected="selected" @pick="pick" />
         <p class="t-capn c2 explain">Tap a low day to leave it out. Tap an empty day to count it as 0. Days over the target stay counted.</p>
         <div class="row chips">
-          <button type="button" class="chip t-label" :disabled="busy" @click="countAllLow">Count all low</button>
-          <button type="button" class="chip t-label" :disabled="busy" @click="reset">Reset</button>
+          <button type="button" class="btn sm secondary t-label" :disabled="busy" @click="countAllLow"><Icon name="check" :size="14" :sw="2.4" /> Count all low</button>
+          <button type="button" class="btn sm secondary t-label" :disabled="busy" @click="reset"><Icon name="undo" :size="14" /> Reset</button>
         </div>
         <p v-if="note" class="t-body">{{ note }}</p>
         <p v-if="zeroWarning" class="t-capn c2">An empty day is counted as 0 kcal. That is not a guess of what you ate.</p>
-        <section class="stats" aria-label="This preview">
+        <section class="card outline stats" aria-label="This preview">
           <div><span class="t-capn c2">Days</span><span class="t-label">{{ review.includedDays }}/{{ review.periodDays }}</span></div>
           <div><span class="t-capn c2">Trend</span><span class="t-label">{{ review.trendChangeKg == null ? "—" : wtUnit(review.trendChangeKg) }}</span></div>
           <div><span class="t-capn c2">Ate</span><span class="t-label">{{ review.averageKcal == null ? "—" : int(Math.round(review.averageKcal)) }}</span></div>
@@ -186,10 +187,10 @@ function delta(next: number | undefined, prev: number | undefined): string {
           </p>
           <p v-if="proposed?.floorApplied" class="t-capn span">Raised to your BMR so the target does not go below it.</p>
         </div>
-        <button type="button" class="primary-btn t-bodys" :disabled="busy || acceptKcal == null" @click="accept">
+        <button type="button" class="btn primary block t-bodys" :disabled="busy || acceptKcal == null" @click="accept">
           {{ acceptKcal == null ? "Accept" : `Accept ${int(acceptKcal)} kcal` }}
         </button>
-        <button type="button" class="chip t-label decline recalc-decline" :disabled="busy" @click="decline">Decline</button>
+        <button type="button" class="btn secondary block t-bodys recalc-decline" :disabled="busy" @click="decline">Decline</button>
       </template>
       <p v-if="error" class="t-body" role="alert">{{ error }}</p>
     </div>
@@ -197,30 +198,22 @@ function delta(next: number | undefined, prev: number | undefined): string {
 </template>
 
 <style scoped>
-.hdr { gap: var(--space-gap); align-items: center; }
-.body { gap: var(--space-gap); }
-.chips { gap: var(--space-gap); align-items: center; flex-wrap: wrap; }
-.chip, .preview { min-height: var(--control-hit); }
+.hdr { gap: var(--space-m); align-items: center; }
+.body { gap: var(--space-m); }
+.chips { gap: var(--space-s); align-items: center; flex-wrap: wrap; }
 .explain, .saved, .period { margin: 0; }
 .stats {
-  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px;
-  padding: var(--space-gap); border: 1px solid var(--color-border); border-radius: var(--radius-card);
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-s);
 }
-.stats > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.stats > div { display: flex; flex-direction: column; gap: var(--space-2xs); min-width: 0; }
 .stats .t-capn { text-transform: uppercase; letter-spacing: 0.04em; }
 .compare {
-  display: grid; grid-template-columns: 1.1fr repeat(3, minmax(0, 1fr)); gap: 8px 10px; align-items: baseline;
+  display: grid; grid-template-columns: 1.1fr repeat(3, minmax(0, 1fr)); gap: var(--space-s) var(--space-m); align-items: baseline;
 }
 .compare .num { text-align: right; font-variant-numeric: tabular-nums; }
 .span { grid-column: 1 / -1; margin: 0; }
-.cbtn { min-width: var(--control-hit); min-height: var(--control-hit); font-size: 1.25rem; }
-.decline { min-height: var(--control-hit); align-self: center; }
 </style>
 <style>
 html.dt-xl .recalc-period { display: none; }
 html.dt-xl .recalc-title { font-size: 1.15rem; }
-html.dt-xl .recalc-decline {
-  background: transparent; border-radius: 0; box-shadow: none;
-  text-decoration: underline; text-underline-offset: 3px;
-}
 </style>

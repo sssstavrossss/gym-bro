@@ -37,14 +37,14 @@ watch(() => ui.sheet, (sheet, previous) => {
 </script>
 
 <template>
-  <section v-if="show" class="card rp" aria-labelledby="rp-h" data-recalc-prompt>
+  <section v-if="show" class="card outline rp" aria-labelledby="rp-h" data-recalc-prompt>
     <div class="grid">
-    <span class="ic" aria-hidden="true"><Icon name="refresh" :size="17" /></span>
+    <span class="disc ic" aria-hidden="true"><Icon name="refresh" :size="16" /></span>
     <div class="col grow txt">
       <p id="rp-h" class="t-bodys m0">Recalculate this week</p>
       <span class="t-label c2">Update your target from last week.</span>
     </div>
-    <button type="button" class="chip on t-label go" @click="openRecalculate">Recalculate</button>
+    <button type="button" class="btn sm primary t-label go" @click="openRecalculate">Recalculate</button>
     <button type="button" class="cbtn x" aria-label="Dismiss for this week" @click="dismiss"><Icon name="x" :size="16" /></button>
     </div>
   </section>
@@ -52,15 +52,16 @@ watch(() => ui.sheet, (sheet, previous) => {
 
 <style scoped>
 /* One row on a phone. In a narrow column (desktop side column) the button drops under the text. */
-.rp { container-type: inline-size; padding: 10px 4px 10px 14px; border: 1px solid var(--color-border-strong); }
-.grid { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; grid-template-areas: "ic txt go x"; align-items: center; column-gap: 10px; row-gap: 6px; }
+.rp { container-type: inline-size; }
+.grid { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; grid-template-areas: "ic txt go x"; align-items: center; column-gap: var(--space-m); row-gap: var(--space-s); }
 @container (max-width: 340px) {
   .grid { grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: "ic txt x" ". go go"; }
   .go { justify-self: start; }
 }
 .m0 { margin: 0; }
-.ic { grid-area: ic; width: 34px; height: 34px; border-radius: 17px; background: var(--color-surface-2); display: flex; align-items: center; justify-content: center; }
+.ic { grid-area: ic; }
 .txt { grid-area: txt; min-width: 0; gap: 1px; }
-.go { grid-area: go; font-weight: 600; padding-left: 14px; padding-right: 14px; }
-.x { grid-area: x; color: var(--text-secondary); }
+.go { grid-area: go; }
+/* The 44px hit box overhangs the card padding so the 32px disc lines up with the text edge. */
+.x { grid-area: x; color: var(--text-secondary); margin: calc((var(--control-s) - var(--control-hit)) / 2); }
 </style>

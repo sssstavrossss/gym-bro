@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
 import Icon from "./Icon.vue";
+import Segmented from "./Segmented.vue";
 import ProgressChart from "./ProgressChart.vue";
 import SwipePanels from "./SwipePanels.vue";
 import { ApiError, getProgress, ServerUnreachable, type ProgressDay, type ProgressResponse } from "../api";
@@ -150,16 +151,13 @@ function statsOf(item: ProgressPage): Stat[] {
       <h2 class="section-title panel-title ttl" data-progress-title>{{ PAGE_TITLES[page] }}</h2>
       <span v-if="periodText" class="t-capn c3 period">{{ periodText }}</span>
       <span class="grow" />
-      <button type="button" class="weigh" @click="openWeight()">
-        <Icon name="scale" :size="15" />
-        <span class="t-label">Weigh in</span>
+      <button type="button" class="btn sm primary t-label weigh" @click="openWeight()">
+        <Icon name="scale" :size="14" />
+        <span>Weigh in</span>
       </button>
     </div>
 
-    <div class="seg" role="radiogroup" aria-label="Chart range">
-      <button v-for="item in ranges" :key="item" type="button" role="radio" class="segb t-label"
-        :class="{ on: range === item }" :aria-checked="range === item" @click="pickRange(item)">{{ rangeLabels[item] }}</button>
-    </div>
+    <Segmented label="Chart range" class="ranges" :model-value="range" :options="ranges.map((item) => ({ value: item, label: rangeLabels[item] }))" @update:model-value="pickRange" />
 
     <p v-if="!data && !failed" class="t-body c2 msg">Loading progress…</p>
     <p v-else-if="failed && !data" class="t-body c2 msg">Progress couldn't be loaded.</p>
@@ -200,25 +198,17 @@ function statsOf(item: ProgressPage): Stat[] {
 </template>
 
 <style scoped>
-.home-progress { gap: 10px; padding-bottom: 6px; min-width: 0; }
-.head { gap: 8px; min-width: 0; align-items: center; margin: -6px 0 -4px; }
+.home-progress { gap: var(--space-m); padding-bottom: var(--space-s); min-width: 0; }
+.head { gap: var(--space-s); min-width: 0; align-items: center; margin: -6px 0 -4px; }
 .ttl { margin: 0; flex: none; }
 .period { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
-.weigh {
-  min-height: 44px; padding: 0 12px; flex: none;
-  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
-  color: var(--text-primary); background: transparent; position: relative; isolation: isolate; white-space: nowrap;
-}
-.weigh::before { content: ""; position: absolute; z-index: -1; left: 0; right: 0; top: 6px; bottom: 6px; border-radius: 16px; background: var(--color-surface-2); }
-/* Same look as Search / Quick Add in the Add food sheet: one track, the picked range in white.
-   Each segment is a full 44px target; the inset shadow draws the white pill inside it. */
-.seg { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); border-radius: var(--radius-control); background: var(--color-surface-2); min-width: 0; }
-.segb { min-height: 44px; border-radius: var(--radius-control); color: var(--text-secondary); background: transparent; }
-.segb.on { background: var(--color-action); color: var(--color-on-action); font-weight: 600; box-shadow: inset 0 0 0 4px var(--color-surface-2); }
+.weigh { white-space: nowrap; }
+/* Five equal ranges, even when a label is wider. */
+.ranges :deep(.seg-btn) { flex: 1 1 0; min-width: 0; }
 .msg { margin: 0; min-height: 200px; display: flex; align-items: center; justify-content: center; }
-.ppage { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.ppage { display: flex; flex-direction: column; gap: var(--space-m); min-width: 0; }
 .pstats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
-.cell { display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 0; text-align: center; padding: 0 4px; }
+.cell { display: flex; flex-direction: column; align-items: center; gap: var(--space-2xs); min-width: 0; text-align: center; padding: 0 var(--space-xs); }
 .cell + .cell { border-left: 1px solid var(--color-border); }
 .num { font-size: min(1rem, 18px); line-height: 1.15; font-weight: 700; letter-spacing: -0.02em; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .cell .t-capn { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }

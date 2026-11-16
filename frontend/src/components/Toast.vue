@@ -27,15 +27,15 @@ onBeforeUnmount(() => window.removeEventListener("resize", onResize));
   <Transition name="toast" mode="out-in">
     <div v-if="ui.toast" :key="ui.toast.id" class="toast" :class="{ top: parked, lift }" role="status">
       <span class="t-label grow msg">{{ ui.toast.text }}</span>
-      <button v-if="ui.toast.action" type="button" class="t-bodys undo" @click="runToastAction">{{ ui.toast.action.label }}</button>
+      <button v-if="ui.toast.action" type="button" class="btn sm primary t-label undo" @click="runToastAction">{{ ui.toast.action.label }}</button>
     </div>
   </Transition>
 </template>
 
 <style scoped>
 .toast {
-  position: absolute; left: 16px; right: 16px; bottom: calc(var(--tabbar-h) + 12px); z-index: 60;
-  display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: 14px;
+  position: absolute; left: var(--space-l); right: var(--space-l); bottom: calc(var(--tabbar-h) + var(--space-m)); z-index: 60;
+  display: flex; align-items: center; gap: var(--space-m); padding: var(--space-m) var(--space-l); border-radius: var(--radius-l);
   background: var(--color-surface); color: var(--text-primary); box-shadow: 0 10px 30px rgba(0,0,0,.5); max-width: calc(100% - 32px);
 }
 .msg { color: var(--text-primary); background: var(--color-surface); overflow-wrap: anywhere; }
@@ -48,7 +48,7 @@ onBeforeUnmount(() => window.removeEventListener("resize", onResize));
 .is-desktop .toast { left: 264px; right: auto; bottom: 24px; width: 420px; }
 .toast.lift { bottom: calc(140px + max(var(--sab), 12px)); }
 .is-desktop .toast.lift { bottom: 140px; }
-.undo { color: var(--color-action); min-height: 44px; min-width: 44px; padding: 2px 4px; }
+.undo { margin: calc((var(--control-chip) - var(--control-hit)) / 2) 0; }
 /* The parked toast sits over the sheet. Keep it near the default size so it
    does not cover the header when the system text is largest. */
 :global(html.dt-xl) .toast .t-label,

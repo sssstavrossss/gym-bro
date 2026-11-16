@@ -309,7 +309,7 @@ const diffText = computed(() => (
             </div>
           </div>
         </div>
-        <button type="button" class="cbtn hclose" aria-label="Close" @click="closeSheet">×</button>
+        <button type="button" class="cbtn hclose" aria-label="Close" @click="closeSheet"><Icon name="x" :size="18" /></button>
       </div>
     </template>
     <form class="row wfield" @submit.prevent="save(false)">
@@ -321,14 +321,14 @@ const diffText = computed(() => (
         </span>
         <span class="t-head c2">{{ weightUnit() }}</span>
       </label>
-      <button type="button" class="cbtn filled" aria-label="Save weight" :disabled="parsed === null" @click="save(false)">✓</button>
+      <button type="button" class="cbtn filled" aria-label="Save weight" :disabled="parsed === null" @click="save(false)"><Icon name="check" :size="20" :sw="2.6" /></button>
     </form>
-    <div v-if="confirm" ref="confirmEl" class="tguard col" role="alertdialog" aria-labelledby="tg-h" aria-describedby="tg-d" tabindex="-1">
+    <div v-if="confirm" ref="confirmEl" class="card outline tguard" role="alertdialog" aria-labelledby="tg-h" aria-describedby="tg-d" tabindex="-1">
       <h3 id="tg-h" class="t-head m0">Is {{ wtUnit(confirm.kg) }} right?</h3>
       <p id="tg-d" class="t-label c2 m0">{{ diffText }}</p>
       <div class="row tgb">
-        <button type="button" class="chip on t-label big" @click="fix">Fix it</button>
-        <button type="button" class="chip t-label big" @click="save(true)">Yes, save {{ wtUnit(confirm.kg) }}</button>
+        <button type="button" class="btn sm primary t-label" @click="fix">Fix it</button>
+        <button type="button" class="btn sm secondary t-label" @click="save(true)">Yes, save {{ wtUnit(confirm.kg) }}</button>
       </div>
     </div>
     <p v-if="invalid || localError" class="t-label m0" role="alert">{{ localError || rangeHint }}</p>
@@ -336,15 +336,18 @@ const diffText = computed(() => (
       <p class="t-capn c3 m0">{{ hint }}</p>
       <div class="row only">
         <p class="t-capn c2 m0 grow">This is your only weigh-in, so it can't be deleted.</p>
-        <button type="button" class="chip t-label editb" aria-label="Edit your only weigh-in" @click="editOnly">Edit</button>
+        <button type="button" class="btn sm secondary t-label" aria-label="Edit your only weigh-in" @click="editOnly"><Icon name="edit" :size="14" /> Edit</button>
       </div>
     </template>
-    <p v-else class="t-capn c2 m0">{{ hint }}<template v-if="canDelete"> · <button type="button" class="dlink" @click="del">Delete</button></template></p>
-    <div v-if="!profile.weighIns.length" class="wempty col">
+    <div v-else class="row only">
+      <p class="t-capn c2 m0 grow">{{ hint }}</p>
+      <button v-if="canDelete" type="button" class="btn sm secondary t-label" @click="del"><Icon name="trash" :size="14" /> Delete</button>
+    </div>
+    <div v-if="!profile.weighIns.length" class="card outline wempty">
       <span class="t-label c2">Your chart starts with this weigh-in</span>
       <span class="t-capn c2">Your trend starts with it, and gets more accurate with 2+ weigh-ins a week.</span>
     </div>
-    <div v-else-if="profile.chart" class="card chart-card">
+    <div v-else-if="profile.chart" class="card inset chart-card">
       <div class="row legend">
         <span class="t-cap c2 section-title">Last 30 days</span>
         <span class="grow" />
@@ -353,7 +356,7 @@ const diffText = computed(() => (
       </div>
       <WeightChart :series="profile.chart.series" :fluid="vp.tablet" />
     </div>
-    <div v-if="fresh && profile.weight?.freshStart" class="fresh col">
+    <div v-if="fresh && profile.weight?.freshStart" class="card outline fresh">
       <span class="t-bodys">Fresh start</span>
       <span class="t-label c2">It had been {{ gapLabel(profile.weight.freshStart.daysSincePrevious) }} since the weigh-in before, so the trend restarted from this one. No line is drawn across the gap.</span>
     </div>
@@ -390,9 +393,9 @@ const diffText = computed(() => (
 
 <style scoped>
 /* Title and × share one row at every text size. The day stays on that row when it fits, and wraps under them when it does not. */
-.hdr { display: flex; flex-wrap: nowrap; align-items: center; gap: 8px; }
+.hdr { display: flex; flex-wrap: nowrap; align-items: center; gap: var(--space-s); }
 .hdr.below { align-items: flex-start; }
-.lead { display: flex; flex: 1 1 auto; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
+.lead { display: flex; flex: 1 1 auto; flex-wrap: wrap; align-items: center; gap: var(--space-s); min-width: 0; }
 .htitle { flex: 1 1 auto; min-width: 0; margin: 0; overflow-wrap: anywhere; }
 .hclose { flex: none; }
 .hdr.below .htitle { padding-top: max(0px, calc((44px - 1.2941rem) / 2)); }
@@ -400,27 +403,27 @@ const diffText = computed(() => (
 .m0 { margin: 0; }
 .daypick { position: relative; flex: 0 0 auto; min-width: 0; max-width: 100%; }
 .daymeasure { position: absolute; visibility: hidden; white-space: nowrap; height: 0; overflow: hidden; pointer-events: none; }
-.daybtn { display: inline-flex; align-items: center; gap: 4px; min-height: 44px; max-width: 100%; padding: 0 10px 0 12px; border-radius: 16px; background: var(--color-surface-2); color: var(--text-primary); }
+.daybtn { display: inline-flex; align-items: center; gap: var(--space-xs); min-height: 44px; max-width: 100%; padding: 0 var(--space-s) 0 var(--space-m); border-radius: var(--radius-pill); background: var(--color-surface-2); color: var(--text-primary); }
 .dayface { white-space: nowrap; overflow: hidden; min-width: 0; }
-.daychev { flex: none; width: 8px; height: 8px; margin-right: 2px; border-right: 1.5px solid var(--text-secondary); border-bottom: 1.5px solid var(--text-secondary); transform: translateY(-2px) rotate(45deg); }
-.daymenu { position: absolute; right: 0; top: calc(100% + 6px); z-index: 41; min-width: 220px; max-width: calc(100vw - 32px); max-height: min(70vh, 560px); overflow: auto; background: var(--color-surface-2); border: 1px solid var(--color-border); border-radius: 14px; padding: 6px; box-shadow: 0 12px 32px rgba(0, 0, 0, .6); display: flex; flex-direction: column; }
-.dayopt { flex: none; display: flex; align-items: center; gap: 10px; min-height: 44px; width: 100%; padding: 0 10px; border-radius: 10px; text-align: left; color: var(--text-primary); }
+.daychev { flex: none; width: 8px; height: 8px; margin-right: var(--space-2xs); border-right: 1.5px solid var(--text-secondary); border-bottom: 1.5px solid var(--text-secondary); transform: translateY(-2px) rotate(45deg); }
+.daymenu { position: absolute; right: 0; top: calc(100% + 6px); z-index: 41; min-width: 220px; max-width: calc(100vw - 32px); max-height: min(70vh, 560px); overflow: auto; background: var(--color-surface-2); border: 1px solid var(--color-border); border-radius: var(--radius-l); padding: var(--space-s); box-shadow: 0 12px 32px rgba(0, 0, 0, .6); display: flex; flex-direction: column; }
+.dayopt { flex: none; display: flex; align-items: center; gap: var(--space-m); min-height: 44px; width: 100%; padding: 0 var(--space-m); border-radius: var(--radius-m); text-align: left; color: var(--text-primary); }
 .dayopt[aria-selected="true"] { background: transparent; }
 .dayopt:active { background: var(--color-hover); }
 .hdr.below .daymenu { left: 0; right: auto; }
-.dt-l .dayopt { padding: 6px 10px; }
+.dt-l .dayopt { padding: var(--space-s) var(--space-m); }
 .dt-l .dayopt .grow { min-width: 0; overflow-wrap: anywhere; }
-.dt-xl .dayopt { flex-wrap: wrap; align-items: flex-start; row-gap: 0; padding: 8px 10px; }
+.dt-xl .dayopt { flex-wrap: wrap; align-items: flex-start; row-gap: 0; padding: var(--space-s) var(--space-m); }
 .dt-xl .dayopt .grow { flex: 1 1 100%; overflow-wrap: break-word; }
-.wfield { gap: 12px; align-items: center; }
-.wfield label { gap: 6px; min-width: 0; }
+.wfield { gap: var(--space-m); align-items: center; }
+.wfield label { gap: var(--space-s); min-width: 0; }
 .autosize { display: inline-grid; min-height: 44px; }
 .autosize > * { grid-area: 1 / 1; }
-.mirror { visibility: hidden; white-space: pre; padding-right: 4px; }
+.mirror { visibility: hidden; white-space: pre; padding-right: var(--space-xs); }
 .wfig { font-size: 3rem; line-height: 1.1; font-weight: 700; letter-spacing: -0.03em; }
 .winput {
   width: 0; min-width: 100%; min-height: 44px; background: transparent;
-  border: 0; outline: none; box-shadow: none; padding: 0 4px; border-radius: 12px;
+  border: 0; outline: none; box-shadow: none; padding: 0 var(--space-xs); border-radius: var(--radius-m);
   caret-color: var(--text-primary); font-size: 3rem;
 }
 .winput::placeholder { color: var(--text-tertiary); opacity: 1; }
@@ -428,29 +431,21 @@ const diffText = computed(() => (
   outline: none; border: 0; box-shadow: none;
   background: var(--color-surface-2);
 }
-.cbtn { font-size: 1.25rem; }
-.cbtn.filled { --s: 56px; width: 56px; height: 56px; min-width: 56px; min-height: 56px; }
-.cbtn.filled:disabled { opacity: .35; }
-.chart-card { background: var(--color-surface-2); gap: 10px; }
-.legend, .lg, .lblrow, .tgb { gap: 8px; }
+.cbtn.filled { --s: var(--control-hit); }
+.legend, .lg, .lblrow, .tgb { gap: var(--space-s); }
 .dot { width: 7px; height: 7px; border-radius: 50%; background: rgba(125, 177, 255, .75); display: inline-block; }
 .dash { width: 14px; height: 3px; border-radius: 2px; background: var(--chart-line); display: inline-block; }
-.stats { gap: 8px; align-items: flex-start; flex-wrap: wrap; }
-.stats .col { gap: 2px; min-width: 5.5rem; }
-.wempty, .fresh, .tguard { gap: 8px; padding: 14px; border-radius: 14px; border: 1px solid var(--color-border); }
-.fresh { border-style: dashed; border-color: var(--text-tertiary); }
-.tguard { border-color: var(--color-border-strong); }
+.stats { gap: var(--space-s); align-items: flex-start; flex-wrap: wrap; }
+.stats .col { gap: var(--space-2xs); min-width: 5.5rem; }
+.wempty, .fresh, .tguard { gap: var(--space-s); }
+.card.fresh { border-style: dashed; border-color: var(--text-tertiary); }
 .tgb { flex-wrap: wrap; }
 .tguard:focus-visible { outline: 2px solid var(--text-primary); outline-offset: 2px; }
-.chip.big { min-height: 44px; padding: 0 16px; border-radius: 22px; color: var(--text-primary); }
-.chip.big.on { color: var(--color-on-action); }
 .hrow { min-height: 44px; border-top: 1px solid var(--color-border); width: 100%; text-align: left; }
 .dt-xl .hrow { flex-wrap: wrap; align-items: flex-start; }
 .dt-xl .hrow > .grow { flex: 1 0 100%; }
 .hval { display: inline-flex; align-items: baseline; white-space: nowrap; flex: none; }
-.dlink { color: var(--text-secondary); text-decoration: underline; text-underline-offset: 2px; min-height: 44px; min-width: 44px; }
-.only { gap: 12px; align-items: center; margin-top: -6px; }
+.only { gap: var(--space-m); align-items: center; }
 .only p { min-width: 0; text-wrap: pretty; }
-.editb { height: 44px; min-height: 44px; min-width: 44px; padding: 0 18px; border-radius: 22px; color: var(--text-primary); flex: none; }
 .dt-xl .only { flex-wrap: wrap; }
 </style>
