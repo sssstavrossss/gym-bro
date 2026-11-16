@@ -69,7 +69,7 @@ test("units: pounds and feet in Settings, typed values kept exactly", async ({ p
   const sheet = page.getByRole("dialog", { name: "Log weight" });
   await expect(sheet.getByText("lb", { exact: true }).first()).toBeVisible();
   await sheet.getByRole("textbox", { name: "Weight in pounds" }).fill("180");
-  await sheet.getByRole("button", { name: "Save weight" }).click();
+  await sheet.getByRole("button", { name: /^Save 180(\.0)? lb$/ }).click();
   await expect(page.getByText(/Replaced the weigh-in with 180\.0 lb/)).toBeVisible();
   const rows = await (await page.request.get("/api/weigh-ins", { headers })).json();
   expect(rows.weighIns[0].kg).toBe(81.65);

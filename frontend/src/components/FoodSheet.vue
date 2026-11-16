@@ -6,6 +6,7 @@ import FoodEditor from "./FoodEditor.vue";
 import Bar from "./Bar.vue";
 import Icon from "./Icon.vue";
 import Keypad from "./Keypad.vue";
+import { typeInto } from "../lib/numbers";
 import Segmented from "./Segmented.vue";
 import TimeChip from "./TimeChip.vue";
 import NutrientRows from "./NutrientRows.vue";
@@ -175,13 +176,6 @@ function num(key: Field): number {
 const qKcalAuto = computed(() => Math.round(kcalFromMacros(num("p"), num("f"), num("c"))));
 const qKcal = computed(() => (qa.value.kcal !== "" ? Math.round(num("kcal")) : qKcalAuto.value));
 
-function typeInto(current: string, key: string, maxInt: number, decimals = 1): string {
-  if (key === "⌫") return current.length <= 1 ? "" : current.slice(0, -1);
-  if (key === ".") return current.includes(".") ? current : `${current || "0"}.`;
-  if (current.includes(".") && current.split(".")[1].length >= decimals) return current;
-  if (!current.includes(".") && current.replace(/^0/, "").length >= maxInt) return current;
-  return current === "0" ? key : current + key;
-}
 function armQuick(field: Field) {
   replace.value[field] = qa.value[field] !== "";
 }

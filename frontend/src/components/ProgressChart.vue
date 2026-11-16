@@ -25,6 +25,8 @@ const props = defineProps<{
   unit: string;
   /** Pixels from the right end, shared by every page so a swipe keeps the same stretch of time. */
   pan: number;
+  /** Weight page: a weight being typed (kg), drawn as a hollow dot on the selected day. */
+  preview?: number | null;
 }>();
 const emit = defineEmits<{ "update:pan": [value: number]; span: [value: { from: string; to: string } | null] }>();
 
@@ -152,6 +154,13 @@ const marker = computed(() => {
   return index < 0 ? null : xAt(index);
 });
 
+const previewDot = computed(() => {
+  if (props.page !== "weight" || props.preview == null || marker.value == null || !weightScale.value) return null;
+  // Kept inside the plot, so a value far off the scale does not rescale the chart while you type.
+  const y = Math.min(H - 5, Math.max(5, wy(kgTo(props.preview, weightUnit()))));
+  return { x: marker.value, y };
+});
+
 const empty = computed(() => {
   if (props.page === "weight") return weightScale.value ? "" : "No weigh-ins in this range.";
   return bars.value.length || steps.value.length ? "" : "Nothing logged in this range.";
@@ -239,6 +248,10 @@ watch(() => props.pan, () => {
               <rect :x="stepLabel.x - stepLabel.width" :y="stepLabel.y - 10" :width="stepLabel.width" height="13" rx="4" fill="var(--color-surface)" fill-opacity="0.85" />
               <text :x="stepLabel.x - 4" :y="stepLabel.y" text-anchor="end" class="tag" data-target-label>{{ stepLabel.text }}</text>
             </template>
+          </template>
+          <template v-if="previewDot">
+            <line :x1="previewDot.x" :x2="previewDot.x" :y1="previewDot.y + 6" :y2="H" stroke="var(--text-primary)" stroke-opacity="0.25" stroke-dasharray="2 3" />
+            <circle :cx="previewDot.x" :cy="previewDot.y" r="5" fill="var(--color-surface)" stroke="var(--text-primary)" stroke-width="2" data-preview />
           </template>
           <circle v-if="marker != null" :cx="marker" :cy="H + 3" r="2.2" fill="var(--text-primary)" data-selected-day />
           <text v-for="label in xLabels" :key="label.key" :x="label.x" :y="H + LABELS - 3" :text-anchor="label.anchor" class="tag">{{ label.text }}</text>
