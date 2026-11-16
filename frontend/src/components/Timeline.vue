@@ -13,7 +13,7 @@ import { vp } from "../lib/viewport";
 import { removeEntries, retryPending, type LogEntry, type PendingAdd } from "../state/log";
 import { loadGroups, readdSavedGroup, savedGroups } from "../state/groups";
 import { deviceTimeZone } from "../state/profile";
-import { openCopy, openEdit, openFood, startSelect, toast, ui } from "../ui";
+import { endSelect, openCopy, openEdit, openFood, startSelect, toast, ui } from "../ui";
 
 const props = defineProps<{ date: string; today: string; entries: LogEntry[]; pending: PendingAdd[]; compact?: boolean; showEmpty?: boolean; home?: boolean; maxRows?: number }>();
 const rows = computed(() => byTime(props.entries));
@@ -143,9 +143,10 @@ function onMenu(event: Event) {
       </template>
     </div>
     <template v-else>
-      <div v-if="rows.length && !ui.selecting && !home" class="row selhead">
+      <div v-if="rows.length && !home" class="row selhead">
         <span class="grow" />
-        <button type="button" class="btn sm secondary t-label" @click="startSelect()">Select</button>
+        <button v-if="ui.selecting" type="button" class="btn sm primary t-label" @click="endSelect()">Done</button>
+        <button v-else type="button" class="btn sm secondary t-label" @click="startSelect()">Select</button>
       </div>
       <CappedList
         v-if="pending.length || rows.length"
@@ -214,7 +215,7 @@ function onMenu(event: Event) {
         </div>
       </SwipeRow>
       </CappedList>
-      <button v-if="!home && (rows.length || pending.length) && !ui.selecting" type="button" class="addrow row" @click="add">
+      <button v-if="!home && (rows.length || pending.length)" type="button" class="addrow row" :disabled="ui.selecting" @click="add">
         <span class="cbtn fit addc" style="--s: var(--control-s-sm)" aria-hidden="true"><Icon name="plus" :size="13" :sw="2.4" /></span>
         <span class="t-body c2">{{ isToday ? "Add food" : `Add food to ${dayMonth(date)}` }}</span>
       </button>
@@ -268,6 +269,7 @@ function onMenu(event: Event) {
   text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums;
 }
 .addrow { min-height: var(--control-hit); gap: var(--space-m); align-items: center; text-align: left; margin-top: var(--space-s); }
+.addrow:disabled { opacity: .35; cursor: default; }
 .addc { pointer-events: none; }
 .mark { position: relative; width: 44px; height: 44px; flex: none; }
 .hacts { position: absolute; right: 0; top: 0; bottom: 0; gap: var(--space-xs); align-items: center; opacity: 0; pointer-events: none; }

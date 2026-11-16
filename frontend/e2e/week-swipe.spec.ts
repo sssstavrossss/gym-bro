@@ -115,7 +115,8 @@ test("phone home pages the week strip and matches the range pills", async ({ pag
   const paint = async () => ({
     rangeBg: await range.evaluate((el) => getComputedStyle(el).backgroundColor),
     otherBg: await other.evaluate((el) => getComputedStyle(el).backgroundColor),
-    height: await range.evaluate((el) => el.getBoundingClientRect().height),
+    // The compact switch draws a 30px face; its ::after keeps the tap area 44px.
+    height: await range.evaluate((el) => el.getBoundingClientRect().height + Math.abs(Math.min(0, parseFloat(getComputedStyle(el, "::after").top) || 0)) * 2),
   });
   await page.evaluate(() => document.querySelector(".scroller")?.scrollTo(0, 600));
   const graphite = await paint();

@@ -147,7 +147,7 @@ function statsOf(item: ProgressPage): Stat[] {
 
 <template>
   <section class="card home-progress" aria-label="Progress">
-    <div class="row head">
+    <div class="chead head">
       <h2 class="section-title panel-title ttl" data-progress-title>{{ PAGE_TITLES[page] }}</h2>
       <span v-if="periodText" class="t-capn c3 period">{{ periodText }}</span>
       <span class="grow" />
@@ -157,7 +157,7 @@ function statsOf(item: ProgressPage): Stat[] {
       </button>
     </div>
 
-    <Segmented label="Chart range" class="ranges" :model-value="range" :options="ranges.map((item) => ({ value: item, label: rangeLabels[item] }))" @update:model-value="pickRange" />
+    <Segmented size="compact" label="Chart range" class="full ranges" :model-value="range" :options="ranges.map((item) => ({ value: item, label: rangeLabels[item] }))" @update:model-value="pickRange" />
 
     <p v-if="!data && !failed" class="t-body c2 msg">Loading progress…</p>
     <p v-else-if="failed && !data" class="t-body c2 msg">Progress couldn't be loaded.</p>
@@ -198,8 +198,8 @@ function statsOf(item: ProgressPage): Stat[] {
 </template>
 
 <style scoped>
-.home-progress { gap: var(--space-m); padding-bottom: var(--space-s); min-width: 0; }
-.head { gap: var(--space-s); min-width: 0; align-items: center; margin: -6px 0 -4px; }
+.home-progress { gap: var(--space-m); padding-bottom: var(--space-m); min-width: 0; }
+.head { flex-wrap: wrap; }
 .ttl { margin: 0; flex: none; }
 .period { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
 .weigh { white-space: nowrap; }
