@@ -85,11 +85,18 @@ export function takeOpener(): HTMLElement | null {
  * The real field then takes focus when it mounts.
  */
 export function primeKeyboard(): void {
-  if (typeof document !== "undefined") {
-    const active = document.activeElement;
-    if (active instanceof HTMLElement && active !== (proxy as unknown as Node) && !active.closest("[role='dialog']")) opener = active;
-  }
+  rememberOpener();
   proxy?.focus({ preventScroll: true });
+}
+
+/**
+ * Record the control that opens a sheet, so focus can go back to it on close,
+ * without raising the keyboard. For sheets that type on the app keypad.
+ */
+export function rememberOpener(): void {
+  if (typeof document === "undefined") return;
+  const active = document.activeElement;
+  if (active instanceof HTMLElement && active !== (proxy as unknown as Node) && !active.closest("[role='dialog']")) opener = active;
 }
 
 export function primaryField(root: ParentNode): HTMLElement | null {

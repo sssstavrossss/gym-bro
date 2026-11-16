@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { bindFocusProxy, focusField, primeKeyboard, selectField, type FocusableField } from "../src/lib/focusField";
+import { bindFocusProxy, focusField, primeKeyboard, rememberOpener, selectField, type FocusableField } from "../src/lib/focusField";
 
 function field(value: string, disabled = false): FocusableField & { focused: boolean; start: number; end: number } {
   const el = {
@@ -74,4 +74,16 @@ it("primes the keyboard proxy synchronously from the tap that opens a form", () 
   bindFocusProxy(null);
   primeKeyboard();
   expect(calls).toBe(2);
+});
+
+it("remembers the opener without raising the keyboard for keypad sheets", () => {
+  let calls = 0;
+  bindFocusProxy({
+    focus() {
+      calls += 1;
+    },
+  });
+  rememberOpener();
+  expect(calls).toBe(0);
+  bindFocusProxy(null);
 });

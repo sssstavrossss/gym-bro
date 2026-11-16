@@ -60,6 +60,8 @@ test.describe("on a phone", () => {
     const keypad = sheet.getByRole("group", { name: "Number keypad" });
     await expect(keypad).toBeVisible();
     await expect(field).toHaveAttribute("inputmode", "none");
+    // Opening must not leave the hidden text proxy focused: on iOS that raises the letter keyboard over the sheet.
+    expect(await page.evaluate(() => document.activeElement?.classList.contains("kb-proxy") ?? false)).toBe(false);
     await expect(field).toHaveAttribute("placeholder", "83.6");
     await expect(sheet.getByRole("button", { name: "Save", exact: true })).toBeDisabled();
     await expect(sheet.locator("[data-preview]")).toHaveCount(0);
