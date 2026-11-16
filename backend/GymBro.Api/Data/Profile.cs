@@ -43,6 +43,9 @@ public sealed class Profile
     /// <summary>How height is shown: <c>cm</c> or <c>ftin</c>. Storage is always centimetres.</summary>
     public string HeightUnit { get; set; } = Units.Centimetres;
 
+    /// <summary>Saturated fat and cholesterol limits on the Fats card: <c>normal</c> or <c>lower</c>. Display only.</summary>
+    public string FatLimits { get; set; } = global::GymBro.Api.Data.FatLimits.Normal;
+
     /// <summary>Monday morning push asking the person to recalculate. Off until they turn it on.</summary>
     public bool RemindersEnabled { get; set; }
 
@@ -65,4 +68,17 @@ public static class Units
     public static bool IsWeight(string value) => value is Kilograms or Pounds;
 
     public static bool IsHeight(string value) => value is Centimetres or FeetInches;
+}
+
+/// <summary>
+/// How strict the Fats card's limits are. Normal: saturated fat at most 10% of calories (NNR 2023).
+/// Lower: at most 7% of calories and cholesterol at most 200 mg a day (the heart-health level for raised LDL).
+/// The numbers live in the client; the server only stores the choice.
+/// </summary>
+public static class FatLimits
+{
+    public const string Normal = "normal";
+    public const string Lower = "lower";
+
+    public static bool IsValid(string value) => value is Normal or Lower;
 }

@@ -1104,6 +1104,14 @@ namespace GymBro.Api.Data.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
 
+                    b.Property<string>("FatLimits")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(8)
+                        .HasColumnType("character varying(8)")
+                        .HasDefaultValue("normal")
+                        .HasColumnName("fat_limits");
+
                     b.Property<decimal>("FatPercent")
                         .HasPrecision(4, 1)
                         .HasColumnType("numeric(4,1)")

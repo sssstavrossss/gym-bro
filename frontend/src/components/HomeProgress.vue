@@ -198,7 +198,8 @@ function statsOf(item: ProgressPage): Stat[] {
 </template>
 
 <style scoped>
-.home-progress { gap: var(--space-m); padding-bottom: var(--space-m); min-width: 0; }
+/* No bottom padding: the dot strip ends at the card's edge, with its own 6px below the dots. */
+.home-progress { gap: var(--space-m); padding-bottom: 0; min-width: 0; }
 .head { flex-wrap: wrap; }
 .ttl { margin: 0; flex: none; }
 .period { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }

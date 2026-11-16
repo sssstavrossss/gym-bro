@@ -10,7 +10,8 @@ import { applyTheme, readTheme, themes, type ThemeId } from "../lib/theme";
 import { allZones, searchZones, suggestedZones, zoneLabel, zoneOffset, zoneTime } from "../lib/timeZones";
 import { boot } from "../state/boot";
 import type { HeightUnit, WeightUnit } from "../lib/units";
-import { applySettings, clearAllDrafts, deviceTimeZone, profile, setUnits } from "../state/profile";
+import { fatLimitsOf, type FatLimitsSetting } from "../lib/nutrientCards";
+import { applySettings, clearAllDrafts, deviceTimeZone, profile, setFatLimits, setUnits } from "../state/profile";
 import { closeSheet, ui } from "../ui";
 
 const open = computed(() => ui.sheet === "settings");
@@ -35,6 +36,7 @@ watch(open, (value) => {
   query.value = "";
   error.value = "";
   unitsError.value = "";
+  limitsError.value = "";
   theme.value = readTheme();
 });
 
@@ -71,6 +73,12 @@ async function chooseWeight(unit: WeightUnit) {
 }
 async function chooseHeight(unit: HeightUnit) {
   unitsError.value = await setUnits(profile.form.weightUnit, unit);
+}
+
+const limitsError = ref("");
+const fatLimits = computed(() => fatLimitsOf(profile.saved?.fatLimits));
+async function chooseFatLimits(value: FatLimitsSetting) {
+  limitsError.value = await setFatLimits(value);
 }
 
 async function onSignOut() {
@@ -113,6 +121,16 @@ async function onSignOut() {
         </div>
         <span class="t-capn c2">Food stays in grams.</span>
         <p v-if="unitsError" class="t-body m0" role="alert">{{ unitsError }}</p>
+      </section>
+
+      <section v-if="profile.saved" class="col group" aria-labelledby="set-nutrition" data-fat-limits-setting>
+        <h3 id="set-nutrition" class="t-cap c3 m0">Nutrition</h3>
+        <div class="frow urow">
+          <span class="t-body grow">Fat limits</span>
+          <Segmented size="compact" label="Fat limits" :model-value="fatLimits" :options="[{ value: 'normal', label: 'Normal' }, { value: 'lower', label: 'Lower' }]" @update:model-value="chooseFatLimits" />
+        </div>
+        <span class="t-capn c2">{{ fatLimits === "lower" ? "Saturated fat ≤ 7% of calories and cholesterol ≤ 200 mg a day, as in a cholesterol-lowering diet. Shown on the Fats card only." : "Saturated fat ≤ 10% of calories (NNR 2023). Shown on the Fats card only." }}</span>
+        <p v-if="limitsError" class="t-body m0" role="alert">{{ limitsError }}</p>
       </section>
 
       <section class="col group" aria-labelledby="set-region">

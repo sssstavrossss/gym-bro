@@ -1,10 +1,11 @@
 import { reactive } from "vue";
 import { todayInZone, todayIso } from "./lib/dates";
 import { primeKeyboard, rememberOpener } from "./lib/focusField";
+import type { SheetName } from "./lib/layout";
 import { deviceTimeZone } from "./state/profile";
 
 export const ui = reactive({
-  sheet: null as null | "weight" | "accuracy" | "chooser" | "food" | "copy" | "group" | "recipe" | "recalculate" | "settings" | "notifications",
+  sheet: null as SheetName | null,
   foodTab: "search" as "search" | "quick",
   /** Food open in the detail view. Null on the search list. */
   detailFoodId: null as string | null,
@@ -40,6 +41,8 @@ export const ui = reactive({
   recipeEntryIds: [] as string[],
   /** Food sheet or select mode to restore when the recipe sheet closes. */
   recipeReturn: null as null | "food" | "select",
+  /** Nutrient open in the nutrient sheet, for the day the Home card shows, with that day's kcal target. */
+  nutrient: null as null | { key: string; kcalTarget: number | null },
 });
 
 let toastTimer = 0;
@@ -66,6 +69,12 @@ export function openSettings(): void {
 
 export function openNotifications(): void {
   ui.sheet = "notifications";
+}
+
+/** Detail for one ring on the Home nutrient card. */
+export function openNutrient(key: string, kcalTarget: number | null): void {
+  ui.nutrient = { key, kcalTarget };
+  ui.sheet = "nutrient";
 }
 
 export function openRecalculate(): void {

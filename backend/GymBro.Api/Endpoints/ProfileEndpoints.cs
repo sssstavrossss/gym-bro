@@ -228,9 +228,19 @@ public static class ProfileEndpoints
             profile.HeightUnit = heightUnit;
         }
 
+        if (request.FatLimits is { } fatLimits)
+        {
+            if (!FatLimits.IsValid(fatLimits))
+            {
+                return ApiResults.Error("Fat limits are normal or lower.");
+            }
+
+            profile.FatLimits = fatLimits;
+        }
+
         profile.UpdatedAt = clock.GetUtcNow();
         await db.SaveChangesAsync(cancellationToken);
-        return Results.Ok(new SettingsResponse(profile.TimeZone, profile.TimeZoneFollowsDevice, profile.WeightUnit, profile.HeightUnit));
+        return Results.Ok(new SettingsResponse(profile.TimeZone, profile.TimeZoneFollowsDevice, profile.WeightUnit, profile.HeightUnit, profile.FatLimits));
     }
 
     private static async Task<IResult> Preview(
@@ -317,7 +327,8 @@ public static class ProfileEndpoints
             profile.TimeZone,
             profile.TimeZoneFollowsDevice,
             profile.WeightUnit,
-            profile.HeightUnit);
+            profile.HeightUnit,
+            profile.FatLimits);
 
     public static WeightResponse ToWeight(WeightSnapshot weight) => new(
         weight.AsOf,
@@ -374,12 +385,13 @@ public sealed record ProfileResponse(
     string TimeZone,
     bool TimeZoneFollowsDevice,
     string WeightUnit,
-    string HeightUnit);
+    string HeightUnit,
+    string FatLimits);
 
 /// <summary>Display preferences. None of them changes the targets, so saving one writes no target history.</summary>
-public sealed record SettingsRequest(string? TimeZone, bool? TimeZoneFollowsDevice, string? WeightUnit = null, string? HeightUnit = null);
+public sealed record SettingsRequest(string? TimeZone, bool? TimeZoneFollowsDevice, string? WeightUnit = null, string? HeightUnit = null, string? FatLimits = null);
 
-public sealed record SettingsResponse(string TimeZone, bool TimeZoneFollowsDevice, string WeightUnit, string HeightUnit);
+public sealed record SettingsResponse(string TimeZone, bool TimeZoneFollowsDevice, string WeightUnit, string HeightUnit, string FatLimits);
 
 public sealed record WeightResponse(
     DateOnly AsOf,
