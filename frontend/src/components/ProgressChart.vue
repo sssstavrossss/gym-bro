@@ -3,7 +3,9 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue"
 import type { ProgressDay } from "../api";
 import { axisBounds } from "../lib/chartScale";
 import { dayMonth } from "../lib/dates";
-import { int, kg } from "../lib/format";
+import { formatDecimal, int } from "../lib/format";
+import { kgTo } from "../lib/units";
+import { weightUnit } from "../state/units";
 import { evenAxisLabels, valueY, type IntakeDay } from "../lib/progressChart";
 import { barWidth, chartLayout, intakeScale, isMinimum, monthTicks, targetSteps, visibleSpan, type ProgressPage } from "../lib/progressCard";
 
@@ -40,11 +42,13 @@ function xAt(index: number) {
   return (index + 0.5) * slot.value;
 }
 
-// Weight
+// Weight, in the shown unit, so the axis steps work in pounds the way they do in kilograms.
+const shownWeighIns = computed(() => props.weighIns.map((row) => ({ date: row.date, value: kgTo(row.kg, weightUnit()) })));
+const shownTrend = computed(() => props.days.map((day) => (day.trendKg == null ? null : kgTo(day.trendKg, weightUnit()))));
 const weightScale = computed(() => {
   const values = [
-    ...props.weighIns.map((row) => row.kg),
-    ...props.days.flatMap((day) => (day.trendKg != null ? [day.trendKg] : [])),
+    ...shownWeighIns.value.map((row) => row.value),
+    ...shownTrend.value.flatMap((value) => (value != null ? [value] : [])),
   ];
   return values.length ? axisBounds(values) : null;
 });
@@ -55,13 +59,13 @@ function wy(value: number) {
 const trendRuns = computed(() => {
   const runs: { x: number; y: number }[][] = [];
   let run: { x: number; y: number }[] = [];
-  props.days.forEach((day, index) => {
-    if (day.trendKg == null) {
+  shownTrend.value.forEach((value, index) => {
+    if (value == null) {
       if (run.length) runs.push(run);
       run = [];
       return;
     }
-    run.push({ x: xAt(index), y: wy(day.trendKg) });
+    run.push({ x: xAt(index), y: wy(value) });
   });
   if (run.length) runs.push(run);
   return runs;
@@ -73,16 +77,16 @@ const trendArea = computed(() => trendRuns.value.filter((run) => run.length > 1)
 }).join(" "));
 const weightDots = computed(() => {
   const index = new Map(props.days.map((day, i) => [day.date, i]));
-  return props.weighIns.flatMap((row) => {
+  return shownWeighIns.value.flatMap((row) => {
     const i = index.get(row.date);
-    return i == null ? [] : [{ key: row.date, x: xAt(i), y: wy(row.kg) }];
+    return i == null ? [] : [{ key: row.date, x: xAt(i), y: wy(row.value) }];
   });
 });
 const dotRadius = computed(() => (slot.value < 2.5 ? 1.6 : slot.value < 8 ? 2.2 : 2.8));
 const lastTrend = computed(() => {
-  for (let i = props.days.length - 1; i >= 0; i -= 1) {
-    const value = props.days[i].trendKg;
-    if (value != null) return { x: xAt(i), y: wy(value), text: kg(value) };
+  for (let i = shownTrend.value.length - 1; i >= 0; i -= 1) {
+    const value = shownTrend.value[i];
+    if (value != null) return { x: xAt(i), y: wy(value), text: formatDecimal(value) };
   }
   return null;
 });
@@ -124,7 +128,7 @@ const stepLabel = computed(() => {
 
 // Axes
 const yLabels = computed(() => {
-  if (props.page === "weight") return weightTicks.value.map((mark) => ({ key: `w${mark}`, top: wy(mark), text: kg(mark) }));
+  if (props.page === "weight") return weightTicks.value.map((mark) => ({ key: `w${mark}`, top: wy(mark), text: formatDecimal(mark) }));
   return scale.value.ticks.map((mark) => ({ key: `i${mark}`, top: iy(mark), text: int(mark) }));
 });
 const gridLines = computed(() => yLabels.value.map((label) => label.top));

@@ -4,9 +4,10 @@ import BottomSheet from "./BottomSheet.vue";
 import RecalcCalendar from "./RecalcCalendar.vue";
 import { declineRecalculate, getRecalculate, previewRecalculate, saveRecalculate, type RecalculateCalendarDay, type RecalculateReview } from "../api";
 import { dayMonth } from "../lib/dates";
-import { int, kg } from "../lib/format";
+import { int } from "../lib/format";
 import { loadToday } from "../state/log";
 import { loadProfile, profile } from "../state/profile";
+import { wtUnit } from "../state/units";
 import { closeSheet, toast, ui } from "../ui";
 
 const open = computed(() => ui.sheet === "recalculate");
@@ -152,7 +153,7 @@ function delta(next: number | undefined, prev: number | undefined): string {
         <p v-if="zeroWarning" class="t-capn c2">An empty day is counted as 0 kcal. That is not a guess of what you ate.</p>
         <section class="stats" aria-label="This preview">
           <div><span class="t-capn c2">Days</span><span class="t-label">{{ review.includedDays }}/{{ review.periodDays }}</span></div>
-          <div><span class="t-capn c2">Trend</span><span class="t-label">{{ review.trendChangeKg == null ? "—" : `${kg(review.trendChangeKg)} kg` }}</span></div>
+          <div><span class="t-capn c2">Trend</span><span class="t-label">{{ review.trendChangeKg == null ? "—" : wtUnit(review.trendChangeKg) }}</span></div>
           <div><span class="t-capn c2">Ate</span><span class="t-label">{{ review.averageKcal == null ? "—" : int(Math.round(review.averageKcal)) }}</span></div>
           <div><span class="t-capn c2">Burn</span><span class="t-label">{{ review.burn == null ? "—" : int(Math.round(review.burn)) }}</span></div>
         </section>

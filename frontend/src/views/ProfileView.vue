@@ -6,11 +6,13 @@ import Segmented from "../components/Segmented.vue";
 import TargetHistory from "../components/TargetHistory.vue";
 import { ACTIVITY, FAT_PRESETS, PROTEIN_PRESETS, RATES, type ActivityKey, type Goal, type MacroSetting, type Sex } from "../lib/nutrition";
 import { dayMonth, todayInZone } from "../lib/dates";
-import { int, kg } from "../lib/format";
+import { int } from "../lib/format";
 import { goalLine } from "../lib/goalLine";
 import { parseDecimal } from "../lib/numbers";
+import { rateText, toKg } from "../lib/units";
 import { commitProfile, deviceTimeZone, profile, shownTargets, weightCaption } from "../state/profile";
 import { inbox } from "../state/inbox";
+import { heightUnit, weightUnit, wt } from "../state/units";
 import { openNotifications, openRecalculate, openSettings, openWeight } from "../ui";
 import { vp } from "../lib/viewport";
 
@@ -22,7 +24,7 @@ const age = computed(() => {
   return year - Number(profile.form.birthYear);
 });
 const shown = computed(() => shownTargets());
-const caption = computed(() => weightCaption(profile.weight));
+const caption = computed(() => weightCaption(profile.weight, weightUnit()));
 /** The date the targets in effect started. A preview of unsaved edits has none. */
 const updated = computed(() => (shown.value && shown.value === profile.targets ? profile.targets.effectiveDate : null));
 
@@ -34,12 +36,18 @@ const balance = computed(() => {
   return `Protein ${protein.toLowerCase()} · fat ${fat.toLowerCase()}`;
 });
 
+const goalKg = computed(() => {
+  const typed = parseDecimal(profile.form.goalWeight);
+  return typed == null ? null : toKg(typed, profile.form.weightUnit);
+});
+const weightWord = computed(() => (weightUnit() === "lb" ? "pounds" : "kilograms"));
+
 const line = computed(() => {
   const weight = profile.weight;
   return goalLine({
     goal: profile.form.goal,
     weightKg: weight?.trendKg ?? weight?.usedKg ?? null,
-    goalKg: parseDecimal(profile.form.goalWeightKg),
+    goalKg: goalKg.value,
     rateKg: parseDecimal(profile.form.rate),
     today: todayInZone(profile.form.timeZone || deviceTimeZone()),
   });
@@ -145,15 +153,15 @@ function onTextCommit() {
           </div>
           <div v-if="profile.form.goal !== 'maintain'" class="rate" role="group" aria-label="Rate">
             <span class="t-body c2">Rate</span>
-            <button v-for="rate in RATES" :key="rate" type="button" class="chip t-label" :class="{ on: Number(profile.form.rate) === rate }" @click="setRate(rate)">{{ rate === 1 ? "1.0" : rate }}</button>
-            <span class="t-label c2">kg/wk</span>
+            <button v-for="rate in RATES" :key="rate" type="button" class="chip t-label" :class="{ on: Number(profile.form.rate) === rate }" @click="setRate(rate)">{{ rateText(rate, weightUnit()) }}</button>
+            <span class="t-label c2">{{ weightUnit() }}/wk</span>
           </div>
           <div class="col">
             <label class="frow">
               <span class="t-body c2">Goal weight</span>
               <span class="fval">
-                <input v-model="profile.form.goalWeightKg" class="ninput" type="text" inputmode="decimal" autocomplete="off" aria-label="Goal weight in kilograms" @blur="onTextCommit" />
-                <span class="t-label c2">kg</span>
+                <input v-model="profile.form.goalWeight" class="ninput" type="text" inputmode="decimal" autocomplete="off" :aria-label="`Goal weight in ${weightWord}`" @blur="onTextCommit" />
+                <span class="t-label c2">{{ weightUnit() }}</span>
               </span>
             </label>
             <button type="button" class="frow" :class="{ last: !customOpen }" :aria-expanded="customOpen" data-macro-balance @click="customOpen = !customOpen">
@@ -195,7 +203,7 @@ function onTextCommit() {
           </div>
           <p v-if="line" class="t-label c2 m0 gline" data-goal-line>
             <template v-if="line.kind === 'reached'">You're at your goal weight.</template>
-            <template v-else>{{ kg(line.fromKg) }} → {{ kg(line.toKg) }} kg · <b>{{ kg(line.leftKg) }} kg to go</b>, about <b>{{ line.weeks }} {{ line.weeks === 1 ? "week" : "weeks" }}</b> ({{ line.by }})</template>
+            <template v-else>{{ wt(line.fromKg) }} → {{ wt(line.toKg) }} {{ weightUnit() }} · <b>{{ wt(line.leftKg) }} {{ weightUnit() }} to go</b>, about <b>{{ line.weeks }} {{ line.weeks === 1 ? "week" : "weeks" }}</b> ({{ line.by }})</template>
           </p>
         </section>
 
@@ -213,13 +221,22 @@ function onTextCommit() {
               <span v-if="age !== null" class="t-label c2">{{ age }} y</span>
             </span>
           </label>
-          <label class="frow">
+          <label v-if="heightUnit() === 'cm'" class="frow">
             <span class="t-body c2">Height</span>
             <span class="fval">
               <input v-model="profile.form.heightCm" class="ninput" type="text" inputmode="decimal" autocomplete="off" aria-label="Height in centimetres" @blur="onTextCommit" />
               <span class="t-label c2">cm</span>
             </span>
           </label>
+          <div v-else class="frow" role="group" aria-label="Height">
+            <span class="t-body c2">Height</span>
+            <span class="fval">
+              <input v-model="profile.form.heightFt" class="ninput ft" type="text" inputmode="numeric" maxlength="1" autocomplete="off" aria-label="Height, feet" @blur="onTextCommit" />
+              <span class="t-label c2">ft</span>
+              <input v-model="profile.form.heightIn" class="ninput inch" type="text" inputmode="decimal" maxlength="4" autocomplete="off" aria-label="Height, inches" @blur="onTextCommit" />
+              <span class="t-label c2">in</span>
+            </span>
+          </div>
           <button type="button" class="frow" @click="openWeight()">
             <span class="t-body c2">Weight</span>
             <span class="grow" />
@@ -282,6 +299,8 @@ html:not(.dt-xl) .compact-seg :deep(.seg-btn)::after {
 .fval { display: inline-flex; align-items: baseline; gap: 8px; margin-left: auto; white-space: nowrap; flex-wrap: nowrap; flex: none; }
 .fval .ninput { margin-left: 0; }
 .ninput { width: 88px; margin-left: auto; text-align: right; background: transparent; border: 0; min-height: 44px; }
+.ninput.ft { width: 32px; }
+.ninput.inch { width: 4.2ch; }
 .fchev { color: var(--text-tertiary); flex: none; }
 .recalc, .reset { align-self: flex-start; }
 .acts, .custom { display: flex; flex-direction: column; gap: var(--space-gap); }

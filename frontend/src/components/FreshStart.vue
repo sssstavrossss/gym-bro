@@ -2,11 +2,12 @@
 import { computed } from "vue";
 import Icon from "./Icon.vue";
 import { addDays, shortDate } from "../lib/dates";
-import { int, kg } from "../lib/format";
+import { int } from "../lib/format";
 import { gapLabel } from "../lib/weightDisplay";
 import { dismissFresh } from "../lib/prompts";
 import { boot } from "../state/boot";
 import { answerFreshStart, profile } from "../state/profile";
+import { wtUnit } from "../state/units";
 import { toast } from "../ui";
 
 const fresh = computed(() => profile.weight?.freshStart ?? null);
@@ -40,7 +41,7 @@ async function no() {
       </div>
     </div>
     <p class="t-body m0">Recalculate your targets from today's weight?</p>
-    <p class="t-label c2 m0 nums">Trend restarts at {{ kg(profile.weight?.latestKg ?? profile.weight?.trendKg ?? 0) }} kg
+    <p class="t-label c2 m0 nums">Trend restarts at {{ wtUnit(profile.weight?.latestKg ?? profile.weight?.trendKg ?? 0) }}
       <template v-if="before != null && after != null"> · {{ int(before) }} → {{ int(after) }} kcal</template>
     </p>
     <div class="row btns">

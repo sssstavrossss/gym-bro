@@ -15,7 +15,7 @@ import Timeline from "../components/Timeline.vue";
 import WeekStrip from "../components/WeekStrip.vue";
 import WeightChart from "../components/WeightChart.vue";
 import { addDays, dayMonth, dayNum, diffDays, shortDate, todayInZone, weekday, weekdayShort, weekStart } from "../lib/dates";
-import { int, kg } from "../lib/format";
+import { int } from "../lib/format";
 import { screenLayoutFromFlags } from "../lib/layout";
 import { freshDismissed, goalDismissed, promptState } from "../lib/prompts";
 import { isManualTarget } from "../lib/manualTarget";
@@ -26,6 +26,7 @@ import { boot } from "../state/boot";
 import { refreshInbox } from "../state/inbox";
 import { loadDay, pendingFor, totalsOf, viewed } from "../state/log";
 import { deviceTimeZone, profile } from "../state/profile";
+import { weightUnit, wt, wtUnit } from "../state/units";
 import { loadWeekDays, weekCache } from "../state/week";
 import { useRoute } from "vue-router";
 import { openFood, openRecalculate, openWeight, ui } from "../ui";
@@ -44,11 +45,11 @@ const low = computed(() => isLowAccuracy(weight.value));
 const fresh = computed(() => isFreshStart(weight.value));
 const shown = computed(() => weight.value?.trendKg != null);
 const week = computed(() => trendChange(profile.chart?.series, 7, fresh.value));
-const subtitle = computed(() => weightSubtitle(weight.value?.latestKg ?? null, fresh.value, low.value, week.value));
+const subtitle = computed(() => weightSubtitle(weight.value?.latestKg ?? null, fresh.value, low.value, week.value, weightUnit()));
 const aria = computed(() => {
   if (!shown.value || weight.value?.trendKg == null) return "Log weight";
-  const spoken = subtitle.value.replace("kg/wk", "kg this week");
-  return `Weight trend ${kg(weight.value.trendKg)} kg${low.value ? ", low accuracy" : ""}. ${spoken}. Open weight`;
+  const spoken = subtitle.value.replace(`${weightUnit()}/wk`, `${weightUnit()} this week`);
+  return `Weight trend ${wtUnit(weight.value.trendKg)}${low.value ? ", low accuracy" : ""}. ${spoken}. Open weight`;
 });
 const showFresh = computed(() => {
   promptState.fresh;
@@ -208,7 +209,7 @@ const weekRows = computed(() => {
             <div v-if="shown && weight" class="col gap2">
               <span class="row trendline"><span class="t-cap c2 section-title">Weight · trend</span><InfoTip label="What is the trend?">{{ tip }}</InfoTip></span>
               <span class="row gap8 numrow">
-                <span class="base"><span class="t-nm">{{ kg(weight.trendKg!) }}</span><span class="t-label c2">kg</span></span>
+                <span class="base"><span class="t-nm">{{ wt(weight.trendKg!) }}</span><span class="t-label c2">{{ weightUnit() }}</span></span>
                 <AccuracyDot v-if="low" label />
               </span>
               <span class="t-capn c2 wsub">{{ subtitle }}</span>

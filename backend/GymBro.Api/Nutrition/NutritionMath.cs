@@ -99,6 +99,10 @@ public static class NutritionMath
     public static bool AtMostOneDecimal(decimal value) =>
         value == decimal.Round(value, 1, MidpointRounding.AwayFromZero);
 
+    /// <summary>Body weight in kilograms. A weight typed in pounds needs the second decimal to come back as typed.</summary>
+    public static bool AtMostTwoDecimals(decimal value) =>
+        value == decimal.Round(value, 2, MidpointRounding.AwayFromZero);
+
     public static bool IsStep(decimal value, decimal step)
     {
         if (step <= 0)

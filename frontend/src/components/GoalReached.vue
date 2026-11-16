@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import Icon from "./Icon.vue";
-import { kg } from "../lib/format";
 import { dismissGoal } from "../lib/prompts";
 import { boot } from "../state/boot";
 import { commitProfile, profile } from "../state/profile";
+import { weightUnit, wt } from "../state/units";
 import { toast } from "../ui";
 
 const goal = computed(() => profile.saved?.goalWeightKg ?? null);
@@ -31,7 +31,7 @@ async function maintain() {
       <span class="ic" aria-hidden="true"><Icon name="check" :size="18" :sw="2.6" /></span>
       <div class="col grow">
         <h2 id="gr-h" class="t-bodys section-title m0">You've reached your goal weight</h2>
-        <span class="t-label c2">Trend {{ trend != null ? kg(trend) : "—" }} kg · goal {{ goal != null ? kg(goal) : "—" }} kg</span>
+        <span class="t-label c2">Trend {{ trend != null ? wt(trend) : "—" }} {{ weightUnit() }} · goal {{ goal != null ? wt(goal) : "—" }} {{ weightUnit() }}</span>
       </div>
     </div>
     <p class="t-body m0">Switch to Maintain, or keep your current goal?</p>

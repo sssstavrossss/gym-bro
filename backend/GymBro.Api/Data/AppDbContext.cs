@@ -64,7 +64,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         profile.Property(p => p.Activity).HasColumnName("activity").HasMaxLength(16);
         profile.Property(p => p.Goal).HasColumnName("goal").HasMaxLength(16);
         profile.Property(p => p.RateKgPerWeek).HasColumnName("rate_kg_per_week").HasPrecision(3, 2);
-        profile.Property(p => p.GoalWeightKg).HasColumnName("goal_weight_kg").HasPrecision(5, 1);
+        profile.Property(p => p.GoalWeightKg).HasColumnName("goal_weight_kg").HasPrecision(5, 2);
         profile.Property(p => p.ProteinSetting).HasColumnName("protein_setting").HasMaxLength(8);
         profile.Property(p => p.ProteinGramsPerKg).HasColumnName("protein_grams_per_kg").HasPrecision(3, 1);
         profile.Property(p => p.FatSetting).HasColumnName("fat_setting").HasMaxLength(8);
@@ -73,6 +73,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         profile.Property(p => p.RemindersEnabled).HasColumnName("reminders_enabled").HasDefaultValue(false);
         profile.Property(p => p.NotifyRecalculate).HasColumnName("notify_recalculate").HasDefaultValue(true);
         profile.Property(p => p.TimeZoneFollowsDevice).HasColumnName("time_zone_follows_device").HasDefaultValue(true);
+        profile.Property(p => p.WeightUnit).HasColumnName("weight_unit").HasMaxLength(4).HasDefaultValue(Units.Kilograms);
+        profile.Property(p => p.HeightUnit).HasColumnName("height_unit").HasMaxLength(4).HasDefaultValue(Units.Centimetres);
         profile.Property(p => p.CreatedAt).HasColumnName("created_at");
         profile.Property(p => p.UpdatedAt).HasColumnName("updated_at");
         profile.HasOne<AppUser>().WithMany().HasForeignKey(p => p.UserId).OnDelete(DeleteBehavior.Cascade);
@@ -83,7 +85,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         weighIn.Property(w => w.Id).HasColumnName("id");
         weighIn.Property(w => w.UserId).HasColumnName("user_id").HasMaxLength(64);
         weighIn.Property(w => w.LocalDate).HasColumnName("local_date");
-        weighIn.Property(w => w.Kg).HasColumnName("kg").HasPrecision(5, 1);
+        weighIn.Property(w => w.Kg).HasColumnName("kg").HasPrecision(5, 2);
         weighIn.Property(w => w.UpdatedAt).HasColumnName("updated_at");
         weighIn.HasIndex(w => new { w.UserId, w.LocalDate }).IsUnique();
         weighIn.HasOne<AppUser>().WithMany().HasForeignKey(w => w.UserId).OnDelete(DeleteBehavior.Cascade);

@@ -1,14 +1,14 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import BottomSheet from "./BottomSheet.vue";
-import { kg } from "../lib/format";
 import { accuracyCopy } from "../lib/weightDisplay";
 import { profile } from "../state/profile";
+import { weightUnit, wt } from "../state/units";
 import { closeAccuracy, openWeight, ui } from "../ui";
 
 const open = computed(() => ui.sheet === "accuracy");
-const copy = computed(() => accuracyCopy(profile.weight));
-const trend = computed(() => (profile.weight?.trendKg != null ? kg(profile.weight.trendKg) : "—"));
+const copy = computed(() => accuracyCopy(profile.weight, weightUnit()));
+const trend = computed(() => (profile.weight?.trendKg != null ? wt(profile.weight.trendKg) : "—"));
 
 function weigh() {
   ui.accReturn = null;
@@ -23,7 +23,7 @@ function weigh() {
       <div class="row hdr">
         <div class="col grow">
           <h2 class="t-head m0 row ttl"><i class="d" aria-hidden="true" />Low accuracy</h2>
-          <span class="t-label c2">Trend {{ trend }} kg</span>
+          <span class="t-label c2">Trend {{ trend }} {{ weightUnit() }}</span>
         </div>
         <button type="button" class="cbtn" aria-label="Close" @click="closeAccuracy">×</button>
       </div>

@@ -39,25 +39,8 @@ export const int = (n: number) => Math.round(n).toLocaleString("en-US");
 /** Kilograms and trend, one decimal unless digits says otherwise. */
 export const kg = (n: number, digits = 1) => formatDecimal(n, digits);
 
-/** Profile goal weight. Whole numbers stay bare; midpoints use roundHalfAwayFromZero. */
-export function formatGoalWeight(value: number): string {
-  const rounded = roundHalfAwayFromZero(value);
-  return Number.isInteger(rounded) ? String(rounded) : formatDecimal(rounded);
-}
-
 export function signed(n: number, digits = 1): string {
   const text = formatDecimal(n, digits);
   if (!text.startsWith("-")) return roundHalfAwayFromZero(n, digits) === 0 ? text : `+${text}`;
   return `−${text.slice(1)}`;
-}
-
-/** The sentence under “Is N kg right?”. Same rounding as the API error. */
-export function typoGuardDetail(kgValue: number, previousTrendKg: number): string {
-  const diff = kgValue - previousTrendKg;
-  const way = diff < 0 ? "below" : "above";
-  return `That's ${kg(Math.abs(diff))} kg ${way} your trend (${kg(previousTrendKg)} kg). Nothing is saved until you choose.`;
-}
-
-export function typoGuardSentence(kgValue: number, previousTrendKg: number): string {
-  return `Is ${kg(kgValue)} kg right? ${typoGuardDetail(kgValue, previousTrendKg)}`;
 }

@@ -5,10 +5,11 @@ import ProgressChart from "./ProgressChart.vue";
 import SwipePanels from "./SwipePanels.vue";
 import { ApiError, getProgress, ServerUnreachable, type ProgressDay, type ProgressResponse } from "../api";
 import { dayMonth, spanLabel } from "../lib/dates";
-import { int, kg, signed } from "../lib/format";
+import { int } from "../lib/format";
 import type { IntakeDay } from "../lib/progressChart";
 import { fiberMinimum, intakeStats, isMinimum, PAGE_TITLES, PROGRESS_PAGES, type ProgressPage } from "../lib/progressCard";
 import { profile } from "../state/profile";
+import { weightUnit, wt, wtSigned, wtUnit } from "../state/units";
 import { openWeight, toast } from "../ui";
 
 const props = defineProps<{ selected: string }>();
@@ -107,7 +108,7 @@ function intakeOf(kind: Exclude<ProgressPage, "weight">): IntakeDay[] {
 const intake = computed(() => Object.fromEntries(PROGRESS_PAGES.filter((item) => item !== "weight")
   .map((item) => [item, intakeOf(item as Exclude<ProgressPage, "weight">)])) as Record<Exclude<ProgressPage, "weight">, IntakeDay[]>);
 function unitOf(item: ProgressPage) {
-  return item === "kcal" ? "kcal" : item === "weight" ? "kg" : "g";
+  return item === "kcal" ? "kcal" : item === "weight" ? weightUnit() : "g";
 }
 
 interface Stat { label: string; value: string; sub: string }
@@ -124,8 +125,8 @@ function statsOf(item: ProgressPage): Stat[] {
     const change = data.value?.weight.trendChangeKg;
     const count = data.value?.weight.weighIns.length ?? 0;
     return [
-      { label: "Trend", value: lastTrend.value == null ? "–" : `${kg(lastTrend.value)} kg`, sub: latest == null ? "no weigh-in" : `latest ${kg(latest)}` },
-      { label: "Change", value: change == null ? "–" : `${signed(change)} kg`, sub: data.value ? `since ${dayMonth(data.value.from)}` : "" },
+      { label: "Trend", value: lastTrend.value == null ? "–" : wtUnit(lastTrend.value), sub: latest == null ? "no weigh-in" : `latest ${wt(latest)}` },
+      { label: "Change", value: change == null ? "–" : `${wtSigned(change)} ${weightUnit()}`, sub: data.value ? `since ${dayMonth(data.value.from)}` : "" },
       { label: "Weigh-ins", value: String(count), sub: `in ${days.value.length} days` },
     ];
   }

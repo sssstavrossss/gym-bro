@@ -3,7 +3,9 @@ import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import type { WeightChartPoint } from "../api";
 import { axisBounds, axisMarks } from "../lib/chartScale";
 import { dayMonth } from "../lib/dates";
-import { kg } from "../lib/format";
+import { formatDecimal } from "../lib/format";
+import { kgTo } from "../lib/units";
+import { weightUnit } from "../state/units";
 
 const props = withDefaults(defineProps<{ series: WeightChartPoint[]; height?: number; fluid?: boolean }>(), {
   height: 168,
@@ -23,8 +25,15 @@ onBeforeUnmount(() => observer?.disconnect());
 
 const width = computed(() => (props.fluid && measured.value ? Math.max(200, measured.value - 40) : 290));
 
+/** The series in the shown unit. The axis steps and padding then work in pounds the way they do in kilograms. */
+const shown = computed(() => {
+  const unit = weightUnit();
+  const to = (value: number | null) => (value == null ? null : kgTo(value, unit));
+  return props.series.map((point) => ({ ...point, weighInKg: to(point.weighInKg), trendKg: to(point.trendKg) }));
+});
+
 const data = computed(() => {
-  const pts = props.series;
+  const pts = shown.value;
   const n = Math.max(pts.length, 2);
   const vals = pts.flatMap((point) => [point.weighInKg, point.trendKg]).filter((value): value is number => value != null);
   const { lo, hi, flat } = axisBounds(vals);
@@ -51,20 +60,21 @@ const data = computed(() => {
 });
 
 const summary = computed(() => {
-  const weighed = props.series.filter((point) => point.realWeighIn && point.weighInKg != null);
-  const trends = props.series.filter((point) => point.trendKg != null);
-  const one = (value: number) => kg(value);
+  const weighed = shown.value.filter((point) => point.realWeighIn && point.weighInKg != null);
+  const trends = shown.value.filter((point) => point.trendKg != null);
+  const one = (value: number) => formatDecimal(value);
+  const unit = weightUnit();
   let text = `Weight, last ${props.series.length} days: ${weighed.length} weigh-in${weighed.length === 1 ? "" : "s"}`;
   if (weighed.length) {
     const values = weighed.map((point) => point.weighInKg!);
-    text += `, from ${one(Math.min(...values))} to ${one(Math.max(...values))} kg`;
+    text += `, from ${one(Math.min(...values))} to ${one(Math.max(...values))} ${unit}`;
   }
   if (trends.length >= 2) {
     const start = trends[0].trendKg!;
     const end = trends[trends.length - 1].trendKg!;
-    text += `. Trend ${one(start)} to ${one(end)} kg (${end - start <= 0 ? "down" : "up"} ${one(Math.abs(end - start))} kg)`;
+    text += `. Trend ${one(start)} to ${one(end)} ${unit} (${end - start <= 0 ? "down" : "up"} ${one(Math.abs(end - start))} ${unit})`;
   } else if (trends.length === 1) {
-    text += `. Trend ${one(trends[0].trendKg!)} kg`;
+    text += `. Trend ${one(trends[0].trendKg!)} ${unit}`;
   }
   const gaps = props.series.some((point) => point.gap);
   return text + (gaps ? ". The line breaks across a gap of more than 28 days." : ".");
@@ -83,7 +93,7 @@ const summary = computed(() => {
         <circle v-if="data.lastIdx >= 0" :cx="data.px(data.lastIdx)" :cy="data.py(data.pts[data.lastIdx].trendKg!)" r="4.5" fill="var(--chart-line)" stroke="var(--color-surface-2)" stroke-width="2" />
       </svg>
       <div class="ylabels" :style="{ height: height + 'px' }">
-        <span v-for="mark in data.grid" :key="mark" class="t-capn c2 ymark" :data-kg="kg(mark)" :style="{ top: data.py(mark) - 7 + 'px' }">{{ kg(mark) }}</span>
+        <span v-for="mark in data.grid" :key="mark" class="t-capn c2 ymark" :data-kg="formatDecimal(mark)" :style="{ top: data.py(mark) - 7 + 'px' }">{{ formatDecimal(mark) }}</span>
       </div>
     </div>
     <div class="row xlabels"><span v-for="tick in data.ticks" :key="tick" class="t-capn c2">{{ tick }}</span></div>

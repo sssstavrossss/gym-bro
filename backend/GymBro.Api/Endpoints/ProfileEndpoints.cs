@@ -208,9 +208,29 @@ public static class ProfileEndpoints
             profile.TimeZoneFollowsDevice = follows;
         }
 
+        if (request.WeightUnit is { } weightUnit)
+        {
+            if (!Units.IsWeight(weightUnit))
+            {
+                return ApiResults.Error("Weight is shown in kg or lb.");
+            }
+
+            profile.WeightUnit = weightUnit;
+        }
+
+        if (request.HeightUnit is { } heightUnit)
+        {
+            if (!Units.IsHeight(heightUnit))
+            {
+                return ApiResults.Error("Height is shown in cm or ftin.");
+            }
+
+            profile.HeightUnit = heightUnit;
+        }
+
         profile.UpdatedAt = clock.GetUtcNow();
         await db.SaveChangesAsync(cancellationToken);
-        return Results.Ok(new SettingsResponse(profile.TimeZone, profile.TimeZoneFollowsDevice));
+        return Results.Ok(new SettingsResponse(profile.TimeZone, profile.TimeZoneFollowsDevice, profile.WeightUnit, profile.HeightUnit));
     }
 
     private static async Task<IResult> Preview(
@@ -295,7 +315,9 @@ public static class ProfileEndpoints
             profile.FatSetting,
             profile.FatPercent,
             profile.TimeZone,
-            profile.TimeZoneFollowsDevice);
+            profile.TimeZoneFollowsDevice,
+            profile.WeightUnit,
+            profile.HeightUnit);
 
     public static WeightResponse ToWeight(WeightSnapshot weight) => new(
         weight.AsOf,
@@ -350,12 +372,14 @@ public sealed record ProfileResponse(
     string FatSetting,
     decimal FatPercent,
     string TimeZone,
-    bool TimeZoneFollowsDevice);
+    bool TimeZoneFollowsDevice,
+    string WeightUnit,
+    string HeightUnit);
 
 /// <summary>Display preferences. None of them changes the targets, so saving one writes no target history.</summary>
-public sealed record SettingsRequest(string? TimeZone, bool? TimeZoneFollowsDevice);
+public sealed record SettingsRequest(string? TimeZone, bool? TimeZoneFollowsDevice, string? WeightUnit = null, string? HeightUnit = null);
 
-public sealed record SettingsResponse(string TimeZone, bool TimeZoneFollowsDevice);
+public sealed record SettingsResponse(string TimeZone, bool TimeZoneFollowsDevice, string WeightUnit, string HeightUnit);
 
 public sealed record WeightResponse(
     DateOnly AsOf,

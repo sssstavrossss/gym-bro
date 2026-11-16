@@ -1,6 +1,6 @@
 import type { WeightChartPoint, WeightResponse } from "../api";
 import { addDays, diffDays } from "./dates";
-import { kg, signed } from "./format";
+import { signedWeight, weightText, type WeightUnit } from "./units";
 
 /** New entries and date moves: today back through today − 7, inclusive. */
 export const weighInWindowDays = 7;
@@ -49,9 +49,10 @@ export function weightSubtitle(
   fresh: boolean,
   low: boolean,
   weekKg: number | null,
+  unit: WeightUnit = "kg",
 ): string {
-  const latest = latestKg != null ? `latest ${kg(latestKg)}` : "";
-  const tail = fresh ? "fresh start" : low ? "low accuracy" : weekKg != null ? `${signed(weekKg)} kg/wk` : "";
+  const latest = latestKg != null ? `latest ${weightText(latestKg, unit)}` : "";
+  const tail = fresh ? "fresh start" : low ? "low accuracy" : weekKg != null ? `${signedWeight(weekKg, unit)} ${unit}/wk` : "";
   return [latest, tail].filter(Boolean).join(" · ");
 }
 
@@ -64,14 +65,14 @@ export function trendChange(series: WeightChartPoint[] | null | undefined, daysB
   return end - prev;
 }
 
-export function accuracyCopy(weight: WeightResponse | null): { short: string; lines: string[] } {
+export function accuracyCopy(weight: WeightResponse | null, unit: WeightUnit = "kg"): { short: string; lines: string[] } {
   if (!weight) return { short: "", lines: [] };
   const lines: string[] = [];
   let short = "";
   const freshDays = weight.trendState === "fresh_start" ? weight.freshStart?.daysSincePrevious ?? null : null;
   if (freshDays != null) {
     const label = gapLabel(freshDays);
-    const restarted = weight.latestKg != null ? ` from ${kg(weight.latestKg)} kg` : "";
+    const restarted = weight.latestKg != null ? ` from ${weightText(weight.latestKg, unit)} ${unit}` : "";
     lines.push(`Fresh start: it had been ${label} since your last weigh-in, so the trend restarted${restarted}.`);
     short = `fresh start after ${label}`;
   }

@@ -3,7 +3,9 @@ import { computed, nextTick, onMounted, ref, watch } from "vue";
 import Segmented from "../components/Segmented.vue";
 import { ApiError, getProgress, ServerUnreachable, type ProgressDay, type ProgressResponse } from "../api";
 import { dayMonth, spanLabel } from "../lib/dates";
-import { formatDecimal, int, kg, signed } from "../lib/format";
+import { formatDecimal, int } from "../lib/format";
+import { kgTo } from "../lib/units";
+import { weightUnit, wtSigned, wtUnit } from "../state/units";
 import { screenLayoutFromFlags } from "../lib/layout";
 import { fewMarks, intakeBars, intakeMax, scaleTicks, targetLine, valueY, weightTrend } from "../lib/progressChart";
 import { vp } from "../lib/viewport";
@@ -57,12 +59,12 @@ const weight = computed(() => data.value?.weight ?? null);
 const intake = computed(() => data.value?.intake ?? null);
 const days = computed(() => data.value?.days ?? []);
 
-const currentText = computed(() => weight.value?.currentKg == null ? "–" : `${kg(weight.value.currentKg)} kg`);
+const currentText = computed(() => weight.value?.currentKg == null ? "–" : wtUnit(weight.value.currentKg));
 const currentNote = computed(() => {
   if (!weight.value || weight.value.currentKg == null || !weight.value.currentDate) return "No weigh-in yet";
   return dayMonth(weight.value.currentDate);
 });
-const changeText = computed(() => weight.value?.changeKg == null ? "–" : `${signed(weight.value.changeKg, 1)} kg`);
+const changeText = computed(() => weight.value?.changeKg == null ? "–" : `${wtSigned(weight.value.changeKg)} ${weightUnit()}`);
 const changeNote = computed(() => {
   const count = weight.value?.count ?? 0;
   if (count === 0) return "No weigh-ins in this range";
@@ -89,9 +91,10 @@ const kcalBars = computed(() => intakeBars(kcalDays.value, plot.width, plot.heig
 const proteinBars = computed(() => intakeBars(proteinDays.value, plot.width, plot.height));
 const kcalTarget = computed(() => targetLine(kcalDays.value, plot.width, plot.height));
 const proteinTarget = computed(() => targetLine(proteinDays.value, plot.width, plot.height));
+// Scaled in the shown unit, so the axis steps work in pounds the way they do in kilograms.
 const weights = computed(() => weightTrend(
-  days.value,
-  weight.value?.weighIns ?? [],
+  days.value.map((day) => ({ date: day.date, trendKg: day.trendKg == null ? null : kgTo(day.trendKg, weightUnit()) })),
+  (weight.value?.weighIns ?? []).map((row) => ({ date: row.date, kg: kgTo(row.kg, weightUnit()) })),
   plot.width,
   plot.height,
 ));
@@ -117,7 +120,7 @@ const period = computed(() => data.value ? spanLabel(data.value.from, data.value
 const weightLabel = computed(() => {
   const rows = weight.value?.weighIns ?? [];
   if (!rows.length) return "No weigh-ins in this range. Missing days are not filled in.";
-  const list = rows.map((row) => `${dayMonth(row.date)} ${kg(row.kg)} kg`).join(", ");
+  const list = rows.map((row) => `${dayMonth(row.date)} ${wtUnit(row.kg)}`).join(", ");
   return `Weight trend, ${period.value}. Weigh-ins: ${list}. The line is the trend. Dots are logged weigh-ins. Days without a weigh-in stay blank.`;
 });
 function intakeLabel(kind: "Calories" | "Protein", rows: ProgressDay[], key: "kcal" | "protein", unit: string): string {
@@ -140,7 +143,7 @@ function retry() {
 }
 function weighInOn(date: string): string {
   const row = weight.value?.weighIns.find((item) => item.date === date);
-  return row ? `${kg(row.kg)} kg` : "No weigh-in";
+  return row ? wtUnit(row.kg) : "No weigh-in";
 }
 </script>
 
@@ -207,7 +210,7 @@ function weighInOn(date: string): string {
               <circle v-for="dot in weights.dots" :key="dot.date" :cx="dot.x" :cy="dot.y" r="3" fill="var(--chart-line)" fill-opacity="0.3" />
             </svg>
             <div class="ylabels" aria-hidden="true">
-              <span v-for="mark in weightTicks" :key="'wy' + mark" class="t-capn c2" :style="{ top: tickTop(weightY(mark)) }">{{ kg(mark) }}</span>
+              <span v-for="mark in weightTicks" :key="'wy' + mark" class="t-capn c2" :style="{ top: tickTop(weightY(mark)) }">{{ formatDecimal(mark) }}</span>
             </div>
             </div>
             <div class="row xlabels">
