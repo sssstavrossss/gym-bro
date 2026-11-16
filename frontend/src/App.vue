@@ -12,6 +12,7 @@ import TabBar from "./components/TabBar.vue";
 import Toast from "./components/Toast.vue";
 import SettingsSheet from "./components/SettingsSheet.vue";
 import NotificationsSheet from "./components/NotificationsSheet.vue";
+import NutrientSheet from "./components/NutrientSheet.vue";
 import AccuracySheet from "./components/AccuracySheet.vue";
 import RecalculateSheet from "./components/RecalculateSheet.vue";
 import WeightSheet from "./components/WeightSheet.vue";
@@ -142,6 +143,7 @@ function onKey(event: KeyboardEvent) {
     <AccuracySheet />
     <SettingsSheet />
     <NotificationsSheet />
+    <NutrientSheet />
     <AddChooser />
     <FoodSheet />
     <Toast />

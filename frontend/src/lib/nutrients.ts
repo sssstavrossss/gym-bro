@@ -7,6 +7,8 @@ export interface NutrientRow {
   unit: string;
   /** Two decimals below 1, for a nutrient whose daily amount is about 1 (copper: 0.04 mg, not 0). */
   fine?: boolean;
+  /** Full name where the label is short (Vit C, B1). The label otherwise. */
+  name?: string;
 }
 
 export interface NutrientPanelDef {
@@ -28,10 +30,10 @@ export interface NutrientPanelDef {
 
 const ROWS: Record<string, NutrientRow> = {
   fat: { key: "fat", label: "Fat", unit: "g" },
-  saturatedFat: { key: "saturatedFat", label: "Saturated", unit: "g" },
-  monoFat: { key: "monoFat", label: "Mono", unit: "g" },
-  polyFat: { key: "polyFat", label: "Poly", unit: "g" },
-  transFat: { key: "transFat", label: "Trans", unit: "g" },
+  saturatedFat: { key: "saturatedFat", label: "Saturated", unit: "g", name: "Saturated fat" },
+  monoFat: { key: "monoFat", label: "Mono", unit: "g", name: "Monounsaturated fat" },
+  polyFat: { key: "polyFat", label: "Poly", unit: "g", name: "Polyunsaturated fat" },
+  transFat: { key: "transFat", label: "Trans", unit: "g", name: "Trans fat" },
   omega3: { key: "omega3", label: "Omega-3", unit: "g" },
   epaDha: { key: "epaDha", label: "EPA + DHA", unit: "g" },
   omega6: { key: "omega6", label: "Omega-6", unit: "g" },
@@ -41,16 +43,16 @@ const ROWS: Record<string, NutrientRow> = {
   starch: { key: "starch", label: "Starch", unit: "g" },
   fiber: { key: "fiber", label: "Fibre", unit: "g" },
   sodium: { key: "sodium", label: "Sodium", unit: "mg" },
-  vitaminA: { key: "vitaminA", label: "Vit A", unit: "µg" },
-  vitaminD: { key: "vitaminD", label: "Vit D", unit: "µg" },
-  vitaminE: { key: "vitaminE", label: "Vit E", unit: "mg" },
-  vitaminC: { key: "vitaminC", label: "Vit C", unit: "mg" },
-  thiamin: { key: "thiamin", label: "B1", unit: "mg" },
-  riboflavin: { key: "riboflavin", label: "B2", unit: "mg" },
-  niacin: { key: "niacin", label: "B3", unit: "mg" },
-  vitaminB6: { key: "vitaminB6", label: "B6", unit: "mg" },
+  vitaminA: { key: "vitaminA", label: "Vit A", unit: "µg", name: "Vitamin A" },
+  vitaminD: { key: "vitaminD", label: "Vit D", unit: "µg", name: "Vitamin D" },
+  vitaminE: { key: "vitaminE", label: "Vit E", unit: "mg", name: "Vitamin E" },
+  vitaminC: { key: "vitaminC", label: "Vit C", unit: "mg", name: "Vitamin C" },
+  thiamin: { key: "thiamin", label: "B1", unit: "mg", name: "Thiamin (B1)" },
+  riboflavin: { key: "riboflavin", label: "B2", unit: "mg", name: "Riboflavin (B2)" },
+  niacin: { key: "niacin", label: "B3", unit: "mg", name: "Niacin (B3)" },
+  vitaminB6: { key: "vitaminB6", label: "B6", unit: "mg", name: "Vitamin B6" },
   folate: { key: "folate", label: "Folate", unit: "µg" },
-  vitaminB12: { key: "vitaminB12", label: "B12", unit: "µg" },
+  vitaminB12: { key: "vitaminB12", label: "B12", unit: "µg", name: "Vitamin B12" },
   calcium: { key: "calcium", label: "Calcium", unit: "mg" },
   iron: { key: "iron", label: "Iron", unit: "mg" },
   zinc: { key: "zinc", label: "Zinc", unit: "mg" },
@@ -89,6 +91,11 @@ export function nutrientRow(key: string): NutrientRow {
   return ROWS[key];
 }
 
+export function nutrientName(key: string): string {
+  const row = ROWS[key];
+  return row.name ?? row.label;
+}
+
 /** Source sodium in mg, otherwise salt grams ÷ 2.5. Missing both stays null. */
 export function sodiumMg(sodium: number | null | undefined, saltGrams: number | null | undefined): number | null {
   if (sodium != null && Number.isFinite(sodium)) return sodium;
@@ -112,7 +119,8 @@ export interface NutrientSource {
   nutrients?: NutrientMap | null;
 }
 
-function rawOf(source: NutrientSource, key: string): number | null {
+/** One entry's or food's amount of a nutrient. Null when unknown. Sodium falls back to salt. */
+export function sourceValue(source: NutrientSource, key: string): number | null {
   if (key === "fat") return source.fat ?? null;
   if (key === "sodium") return sodiumMg(source.nutrients?.sodium, source.salt);
   if (key === "saturatedFat") return source.saturatedFat ?? null;
@@ -124,7 +132,7 @@ function rawOf(source: NutrientSource, key: string): number | null {
 
 export function valuesOf(source: NutrientSource): NutrientMap {
   const out: NutrientMap = {};
-  for (const key of Object.keys(ROWS)) out[key] = rawOf(source, key);
+  for (const key of Object.keys(ROWS)) out[key] = sourceValue(source, key);
   return out;
 }
 
@@ -132,13 +140,13 @@ export function dayNutrients(entries: readonly NutrientSource[]): NutrientMap {
   const out: NutrientMap = {};
   for (const key of Object.keys(ROWS)) {
     // A day total is always a number: what is known, with unknown counted as 0.
-    out[key] = knownSum(entries.map((entry) => rawOf(entry, key))) ?? 0;
+    out[key] = knownSum(entries.map((entry) => sourceValue(entry, key))) ?? 0;
   }
   return out;
 }
 
 export function panelHasData(entries: readonly NutrientSource[], keys: readonly string[]): boolean {
-  return keys.some((key) => entries.some((entry) => rawOf(entry, key) != null));
+  return keys.some((key) => entries.some((entry) => sourceValue(entry, key) != null));
 }
 
 /**
@@ -172,6 +180,12 @@ export function formatNutrient(value: number | null | undefined, unit: string, f
   const parts = nutrientParts(value, unit, fine);
   if (!parts.unit) return parts.whole;
   return `${parts.whole}${parts.frac} ${parts.unit}`;
+}
+
+/** The number alone, rounded like formatNutrient: "20.5" beside "/ 21 g". */
+export function nutrientNumber(value: number | null | undefined, fine = false): string {
+  const parts = nutrientParts(value, "-", fine);
+  return `${parts.whole}${parts.frac}`;
 }
 
 /** Number split so the ones place, the decimal, and the unit each have a fixed slot. */
@@ -278,17 +292,46 @@ export function referenceAmount(key: string, sex: string, age: number): number |
   }
 }
 
-/** Integer percent of the reference. Thiamin and niacin need a kcal target. */
-export function nutrientPercent(key: string, value: number | null | undefined, sex: string, age: number, kcalTarget: number | null | undefined): number | null {
-  if (value == null || !Number.isFinite(value)) return null;
-  let ref = referenceAmount(key, sex, age);
+/** The daily reference in the display unit. Thiamin and niacin are per MJ of the kcal target. */
+export function referenceFor(key: string, sex: string, age: number, kcalTarget: number | null | undefined): number | null {
   if (key === "thiamin" || key === "niacin") {
     if (kcalTarget == null || !Number.isFinite(kcalTarget) || kcalTarget <= 0) return null;
     const mj = kcalTarget / 239;
-    ref = key === "thiamin" ? 0.1 * mj : 1.6 * mj;
+    return key === "thiamin" ? 0.1 * mj : 1.6 * mj;
   }
+  return referenceAmount(key, sex, age);
+}
+
+/** Integer percent of the reference. Thiamin and niacin need a kcal target. */
+export function nutrientPercent(key: string, value: number | null | undefined, sex: string, age: number, kcalTarget: number | null | undefined): number | null {
+  if (value == null || !Number.isFinite(value)) return null;
+  const ref = referenceFor(key, sex, age, kcalTarget);
   if (ref == null || ref <= 0) return null;
   return Math.round((value / ref) * 100);
+}
+
+/**
+ * Tolerable upper intake for adults from food and supplements together, in the display unit.
+ * EFSA: vitamin D 100 µg, vitamin E 300 mg, B6 12 mg (2023), calcium 2,500 mg, iron 40 mg
+ * (2024 safe level), zinc 25 mg, selenium 255 µg (2023), iodine 600 µg, copper 5 mg.
+ * Left out on purpose: vitamin A (the limit is for retinol, our value is RE), niacin, folate and
+ * magnesium (limits apply to supplements and fortified forms only), and the nutrients with no
+ * EU limit (vitamin C, potassium, phosphorus, and the rest).
+ */
+const UPPER_LIMITS: Record<string, number> = {
+  vitaminD: 100,
+  vitaminE: 300,
+  vitaminB6: 12,
+  calcium: 2500,
+  iron: 40,
+  zinc: 25,
+  selenium: 255,
+  iodine: 600,
+  copper: 5,
+};
+
+export function upperLimit(key: string): number | null {
+  return UPPER_LIMITS[key] ?? null;
 }
 
 export function scaleMap(source: NutrientMap, factor: number): NutrientMap {

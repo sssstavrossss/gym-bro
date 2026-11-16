@@ -83,7 +83,11 @@ test("profile: bell, cog, goal line, and a time zone that follows the device", a
   // A zone set by hand stays after a reload on this device.
   await page.reload();
   await page.getByRole("button", { name: "Settings" }).click();
+  await expect(page.getByRole("dialog", { name: "Settings" })).toBeVisible();
   await expect(page.locator("[data-zone-row]")).toContainText("Asia/Tokyo");
+  // The row sits below the Nutrition section: bring it into the open sheet before tapping.
+  await page.locator("[data-zone-row]").scrollIntoViewIfNeeded();
+  await expect(page.locator("[data-zone-row]")).toBeInViewport();
   await page.locator("[data-zone-row]").click();
   await page.getByRole("radio", { name: /Use this device/ }).click();
   await expect(page.locator("[data-zone-row]")).toContainText("Europe/Oslo");

@@ -1,6 +1,7 @@
 import { accessToken } from "./auth/session";
 import type { CatalogFood, OwnServing } from "./lib/foodAmount";
 import { kg as formatKg } from "./lib/format";
+import type { FatLimitsSetting } from "./lib/nutrientCards";
 import { e2eSession } from "./auth/e2e";
 import { loadPublicConfig, type PublicConfig } from "./auth/publicConfig";
 
@@ -56,6 +57,8 @@ export interface ProfileResponse {
   /** Display units. Values stay in kg and cm. */
   weightUnit?: "kg" | "lb";
   heightUnit?: "cm" | "ftin";
+  /** Saturated fat and cholesterol limits on the Fats card. Display only. */
+  fatLimits?: FatLimitsSetting;
 }
 
 export type TrendState = "normal" | "low_accuracy" | "fresh_start";
@@ -428,6 +431,7 @@ export interface SettingsBody {
   timeZoneFollowsDevice?: boolean;
   weightUnit?: "kg" | "lb";
   heightUnit?: "cm" | "ftin";
+  fatLimits?: FatLimitsSetting;
 }
 
 export interface SettingsResponse {
@@ -435,6 +439,7 @@ export interface SettingsResponse {
   timeZoneFollowsDevice: boolean;
   weightUnit: "kg" | "lb";
   heightUnit: "cm" | "ftin";
+  fatLimits: FatLimitsSetting;
 }
 
 /** Display preferences. Saving one never changes the targets or adds history. */
@@ -528,6 +533,38 @@ export interface ProgressResponse {
 
 export async function getProgress(range: string): Promise<ProgressResponse> {
   return jsonOrThrow(await request(`/api/progress?range=${encodeURIComponent(range)}`));
+}
+
+export interface NutrientWeekResponse {
+  from: string;
+  to: string;
+  loggedDays: number;
+  /** Daily average over the logged days, by nutrient key. Empty when no day is logged. */
+  average: Record<string, number | null>;
+}
+
+/** The seven days ending on `date`. */
+export async function getNutrientWeek(date: string): Promise<NutrientWeekResponse> {
+  return jsonOrThrow(await request(`/api/nutrients/week?date=${encodeURIComponent(date)}`));
+}
+
+export interface NutrientSourceFood {
+  id: string;
+  name: string;
+  brand: string | null;
+  /** g or ml: the unit of 100 behind per100. */
+  basis: string;
+  per100: number;
+}
+
+export interface NutrientSourcesResponse {
+  nutrient: string;
+  foods: NutrientSourceFood[];
+}
+
+/** Foods the user has logged, richest in `key` per 100 g first. */
+export async function getNutrientSources(key: string): Promise<NutrientSourcesResponse> {
+  return jsonOrThrow(await request(`/api/nutrients/${encodeURIComponent(key)}/sources`));
 }
 
 export async function getWeightChart(days = 30): Promise<WeightChartResponse> {

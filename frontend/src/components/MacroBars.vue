@@ -1,18 +1,31 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import Bar from "./Bar.vue";
+import FatsPanel from "./FatsPanel.vue";
 import Icon from "./Icon.vue";
 import ManualTag from "./ManualTag.vue";
+import OverTag from "./OverTag.vue";
 import NutrientRows from "./NutrientRows.vue";
+import RingsPanel from "./RingsPanel.vue";
 import SwipePanels from "./SwipePanels.vue";
 import { int } from "../lib/format";
 import { macroStatus, type MacroKind } from "../lib/macros";
-import { dayNutrients, osloYear, panelsForSize, type NutrientSource } from "../lib/nutrients";
+import { fatLimitsOf } from "../lib/nutrientCards";
+import { dayNutrients, panelsForSize, type NutrientPanelDef, type NutrientSource } from "../lib/nutrients";
 import { dayTotals, type DayTotals } from "../state/log";
-import { profile } from "../state/profile";
+import { loadNutrientWeek, nutrientWeek } from "../state/nutrientWeek";
+import { nutrientPerson, profile } from "../state/profile";
 import type { TargetsResponse } from "../api";
 
-const props = defineProps<{ target?: TargetsResponse | null; totals?: DayTotals | null; label?: string; manual?: boolean; entries?: NutrientSource[] }>();
+const props = defineProps<{
+  target?: TargetsResponse | null;
+  totals?: DayTotals | null;
+  label?: string;
+  manual?: boolean;
+  entries?: (NutrientSource & { id: string; kcal: number })[];
+  /** The day shown. Loads the week average behind the rings' inner circle. */
+  date?: string;
+}>();
 const large = ref(false);
 function readSize() { large.value = document.documentElement.classList.contains("dt-xl"); }
 onMounted(() => {
@@ -23,11 +36,21 @@ onBeforeUnmount(() => window.removeEventListener("resize", readSize));
 const sources = computed(() => props.entries ?? []);
 const nutrientValues = computed(() => dayNutrients(sources.value));
 const panels = computed(() => panelsForSize(sources.value, large.value));
-const age = computed(() => {
-  const year = profile.saved?.birthYear;
-  return typeof year === "number" ? osloYear() - year : 0;
-});
 const kcalTarget = computed(() => target.value?.kcal ?? null);
+const person = computed(() => nutrientPerson(kcalTarget.value));
+const fatLimits = computed(() => fatLimitsOf(profile.saved?.fatLimits));
+/** Default text has the Fats card and the ring grids. Largest text keeps plain rows, four to a page. */
+function viewOf(panel: NutrientPanelDef): "fats" | "rings" | "rows" {
+  if (large.value) return "rows";
+  if (panel.id === "fats") return "fats";
+  return panel.id === "vitamins" || panel.id === "minerals" ? "rings" : "rows";
+}
+const week = computed(() => (nutrientWeek.date === props.date ? nutrientWeek.average : {}));
+// An added, removed, or edited entry changes the week, so reload on each.
+const entrySignature = computed(() => sources.value.map((entry) => `${entry.id}:${entry.kcal}:${entry.fat}`).join("|"));
+watch([() => props.date, entrySignature], ([date]) => {
+  if (date) void loadNutrientWeek(date);
+}, { immediate: true });
 const target = computed(() => (props.target === undefined ? profile.targets : props.target));
 const totals = computed(() => props.totals ?? dayTotals());
 const macros = computed(() => {
@@ -64,7 +87,7 @@ const macros = computed(() => {
         <span class="left">
           <span class="t-label" :class="m.st === 'under' ? 'c2' : ''">{{ m.label }}<span v-if="m.min" class="c3 t-capn"> · min</span></span>
           <ManualTag v-if="manual && m.kind === 'kcal'" />
-          <span v-if="m.st === 'over'" class="overtag t-capn">+{{ int(m.cur - m.tgt) }} over</span>
+          <OverTag v-if="m.st === 'over'" :text="`+${int(m.cur - m.tgt)} over`" />
         </span>
         <span class="vals">
           <span class="t-bodys" data-num>{{ int(m.cur) }}</span>
@@ -76,14 +99,20 @@ const macros = computed(() => {
       <Bar :pct="m.tgt ? m.cur / m.tgt : 0" :hit="m.st === 'hit'" :over="m.st === 'over'" :aria-label="`${m.label} ${int(m.cur)} of ${int(m.tgt)} ${m.unit}${m.st === 'hit' ? ', on target' : m.st === 'over' ? ', over' : ''}`" />
     </div>
     </div>
-    <NutrientRows v-for="panel in panels" :key="panel.id" :panel="panel" :values="nutrientValues" :sex="profile.saved?.sex ?? ''" :age="age" :kcal-target="kcalTarget" />
+    <template v-for="panel in panels" :key="panel.id">
+      <FatsPanel v-if="viewOf(panel) === 'fats'" :values="nutrientValues" :entries="sources" :kcal-target="kcalTarget" :setting="fatLimits" />
+      <RingsPanel v-else-if="viewOf(panel) === 'rings'" :panel="panel" :values="nutrientValues" :week="week" :entries="sources" :person="person" />
+      <NutrientRows v-else :panel="panel" :values="nutrientValues" :sex="person.sex" :age="person.age" :kcal-target="kcalTarget" />
+    </template>
     </SwipePanels>
   </section>
 </template>
 
 <style scoped>
 .macros { gap: var(--space-l); }
-.macros.fit { height: 212px; box-sizing: border-box; gap: 0; overflow: hidden; padding-bottom: var(--space-m); }
+/* The dot strip ends at the card's bottom edge (its own 6px below the dots). The clip lets the
+   dots' 44px hit box reach past that edge, where nothing else is tappable. */
+.macros.fit { height: 222px; box-sizing: border-box; gap: 0; padding-bottom: 0; clip-path: inset(0 0 -14px 0); }
 .macropane { display: flex; flex-direction: column; gap: var(--space-xs); min-height: 0; }
 .gap6 { gap: var(--space-2xs); }
 html.dt-xl .mrow { grid-template-columns: minmax(0, 1fr) auto; }
@@ -99,5 +128,4 @@ html.dt-xl .vals { justify-content: flex-end; }
 .m0 { margin: 0; }
 .nt { gap: var(--space-xs); align-items: baseline; flex-wrap: wrap; }
 .nt .t-capn { margin-right: var(--space-m); }
-.overtag { align-self: center; padding: 1px var(--space-s); border-radius: var(--radius-xs); border: 1px dashed var(--text-secondary); color: var(--text-secondary); margin-left: var(--space-2xs); }
 </style>

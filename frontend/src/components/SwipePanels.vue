@@ -347,10 +347,11 @@ defineExpose({ go, step, index });
 }
 .edge.left { left: 0; }
 .edge.right { right: 0; }
-.tight .strip { height: 22px; }
-.tight .dot { height: 44px; margin-top: -11px; margin-bottom: -11px; }
-.tight .half { top: -11px; height: 44px; bottom: auto; }
-.tight .edge { bottom: 33px; }
+/* 6px of space, the 6px dots, 6px of space. The 44px hit box reaches 13px past each side. */
+.tight .strip { height: 18px; }
+.tight .dot { height: 44px; margin-top: -13px; margin-bottom: -13px; }
+.tight .half { top: -13px; height: 44px; bottom: auto; }
+.tight .edge { bottom: 31px; }
 @media (prefers-reduced-motion: reduce) {
   .track { scroll-behavior: auto; }
 }

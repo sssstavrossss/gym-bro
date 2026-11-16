@@ -318,6 +318,8 @@ test("a touch screen at desktop width keeps swipe and the keypad", async ({ page
   await page.getByRole("radio", { name: "Quick Add" }).click();
   await expect(page.getByRole("group", { name: "Number keypad" })).toBeVisible();
   await expect(page.getByRole("textbox", { name: "Calories", exact: true })).toHaveCount(0);
+  // The side sheet slides in from the right; measure once it has landed.
+  await expect(page.locator(".sheet-root.sheet-enter-active")).toHaveCount(0);
   await expectNoSideScroll(page);
 });
 });

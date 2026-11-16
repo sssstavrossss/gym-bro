@@ -63,7 +63,11 @@ async function expectRowsClear(page: Page, root: string) {
     const panels = [...card.querySelectorAll("[data-panel]")];
     return panels.map((panel) => {
       const row = panel.querySelector(".nrow:last-child, .mrow:last-of-type");
-      if (!row) return { id: panel.getAttribute("data-panel"), ok: true, reason: "no row" };
+      if (!row) {
+        // The Fats card and the ring grids: their last block ends inside the track, above the dots.
+        const last = panel.lastElementChild!.getBoundingClientRect();
+        return { id: panel.getAttribute("data-panel"), ok: last.bottom <= clip.bottom + 0.5 && last.bottom <= dotsTop - 1, bottom: last.bottom, clip: clip.bottom, dotsTop };
+      }
       const text = row.querySelector(".num, .vals") ?? row;
       const cs = getComputedStyle(text);
       canvas.font = cs.font;
@@ -90,7 +94,7 @@ async function expectRowsClear(page: Page, root: string) {
   expect(clipped, JSON.stringify(clipped)).toEqual([]);
 }
 
-test("the home nutrient card is 358 by 212 on every panel", async ({ page }) => {
+test("the home nutrient card is 358 by 222 on every panel", async ({ page }) => {
   const oid = `e2e-nutrients-${Date.now()}`;
   const when = await clock(page);
   await ready(page.request, oid, when.today, when.zone);
@@ -109,50 +113,40 @@ test("the home nutrient card is 358 by 212 on every panel", async ({ page }) => 
     await dots.nth(i).click();
     const box = await card.boundingBox();
     expect(Math.round(box!.width)).toBe(358);
-    expect(Math.round(box!.height)).toBe(212);
+    expect(Math.round(box!.height)).toBe(222);
   }
 
   await dots.nth(1).click();
   const fats = card.locator("[data-panel='fats']");
-  const labels = fats.locator(".name");
-  await expect(labels).toHaveText(["Fat", "Saturated", "Mono", "Poly", "Trans", "Omega-3", "EPA + DHA", "Omega-6", "Cholesterol"]);
-  await expect(fats.locator(".name.indent")).toHaveText(["Saturated", "EPA + DHA"]);
-  const aligned = await fats.locator(".nrow").evaluateAll((nodes) => {
-    const rows = nodes.map((node) => {
-      const box = node.getBoundingClientRect();
-      const value = node.querySelector(".nums")!.getBoundingClientRect();
-      return { left: Math.round(box.left), right: Math.round(value.right), sameLine: Math.abs(box.top - value.top) < 4 };
-    });
-    const columns = [...new Set(rows.map((row) => row.left))];
-    return columns.length === 2 && columns.every((left) => {
-      const rights = rows.filter((row) => row.left === left).map((row) => row.right);
-      return rights.every((right) => right === rights[0]) && rows.filter((row) => row.left === left).every((row) => row.sameLine);
-    });
+  await expect(fats.locator("[data-fat-total]")).toHaveText("7 g");
+  await expect(fats.locator("[data-fat-part] .t-label:not(.num)")).toHaveText(["Saturated", "Mono", "Poly", "Trans", "Not broken down"]);
+  await expect(fats.locator("[data-fat-part='rest'] .num")).toHaveText("0.6 g");
+  await expect(fats.locator("[data-saturated-limit]")).toContainText("≤ 10% of kcal");
+  await expect(fats.locator("[data-fat-row] .c2")).toHaveText(["Omega-3", "Omega-6", "EPA + DHA", "Cholesterol"]);
+  // Every food knows its fats, so there is no coverage note, and normal limits have no tag.
+  await expect(fats.locator(".note")).toHaveCount(0);
+  await expect(fats.locator("[data-fat-limits]")).toHaveCount(0);
+  const nested = await fats.locator("[data-fat-row]").evaluateAll((rows) => {
+    // Where the text starts: the label's left edge plus its padding.
+    const start = (key: string) => {
+      const label = rows.find((row) => row.getAttribute("data-fat-row") === key)!.querySelector(".c2") as HTMLElement;
+      const box = label.getBoundingClientRect();
+      return { top: box.top, left: box.left, text: box.left + parseFloat(getComputedStyle(label).paddingLeft) };
+    };
+    const omega = start("omega3");
+    const epa = start("epaDha");
+    return epa.top > omega.top && Math.round(epa.left) === Math.round(omega.left) && epa.text - omega.text >= 8;
   });
-  expect(aligned).toBe(true);
-  const slots = await fats.locator(".fig").evaluateAll((figs) => {
-    const groups = new Map<number, { wholes: number[]; units: number[] }>();
-    for (const fig of figs) {
-      const column = Math.round(fig.getBoundingClientRect().left / 8);
-      const whole = (fig.querySelector(".num") as HTMLElement).getBoundingClientRect().right;
-      const unit = (fig.querySelector(".unit") as HTMLElement).getBoundingClientRect().left;
-      const group = groups.get(column) ?? { wholes: [], units: [] };
-      group.wholes.push(Math.round(whole));
-      group.units.push(Math.round(unit));
-      groups.set(column, group);
-    }
-    return [...groups.values()];
-  });
-  expect(slots.length).toBe(2);
-  for (const group of slots) {
-    expect(new Set(group.wholes).size).toBe(1);
-    expect(new Set(group.units).size).toBe(1);
-  }
+  expect(nested).toBe(true);
+  const rights = await fats.locator("[data-fat-part] .num, [data-fat-row] .end").evaluateAll((nodes) => [...new Set(nodes.map((node) => Math.round(node.getBoundingClientRect().right)))].length);
+  expect(rights).toBe(2);
 
   const strip = await card.locator(".strip").evaluate((node) => node.getBoundingClientRect().height);
   const hit = await card.locator("button.dot").first().evaluate((node) => node.getBoundingClientRect().height);
-  expect(Math.round(strip)).toBe(22);
+  expect(Math.round(strip)).toBe(18);
   expect(hit).toBeGreaterThanOrEqual(44);
+  await expectDotBand(page, "[data-nutrient-card]");
+  await expectDotBand(page, ".home-progress");
 
   await expectRowsClear(page, "[data-nutrient-card]");
 
@@ -166,8 +160,11 @@ test("the home nutrient card is 358 by 212 on every panel", async ({ page }) => 
   });
   await expect.poll(async () => card.locator("button.dot").count()).toBeGreaterThan(count);
   const grown = await card.boundingBox();
+  // Largest text keeps plain rows, four to a page, instead of the Fats card and rings.
+  await expect(card.locator("[data-panel^='fats-'] .name").first()).toHaveText("Fat");
+  await expect(card.locator("[data-ring]")).toHaveCount(0);
   expect(Math.round(grown!.width)).toBe(358);
-  expect(Math.round(grown!.height)).toBe(212);
+  expect(Math.round(grown!.height)).toBe(222);
   await expectRowsClear(page, "[data-nutrient-card]");
   const largeDots = card.locator("button.dot");
   const largeCount = await largeDots.count();
@@ -198,8 +195,9 @@ test("the home nutrient card is 358 by 212 on every panel", async ({ page }) => 
   await expect(preview).toBeVisible();
   const sheetStrip = await preview.locator(".strip").evaluate((node) => node.getBoundingClientRect().height);
   const sheetHit = await preview.locator("button.dot").first().evaluate((node) => node.getBoundingClientRect().height);
-  expect(Math.round(sheetStrip)).toBe(22);
+  expect(Math.round(sheetStrip)).toBe(18);
   expect(sheetHit).toBeGreaterThanOrEqual(44);
+  await expectDotBand(page, ".preview");
   await expectRowsClear(page, ".preview");
   await expectAmountFlush(page);
   const sheetSlots = await preview.locator("[data-panel='fats'] .fig").evaluateAll((figs) => {
@@ -226,6 +224,29 @@ test("the home nutrient card is 358 by 212 on every panel", async ({ page }) => 
   });
   await expectAmountFlush(page);
 });
+
+/**
+ * 6px, the dots, 6px: the strip ends at the card's bottom edge. The 44px tap box still works
+ * just below the card, so a clipped card must not cut it off.
+ */
+async function expectDotBand(page: Page, root: string) {
+  await page.locator(root).first().evaluate((card) => card.scrollIntoView({ block: "center" }));
+  const band = await page.locator(root).first().evaluate((card) => {
+    const strip = card.querySelector(".strip")!.getBoundingClientRect();
+    const dot = card.querySelector("button.dot:not(.on)") as HTMLElement;
+    const pip = dot.querySelector(".pip")!.getBoundingClientRect();
+    const edge = card.getBoundingClientRect().bottom;
+    const x = pip.left + pip.width / 2;
+    const below = document.elementFromPoint(x, Math.min(edge + 10, window.innerHeight - 1));
+    return {
+      above: Math.round(pip.top - strip.top),
+      below: Math.round(strip.bottom - pip.bottom),
+      edge: Math.round(edge - strip.bottom),
+      tap: below === dot || dot.contains(below),
+    };
+  });
+  expect(band).toEqual({ above: 6, below: 6, edge: 0, tap: true });
+}
 
 /** Amount's right edge matches the panel's inner right edge. Per 100 g sits just before it. */
 async function expectAmountFlush(page: Page) {

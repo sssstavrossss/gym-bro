@@ -37,6 +37,8 @@ import {
   type Sex,
 } from "../lib/nutrition";
 import { atMostOneDecimal, formatMeasure, parseDecimal, sameNumber } from "../lib/numbers";
+import { fatLimitsOf, type FatLimitsSetting, type NutrientPerson } from "../lib/nutrientCards";
+import { osloYear } from "../lib/nutrients";
 import {
   cmToFtIn,
   goalText,
@@ -450,6 +452,7 @@ export function applySettings(settings: SettingsResponse): void {
       timeZoneFollowsDevice: settings.timeZoneFollowsDevice,
       weightUnit,
       heightUnit,
+      fatLimits: fatLimitsOf(settings.fatLimits),
     };
   }
   profile.form.timeZone = settings.timeZone;
@@ -471,6 +474,28 @@ export async function setUnits(weightUnit: WeightUnit, heightUnit: HeightUnit): 
     convertFormUnits(profile.form, before.weightUnit, before.heightUnit, profile.saved);
     if (error instanceof ServerUnreachable) return "Server unreachable, so the units weren't changed.";
     return error instanceof ApiError ? error.message : "Couldn't save the units.";
+  }
+}
+
+/** Sex and age behind the nutrient references, with the kcal target of the day shown. Age 0 when unknown. */
+export function nutrientPerson(kcalTarget: number | null): NutrientPerson {
+  const year = profile.saved?.birthYear;
+  return { sex: profile.saved?.sex ?? "", age: typeof year === "number" ? osloYear() - year : 0, kcalTarget };
+}
+
+/** Saves the Fats card limits. The card switches at once and switches back if the save fails. Returns an error, or "". */
+export async function setFatLimits(fatLimits: FatLimitsSetting): Promise<string> {
+  const saved = profile.saved;
+  if (!saved) return "";
+  const before = fatLimitsOf(saved.fatLimits);
+  profile.saved = { ...saved, fatLimits };
+  try {
+    applySettings(await putSettings({ fatLimits }));
+    return "";
+  } catch (error) {
+    if (profile.saved) profile.saved = { ...profile.saved, fatLimits: before };
+    if (error instanceof ServerUnreachable) return "Server unreachable, so the limits weren't changed.";
+    return error instanceof ApiError ? error.message : "Couldn't save the limits.";
   }
 }
 
