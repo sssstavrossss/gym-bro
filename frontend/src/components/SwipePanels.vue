@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { wrapTurn } from "../lib/carousel";
+import type { SwipeSample } from "../lib/weekSwipe";
 
 const props = withDefaults(defineProps<{
   count: number;
@@ -73,33 +75,56 @@ function step(by: 1 | -1) {
 }
 
 let wrapTimer = 0;
-/** Scrolls straight back across the cards with snapping off, so it rewinds smoothly instead of jumping. */
+let settleWrap: (() => void) | null = null;
+let wrapDest = 0;
+
+/**
+ * Wraps like a carousel without rewinding across the cards. For last → first, the first card is
+ * moved (CSS order) to sit after the last and the track scrolls one page on, so it slides in like
+ * any next card. Once it lands, the order is put back and the track jumps to the real first page,
+ * which looks the same. First → last is the mirror image.
+ */
 function wrapTo(target: number) {
   const trackEl = track.value;
-  if (!trackEl) return;
+  const count = props.count;
+  if (!trackEl || count < 2) return;
   if (reduce.value) {
+    go(target, "auto");
+    return;
+  }
+  settleWrap?.();
+  const width = trackEl.clientWidth;
+  const forward = target === 0;
+  const moved = trackEl.children.item(forward ? 0 : count - 1) as HTMLElement | null;
+  if (!moved) {
     go(target, "auto");
     return;
   }
   index.value = target;
   remember();
   wrapping.value = true;
-  window.clearTimeout(wrapTimer);
+  moved.style.order = forward ? "1" : "-1";
+  // The other cards shift by one page; keep the card on screen where it is.
+  trackEl.scrollLeft = forward ? (count - 2) * width : width;
+  wrapDest = forward ? (count - 1) * width : 0;
   const settle = () => {
+    if (settleWrap !== settle) return;
+    settleWrap = null;
     window.clearTimeout(wrapTimer);
     trackEl.removeEventListener("scrollend", settle);
+    moved.style.order = "";
+    trackEl.scrollLeft = target * trackEl.clientWidth;
     wrapping.value = false;
-    trackEl.scrollTo({ left: target * trackEl.clientWidth, behavior: "auto" });
   };
+  settleWrap = settle;
   trackEl.addEventListener("scrollend", settle);
-  // Browsers without scrollend still land: a long rewind takes well under a second.
-  wrapTimer = window.setTimeout(settle, 900);
-  trackEl.scrollTo({ left: target * trackEl.clientWidth, behavior: "smooth" });
+  // Safari before scrollend support lands through onScroll reaching the end, or this.
+  wrapTimer = window.setTimeout(settle, 700);
+  trackEl.scrollTo({ left: wrapDest, behavior: "smooth" });
 }
 
-/** A swipe that starts on the first or last card and pulls past its end wraps around. */
-let touch: { x: number; y: number; edge: "first" | "last" | null; inner: boolean } | null = null;
-const WRAP_PULL = 48;
+/** A drag that starts on the first or last card and pulls past its end wraps around. */
+let touch: { x: number; y: number; edge: "first" | "last" | null; inner: boolean; samples: SwipeSample[] } | null = null;
 
 function atEdge(trackEl: HTMLElement): "first" | "last" | null {
   const max = trackEl.scrollWidth - trackEl.clientWidth;
@@ -128,7 +153,21 @@ function onTouchStart(event: TouchEvent) {
     return;
   }
   const point = event.touches[0];
-  touch = { x: point.clientX, y: point.clientY, edge: atEdge(trackEl), inner: insideScroller(event.target, trackEl) };
+  touch = {
+    x: point.clientX,
+    y: point.clientY,
+    edge: atEdge(trackEl),
+    inner: insideScroller(event.target, trackEl),
+    samples: [{ t: event.timeStamp, x: point.clientX }],
+  };
+}
+
+function onTouchMove(event: TouchEvent) {
+  const point = event.touches[0];
+  if (!touch || !touch.edge || !point) return;
+  touch.samples.push({ t: event.timeStamp, x: point.clientX });
+  // The last ~100 ms is the flick speed.
+  while (touch.samples.length > 2 && event.timeStamp - touch.samples[0].t > 100) touch.samples.shift();
 }
 
 function onTouchEnd(event: TouchEvent) {
@@ -138,13 +177,11 @@ function onTouchEnd(event: TouchEvent) {
   if (!start || !start.edge || start.inner || !trackEl) return;
   const point = event.changedTouches[0];
   if (!point) return;
-  const dx = point.clientX - start.x;
-  const dy = point.clientY - start.y;
-  if (Math.abs(dx) < WRAP_PULL || Math.abs(dx) < Math.abs(dy) * 1.5) return;
-  // Still on the same end card: the swipe pulled past it rather than paging.
-  if (atEdge(trackEl) !== start.edge) return;
-  if (start.edge === "last" && dx < 0) wrapTo(0);
-  else if (start.edge === "first" && dx > 0) wrapTo(props.count - 1);
+  const samples = [...start.samples, { t: event.timeStamp, x: point.clientX }];
+  const turn = wrapTurn(start.edge, point.clientX - start.x, point.clientY - start.y, samples);
+  // Still on the same end card: the drag pulled past it rather than paging.
+  if (!turn || atEdge(trackEl) !== start.edge) return;
+  wrapTo(turn === 1 ? 0 : props.count - 1);
 }
 
 function onTouchCancel() {
@@ -153,7 +190,11 @@ function onTouchCancel() {
 
 function onScroll() {
   const trackEl = track.value;
-  if (!trackEl || trackEl.clientWidth < 1 || wrapping.value) return;
+  if (!trackEl || trackEl.clientWidth < 1) return;
+  if (wrapping.value) {
+    if (Math.abs(trackEl.scrollLeft - wrapDest) < 1) settleWrap?.();
+    return;
+  }
   const next = Math.round(trackEl.scrollLeft / trackEl.clientWidth);
   if (next !== index.value && next >= 0 && next < props.count) {
     index.value = next;
@@ -203,7 +244,7 @@ onMounted(() => {
   window.addEventListener("resize", measure);
 });
 onBeforeUnmount(() => {
-  window.clearTimeout(wrapTimer);
+  settleWrap?.();
   observer?.disconnect();
   window.removeEventListener("resize", measure);
 });
@@ -214,7 +255,7 @@ defineExpose({ go, step, index });
 
 <template>
   <div ref="root" class="panels" :class="{ tight }">
-    <div ref="track" class="track" :class="{ fixed: height != null, wrapping }" :style="trackStyle" tabindex="0" :aria-label="label" @keydown="onKey" @scroll.passive="onScroll" @touchstart.passive="onTouchStart" @touchend.passive="onTouchEnd" @touchcancel.passive="onTouchCancel">
+    <div ref="track" class="track" :class="{ fixed: height != null, wrapping }" :style="trackStyle" tabindex="0" :aria-label="label" @keydown="onKey" @scroll.passive="onScroll" @touchstart.passive="onTouchStart" @touchmove.passive="onTouchMove" @touchend.passive="onTouchEnd" @touchcancel.passive="onTouchCancel">
       <slot />
     </div>
     <div v-if="count > 1" class="strip" :class="{ halves: visualOnly }">
@@ -255,7 +296,7 @@ defineExpose({ go, step, index });
   min-width: 0;
 }
 .track.fixed { flex: 0 0 auto; }
-/* Snapping would stop a rewind on the next card. */
+/* Snapping off while the wrapped card slides in, so the jump back is not re-snapped mid-way. */
 .track.wrapping { scroll-snap-type: none; }
 .track.wrapping > :deep(*) { scroll-snap-stop: normal; }
 .track::-webkit-scrollbar { display: none; }

@@ -437,7 +437,8 @@ const diffText = computed(() => (
 .wlabel { display: inline-flex; align-items: baseline; justify-content: center; gap: var(--space-s); min-width: 0; flex: 0 1 auto; }
 .autosize { display: inline-grid; min-height: 44px; }
 .autosize > * { grid-area: 1 / 1; }
-.mirror { visibility: hidden; white-space: pre; padding-right: var(--space-xs); }
+/* Same side padding as the input, plus room for the last digit's overhang (the tight letter-spacing pulls the box in) and the caret. */
+.mirror { visibility: hidden; white-space: pre; padding: 0 calc(var(--space-xs) + 0.08em) 0 var(--space-xs); }
 /* Capped so − and + keep their room at the largest text sizes. */
 .wfig { font-size: min(3rem, 64px); line-height: 1.1; font-weight: 700; letter-spacing: -0.03em; }
 .dt-xl .wfield { flex-wrap: nowrap; }
