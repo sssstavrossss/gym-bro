@@ -97,7 +97,10 @@ test.describe("phone inputs", () => {
     const year = page.getByRole("textbox", { name: "Birth year" });
     await expect(year).toBeVisible();
     expect(await year.evaluate((node) => parseFloat(getComputedStyle(node).fontSize))).toBeGreaterThanOrEqual(16);
-    const zone = page.getByRole("textbox", { name: "Time zone" });
+    await page.getByRole("button", { name: "Settings" }).click();
+    await expect(page.getByRole("dialog", { name: "Settings" })).toBeVisible();
+    await page.locator("[data-zone-row]").click();
+    const zone = page.getByRole("searchbox", { name: "Search time zones" });
     expect(await zone.evaluate((node) => parseFloat(getComputedStyle(node).fontSize))).toBeGreaterThanOrEqual(16);
   });
 

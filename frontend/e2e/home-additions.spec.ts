@@ -95,8 +95,8 @@ test("phone home calendar, history, sex, and notification circles", async ({ pag
     await page.screenshot({ path: "/opt/cursor/artifacts/iphone42-sex-after.png" });
   }
 
-  const notes = page.getByRole("region", { name: "Notifications" });
-  await notes.scrollIntoViewIfNeeded();
+  await page.getByRole("button", { name: /^Notifications/ }).click();
+  const notes = page.getByRole("dialog", { name: "Notifications" });
   // A real on/off switch. Without push keys on the server it is off and can't be turned on.
   const toggle = notes.getByRole("switch", { name: /Weekly recalculate reminder/ });
   await expect(toggle).toHaveAttribute("aria-checked", "false");
@@ -108,6 +108,8 @@ test("phone home calendar, history, sex, and notification circles", async ({ pag
   if (test.info().project.name === "chromium") {
     await notes.screenshot({ path: "/opt/cursor/artifacts/iphone42-notifications-after.png" });
   }
+  await page.keyboard.press("Escape");
+  await expect(notes).toHaveCount(0);
 
   const history = page.locator("[data-target-history]");
   await history.scrollIntoViewIfNeeded();

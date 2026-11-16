@@ -28,7 +28,8 @@ test("switching theme changes the background and persists", async ({ page }) => 
   })).ok()).toBeTruthy();
   await sign(page, oid);
   await page.goto("/profile");
-  await expect(page.getByRole("heading", { name: "Theme" })).toBeVisible();
+  await page.getByRole("button", { name: "Settings" }).click();
+  await expect(page.getByRole("heading", { name: "Appearance" })).toBeVisible();
   const quiet = await page.evaluate(() => {
     const active = document.activeElement;
     return !(active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement);
@@ -42,6 +43,7 @@ test("switching theme changes the background and persists", async ({ page }) => 
   expect(await background()).toBe("rgb(18, 24, 38)");
   expect(await page.locator('meta[name="theme-color"]').getAttribute("content")).toBe("#121826");
   await page.reload();
+  await page.getByRole("button", { name: "Settings" }).click();
   await expect(page.getByRole("radio", { name: "Midnight navy" })).toHaveAttribute("aria-checked", "true");
   expect(await background()).toBe("rgb(18, 24, 38)");
 

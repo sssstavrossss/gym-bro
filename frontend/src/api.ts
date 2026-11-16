@@ -51,6 +51,8 @@ export interface ProfileResponse {
   fatSetting: string;
   fatPercent: number;
   timeZone: string;
+  /** The app keeps timeZone on the device's zone. False once a zone was picked by hand. */
+  timeZoneFollowsDevice?: boolean;
 }
 
 export type TrendState = "normal" | "low_accuracy" | "fresh_start";
@@ -416,6 +418,32 @@ export async function putProfile(body: ProfileBody): Promise<ProfileStateRespons
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   }));
+}
+
+export interface SettingsBody {
+  timeZone?: string;
+  timeZoneFollowsDevice?: boolean;
+}
+
+export interface SettingsResponse {
+  timeZone: string;
+  timeZoneFollowsDevice: boolean;
+}
+
+/** Display preferences. Saving one never changes the targets or adds history. */
+export async function putSettings(body: SettingsBody): Promise<SettingsResponse> {
+  return jsonOrThrow(await request("/api/profile/settings", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  }));
+}
+
+/** The person has looked at their targets. Automatic changes up to now stop showing as new. */
+export async function markTargetsSeen(): Promise<void> {
+  const response = await request("/api/profile/targets-seen", { method: "POST" });
+  if (response.status === 204) return;
+  await jsonOrThrow(response);
 }
 
 export async function previewTargets(body: ProfileBody): Promise<PreviewResponse> {
@@ -865,6 +893,8 @@ export interface NotificationSettings {
 
 export interface TargetHistoryRow {
   date: string;
+  /** An automatic change (the Monday update) made after the person last looked at Profile. */
+  isNew?: boolean;
   kcal: number;
   suggestedKcal?: number | null;
   protein: number;
@@ -895,7 +925,7 @@ export async function getInbox(): Promise<InboxResponse> {
   return jsonOrThrow(await request("/api/notifications/inbox"));
 }
 
-export async function getUnreadCount(): Promise<{ count: number; badge?: number }> {
+export async function getUnreadCount(): Promise<{ count: number; badge?: number; targetsChanged?: boolean }> {
   return jsonOrThrow(await request("/api/notifications/inbox/unread"));
 }
 

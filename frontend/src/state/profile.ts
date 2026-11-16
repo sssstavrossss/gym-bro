@@ -9,12 +9,14 @@ import {
   listWeighIns,
   previewTargets,
   putProfile,
+  putSettings,
   putWeighIn,
   ServerUnreachable,
   type PreviewResponse,
   type ProfileBody,
   type ProfileResponse,
   type ProfileStateResponse,
+  type SettingsResponse,
   type TargetsResponse,
   type WeightChartResponse,
   type WeightResponse,
@@ -338,6 +340,27 @@ export async function loadProfile(): Promise<void> {
     }
   } finally {
     hydrating = false;
+  }
+}
+
+/** Settings saved on their own (time zone). The form follows, so the profile never looks unsaved. */
+export function applySettings(settings: SettingsResponse): void {
+  if (profile.saved) {
+    profile.saved = { ...profile.saved, timeZone: settings.timeZone, timeZoneFollowsDevice: settings.timeZoneFollowsDevice };
+  }
+  profile.form.timeZone = settings.timeZone;
+}
+
+/** Keeps the profile on this device's zone, unless a zone was picked by hand. Quiet on failure; it retries next start. */
+export async function followDeviceZone(): Promise<void> {
+  const saved = profile.saved;
+  if (!saved || saved.timeZoneFollowsDevice === false) return;
+  const device = deviceTimeZone();
+  if (!device || device === saved.timeZone) return;
+  try {
+    applySettings(await putSettings({ timeZone: device }));
+  } catch {
+    // The next start tries again.
   }
 }
 

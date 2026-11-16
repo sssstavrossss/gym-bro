@@ -8,6 +8,9 @@ COPY frontend/package.json frontend/package-lock.json ./
 ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 RUN npm ci
 COPY frontend/ ./
+# Shown in Settings so a phone can tell which deploy it runs. Empty is fine.
+ARG GIT_SHA=""
+ENV GIT_SHA=$GIT_SHA
 RUN npm run build
 
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build

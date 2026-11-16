@@ -104,8 +104,8 @@ test("calendar motion, home gap, compact profile controls, and a lean notificati
     await page.screenshot({ path: "/opt/cursor/artifacts/iphone43-profile-controls.png" });
   }
 
-  const notes = page.getByRole("region", { name: "Notifications" });
-  await notes.scrollIntoViewIfNeeded();
+  await page.getByRole("button", { name: /^Notifications/ }).click();
+  const notes = page.getByRole("dialog", { name: "Notifications" });
   await expect(notes.getByRole("heading", { name: "Notifications" })).toBeVisible();
   await expect(notes.getByRole("switch", { name: /Weekly recalculate reminder/ })).toBeVisible();
   await expect(notes.getByText(/Monday morning/)).toBeVisible();

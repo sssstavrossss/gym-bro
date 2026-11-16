@@ -1165,11 +1165,21 @@ namespace GymBro.Api.Data.Migrations
                         .HasColumnType("character varying(8)")
                         .HasColumnName("sex");
 
+                    b.Property<DateTimeOffset?>("TargetsSeenAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("targets_seen_at");
+
                     b.Property<string>("TimeZone")
                         .IsRequired()
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)")
                         .HasColumnName("time_zone");
+
+                    b.Property<bool>("TimeZoneFollowsDevice")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true)
+                        .HasColumnName("time_zone_follows_device");
 
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")

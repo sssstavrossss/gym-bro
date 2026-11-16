@@ -6,7 +6,7 @@ import Icon from "./Icon.vue";
 import { int } from "../lib/format";
 import { dayTotals, viewed } from "../state/log";
 import { profile, weightCaption } from "../state/profile";
-import { inbox } from "../state/inbox";
+import { profileDot } from "../state/inbox";
 import { openFood, openWeight } from "../ui";
 
 const route = useRoute();
@@ -41,7 +41,7 @@ const eaten = computed(() => {
 
     <nav class="nav col" aria-label="Main">
       <RouterLink v-for="i in items" :key="i.to" :to="i.to" class="item row" :class="{ on: active(i.to) }" :aria-current="active(i.to) ? 'page' : undefined">
-        <span class="ic"><Icon :name="i.icon" :size="20" /><span v-if="i.to === '/profile' && inbox.badge > 0" class="bullet" aria-hidden="true" /></span><span class="t-bodys">{{ i.label }}</span><span v-if="i.to === '/profile' && inbox.badge > 0" class="sr-only">Unread</span>
+        <span class="ic"><Icon :name="i.icon" :size="20" /><span v-if="i.to === '/profile' && profileDot()" class="bullet" aria-hidden="true" /></span><span class="t-bodys">{{ i.label }}</span><span v-if="i.to === '/profile' && profileDot()" class="sr-only">Unread</span>
       </RouterLink>
     </nav>
 

@@ -34,6 +34,12 @@ public sealed class Profile
     /// <summary>IANA time zone. Monday and "today" are decided in this zone.</summary>
     public string TimeZone { get; set; } = "";
 
+    /// <summary>The app moves <see cref="TimeZone"/> to the device's zone when they differ. Off once a zone is picked by hand.</summary>
+    public bool TimeZoneFollowsDevice { get; set; } = true;
+
+    /// <summary>When the person last looked at their targets on Profile. Automatic target changes after this show as new.</summary>
+    public DateTimeOffset? TargetsSeenAt { get; set; }
+
     /// <summary>Monday morning push asking the person to recalculate. Off until they turn it on.</summary>
     public bool RemindersEnabled { get; set; }
 

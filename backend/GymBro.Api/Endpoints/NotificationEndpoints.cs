@@ -3,6 +3,7 @@ using System.Text.Json;
 using GymBro.Api.Data;
 using GymBro.Api.Hosting;
 using GymBro.Api.Notifications;
+using GymBro.Api.Profiles;
 using GymBro.Api.Users;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -107,7 +108,8 @@ public static class NotificationEndpoints
         var badge = await db.UserNotifications.CountAsync(
             row => row.UserId == userId && row.ReadAt == null && !NotificationTypes.ShownOnHome.Contains(row.Type),
             cancellationToken);
-        return Results.Ok(new { count, badge });
+        var targetsChanged = profile is not null && await TargetNews.AnyAsync(db, userId, profile.TargetsSeenAt, cancellationToken);
+        return Results.Ok(new { count, badge, targetsChanged });
     }
 
     private static async Task<IResult> ReadOne(
@@ -150,8 +152,9 @@ public static class NotificationEndpoints
         }
 
         var userId = Caller.Id(principal);
+        // The ones on Home stay open until the person acts on them or dismisses them there.
         var unread = await db.UserNotifications
-            .Where(row => row.UserId == userId && row.ReadAt == null)
+            .Where(row => row.UserId == userId && row.ReadAt == null && !NotificationTypes.ShownOnHome.Contains(row.Type))
             .ToListAsync(cancellationToken);
         var now = clock.GetUtcNow();
         foreach (var row in unread)
