@@ -166,8 +166,7 @@ test("home title, progress pickers, and remembered metric", async ({ page }) => 
   // Match the date too (the strip also holds next week's same weekday). On a Monday, yesterday is in the previous week.
   const yesterdayButton = week.getByRole("button", { name: new RegExp(`${yesterdayName} ${Number(yesterday.slice(8))},`) });
   if (!(await yesterdayButton.count())) {
-    // The week buttons are for screen readers and sit under the swipe track, so trigger it directly.
-    await page.getByRole("button", { name: "Previous week" }).dispatchEvent("click");
+    await page.getByRole("button", { name: "Previous week" }).click();
     await expect(yesterdayButton).toHaveCount(1);
   }
   await yesterdayButton.click();

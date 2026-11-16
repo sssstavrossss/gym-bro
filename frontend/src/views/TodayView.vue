@@ -14,7 +14,7 @@ import RecalcPrompt from "../components/RecalcPrompt.vue";
 import Timeline from "../components/Timeline.vue";
 import WeekStrip from "../components/WeekStrip.vue";
 import WeightChart from "../components/WeightChart.vue";
-import { addDays, dayMonth, dayNum, diffDays, shortDate, todayInZone, weekday, weekdayShort, weekStart } from "../lib/dates";
+import { addDays, dayMonth, dayNum, diffDays, shortDate, spanLabel, todayInZone, weekday, weekdayShort, weekStart } from "../lib/dates";
 import { int } from "../lib/format";
 import { screenLayoutFromFlags } from "../lib/layout";
 import { freshDismissed, goalDismissed, promptState } from "../lib/prompts";
@@ -77,6 +77,10 @@ const pending = computed(() => pendingFor(shownDay.value));
 const goal = computed(() => (ready.value ? viewed.target : null));
 const hasDay = computed(() => entries.value.length > 0 || pending.value.length > 0);
 const title = computed(() => pageTitle(selected.value, today.value));
+/** The phone header names the span the week strip shows and turns it a week at a time. */
+const strip = ref<InstanceType<typeof WeekStrip> | null>(null);
+const span = ref<[string, string] | null>(null);
+const spanText = computed(() => span.value ? spanLabel(span.value[0], span.value[1]) : "");
 function pageTitle(day: string, now: string) {
   if (!day || day === now) return "Today";
   if (day === addDays(now, -1)) return "Yesterday";
@@ -160,9 +164,20 @@ const weekRows = computed(() => {
         <button v-if="layout === 'phone' && selected !== today" type="button" class="titlebtn" @click="selected = today">{{ title }}</button>
         <template v-else>{{ title }}</template>
       </h1>
+      <template v-if="layout === 'phone' && span">
+        <div class="row weeknav">
+          <button type="button" class="cbtn" aria-label="Previous week" @click="strip?.pageBy(-1)">
+            <Icon name="left" :size="18" />
+          </button>
+          <span class="t-bodys weeklbl" aria-live="polite">{{ spanText }}</span>
+          <button type="button" class="cbtn" aria-label="Next week" @click="strip?.pageBy(1)">
+            <Icon name="right" :size="18" />
+          </button>
+        </div>
+      </template>
     </header>
     <div class="topbar">
-      <WeekStrip :anchor="today" :swipe="layout === 'phone'" :selected="selected" :today="today" :setup-date="viewed.setupDate" :logged-dates="viewed.loggedDates" @select="pick" />
+      <WeekStrip ref="strip" :anchor="today" :swipe="layout === 'phone'" :selected="selected" :today="today" :setup-date="viewed.setupDate" :logged-dates="viewed.loggedDates" @select="pick" @range="(from, to) => span = [from, to]" />
     </div>
 
     <div class="grid">
@@ -321,10 +336,19 @@ html.dt-xl .foodhead .foods, html.dt-xl .loghead .foods { overflow: hidden; text
 .m0 { margin: 0; }
 .today { min-width: 0; max-width: 100%; }
 .homehead { height: 44px; min-height: 44px; max-height: 44px; overflow: hidden; }
-.homehead .t-title { margin: 0; height: 44px; display: flex; align-items: center; white-space: nowrap; line-height: 1.2; }
+.homehead .t-title { margin: 0; height: 44px; display: flex; align-items: center; white-space: nowrap; line-height: 1.2; min-width: 0; }
+/* The week switcher keeps its room. A long day name ("Wed, 29 Oct") with the calendar open gives way with an ellipsis. */
+.screen-head.homehead { gap: var(--space-s); flex-wrap: nowrap; }
+.homehead .t-title, .titlebtn { overflow-x: clip; }
+.homehead .t-title { display: block; line-height: 44px; text-overflow: ellipsis; }
+/* Same switcher as the Log's day nav. */
+.weeknav { gap: 0; flex: none; flex-wrap: nowrap; margin-left: auto; }
+.weeklbl { min-width: 96px; text-align: center; white-space: nowrap; }
+/* At the largest text sizes the range would push the title out, so it is left to screen readers. */
+.dt-xl .weeklbl { position: absolute; width: 1px; height: 1px; min-width: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .titlebtn {
-  min-width: 44px; height: 44px; padding: 0; margin: 0;
-  display: inline-flex; align-items: center; justify-content: flex-start;
+  min-width: 44px; max-width: 100%; height: 44px; padding: 0; margin: 0;
+  display: block; line-height: 44px; text-overflow: ellipsis; white-space: nowrap;
   background: none; color: inherit; font: inherit; letter-spacing: inherit; text-align: left;
 }
 .prompt { flex-direction: row; align-items: center; gap: var(--space-m); text-align: left; width: 100%; min-width: 0; }

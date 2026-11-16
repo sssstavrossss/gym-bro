@@ -23,10 +23,10 @@ async function pickDay(page: Page, name: string, iso: string) {
   const day = () => week.getByRole("button", { name: new RegExp(`${name} ${Number(iso.slice(8))},`) });
   for (const turn of ["Previous week", "Next week"]) {
     if (await day().count()) break;
-    // The week buttons are for screen readers and sit under the swipe track, so trigger them directly.
+    // The header arrows turn the strip a week at a time.
     const button = page.getByRole("button", { name: turn });
     if (await button.isEnabled()) {
-      await button.dispatchEvent("click");
+      await button.click();
       // Wait only for the page turn (about 320ms). Paging back on a Monday already selects Sunday,
       // and the test still needs to see today's cards while that day loads.
       await expect(day()).toHaveCount(1, { timeout: 3000 }).catch(() => {});

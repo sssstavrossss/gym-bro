@@ -99,10 +99,14 @@ test("phone home pages the week strip and matches the range pills", async ({ pag
   await expect(page.getByRole("heading", { level: 1, name: "Today" })).toBeVisible();
   await expect(week.getByRole("button").first()).toHaveAttribute("aria-label", new RegExp(`Monday ${thisMonday},`));
 
+  // Paging ahead is allowed: next week's days show but stay disabled, and today stays picked.
   const again = await week.boundingBox();
   await drag(page, again!.x + again!.width - 24, again!.x + 20, again!.y + again!.height / 2);
   await page.mouse.up();
-  await expect(week.getByRole("button").first()).toHaveAttribute("aria-label", new RegExp(`Monday ${thisMonday},`));
+  const nextMonday = Number(shift(monday(when.today), 7).slice(8));
+  await expect(week.getByRole("button").first()).toHaveAttribute("aria-label", new RegExp(`Monday ${nextMonday},`));
+  await expect(week.getByRole("button").first()).toBeDisabled();
+  await expect(page.getByRole("heading", { level: 1, name: "Today" })).toBeVisible();
 
   await page.goto("/log");
   await expect(page.getByRole("button", { name: "Previous week" })).toHaveCount(0);
