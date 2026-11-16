@@ -29,7 +29,7 @@ import { deviceTimeZone, profile } from "../state/profile";
 import { weightUnit, wt, wtUnit } from "../state/units";
 import { loadWeekDays, weekCache } from "../state/week";
 import { useRoute } from "vue-router";
-import { openFood, openRecalculate, openWeight, ui } from "../ui";
+import { endSelect, openFood, openRecalculate, openWeight, ui } from "../ui";
 
 const route = useRoute();
 onMounted(() => {
@@ -186,12 +186,13 @@ const weekRows = computed(() => {
             <Icon name="right" :size="16" class="c3" />
           </button>
           <section v-if="layout === 'phone' && hasDay" class="card logc">
-            <div class="row foodhead">
+            <div class="chead foodhead">
               <span class="row ftitle">
                 <h2 class="foods section-title c2">{{ foodTitle }}</h2>
                 <span class="t-label c3 fcount">{{ foodCount }}<span class="sr-only">{{ foodCount === 1 ? " food" : " foods" }}</span></span>
               </span>
-              <button v-if="!ui.selecting" type="button" class="btn sm primary t-label addpill" :aria-label="addFoodName" @click="openFood('search', shownDay)">
+              <button v-if="ui.selecting" type="button" class="btn sm primary t-label addpill" @click="endSelect()">Done</button>
+              <button v-else type="button" class="btn sm primary t-label addpill" :aria-label="addFoodName" @click="openFood('search', shownDay)">
                 <Icon name="plus" :size="14" :sw="2.6" />{{ addFoodLabel }}
               </button>
             </div>
@@ -207,7 +208,7 @@ const weekRows = computed(() => {
           <button type="button" class="stretch" :aria-label="aria" @click="openWeight()" />
           <div class="row top">
             <div v-if="shown && weight" class="col gap2">
-              <span class="row trendline"><span class="t-cap c2 section-title">Weight · trend</span><InfoTip label="What is the trend?">{{ tip }}</InfoTip></span>
+              <span class="chead trendline"><span class="t-cap c2 section-title">Weight · trend</span><InfoTip label="What is the trend?">{{ tip }}</InfoTip><span class="grow" /><span class="btn sm primary t-label logw"><Icon name="scale" :size="14" /> Log weight</span></span>
               <span class="row gap8 numrow">
                 <span class="base"><span class="t-nm">{{ wt(weight.trendKg!) }}</span><span class="t-label c2">{{ weightUnit() }}</span></span>
                 <AccuracyDot v-if="low" label />
@@ -215,12 +216,10 @@ const weekRows = computed(() => {
               <span class="t-capn c2 wsub">{{ subtitle }}</span>
             </div>
             <div v-else class="col gap2">
-              <span class="t-cap c2 section-title">Weight</span>
+              <span class="chead trendline"><span class="t-cap c2 section-title">Weight</span><span class="grow" /><span class="btn sm primary t-label logw"><Icon name="scale" :size="14" /> Log weight</span></span>
               <span class="t-head">No weigh-ins yet</span>
               <span class="t-capn c2">Log your weight to start a trend</span>
             </div>
-            <span class="grow" />
-            <span class="btn sm primary t-label"><Icon name="scale" :size="14" /> Log weight</span>
           </div>
           <WeightChart v-if="shown && profile.chart" :series="profile.chart.series" fluid :height="140" />
           <p v-else class="t-label c2 m0">Your 30-day chart appears here after a weigh-in.</p>
@@ -259,9 +258,10 @@ const weekRows = computed(() => {
       </div>
 
       <section v-if="layout !== 'phone' && ready" class="card logc c-c">
-        <div class="row loghead">
+        <div class="chead loghead">
           <h2 class="foods section-title c2">{{ foodTitle }}</h2>
-          <button v-if="!ui.selecting" type="button" class="btn sm primary t-label addfood" @click="openFood('search', shownDay)">
+          <button v-if="ui.selecting" type="button" class="btn sm primary t-label addfood" @click="endSelect()">Done</button>
+          <button v-else type="button" class="btn sm primary t-label addfood" @click="openFood('search', shownDay)">
             <Icon name="plus" :size="14" :sw="2.4" />{{ addFoodLabel }}
           </button>
           <RouterLink :to="logHref" class="t-label c2 more">Open log <Icon name="right" :size="14" /></RouterLink>
@@ -296,12 +296,12 @@ const weekRows = computed(() => {
 .tgl { gap: var(--space-m); align-items: center; }
 .wm { width: 18px; flex: none; display: inline-flex; align-items: center; }
 .wst { width: 14px; flex: none; display: inline-flex; justify-content: center; }
-.loghead { min-height: 44px; align-items: center; }
+.loghead { align-items: center; }
 .foods { margin: 0; text-align: left; min-width: 0; }
 .foodhead, .loghead { justify-content: space-between; gap: var(--space-m); min-width: 0; align-items: center; }
 .addfood { margin-left: auto; flex: 0 1 auto; max-width: 100%; }
 /* Phone Home card: title row as tall as the Macros title, so the card's own padding is the only space above it. */
-.logc .foodhead { min-height: 0; margin: -10px 0 -6px; }
+.logc .foodhead { justify-content: space-between; }
 .ftitle { gap: var(--space-s); align-items: baseline; min-width: 0; }
 .fcount { flex: none; font-variant-numeric: tabular-nums; }
 .addpill { flex: none; }
@@ -309,6 +309,7 @@ html.dt-xl .foodhead, html.dt-xl .loghead { flex-wrap: nowrap; }
 html.dt-xl .foodhead .foods, html.dt-xl .loghead .foods { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .more { display: inline-flex; align-items: center; gap: var(--space-s); min-height: var(--control-hit); padding: 0 var(--space-s); text-decoration: none; color: var(--text-secondary); }
 .more:hover { color: var(--text-primary); }
+.loghead .more { margin-block: calc((var(--control-hit) - 1rem) / -2); }
 .wk { width: 3.4rem; text-align: right; flex: none; }
 .barw { position: relative; min-width: 0; height: 10px; display: flex; align-items: center; }
 .tgt { position: absolute; left: calc(100% / 1.2); top: -3px; bottom: -3px; width: 1px; background: var(--text-tertiary); }
@@ -354,6 +355,11 @@ html.dt-xl .foodhead .foods, html.dt-xl .loghead .foods { overflow: hidden; text
 .top { align-items: flex-start; gap: var(--space-m); }
 .trendline { align-items: center; min-width: 0; max-width: 100%; gap: var(--space-m); }
 .trendline .t-cap { min-width: 0; }
+.wbig .trendline { width: 100%; }
+.wbig .trendline { align-items: flex-start; }
+.wbig .trendline :deep(.itip) { margin-block: calc((var(--control-hit) - 1rem) / -2); }
+.wbig .top > .col { flex: 1 1 auto; min-width: 0; }
+.logw { white-space: nowrap; }
 .dt-xl .wcard > .grow { display: none; }
 .dt-xl .wcard > .col { flex: 1 1 auto; min-width: 0; }
 .dt-xl .trendline { flex-wrap: wrap; }

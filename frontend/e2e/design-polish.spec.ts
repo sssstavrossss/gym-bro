@@ -526,9 +526,15 @@ test("large text keeps the close button, units, and the info hit target", async 
     await expect(radios).toHaveCount(5);
     const widths: number[] = [];
     for (let index = 0; index < 5; index += 1) {
-      const box = await radios.nth(index).boundingBox();
-      expect(box?.height).toBeGreaterThanOrEqual(44);
-      widths.push(box?.width ?? 0);
+      // The compact switch draws a 30px face; its ::after keeps the tap area 44px.
+      const box = await radios.nth(index).evaluate((node) => {
+        const box = node.getBoundingClientRect();
+        const after = getComputedStyle(node, "::after");
+        const grow = after.content !== "none" ? Math.abs(Math.min(0, parseFloat(after.top) || 0)) * 2 : 0;
+        return { width: box.width, height: box.height + grow };
+      });
+      expect(box.height).toBeGreaterThanOrEqual(44);
+      widths.push(box.width);
     }
     expect(Math.max(...widths) - Math.min(...widths)).toBeLessThanOrEqual(1);
     expect(widths.every((width) => width >= 44)).toBe(true);

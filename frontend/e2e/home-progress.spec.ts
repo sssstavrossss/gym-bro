@@ -117,12 +117,15 @@ test("home title, progress pickers, and remembered metric", async ({ page }) => 
   await expect(chart).toBeVisible();
   await expect(page.locator("[data-home-summary]")).toContainText("latest 83.6");
   await expect(page.getByText("Daily averages")).toHaveCount(0);
-  // One range switch inside the card: five equal segments, a 44px track.
+  // One range switch inside the card: five equal segments, a 30px face with 44px tap areas.
   const seg = await progress.getByRole("radiogroup", { name: "Chart range" }).evaluate((row) => {
     const box = row.getBoundingClientRect();
     const card = row.closest(".card")!.getBoundingClientRect();
-    const widths = [...row.querySelectorAll("button")].map((button) => button.getBoundingClientRect().width);
-    return { height: box.height, inside: box.left >= card.left && box.right <= card.right, widths };
+    const buttons = [...row.querySelectorAll("button")];
+    const widths = buttons.map((button) => button.getBoundingClientRect().width);
+    const after = getComputedStyle(buttons[0], "::after");
+    const hit = buttons[0].getBoundingClientRect().height + Math.abs(Math.min(0, parseFloat(after.top) || 0)) * 2;
+    return { height: hit, inside: box.left >= card.left && box.right <= card.right, widths };
   });
   expect(seg.height).toBeGreaterThanOrEqual(44);
   expect(seg.inside).toBe(true);

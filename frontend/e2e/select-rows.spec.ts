@@ -51,7 +51,15 @@ test("select mode keeps food rows inside the list and gives the check its own sl
     await page.screenshot({ path: "/opt/cursor/artifacts/iphone40-row-rest.png" });
   }
 
+  const restTop = (await oats.boundingBox())!.y;
+  const selectAt = (await page.getByRole("button", { name: "Select", exact: true }).boundingBox())!;
   await page.getByRole("button", { name: "Select", exact: true }).click();
+  // Select turns into Done in the same spot, and Add food stays (disabled), so nothing moves.
+  const done = page.locator(".selhead").getByRole("button", { name: "Done", exact: true });
+  await expect(done).toBeVisible();
+  expect((await done.boundingBox())!.y).toBeCloseTo(selectAt.y, 0);
+  expect((await oats.boundingBox())!.y).toBeCloseTo(restTop, 0);
+  await expect(page.locator(".addrow")).toBeDisabled();
   await oats.getByRole("button", { name: "Select Fictional select oats" }).click();
   const bar = page.getByRole("toolbar", { name: "Selected entries" });
   await expect(bar).toBeVisible();
@@ -86,7 +94,10 @@ test("select mode keeps food rows inside the list and gives the check its own sl
     await page.screenshot({ path: "/opt/cursor/artifacts/iphone40-row-select.png" });
   }
 
-  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  await done.click();
+  await expect(bar).toBeHidden();
+  await expect(page.getByRole("button", { name: "Select", exact: true })).toBeVisible();
+  await expect(page.locator(".addrow")).toBeEnabled();
   await page.getByRole("link", { name: "Today", exact: true }).click();
   await expect(page.locator("main.today .logc")).toBeVisible();
   await expectFlush(page.locator("main.today .logc"));
@@ -98,6 +109,7 @@ test("select mode keeps food rows inside the list and gives the check its own sl
   await expect(homeOats).toBeVisible();
   await expectCentered(homeOats);
   await expectCentered(homeRoll);
+  const homeRest = { line: (await homeOats.boundingBox())!.y, card: (await page.locator("main.today .logc").boundingBox())!.height };
   await homeOats.evaluate((el) => {
     const box = el.getBoundingClientRect();
     el.dispatchEvent(new PointerEvent("pointerdown", {
@@ -109,6 +121,10 @@ test("select mode keeps food rows inside the list and gives the check its own sl
   await expect(page.getByRole("toolbar", { name: "Selected entries" })).toBeVisible();
   await expect.poll(() => homeOats.locator(".dot").evaluate((el) => el.getBoundingClientRect().width)).toBeCloseTo(16, 0);
   const card = await page.locator("main.today .logc").boundingBox();
+  // The Add food pill turns into Done; the header, the rows and the card keep their size.
+  await expect(page.locator("main.today .logc .foodhead").getByRole("button", { name: "Done", exact: true })).toBeVisible();
+  expect((await homeOats.boundingBox())!.y).toBeCloseTo(homeRest.line, 0);
+  expect(card!.height).toBeCloseTo(homeRest.card, 0);
   const homeLine = await homeOats.boundingBox();
   expect(card).toBeTruthy();
   expect(homeLine).toBeTruthy();
