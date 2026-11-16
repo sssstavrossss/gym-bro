@@ -253,3 +253,52 @@ async function expectAmountFlush(page: Page) {
     expect(row.order).toBe(true);
   }
 }
+
+test("the swipe cards wrap like a carousel at both ends", async ({ page }) => {
+  const oid = `e2e-carousel-${Date.now()}`;
+  const when = await clock(page);
+  await ready(page.request, oid, when.today, when.zone);
+  await page.addInitScript((id) => {
+    sessionStorage.setItem("gymbro-e2e", "1");
+    sessionStorage.setItem("gymbro-e2e-oid", id);
+  }, oid);
+  await page.goto("/today");
+  const card = page.locator("[data-nutrient-card]");
+  await expect(card).toBeVisible();
+  const track = card.locator(".track");
+  const dots = card.locator("button.dot");
+  const count = await dots.count();
+  expect(count).toBeGreaterThan(2);
+  const at = (scroll: "start" | "end") => track.evaluate((el, edge) => {
+    const max = el.scrollWidth - el.clientWidth;
+    return edge === "start" ? el.scrollLeft <= 2 : el.scrollLeft >= max - 2;
+  }, scroll);
+  const swipe = async (from: number, to: number) => {
+    const box = (await track.boundingBox())!;
+    const y = box.y + box.height / 2;
+    await track.dispatchEvent("touchstart", { touches: [{ identifier: 1, clientX: from, clientY: y }], changedTouches: [{ identifier: 1, clientX: from, clientY: y }] });
+    await track.dispatchEvent("touchend", { touches: [], changedTouches: [{ identifier: 1, clientX: to, clientY: y + 6 }] });
+  };
+
+  // Past the last card is the first.
+  await dots.nth(count - 1).click();
+  await expect.poll(() => at("end")).toBe(true);
+  await swipe(300, 120);
+  await expect(dots.nth(0)).toHaveAttribute("aria-current", "true");
+  await expect.poll(() => at("start")).toBe(true);
+  await expect(track).not.toHaveClass(/wrapping/);
+
+  // Before the first card is the last.
+  await swipe(80, 260);
+  await expect(dots.nth(count - 1)).toHaveAttribute("aria-current", "true");
+  await expect.poll(() => at("end")).toBe(true);
+
+  // A short or mostly vertical drag does nothing.
+  await swipe(300, 280);
+  await expect(dots.nth(count - 1)).toHaveAttribute("aria-current", "true");
+
+  // The side tap zone wraps too.
+  await card.getByRole("button", { name: "Next panel" }).last().click();
+  await expect(dots.nth(0)).toHaveAttribute("aria-current", "true");
+  await expect.poll(() => at("start")).toBe(true);
+});
