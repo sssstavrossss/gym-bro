@@ -3,7 +3,6 @@ import { computed, onMounted, ref } from "vue";
 import AccuracyDot from "../components/AccuracyDot.vue";
 import Icon from "../components/Icon.vue";
 import Segmented from "../components/Segmented.vue";
-import SelectMark from "../components/SelectMark.vue";
 import TargetHistory from "../components/TargetHistory.vue";
 import { ACTIVITY, FAT_PRESETS, PROTEIN_PRESETS, RATES, type ActivityKey, type Goal, type MacroSetting, type Sex } from "../lib/nutrition";
 import { int } from "../lib/format";
@@ -12,8 +11,8 @@ import { boot } from "../state/boot";
 import { clearAllDrafts, commitProfile, profile, shownTargets, weightCaption } from "../state/profile";
 import { signOut } from "../auth/session";
 import { enableReminders, getNotifications, notificationHint } from "../lib/notifications";
-import { getInbox, markAllNotificationsRead, putNotificationType, type InboxItem, type NotificationSettings } from "../api";
-import { unreadCount } from "../lib/recalculate";
+import { getInbox, putNotificationType, type InboxItem, type NotificationSettings } from "../api";
+import { recentNotes } from "../lib/inboxView";
 import { inbox } from "../state/inbox";
 import { openRecalculate, openWeight } from "../ui";
 import { vp } from "../lib/viewport";
@@ -30,7 +29,19 @@ const noteError = ref("");
 const noteBusy = ref(false);
 const items = ref<InboxItem[]>([]);
 const hint = notificationHint();
-const sectionUnread = computed(() => unreadCount(items.value) > 0 || inbox.unread > 0);
+const recent = computed(() => recentNotes(items.value, profile.form.timeZone || deviceZone()));
+function deviceZone() {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  } catch {
+    return "UTC";
+  }
+}
+const reminderLine = computed(() => {
+  if (!notes.value) return "Monday morning";
+  if (!notes.value.configured) return "Monday morning · push isn't set up on the server";
+  return `Monday morning · push ${notes.value.enabled ? "on" : "off"} on this device`;
+});
 onMounted(() => {
   void getNotifications().then((value) => { notes.value = value; }).catch(() => { noteError.value = "Couldn't load notification settings."; });
   void loadInbox();
@@ -40,20 +51,9 @@ async function loadInbox() {
     const body = await getInbox();
     items.value = body.items;
     inbox.unread = body.unread;
+    inbox.badge = body.badge ?? body.unread;
   } catch {
     noteError.value = "Couldn't load notifications.";
-  }
-}
-async function onReadAll() {
-  noteBusy.value = true;
-  try {
-    await markAllNotificationsRead();
-    items.value = items.value.map((item) => ({ ...item, readAt: item.readAt ?? new Date().toISOString() }));
-    inbox.unread = 0;
-  } catch (error) {
-    noteError.value = error instanceof Error ? error.message : "Couldn't mark them read.";
-  } finally {
-    noteBusy.value = false;
   }
 }
 const typeOn = computed(() => {
@@ -253,21 +253,34 @@ async function onSignOut() {
         <TargetHistory />
 
         <section class="card notes" aria-labelledby="remind-heading">
-          <div class="row head">
-            <h2 id="remind-heading" class="section-title c2 grow">Notifications<span v-if="sectionUnread" class="sr-only"> Unread</span></h2>
-            <span v-if="sectionUnread" class="bullet" aria-hidden="true" />
-            <button v-if="sectionUnread" type="button" class="t-label markall" :disabled="noteBusy" @click="onReadAll">Mark all read</button>
-          </div>
-          <button type="button" class="nrow" :aria-pressed="typeOn" :disabled="noteBusy" @click="onType">
+          <h2 id="remind-heading" class="section-title c2">Notifications</h2>
+          <button
+            type="button"
+            class="srow"
+            role="switch"
+            :aria-checked="typeOn"
+            :disabled="noteBusy || !notes?.configured"
+            data-reminder-switch
+            @click="onType"
+          >
             <span class="col grow">
-              <span class="t-body">Weekly recalculate</span>
-              <span class="t-capn c2">Monday morning</span>
+              <span class="t-body">Weekly recalculate reminder</span>
+              <span class="t-capn c2">{{ reminderLine }}</span>
             </span>
-            <span class="mark" :class="{ on: typeOn }"><SelectMark :on="typeOn" /></span>
+            <span class="switch" :class="{ on: typeOn }" aria-hidden="true"><i /></span>
           </button>
-          <p v-if="notes && !notes.configured" class="t-capn c2 status">Notifications are not set up.</p>
-          <p v-else-if="notes" class="t-capn c2 status">{{ notes.enabled ? "Push is on." : "Push is off." }}</p>
           <p v-if="hint" class="t-capn c2 status">{{ hint }}</p>
+          <template v-if="recent.length">
+            <h3 class="t-cap c3 sub">Recent</h3>
+            <ul class="recent" data-recent-notes>
+              <li v-for="note in recent" :key="note.id" class="rrow">
+                <span class="t-label grow">{{ note.label }}</span>
+                <RouterLink v-if="note.state === 'today'" to="/today" class="tag t-capn" data-on-today>On Today</RouterLink>
+                <span v-else-if="note.state === 'new'" class="tag t-capn">New</span>
+                <span class="t-capn c3 when">{{ note.state === "done" ? `Done · ${note.date}` : note.date }}</span>
+              </li>
+            </ul>
+          </template>
           <p v-if="noteError" class="t-body" role="alert">{{ noteError }}</p>
         </section>
 
@@ -336,21 +349,28 @@ html:not(.dt-xl) .compact-seg :deep(.seg-btn)::after {
 .ninput { width: 88px; margin-left: auto; text-align: right; background: transparent; border: 0; min-height: 44px; }
 .tz { margin-left: auto; width: 180px; text-align: right; background: transparent; border: 0; min-height: 44px; }
 .recalc { align-self: flex-start; }
-.nrow {
-  min-height: 44px; width: 100%; display: flex; align-items: center; gap: var(--space-gap);
-  text-align: left; padding: 0;
-}
-.nrow .mark { position: relative; width: 44px; height: 44px; flex: none; }
 .status { margin: 0; }
-.notes { gap: var(--space-gap); }
-.notes .head { min-height: 0; align-items: flex-start; }
+.notes { gap: 10px; }
 .notes p { margin: 0; overflow-wrap: anywhere; }
+.notes h2, .notes h3 { margin: 0; }
+.srow { min-height: 52px; width: 100%; display: flex; align-items: center; gap: var(--space-gap); text-align: left; padding: 0; }
+.srow:disabled { opacity: 1; }
+.switch { position: relative; width: 46px; height: 28px; border-radius: 14px; background: var(--color-track); flex: none; transition: background .15s; }
+.switch i { position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 11px; background: var(--text-tertiary); transition: transform .15s, background .15s; }
+.switch.on { background: var(--color-action); }
+.switch.on i { transform: translateX(18px); background: var(--color-on-action); }
+.srow:disabled .switch { opacity: .45; }
+.sub { margin-top: 4px; }
+.recent { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+/* At large text the date drops under the label instead of squeezing it. */
+.rrow { display: flex; flex-wrap: wrap; align-items: center; column-gap: 8px; row-gap: 2px; min-height: 40px; padding: 4px 0; border-top: 1px solid var(--color-border); min-width: 0; }
+.rrow .grow { flex: 1 1 8rem; min-width: 0; white-space: normal; overflow-wrap: anywhere; color: var(--text-secondary); }
+.tag { flex: none; padding: 2px 8px; border-radius: 9px; background: var(--color-action); color: var(--color-on-action); font-weight: 600; text-decoration: none; }
+.when { flex: none; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .head { gap: var(--space-gap); align-items: center; min-height: var(--control-hit); }
 .feed { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: calc(var(--space-gap) / 2); }
 .note { width: 100%; min-height: var(--control-hit); gap: var(--space-gap); text-align: left; align-items: flex-start; }
 .wrap { overflow-wrap: anywhere; }
-.markall { min-height: var(--control-hit); padding: 0 var(--space-gap); }
-.bullet { width: 8px; height: 8px; border-radius: 50%; background: var(--text-primary); flex: none; }
 .acts, .custom { display: flex; flex-direction: column; gap: var(--space-gap); }
 .act { min-height: 44px; display: flex; align-items: center; gap: 10px; text-align: left; border-radius: 10px; padding: 0 8px; }
 .act.on { background: var(--color-surface-2); }

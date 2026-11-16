@@ -107,9 +107,9 @@ test("calendar motion, home gap, compact profile controls, and a lean notificati
   const notes = page.getByRole("region", { name: "Notifications" });
   await notes.scrollIntoViewIfNeeded();
   await expect(notes.getByRole("heading", { name: "Notifications" })).toBeVisible();
-  await expect(notes.getByRole("button", { name: "Weekly recalculate" })).toBeVisible();
-  await expect(notes.getByText("Monday morning")).toBeVisible();
-  await expect(notes.getByText("Notifications are not set up.")).toBeVisible();
+  await expect(notes.getByRole("switch", { name: /Weekly recalculate reminder/ })).toBeVisible();
+  await expect(notes.getByText(/Monday morning/)).toBeVisible();
+  await expect(notes.getByText(/push isn't set up on the server/)).toBeVisible();
   await expect(notes.getByText("Time to recalculate your target")).toHaveCount(0);
   if (test.info().project.name === "chromium") {
     await notes.screenshot({ path: "/opt/cursor/artifacts/iphone43-notifications.png" });

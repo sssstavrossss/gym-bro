@@ -77,6 +77,7 @@ public static class NotificationEndpoints
         return Results.Ok(new
         {
             unread = items.Count(row => row.ReadAt is null),
+            badge = items.Count(row => row.ReadAt is null && !NotificationTypes.ShownOnHome.Contains(row.Type)),
             items = items.Select(ToItem),
         });
     }
@@ -103,7 +104,10 @@ public static class NotificationEndpoints
         var count = await db.UserNotifications.CountAsync(
             row => row.UserId == userId && row.ReadAt == null,
             cancellationToken);
-        return Results.Ok(new { count });
+        var badge = await db.UserNotifications.CountAsync(
+            row => row.UserId == userId && row.ReadAt == null && !NotificationTypes.ShownOnHome.Contains(row.Type),
+            cancellationToken);
+        return Results.Ok(new { count, badge });
     }
 
     private static async Task<IResult> ReadOne(

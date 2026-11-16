@@ -44,7 +44,7 @@ test("recalculate explains missing data and can save the formula", async ({ page
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/profile");
   await expect(page.getByRole("heading", { name: "Notifications" })).toBeVisible();
-  await expect(page.getByText("Notifications are not set up.")).toBeVisible();
+  await expect(page.getByText(/push isn't set up on the server/)).toBeVisible();
   if (test.info().project.name === "chromium") {
     await page.screenshot({ path: "/opt/cursor/artifacts/recalculate-profile.png" });
   }

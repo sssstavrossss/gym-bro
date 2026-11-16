@@ -10,6 +10,7 @@ import InfoTip from "../components/InfoTip.vue";
 import MacroBars from "../components/MacroBars.vue";
 import ManualTag from "../components/ManualTag.vue";
 import Sparkline from "../components/Sparkline.vue";
+import RecalcPrompt from "../components/RecalcPrompt.vue";
 import Timeline from "../components/Timeline.vue";
 import WeekStrip from "../components/WeekStrip.vue";
 import WeightChart from "../components/WeightChart.vue";
@@ -166,6 +167,7 @@ const weekRows = computed(() => {
     <div class="grid">
       <div class="stack c-a">
         <FreshStart v-if="showFresh && selected === today" />
+        <RecalcPrompt v-if="!showFresh && selected === today" />
         <GoalReached v-if="showGoal && selected === today" />
 
         <section v-if="!ready" class="card macros" aria-busy="true" aria-label="Loading today">

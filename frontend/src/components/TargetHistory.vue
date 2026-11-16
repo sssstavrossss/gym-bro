@@ -1,13 +1,12 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from "vue";
+import { onMounted, ref, watch } from "vue";
+import CappedList from "./CappedList.vue";
 import { dayMonth, weekdayShort } from "../lib/dates";
 import { int } from "../lib/format";
 import { getTargetHistory, type TargetHistoryRow } from "../api";
 import { ui } from "../ui";
 
 const rows = ref<TargetHistoryRow[]>([]);
-const all = ref(false);
-const shown = computed(() => (all.value ? rows.value : rows.value.slice(0, 5)));
 
 function title(reasons: string[]): string {
   if (reasons.includes("recalculation_declined")) return "Declined";
@@ -37,9 +36,12 @@ watch(() => ui.sheet, (sheet, previous) => {
 
 <template>
   <section v-if="rows.length" class="card hist" aria-labelledby="th-h" data-target-history>
-    <h2 id="th-h" class="section-title c2">Target history</h2>
-    <ol class="list">
-      <li v-for="(row, index) in shown" :key="`${row.date}-${index}`" class="hrow" :class="{ quiet: row.reasons.includes('recalculation_declined') }">
+    <div class="row thead">
+      <h2 id="th-h" class="section-title c2 grow">Target history</h2>
+      <span class="t-capn c3">{{ rows.length }} {{ rows.length === 1 ? "change" : "changes" }}</span>
+    </div>
+    <CappedList tag="ol" :max-rows="5" :watch-key="rows.length" class="list" data-history-list>
+      <li v-for="(row, index) in rows" :key="`${row.date}-${index}`" class="hrow" :class="{ quiet: row.reasons.includes('recalculation_declined') }">
         <span class="col dt">
           <span class="t-label">{{ dayMonth(row.date) }}</span>
           <span class="t-capn c2">{{ weekdayShort(row.date) }}</span>
@@ -54,22 +56,24 @@ watch(() => ui.sheet, (sheet, previous) => {
           <span class="t-capn c2 num">P{{ row.protein }} · F{{ row.fat }} · C{{ row.carbs }}</span>
         </span>
       </li>
-    </ol>
-    <button v-if="rows.length > 5" type="button" class="more t-label" :aria-expanded="all" @click="all = !all">{{ all ? "Show fewer" : `Show all ${rows.length} changes` }}</button>
+    </CappedList>
   </section>
 </template>
 
 <style scoped>
 .hist { gap: calc(var(--space-gap) / 2); }
-.list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+/* The list element is rendered by CappedList, so its rules go through :deep. Five rows show; the rest scroll. */
+.hist :deep(.list) { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.thead { align-items: baseline; gap: 8px; }
 .hrow { display: flex; flex-wrap: wrap; gap: var(--space-gap); align-items: flex-start; padding: 10px 0; border-bottom: 1px solid var(--color-border); }
 .hrow:last-child { border-bottom: 0; }
 .quiet .t-label { color: var(--text-tertiary); }
-.dt { width: 4.75rem; max-width: 100%; flex: none; gap: 1px; }
-.mid { min-width: 0; flex: 1 1 8rem; gap: 2px; }
+.dt { width: 3.75rem; max-width: 100%; flex: none; gap: 1px; }
+/* Narrow enough that date, reason and numbers share one row on a 375px phone; the reason ellipses. */
+.mid { min-width: 0; flex: 1 1 5.5rem; gap: 2px; }
+.mid > * { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 .right { align-items: flex-end; text-align: right; gap: 2px; flex: 1 1 auto; max-width: 100%; }
 :global(html.dt-xl) .hrow { flex-direction: column; }
 :global(html.dt-xl) .right { align-items: flex-start; text-align: left; }
-.more { align-self: flex-start; min-height: 44px; text-decoration: underline; text-underline-offset: 3px; }
 h2 { margin: 0; }
 </style>

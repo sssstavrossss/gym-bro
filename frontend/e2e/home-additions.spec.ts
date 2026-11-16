@@ -97,12 +97,13 @@ test("phone home calendar, history, sex, and notification circles", async ({ pag
 
   const notes = page.getByRole("region", { name: "Notifications" });
   await notes.scrollIntoViewIfNeeded();
-  const toggle = notes.getByRole("button", { name: "Weekly recalculate" });
-  await expect(toggle).toHaveAttribute("aria-pressed", "false");
-  const mark = await toggle.locator(".dot").boundingBox();
-  expect(mark!.width).toBeCloseTo(16, 0);
-  expect(mark!.height).toBeCloseTo(16, 0);
-  await expect(notes.getByText("Notifications are not set up.")).toBeVisible();
+  // A real on/off switch. Without push keys on the server it is off and can't be turned on.
+  const toggle = notes.getByRole("switch", { name: /Weekly recalculate reminder/ });
+  await expect(toggle).toHaveAttribute("aria-checked", "false");
+  await expect(toggle).toBeDisabled();
+  const knob = await toggle.locator(".switch").boundingBox();
+  expect(knob!.width).toBeGreaterThanOrEqual(40);
+  await expect(notes.getByText(/push isn't set up on the server/)).toBeVisible();
   await expect(notes.getByRole("button", { name: "Enable notifications" })).toHaveCount(0);
   if (test.info().project.name === "chromium") {
     await notes.screenshot({ path: "/opt/cursor/artifacts/iphone42-notifications-after.png" });
