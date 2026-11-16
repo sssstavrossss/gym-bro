@@ -65,27 +65,27 @@ const eaten = computed(() => {
 </template>
 
 <style scoped>
-.side { position: absolute; top: 0; bottom: 0; left: 0; width: 240px; z-index: 20; display: flex; flex-direction: column; gap: var(--space-gap); padding: 24px var(--space-screen) 20px; background: var(--color-bg); border-right: 1px solid var(--color-border); }
-.brand { gap: 10px; padding: 0 8px 16px; }
-.mark { width: 30px; height: 30px; border-radius: 9px; background: var(--color-action); color: var(--color-on-action); display: flex; align-items: center; justify-content: center; }
-.add, .add2 { height: 44px; border-radius: 22px; padding: 0 14px 0 16px; gap: 10px; text-align: left; }
+.side { position: absolute; top: 0; bottom: 0; left: 0; width: 240px; z-index: 20; display: flex; flex-direction: column; gap: var(--space-m); padding: var(--space-xl) var(--space-screen) var(--space-xl); background: var(--color-bg); border-right: 1px solid var(--color-border); }
+.brand { gap: var(--space-m); padding: 0 var(--space-s) var(--space-l); }
+.mark { width: 30px; height: 30px; border-radius: var(--radius-s); background: var(--color-action); color: var(--color-on-action); display: flex; align-items: center; justify-content: center; }
+.add, .add2 { height: 44px; border-radius: var(--radius-pill); padding: 0 var(--space-l) 0 var(--space-l); gap: var(--space-m); text-align: left; }
 .add { background: var(--color-action); color: var(--color-on-action); }
 .add2 { background: var(--color-surface-2); }
-kbd { font: 600 11px/1 Inter, sans-serif; padding: 3px 6px; border-radius: 5px; border: 1px solid currentColor; color: inherit; }
-.nav { gap: 2px; margin-top: 16px; }
-.item { height: 44px; padding: 0 12px; gap: 12px; border-radius: 12px; color: var(--text-secondary); text-decoration: none; }
+kbd { font: 600 11px/1 Inter, sans-serif; padding: var(--space-2xs) var(--space-s); border-radius: var(--radius-xs); border: 1px solid currentColor; color: inherit; }
+.nav { gap: var(--space-2xs); margin-top: var(--space-l); }
+.item { height: 44px; padding: 0 var(--space-m); gap: var(--space-m); border-radius: var(--radius-m); color: var(--text-secondary); text-decoration: none; }
 .ic { position: relative; display: inline-flex; }
 .bullet { position: absolute; top: 0; right: 0; width: 8px; height: 8px; border-radius: 50%; background: var(--text-primary); }
 .item.on { background: var(--color-surface); color: var(--text-primary); }
-.glance { gap: calc(var(--space-gap) / 2); padding: var(--space-gap); border-radius: 12px; background: var(--color-surface); }
-.gap { gap: calc(var(--space-gap) / 2); }
+.glance { gap: var(--space-s); padding: var(--space-m); border-radius: var(--radius-m); background: var(--color-surface); }
+.gap { gap: var(--space-s); }
 .keys {
-  display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-gap);
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-m);
   margin: 0; padding: 0; line-height: 1;
 }
-.chunk { display: inline-flex; align-items: center; gap: var(--space-gap); white-space: nowrap; }
+.chunk { display: inline-flex; align-items: center; gap: var(--space-m); white-space: nowrap; }
 .keys kbd {
   display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box;
-  min-width: 1.6em; min-height: 1.6em; padding: 2px 6px; line-height: 1;
+  min-width: 1.6em; min-height: 1.6em; padding: var(--space-2xs) var(--space-s); line-height: 1;
 }
 </style>

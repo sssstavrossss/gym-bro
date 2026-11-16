@@ -82,22 +82,22 @@ const macros = computed(() => {
 </template>
 
 <style scoped>
-.macros { gap: 14px; }
-.macros.fit { height: 212px; box-sizing: border-box; gap: 0; overflow: hidden; padding-bottom: 12px; }
-.macropane { display: flex; flex-direction: column; gap: 6px; min-height: 0; }
-.gap6 { gap: 2px; }
+.macros { gap: var(--space-l); }
+.macros.fit { height: 212px; box-sizing: border-box; gap: 0; overflow: hidden; padding-bottom: var(--space-m); }
+.macropane { display: flex; flex-direction: column; gap: var(--space-xs); min-height: 0; }
+.gap6 { gap: var(--space-2xs); }
 html.dt-xl .mrow { grid-template-columns: minmax(0, 1fr) auto; }
 html.dt-xl .vals { justify-content: flex-end; }
-.mrow { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; column-gap: 8px; min-width: 0; }
-.left { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px; min-width: 0; }
+.mrow { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; column-gap: var(--space-s); min-width: 0; }
+.left { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-xs); min-width: 0; }
 .vals {
-  display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: baseline; gap: 4px;
+  display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: baseline; gap: var(--space-xs);
   max-width: 100%;
 }
 .vals > * { flex: none; white-space: nowrap; }
 .tick { width: 14px; height: 14px; display: inline-flex; align-items: center; justify-content: center; align-self: center; }
 .m0 { margin: 0; }
-.nt { gap: 4px; align-items: baseline; flex-wrap: wrap; }
-.nt .t-capn { margin-right: 10px; }
-.overtag { align-self: center; padding: 1px 6px; border-radius: 6px; border: 1px dashed var(--text-secondary); color: var(--text-secondary); margin-left: 2px; }
+.nt { gap: var(--space-xs); align-items: baseline; flex-wrap: wrap; }
+.nt .t-capn { margin-right: var(--space-m); }
+.overtag { align-self: center; padding: 1px var(--space-s); border-radius: var(--radius-xs); border: 1px dashed var(--text-secondary); color: var(--text-secondary); margin-left: var(--space-2xs); }
 </style>

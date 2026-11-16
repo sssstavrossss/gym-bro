@@ -90,16 +90,31 @@ html[data-theme="black"] {
 }
 
 :root {
-  --radius-card: 16px;
-  --radius-control: 12px;
-  --radius-sheet: 24px;
-  --space-screen: 16px;
-  --space-gap: 12px;
-  /* One control scale. The face is what you see; the hit box stays at least 44px. */
+  /* ---- The one scale. Components use these, never raw px for spacing or corners. ----
+     Spacing: gaps between items and padding inside boxes. 1px hairlines stay as they are. */
+  --space-2xs: 2px;
+  --space-xs: 4px;
+  --space-s: 8px;
+  --space-m: 12px;
+  --space-l: 16px;
+  --space-xl: 24px;
+  --space-2xl: 32px;
+  /* The page gutter, and the padding of every box (card, notice, panel). */
+  --space-screen: var(--space-l);
+  --space-box: var(--space-l);
+  /* Corners. Boxes are l, fields and segmented controls m, their inner parts s, tags xs. */
+  --radius-xs: 6px;
+  --radius-s: 8px;
+  --radius-m: 12px;
+  --radius-l: 16px;
+  --radius-xl: 24px;
+  --radius-pill: 999px;
+  /* Controls. The face is what you see; the hit box stays at least 44px. */
   --control-s: 32px;
   --control-s-sm: 24px;
   --control-chip: 30px;
   --control-hit: 44px;
+  --control-btn: 44px;
 
   /* Safe areas (iPhone). In ?statusbar demo mode these are faked for screenshots.
      The tab bar includes the home-indicator inset once. Do not add --sab again. */
@@ -170,7 +185,7 @@ svg { display: block; flex: none; }
 .t-head.section-title { font-size: calc(1rem + 2px); font-weight: 700; }
 .panel-title {
   color: var(--text-secondary);
-  margin: 0 0 2px;
+  margin: 0 0 var(--space-2xs);
 }
 /* Fixed cards cannot grow. At the largest text size their type stays near the
    default size so the rows still fit; the rest of the app keeps scaling. */
@@ -200,11 +215,20 @@ html.dt-xl .preview .panel-title {
 .row { display: flex; align-items: center; }
 .col { display: flex; flex-direction: column; }
 .grow { flex: 1 1 auto; min-width: 0; }
-.base { display: flex; align-items: baseline; gap: 4px; }
-.card { background: var(--color-surface); border-radius: var(--radius-card); padding: var(--space-screen); display: flex; flex-direction: column; gap: var(--space-gap); }
+.base { display: flex; align-items: baseline; gap: var(--space-xs); }
+/* Boxes. Every box has the same padding, corners and gap, on every screen and sheet.
+   .card is a filled box on the page. .inset is the same box inside a sheet (one step lighter).
+   .outline is a notice: no fill, one border. */
+.card { background: var(--color-surface); border-radius: var(--radius-l); padding: var(--space-box); display: flex; flex-direction: column; gap: var(--space-m); }
+.card.inset { background: var(--color-surface-2); }
+/* A small grey panel inside a box or sheet: a form row, a note, a summary. Smaller corners than a box. */
+.well { padding: var(--space-m); border-radius: var(--radius-m); background: var(--color-surface-2); }
+/* Grey buttons, chips and fields on a grey box (.inset, or any .raised panel) go one step lighter so they still show. */
+.card.inset, .well, .raised { --btn-bg: var(--color-hover); }
+.card.outline { background: transparent; border: 1px solid var(--color-border-strong); }
 .divider { height: 1px; background: var(--color-border); }
 
-.screen { padding: calc(var(--sat) + 8px) var(--space-screen) calc(var(--tabbar-h) + 24px); display: flex; flex-direction: column; gap: var(--space-gap); min-width: 0; max-width: 100%; }
+.screen { padding: calc(var(--sat) + var(--space-s)) var(--space-screen) calc(var(--tabbar-h) + var(--space-xl)); display: flex; flex-direction: column; gap: var(--space-m); min-width: 0; max-width: 100%; }
 .screen-head { display: flex; align-items: center; min-height: 34px; }
 
 /* Circle buttons. The box is the 44px hit target. --s is the visible disc. .fit is a glyph inside a larger row. */
@@ -228,82 +252,128 @@ html.dt-xl .preview .panel-title {
 .cbtn:active { transform: scale(.92); opacity: .85; }
 .cbtn:disabled { opacity: .35; cursor: default; }
 
-.primary-btn { height: 52px; width: 100%; border-radius: 26px; background: var(--color-action); color: var(--color-on-action); display: flex; align-items: center; justify-content: center; flex: none; }
-.primary-btn:active { opacity: .85; }
-.primary-btn:disabled { opacity: .35; }
+/* Buttons. One shape, two colours: .primary is white (save, add, log), .secondary is grey
+   (cancel, dismiss, delete, edit). .sm is the compact face for buttons inside a card or a row;
+   its hit box stays 44px. .block fills the width (the action at the bottom of a sheet).
+   Chips below are for choosing an option, not for actions. */
+.btn {
+  --inset: 0px;
+  position: relative; box-sizing: border-box; isolation: isolate;
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--space-s);
+  min-height: var(--control-btn); min-width: var(--control-hit);
+  padding: var(--space-s) var(--space-l); border-radius: var(--radius-pill);
+  background: transparent; color: var(--text-primary); flex: none; text-align: center;
+  transition: opacity .12s;
+}
+.btn::before {
+  content: ""; position: absolute; z-index: -1; left: 0; right: 0; top: var(--inset); bottom: var(--inset);
+  border-radius: var(--radius-pill); background: var(--btn-bg, var(--color-surface-2));
+}
+.btn > * { position: relative; }
+.btn.primary { color: var(--color-on-action); }
+.btn.primary::before { background: var(--color-action); }
+.btn.sm {
+  --inset: calc((var(--control-hit) - var(--control-chip)) / 2);
+  min-height: var(--control-hit); padding: var(--inset) var(--space-m); gap: var(--space-xs);
+}
+.btn.block { width: 100%; }
+.btn:active { opacity: .85; }
+.btn:disabled, .btn[aria-disabled="true"] { opacity: .35; cursor: default; }
 
-/* Pills. Padding keeps the visible face compact; min-height is the touch target. */
+/* Icon discs that are not buttons (a leading icon in a card or a row). */
+.disc {
+  width: var(--control-s); height: var(--control-s); border-radius: 50%; flex: none;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--color-surface-2); color: var(--text-primary);
+}
+.disc.filled { background: var(--color-action); color: var(--color-on-action); }
+
+/* Chips: options to choose from. .on is the chosen one. Padding keeps the visible face compact; min-height is the touch target. */
 .chip {
   position: relative; box-sizing: border-box;
-  display: inline-flex; align-items: center; justify-content: center; gap: calc(var(--space-gap) / 2);
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--space-xs);
   min-height: var(--control-hit); min-width: var(--control-hit); height: auto;
-  padding: calc((var(--control-hit) - var(--control-chip)) / 2) var(--space-gap);
-  border-radius: calc(var(--control-chip) / 2);
+  padding: calc((var(--control-hit) - var(--control-chip)) / 2) var(--space-m);
+  border-radius: var(--radius-pill);
   background: transparent; color: var(--text-secondary); isolation: isolate;
 }
 .chip::before {
   content: ""; position: absolute; z-index: -1; left: 0; right: 0;
   top: calc((var(--control-hit) - var(--control-chip)) / 2);
   bottom: calc((var(--control-hit) - var(--control-chip)) / 2);
-  border-radius: calc(var(--control-chip) / 2); background: var(--color-surface-2);
+  border-radius: var(--radius-pill); background: var(--btn-bg, var(--color-surface-2));
 }
 .chip > * { position: relative; }
 .chip.on { color: var(--color-on-action); }
 .chip.on::before { background: var(--color-action); }
-.chip.big { padding: 6px var(--space-screen); }
-.chip.big::before { top: 0; bottom: 0; border-radius: 22px; }
+
+/* Text fields: grey fill, 44px, a ring in the action colour while focused. */
+.field {
+  display: flex; align-items: center; gap: var(--space-s); box-sizing: border-box;
+  min-height: var(--control-hit); min-width: 0; padding: 0 var(--space-m);
+  border: 0; border-radius: var(--radius-m); background: var(--btn-bg, var(--color-surface-2)); color: var(--text-primary);
+  box-shadow: inset 0 0 0 1.5px transparent; transition: box-shadow .12s;
+}
+.field:focus-within, input.field:focus { box-shadow: inset 0 0 0 1.5px var(--text-tertiary); outline: none; }
+.field input { border: 0; outline: 0; background: transparent; min-width: 0; width: 100%; padding: 0; color: inherit; }
+.field input::placeholder, input.field::placeholder { color: var(--text-tertiary); }
+
+/* Small labels next to a name ("my food", "recipe", "manual"). */
+.tag {
+  display: inline-flex; align-items: center; gap: var(--space-2xs); flex: none; white-space: nowrap;
+  padding: 1px var(--space-s); border-radius: var(--radius-xs);
+  border: 1px solid var(--color-border); color: var(--text-secondary);
+}
 
 .pressable { transition: opacity .12s; }
 .pressable:active { opacity: .6; }
 
 /* ---------- Responsive (phone is the primary design; these only kick in on wider screens) ---------- */
 /* Tablet 600–1023: wider centred column, bottom tabs kept. */
-.is-tablet .screen { max-width: 760px; margin: 0 auto; padding-left: 24px; padding-right: 24px; padding-top: calc(var(--sat) + 24px); gap: 16px; }
+.is-tablet .screen { max-width: 760px; margin: 0 auto; padding-left: var(--space-xl); padding-right: var(--space-xl); padding-top: calc(var(--sat) + var(--space-xl)); gap: var(--space-l); }
 /* Desktop ≥1024: sidebar + roomy content, max ~1200 px. */
 .is-desktop { --sat: 0px; --sab: 0px; --tabbar-h: 0px; }
-.is-desktop .screen { max-width: min(1200px, 100%); margin: 0 auto; padding: 32px 40px 48px; gap: 20px; }
+.is-desktop .screen { max-width: min(1200px, 100%); margin: 0 auto; padding: var(--space-2xl) 40px 48px; gap: var(--space-xl); }
 .is-desktop .t-title { font-size: 1.8824rem; line-height: 2.2353rem; }
 .can-hover .card.clickable { transition: background .15s; }
 .can-hover .card.clickable:hover { background: var(--color-hover); }
 .can-hover .cbtn:not(.filled):not(:disabled):hover::before { background: var(--color-hover); }
 .can-hover .cbtn.filled:hover { opacity: .88; }
-.can-hover .primary-btn:not(:disabled):hover { opacity: .9; }
+.can-hover .btn.primary:not(:disabled):hover { opacity: .9; }
+.can-hover .btn:not(.primary):not(:disabled):hover::before { background: var(--color-hover); }
 .can-hover .chip:not(.on):hover { color: var(--text-primary); }
 .can-hover .chip:not(.on):hover::before { background: var(--color-hover); }
 .can-hover .pressable:hover { opacity: .8; }
-kbd { font: 600 0.6471rem/1 "Inter", sans-serif; padding: 2px 5px; border-radius: 4px; border: 1px solid var(--color-border); color: var(--text-secondary); }
+kbd { font: 600 0.6471rem/1 "Inter", sans-serif; padding: var(--space-2xs) var(--space-xs); border-radius: 4px; border: 1px solid var(--color-border); color: var(--text-secondary); }
 .keyhint {
   display: flex; flex-wrap: wrap; align-items: center; justify-content: center;
-  gap: var(--space-gap); margin: 0; line-height: 1;
+  gap: var(--space-m); margin: 0; line-height: 1;
 }
 .keyhint kbd {
   display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box;
-  min-width: 1.5em; min-height: 1.5em; padding: 2px 6px; line-height: 1;
+  min-width: 1.5em; min-height: 1.5em; padding: var(--space-2xs) var(--space-s); line-height: 1;
 }
 /* Grid helpers */
-.dash { display: grid; gap: 16px; align-items: start; }
-.stack { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.dash { display: grid; gap: var(--space-l); align-items: start; }
+.stack { display: flex; flex-direction: column; gap: var(--space-l); min-width: 0; }
 .sticky { position: sticky; top: 32px; }
 
 /* Hit targets are at least 44px. Essential text stays on secondary or primary;
    tertiary grey is too faint for anything the person has to read to use the app. */
-.primary-btn { min-height: 52px; }
-.seg { min-height: 44px; }
 input, select { font-size: 1rem; }
 .sr-only { position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 /* xxLarge and up: the Today weight line wraps instead of truncating. */
 .dt-l .wcard .wsub, .dt-l .nowrap { white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; }
-.dt-xl .row { flex-wrap: wrap; row-gap: 4px; }
-.dt-xl .screen-head { flex-wrap: wrap; row-gap: 6px; }
+.dt-xl .row { flex-wrap: wrap; row-gap: var(--space-xs); }
+.dt-xl .screen-head { flex-wrap: wrap; row-gap: var(--space-s); }
 .offline {
   position: absolute; z-index: 80; left: 16px; right: 16px; top: calc(var(--sat) + 8px);
-  display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: 12px;
+  display: flex; align-items: center; gap: var(--space-m); padding: var(--space-m) var(--space-l); border-radius: var(--radius-m);
   background: var(--color-surface-2); color: var(--text-primary); border: 1px solid var(--color-border);
 }
 .is-desktop.has-nav .offline { left: 256px; right: 24px; }
 .boot { min-height: 100dvh; display: flex; align-items: center; justify-content: center; background: var(--color-bg); }
-.alert { color: var(--text-primary); background: var(--color-surface-2); border-radius: 12px; padding: 12px 14px; }
-.offline button { min-height: 44px; min-width: 44px; color: var(--text-primary); }
+.alert { color: var(--text-primary); background: var(--color-surface-2); border-radius: var(--radius-m); padding: var(--space-m) var(--space-l); }
 
 /* iOS Safari zooms a focused field whose computed font-size is under 16px and
    often leaves the page zoomed. Touch phones match this query; a mouse or

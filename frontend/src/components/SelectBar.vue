@@ -57,7 +57,7 @@ async function del() {
 <style scoped>
 .sbar {
   position: absolute; left: 0; right: 0; bottom: 0; z-index: 22; box-sizing: border-box;
-  height: var(--tabbar-h); padding: 3px 4px 0;
+  height: var(--tabbar-h); padding: var(--space-2xs) var(--space-xs) 0;
   display: flex; align-items: flex-start; gap: 0;
   background: var(--color-bg); border-top: 1px solid var(--color-border);
   overflow: hidden;
@@ -71,7 +71,7 @@ async function del() {
   color: var(--text-primary);
 }
 .x { color: var(--text-primary); }
-.count { width: auto; max-width: 108px; padding: 0 4px; align-items: flex-start; }
+.count { width: auto; max-width: 108px; padding: 0 var(--space-xs); align-items: flex-start; }
 .num { font-size: 13px; line-height: 16px; font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .act { color: var(--text-secondary); }
 .cap { font-size: 11px; line-height: 12px; font-weight: 500; white-space: nowrap; }

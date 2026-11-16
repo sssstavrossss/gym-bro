@@ -18,7 +18,7 @@ defineProps<{ on: boolean }>();
   transform: translate(-50%, -50%);
 }
 .dot {
-  border-radius: 8px; background: transparent;
+  border-radius: var(--radius-s); background: transparent;
   box-shadow: inset 0 0 0 1.5px var(--text-tertiary);
   transition: background .18s ease, box-shadow .18s ease;
 }

@@ -139,7 +139,7 @@ function onTextCommit() {
             <div><span class="t-label c2">Carbs</span><span class="figure"><span class="t-ns" data-field="carbs">{{ int(shown.carbs) }}</span><span class="t-label c2">g</span></span></div>
           </div>
           <p v-if="shown.floorApplied" class="t-body" data-floor="true">Raised to your BMR so the target does not go below it.</p>
-          <button type="button" class="chip t-label recalc" @click="openRecalculate">Recalculate</button>
+          <button type="button" class="btn sm primary t-label recalc" @click="openRecalculate"><Icon name="refresh" :size="14" /> Recalculate</button>
         </section>
 
         <TargetHistory class="o4" />
@@ -148,8 +148,8 @@ function onTextCommit() {
       <div class="pcol">
         <section class="card o2" aria-labelledby="goal-h">
           <h2 id="goal-h" class="section-title c2">Goal</h2>
-          <div class="compact-seg">
-            <Segmented label="Goal" :model-value="profile.form.goal" :options="[{ value: 'lose', label: 'Lose' }, { value: 'maintain', label: 'Maintain' }, { value: 'gain', label: 'Gain' }]" @update:model-value="setGoal" />
+          <div>
+            <Segmented size="compact" class="full" label="Goal" :model-value="profile.form.goal" :options="[{ value: 'lose', label: 'Lose' }, { value: 'maintain', label: 'Maintain' }, { value: 'gain', label: 'Gain' }]" @update:model-value="setGoal" />
           </div>
           <div v-if="profile.form.goal !== 'maintain'" class="rate" role="group" aria-label="Rate">
             <span class="t-body c2">Rate</span>
@@ -198,7 +198,7 @@ function onTextCommit() {
                 </span>
               </label>
             </div>
-            <button type="button" class="chip t-label reset" @click="resetMacros">Reset to default</button>
+            <button type="button" class="btn sm secondary t-label reset" @click="resetMacros"><Icon name="undo" :size="14" /> Reset to default</button>
             <p class="t-body c2 m0">More carbs means less protein or fat.</p>
           </div>
           <p v-if="line" class="t-label c2 m0 gline" data-goal-line>
@@ -209,10 +209,10 @@ function onTextCommit() {
 
         <section class="card about o3" aria-labelledby="about-h">
           <h2 id="about-h" class="section-title c2 about-kicker">About you</h2>
-          <div class="frow sexrow compact-seg">
+          <div class="frow sexrow">
             <span class="t-body c2">Sex</span>
             <span class="grow" />
-            <Segmented class="sexseg" label="Sex" :model-value="profile.form.sex" :options="[{ value: 'male', label: 'Male' }, { value: 'female', label: 'Female' }]" @update:model-value="setSex" />
+            <Segmented size="compact" class="sexseg" label="Sex" :model-value="profile.form.sex" :options="[{ value: 'male', label: 'Male' }, { value: 'female', label: 'Female' }]" @update:model-value="setSex" />
           </div>
           <label class="frow">
             <span class="t-body c2">Birth year</span>
@@ -267,66 +267,57 @@ function onTextCommit() {
 </template>
 
 <style scoped>
-.phead { gap: 4px; }
+.phead { gap: var(--space-xs); }
 .phead .t-title { min-width: 0; }
 /* The discs line up with the page's right edge: the 44px hit box overhangs by the gap around the 32px disc. */
 .hbtn { color: var(--text-secondary); }
 .hbtn:last-child { margin-right: calc((var(--control-s) - var(--control-hit)) / 2); }
 .hdot { position: absolute; top: 8px; right: 8px; width: 8px; height: 8px; border-radius: 50%; background: var(--text-primary); box-shadow: 0 0 0 2px var(--color-bg); }
-.thead { align-items: baseline; gap: 8px; }
+.thead { align-items: baseline; gap: var(--space-s); }
 [data-targets] { container-type: inline-size; }
 /* Narrow phones: Eat gets its own line. */
 @container (max-width: 290px) {
-  .stats.top { flex-wrap: wrap; row-gap: var(--space-gap); }
+  .stats.top { flex-wrap: wrap; row-gap: var(--space-m); }
   .stats.top > div:first-child { flex-basis: 100%; }
 }
 .gline b { color: var(--text-primary); font-weight: 600; }
 .m0 { margin: 0; }
 .bal { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-.frow { min-height: 44px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--color-border); width: 100%; text-align: left; }
+.frow { min-height: 44px; display: flex; align-items: center; gap: var(--space-s); border-bottom: 1px solid var(--color-border); width: 100%; text-align: left; }
 .sexrow { flex-wrap: wrap; }
-.compact-seg :deep(.seg) { min-height: 30px; padding: 3px; border-radius: 10px; }
-.sexrow :deep(.seg) { width: auto; flex: 0 0 auto; min-width: 150px; margin-left: auto; }
-html:not(.dt-xl) .compact-seg :deep(.seg-btn) {
-  min-width: 44px; min-height: 24px; padding: 2px 8px; border-radius: 8px;
-}
-html:not(.dt-xl) .sexrow :deep(.seg-btn) { padding: 2px var(--space-gap); }
-html:not(.dt-xl) .compact-seg :deep(.seg-btn)::after {
-  content: ""; position: absolute; inset: min(0px, calc((100% - 44px) / 2)) 0;
-}
-.lowrow { gap: 6px; }
+.lowrow { gap: var(--space-s); }
 .frow.last { border-bottom: 0; }
-.fval { display: inline-flex; align-items: baseline; gap: 8px; margin-left: auto; white-space: nowrap; flex-wrap: nowrap; flex: none; }
+.fval { display: inline-flex; align-items: baseline; gap: var(--space-s); margin-left: auto; white-space: nowrap; flex-wrap: nowrap; flex: none; }
 .fval .ninput { margin-left: 0; }
 .ninput { width: 88px; margin-left: auto; text-align: right; background: transparent; border: 0; min-height: 44px; }
 .ninput.ft { width: 32px; }
 .ninput.inch { width: 4.2ch; }
 .fchev { color: var(--text-tertiary); flex: none; }
 .recalc, .reset { align-self: flex-start; }
-.acts, .custom { display: flex; flex-direction: column; gap: var(--space-gap); }
-.act { min-height: 44px; display: flex; align-items: center; gap: 10px; text-align: left; border-radius: 10px; padding: 0 8px; }
+.acts, .custom { display: flex; flex-direction: column; gap: var(--space-m); }
+.act { min-height: 44px; display: flex; align-items: center; gap: var(--space-m); text-align: left; border-radius: var(--radius-m); padding: 0 var(--space-s); }
 .act.on { background: var(--color-surface-2); }
-.rate { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.stats { display: flex; gap: 12px; }
-.stats > div { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.figure { display: inline-flex; align-items: baseline; gap: 4px; flex-wrap: nowrap; white-space: nowrap; min-width: 0; }
+.rate { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-s); }
+.stats { display: flex; gap: var(--space-m); }
+.stats > div { flex: 1; display: flex; flex-direction: column; gap: var(--space-2xs); min-width: 0; }
+.figure { display: inline-flex; align-items: baseline; gap: var(--space-xs); flex-wrap: nowrap; white-space: nowrap; min-width: 0; }
 /* Phone: one column in order of importance. Wider: outputs (targets, history) left, inputs (goal, about you) right. */
-.pgrid, .pcol { display: flex; flex-direction: column; gap: var(--space-gap); min-width: 0; }
+.pgrid, .pcol { display: flex; flex-direction: column; gap: var(--space-m); min-width: 0; }
 .pgrid:not(.two):not(.desk) .pcol { display: contents; }
 .pgrid:not(.two):not(.desk) .o1 { order: 1; }
 .pgrid:not(.two):not(.desk) .o2 { order: 2; }
 .pgrid:not(.two):not(.desk) .o3 { order: 3; }
 .pgrid:not(.two):not(.desk) .o4 { order: 4; }
-.two.pgrid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start; }
-.desk.pgrid { grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 24px; }
+.two.pgrid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-l); align-items: start; }
+.desk.pgrid { grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: var(--space-xl); }
 .two .frow, .desk .frow { min-width: 0; }
 h2 { margin: 0; }
 /* xxxL and up: label on top, value under it, left-aligned. A value never splits from its unit. */
 .dt-l .about-kicker { letter-spacing: 0.04em; text-transform: uppercase; }
-.dt-l .frow { position: relative; flex-direction: column; flex-wrap: nowrap; align-items: flex-start; gap: 2px; padding: 8px 0; height: auto; }
+.dt-l .frow { position: relative; flex-direction: column; flex-wrap: nowrap; align-items: flex-start; gap: var(--space-2xs); padding: var(--space-s) 0; height: auto; }
 .dt-l .frow > .grow { display: none; }
 .dt-l .frow > * { max-width: 100%; }
-.dt-l .frow:has(.fchev) { padding-right: 28px; }
+.dt-l .frow:has(.fchev) { padding-right: var(--space-2xl); }
 .dt-l .fchev { position: absolute; right: 0; top: 50%; transform: translateY(-50%); }
 .dt-l .fval { margin-left: 0; }
 .dt-l .fval .ninput { width: 6.5ch; min-width: 2ch; text-align: left; }

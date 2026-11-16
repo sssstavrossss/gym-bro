@@ -346,18 +346,18 @@ onBeforeUnmount(() => {
 .week {
   justify-content: space-between; align-items: center;
   /* Bottom is the 12px token under the reserved dot row. Top is 1px less so the letter cap, which paints 1px below the padding edge, is also 12px from the band. */
-  padding: calc(var(--space-gap) - 1px) calc(var(--space-gap) / 2) var(--space-gap);
+  padding: calc(var(--space-m) - 1px) var(--space-s) var(--space-m);
   background: var(--color-surface);
-  border-radius: var(--radius-card);
+  border-radius: var(--radius-l);
 }
 .day {
   width: 44px; min-height: 44px;
-  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  display: flex; flex-direction: column; align-items: center; gap: var(--space-xs);
   color: var(--text-primary);
 }
 .day:disabled { cursor: default; }
 .letter { display: block; font-size: min(0.6471rem, 15px); line-height: 1; color: var(--text-tertiary); }
-.circle { width: 36px; height: 36px; border-radius: 18px; display: flex; align-items: center; justify-content: center; font-size: min(0.8824rem, 20px); line-height: 1; color: var(--text-primary); flex: none; }
+.circle { width: 36px; height: 36px; border-radius: var(--radius-pill); display: flex; align-items: center; justify-content: center; font-size: min(0.8824rem, 20px); line-height: 1; color: var(--text-primary); flex: none; }
 .circle.on { background: var(--color-action); color: var(--color-on-action); }
 .circle.off { color: var(--text-tertiary); opacity: 0.72; }
 .dotrow { height: 4px; display: flex; align-items: center; justify-content: center; flex: none; }
@@ -373,12 +373,12 @@ onBeforeUnmount(() => {
 .pager.face { opacity: 0; }
 .cal.face { opacity: 0; transform: translate3d(0, -6px, 0); transition: opacity 220ms ease, transform 340ms cubic-bezier(0.22, 1.05, 0.36, 1); }
 .face.on { opacity: 1; transform: none; pointer-events: auto; position: relative; }
-.cal { display: flex; flex-direction: column; gap: calc(var(--space-gap) / 2); padding: var(--space-gap); background: var(--color-surface); border-radius: var(--radius-card); }
-.calrow { display: flex; gap: 4px; }
+.cal { display: flex; flex-direction: column; gap: var(--space-s); padding: var(--space-m); background: var(--color-surface); border-radius: var(--radius-l); }
+.calrow { display: flex; gap: var(--space-xs); }
 .calrow > * { flex: 1 1 0; min-width: 0; text-align: center; }
 .letters { min-height: 16px; }
 .tile {
-  position: relative; min-height: 44px; border-radius: 10px;
+  position: relative; min-height: 44px; border-radius: var(--radius-m);
   display: flex; align-items: center; justify-content: center; color: var(--text-primary);
 }
 .tile.future { color: var(--text-tertiary); }
@@ -392,8 +392,8 @@ onBeforeUnmount(() => {
 .tile.over { background-image: repeating-linear-gradient(-45deg, rgba(255,255,255,.28) 0 2px, transparent 2px 6px); }
 .tile .mark { position: absolute; top: 4px; right: 4px; }
 .corner { position: absolute; top: 4px; right: 4px; width: 0; height: 0; border-left: 7px solid transparent; border-top: 7px solid var(--text-secondary); }
-.legend { display: flex; flex-wrap: wrap; gap: 6px 10px; margin-top: 6px; min-width: 0; }
-.legend span { display: inline-flex; align-items: center; gap: 6px; min-height: 16px; white-space: nowrap; }
+.legend { display: flex; flex-wrap: wrap; gap: var(--space-s) var(--space-m); margin-top: var(--space-s); min-width: 0; }
+.legend span { display: inline-flex; align-items: center; gap: var(--space-s); min-height: 16px; white-space: nowrap; }
 .sw {
   width: 12px; height: 12px; border-radius: 3px; flex: none;
   display: inline-flex; align-items: center; justify-content: center;
@@ -409,12 +409,12 @@ onBeforeUnmount(() => {
 .grab {
   position: relative; z-index: 1;
   min-width: 44px; min-height: var(--control-hit); align-self: center;
-  display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-2xs);
   color: var(--text-secondary);
   /* The 44px box stays centered under the strip, same as before. Pull the empty
      hit under the icon (11px) and the unpainted part of the 16px chevron (5px,
      measured to the stroke) out of the layout so the screen gap starts at the ink. */
-  margin-bottom: calc((4px + 2px + 16px - var(--control-hit)) / 2 - 5px);
+  margin-bottom: calc((var(--space-xs) + var(--space-2xs) + var(--space-l) - var(--control-hit)) / 2 - var(--space-xs));
 }
 .grip { width: 36px; height: 4px; border-radius: 2px; background: var(--color-border-strong); }
 .chev { transition: transform 340ms cubic-bezier(0.22, 1.05, 0.36, 1); }

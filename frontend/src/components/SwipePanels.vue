@@ -186,7 +186,7 @@ defineExpose({ go, index });
   padding: 0;
   color: var(--text-tertiary);
 }
-.pip { width: 6px; height: 6px; border-radius: 99px; background: currentColor; }
+.pip { width: 6px; height: 6px; border-radius: var(--radius-pill); background: currentColor; }
 .dot.on { color: var(--text); }
 .dot.on .pip { width: 16px; }
 .halves .dot { pointer-events: none; }

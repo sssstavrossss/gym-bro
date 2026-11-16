@@ -30,7 +30,7 @@ const aria = computed(() => {
 <style scoped>
 .accdot {
   position: relative; z-index: 2; display: inline-flex; align-items: center; justify-content: center;
-  gap: 5px; min-width: 44px; min-height: 44px; padding: 0 8px; border-radius: 10px;
+  gap: var(--space-xs); min-width: 44px; min-height: 44px; padding: 0 var(--space-s); border-radius: var(--radius-m);
   color: var(--text-secondary); vertical-align: middle;
 }
 .d { width: 8px; height: 8px; border-radius: 50%; background: currentColor; flex: none; box-shadow: 0 0 0 2px rgba(179, 179, 186, .18); }

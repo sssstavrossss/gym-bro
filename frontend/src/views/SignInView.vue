@@ -15,7 +15,7 @@ function onSignIn() {
       </header>
       <p class="t-body c2">Sign in to set up your profile and targets.</p>
       <p v-if="boot.configError" class="alert" role="alert">{{ boot.configError }}</p>
-      <button v-else type="button" class="primary-btn t-bodys" @click="onSignIn">Sign in</button>
+      <button v-else type="button" class="btn primary block t-bodys" @click="onSignIn">Sign in</button>
     </div>
   </main>
 </template>
@@ -27,7 +27,7 @@ function onSignIn() {
   flex-direction: column;
   justify-content: center;
   align-items: center;
-  padding: calc(var(--sat) + 24px) var(--space-screen) calc(var(--sab) + 24px);
+  padding: calc(var(--sat) + var(--space-xl)) var(--space-screen) calc(var(--sab) + var(--space-xl));
 }
 .signin-card {
   width: min(100%, 480px);
@@ -35,7 +35,7 @@ function onSignIn() {
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: var(--space-gap);
+  gap: var(--space-m);
   min-width: 0;
 }
 .signin-card .t-title,

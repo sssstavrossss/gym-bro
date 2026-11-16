@@ -123,9 +123,15 @@ test("tokens, sex control, starting-weight hint, profile dot, and tab labels", a
     const female = sex.getByRole("radio", { name: "Female", exact: true });
     await male.scrollIntoViewIfNeeded();
     for (const option of [male, female]) {
-      const box = await option.boundingBox();
-      expect(box?.width).toBeGreaterThanOrEqual(44);
-      expect(box?.height).toBeGreaterThanOrEqual(44);
+      // The compact switch draws a 30px face; its ::after keeps the tap area 44px.
+      const hit = await option.evaluate((node) => {
+        const box = node.getBoundingClientRect();
+        const after = getComputedStyle(node, "::after");
+        const grow = after.content !== "none" ? Math.abs(Math.min(0, parseFloat(after.top) || 0)) * 2 : 0;
+        return { width: box.width, height: box.height + grow };
+      });
+      expect(hit.width).toBeGreaterThanOrEqual(44);
+      expect(hit.height).toBeGreaterThanOrEqual(44);
     }
     await male.focus();
     await page.keyboard.press("ArrowRight");

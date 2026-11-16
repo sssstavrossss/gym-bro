@@ -36,7 +36,7 @@ function onEdit(event: MouseEvent, recipe: Recipe) {
     <div class="row lhead">
       <span class="t-cap c3 section-title">{{ heading || "Recipes" }}</span>
       <span class="grow" />
-      <button v-if="recipes.length || !heading" type="button" class="chip t-label" @pointerdown="beginCreate" @click="emit('create')">
+      <button v-if="recipes.length || !heading" type="button" class="btn sm secondary t-label" @pointerdown="beginCreate" @click="emit('create')">
         <Icon name="plus" :size="14" :sw="2.4" /> New recipe
       </button>
     </div>
@@ -45,7 +45,7 @@ function onEdit(event: MouseEvent, recipe: Recipe) {
       <button type="button" class="col grow rtext" @pointerdown="pressAdd($event, recipe)" @click="onAdd($event, recipe)">
         <span class="row gap6 nm">
           <span class="t-body name" data-recipe-name>{{ recipe.name }}</span>
-          <span v-if="!heading" class="mark t-capn">recipe</span>
+          <span v-if="!heading" class="tag mark t-capn">recipe</span>
         </span>
         <span class="t-label c2 detail" data-recipe-detail>
           <span>{{ recipe.ingredients.length }} foods · {{ int(recipe.perPortion.kcal) }} kcal per portion</span>
@@ -62,7 +62,7 @@ function onEdit(event: MouseEvent, recipe: Recipe) {
     <div v-if="heading && !recipes.length" class="empty col">
       <span class="t-bodys">No recipes yet</span>
       <span class="t-label c2">Combine foods into one dish, then log it by the portion.</span>
-      <button type="button" class="chip on t-label newbtn" @pointerdown="beginCreate" @click="emit('create')">
+      <button type="button" class="btn sm primary t-label newbtn" @pointerdown="beginCreate" @click="emit('create')">
         <Icon name="plus" :size="14" :sw="2.4" /> New recipe
       </button>
     </div>
@@ -71,17 +71,16 @@ function onEdit(event: MouseEvent, recipe: Recipe) {
 
 <style scoped>
 .recipes { gap: 0; }
-.lhead { padding: 10px 0 2px; gap: 8px; }
-.rrow { min-height: 56px; align-items: flex-start; gap: calc(var(--space-gap) / 3); padding: calc(var(--space-gap) / 2) 0; border-bottom: 1px solid var(--color-border); }
-.rrow.hl { background: var(--color-surface-2); border-radius: 12px; }
-.gic { width: 32px; height: 32px; margin-top: 6px; border-radius: 10px; background: var(--color-surface-2); display: flex; align-items: center; justify-content: center; color: var(--text-secondary); flex: none; }
-.empty { gap: 4px; padding: 8px 0 16px; }
-.rtext { gap: 2px; min-width: 0; min-height: var(--control-hit); align-items: flex-start; justify-content: center; text-align: left; }
+.lhead { padding: var(--space-m) 0 var(--space-2xs); gap: var(--space-s); }
+.rrow { min-height: 56px; align-items: flex-start; gap: var(--space-xs); padding: var(--space-s) 0; border-bottom: 1px solid var(--color-border); }
+.rrow.hl { background: var(--color-surface-2); border-radius: var(--radius-m); }
+.gic { width: 32px; height: 32px; margin-top: var(--space-s); border-radius: var(--radius-m); background: var(--color-surface-2); display: flex; align-items: center; justify-content: center; color: var(--text-secondary); flex: none; }
+.empty { gap: var(--space-xs); padding: var(--space-s) 0 var(--space-l); }
+.rtext { gap: var(--space-2xs); min-width: 0; min-height: var(--control-hit); align-items: flex-start; justify-content: center; text-align: left; }
 .nm { align-items: baseline; min-width: 0; max-width: 100%; }
 .name { flex: 1 1 0; min-width: 0; white-space: normal; overflow-wrap: anywhere; }
 .detail { display: flex; flex-direction: column; align-items: flex-start; min-width: 0; max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
-.gap6 { gap: 6px; }
-.mark { display: inline-flex; align-items: center; padding: 1px 6px; border-radius: 6px; border: 1px solid var(--color-border); color: var(--text-secondary); white-space: nowrap; flex: none; }
-.empty { margin: 0; padding: 8px 0 12px; }
-.newbtn { align-self: flex-start; margin-top: 4px; }
+.gap6 { gap: var(--space-s); }
+.empty { margin: 0; padding: var(--space-s) 0 var(--space-m); }
+.newbtn { align-self: flex-start; margin-top: var(--space-xs); }
 </style>

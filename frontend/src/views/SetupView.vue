@@ -49,7 +49,7 @@ async function onContinue() {
       <div class="frow sexrow">
         <span class="t-body c2">Sex</span>
         <span class="grow" />
-        <Segmented label="Sex" :model-value="profile.form.sex" :options="[{ value: 'male', label: 'Male' }, { value: 'female', label: 'Female' }]" @update:model-value="setSex" />
+        <Segmented size="compact" label="Sex" :model-value="profile.form.sex" :options="[{ value: 'male', label: 'Male' }, { value: 'female', label: 'Female' }]" @update:model-value="setSex" />
       </div>
       <label class="frow">
         <span class="t-body c2">Birth year</span>
@@ -59,12 +59,12 @@ async function onContinue() {
       <div class="frow unitrow">
         <span class="t-body c2">Weight in</span>
         <span class="grow" />
-        <Segmented label="Weight unit" :model-value="profile.form.weightUnit" :options="[{ value: 'kg', label: 'kg' }, { value: 'lb', label: 'lb' }]" @update:model-value="setWeightUnit" />
+        <Segmented size="compact" label="Weight unit" :model-value="profile.form.weightUnit" :options="[{ value: 'kg', label: 'kg' }, { value: 'lb', label: 'lb' }]" @update:model-value="setWeightUnit" />
       </div>
       <div class="frow unitrow">
         <span class="t-body c2">Height in</span>
         <span class="grow" />
-        <Segmented label="Height unit" :model-value="profile.form.heightUnit" :options="[{ value: 'cm', label: 'cm' }, { value: 'ftin', label: 'ft·in', ariaLabel: 'feet and inches' }]" @update:model-value="setHeightUnit" />
+        <Segmented size="compact" label="Height unit" :model-value="profile.form.heightUnit" :options="[{ value: 'cm', label: 'cm' }, { value: 'ftin', label: 'ft·in', ariaLabel: 'feet and inches' }]" @update:model-value="setHeightUnit" />
       </div>
       <label v-if="profile.form.heightUnit === 'cm'" class="frow">
         <span class="t-body c2">Height</span>
@@ -98,7 +98,7 @@ async function onContinue() {
 
     <section class="card">
       <span class="t-label c2">Goal</span>
-      <Segmented label="Goal" :model-value="profile.form.goal" :options="[{ value: 'lose', label: 'Lose' }, { value: 'maintain', label: 'Maintain' }, { value: 'gain', label: 'Gain' }]" @update:model-value="setGoal" />
+      <Segmented size="compact" class="full" label="Goal" :model-value="profile.form.goal" :options="[{ value: 'lose', label: 'Lose' }, { value: 'maintain', label: 'Maintain' }, { value: 'gain', label: 'Gain' }]" @update:model-value="setGoal" />
       <div v-if="profile.form.goal && profile.form.goal !== 'maintain'" class="rate" role="group" aria-label="Rate">
         <span class="t-body c2">Rate</span>
         <button v-for="rate in RATES" :key="rate" type="button" class="chip t-label" :class="{ on: Number(profile.form.rate) === rate }" @click="setRate(rate)">{{ rateText(rate, profile.form.weightUnit) }}</button>
@@ -123,26 +123,24 @@ async function onContinue() {
     </section>
 
     <p v-if="profile.error" class="alert" role="alert">{{ profile.error }}</p>
-    <button type="button" class="primary-btn t-bodys" :disabled="profile.saving" @click="onContinue">
+    <button type="button" class="btn primary block t-bodys" :disabled="profile.saving" @click="onContinue">
       {{ profile.saving ? "Saving…" : "Save and see targets" }}
     </button>
   </main>
 </template>
 
 <style scoped>
-.frow { min-height: 44px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--color-border); width: 100%; text-align: left; }
+.frow { min-height: 44px; display: flex; align-items: center; gap: var(--space-s); border-bottom: 1px solid var(--color-border); width: 100%; text-align: left; }
 .sexrow { flex-wrap: wrap; }
-.sexrow :deep(.seg) { width: auto; flex: 1 1 160px; min-width: 160px; }
-.hint { display: flex; gap: 8px; align-items: flex-start; margin: 4px 0 0; }
-.odot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-secondary); flex: none; margin-top: 4px; }
+.hint { display: flex; gap: var(--space-s); align-items: flex-start; margin: var(--space-xs) 0 0; }
+.odot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-secondary); flex: none; margin-top: var(--space-xs); }
 .frow.last { border-bottom: 0; }
 .ninput { width: 88px; margin-left: auto; text-align: right; background: transparent; border: 0; min-height: 44px; }
 .ninput.ft { width: 32px; }
 .ninput.inch { width: 4.2ch; margin-left: 0; }
-.unitrow :deep(.seg) { width: 160px; flex: none; }
 .tz { margin-left: auto; width: 180px; text-align: right; background: transparent; border: 0; min-height: 44px; }
 .acts { display: flex; flex-direction: column; }
-.act { min-height: 44px; display: flex; align-items: center; gap: 10px; text-align: left; border-radius: 10px; padding: 0 8px; }
+.act { min-height: 44px; display: flex; align-items: center; gap: var(--space-m); text-align: left; border-radius: var(--radius-m); padding: 0 var(--space-s); }
 .act.on { background: var(--color-surface-2); }
-.rate { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.rate { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-s); }
 </style>

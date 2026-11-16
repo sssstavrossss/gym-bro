@@ -1290,10 +1290,10 @@ async function deleteEdited() {
       <div class="col center lead">
         <h3 class="t-head dname">{{ detailTitle }}</h3>
         <span class="row gap6 t-label c2 wrapc">
-          <span v-if="detailIsMine" class="mine t-capn"><Icon name="lock" :size="10" :sw="2.4" /> my food</span>
+          <span v-if="detailIsMine" class="tag t-capn"><Icon name="lock" :size="10" :sw="2.4" /> my food</span>
           <span v-if="detailFood?.brand">{{ detailFood.brand }} ·</span>
           <span>{{ per100 }}</span>
-          <button v-if="detailIsMine && !editing" type="button" class="linkbtn t-label" @click="detailFood && editMine(detailFood, 'detail')">Edit</button>
+          <button v-if="detailIsMine && !editing" type="button" class="btn sm secondary t-label" @click="detailFood && editMine(detailFood, 'detail')"><Icon name="edit" :size="14" /> Edit</button>
         </span>
         <span v-if="editingFood && foodChanged" class="t-capn c2">Using the values it was logged with — this food has changed since.</span>
       </div>
@@ -1306,25 +1306,25 @@ async function deleteEdited() {
         <span v-if="isCount && preview.grams != null && gramsEach" class="t-label c2" aria-live="polite">= {{ int(preview.grams) }} g<template v-if="amountNumber !== 1"> · 1 {{ unitWord1 }} = {{ gramsEach }} g</template></span>
         <div class="row units">
           <div class="unit-radios" role="radiogroup" aria-label="Unit">
-            <button v-for="choice in units" :key="choice.unit" type="button" role="radio" class="uchip t-label" :class="{ on: choice.unit === unit }" :aria-checked="choice.unit === unit" @click="setUnit(choice)">
+            <button v-for="choice in units" :key="choice.unit" type="button" role="radio" class="chip t-label" :class="{ on: choice.unit === unit }" :aria-checked="choice.unit === unit" @click="setUnit(choice)">
               {{ choice.label }}<span v-if="choice.gramsEach && choice.unit !== 'g' && choice.unit !== 'ml' && !choice.named" class="ug"> · {{ choice.gramsEach }} g</span><span v-if="choice.named" class="sr-only"> your serving</span>
             </button>
           </div>
-          <button v-if="canAddServing" type="button" class="uchip add t-label" :aria-expanded="svOpen" @click="toggleServingForm"><Icon name="plus" :size="14" :sw="2.4" /> Serving</button>
+          <button v-if="canAddServing" type="button" class="btn sm secondary t-label" :aria-expanded="svOpen" @click="toggleServingForm"><Icon name="plus" :size="14" :sw="2.4" /> Serving</button>
         </div>
-        <div v-if="svOpen" class="svform col">
+        <div v-if="svOpen" class="well svform col">
           <div class="row gap8 wrapc">
             <span class="t-label">1</span>
-            <input v-model="svName" v-autofocus class="sinp t-body" type="text" maxlength="16" autocomplete="off" aria-label="Serving name" placeholder="slice" />
+            <input v-model="svName" v-autofocus class="field sinp t-body" type="text" maxlength="16" autocomplete="off" aria-label="Serving name" placeholder="slice" />
             <span class="t-label">=</span>
-            <input v-model="svGrams" class="sinp t-body num" inputmode="decimal" autocomplete="off" aria-label="Grams in one serving" placeholder="35" @keydown.enter.prevent="saveServing" />
+            <input v-model="svGrams" class="field sinp t-body num" inputmode="decimal" autocomplete="off" aria-label="Grams in one serving" placeholder="35" @keydown.enter.prevent="saveServing" />
             <span class="t-label c2">g</span>
-            <button type="button" class="chip on t-label" :disabled="Boolean(servingDraftError) || savingServing" @click="saveServing">Save</button>
+            <button type="button" class="btn sm primary t-label" :disabled="Boolean(servingDraftError) || savingServing" @click="saveServing"><Icon name="check" :size="14" :sw="2.4" /> Save</button>
           </div>
           <div class="row gap8 wrapc">
             <span class="t-capn c2"><Icon name="lock" :size="10" :sw="2.4" /> Private — only you see your servings.</span>
-            <button v-for="row in ownServings" :key="'e' + row.id" type="button" class="linkbtn t-capn" @click="beginEditServing(row)">Edit “{{ row.name }}”</button>
-            <button v-for="row in ownServings" :key="'d' + row.id" type="button" class="linkbtn t-capn" :aria-label="`Remove serving ${row.name}`" @click="dropServing(row)">Remove “{{ row.name }}”</button>
+            <button v-for="row in ownServings" :key="'e' + row.id" type="button" class="btn sm secondary t-label" @click="beginEditServing(row)"><Icon name="edit" :size="14" /> Edit “{{ row.name }}”</button>
+            <button v-for="row in ownServings" :key="'d' + row.id" type="button" class="btn sm secondary t-label" :aria-label="`Remove serving ${row.name}`" @click="dropServing(row)"><Icon name="trash" :size="14" /> Remove “{{ row.name }}”</button>
           </div>
           <p v-if="servingDraftError && (svName.trim() || svGrams.trim())" class="t-capn errline" role="status">{{ servingDraftError }}</p>
         </div>
@@ -1365,18 +1365,18 @@ async function deleteEdited() {
           <span class="t-bodys">Server unreachable</span>
           <span class="t-label c2">Nothing was lost — your entry is still here. Try again in a moment.</span>
         </span>
-        <button type="button" class="chip" @click="saveError = false">Dismiss</button>
+        <button type="button" class="btn sm secondary t-label" @click="saveError = false">Dismiss</button>
       </div>
       <Keypad v-if="!keyboardEntry" @key="amountKey" />
       <p v-else class="t-capn c3 khint keyhint"><kbd>Enter</kbd> {{ editing ? "save" : "add" }} · <kbd>Esc</kbd> {{ editing ? "close" : "back to search" }}</p>
       <div class="row gap8 actions">
-        <button v-if="editing" type="button" class="del-btn t-bodys" aria-label="Copy to another day" :disabled="saving" @click="copyEdited">
+        <button v-if="editing" type="button" class="btn secondary t-bodys" aria-label="Copy to another day" :disabled="saving" @click="copyEdited">
           <Icon name="copy" :size="16" /><span>Copy to…</span>
         </button>
-        <button v-if="editing" type="button" class="del-btn t-bodys" aria-label="Delete" :disabled="saving" @click="deleteEdited">
+        <button v-if="editing" type="button" class="btn secondary t-bodys" aria-label="Delete" :disabled="saving" @click="deleteEdited">
           <Icon name="trash" :size="16" /><span>Delete</span>
         </button>
-        <button type="button" class="primary-btn t-bodys grow" :disabled="saving || (!editing && needTime)" @click="addDetail">
+        <button type="button" class="btn primary block t-bodys grow" :disabled="saving || (!editing && needTime)" @click="addDetail">
           {{ saveError ? "Try again" : addVerb }}<template v-if="!needTime"> · {{ int(preview.kcal) }} kcal</template>
         </button>
       </div>
@@ -1427,12 +1427,12 @@ async function deleteEdited() {
           <div v-if="mine.length" class="row lhead">
             <span class="t-cap c2 section-title">My foods</span>
             <span class="grow" />
-            <button type="button" class="chip t-label" @click="openNewFood(trimmedQuery || undefined)"><Icon name="plus" :size="14" :sw="2.4" /> New food</button>
+            <button type="button" class="btn sm secondary t-label" @click="openNewFood(trimmedQuery || undefined)"><Icon name="plus" :size="14" :sw="2.4" /> New food</button>
           </div>
           <div v-if="!mine.length" class="col emptyc">
             <span class="t-bodys">{{ myFoodsEmptyTitle }}</span>
             <span class="t-label c2">{{ myFoodsEmptyDetail }}</span>
-            <button type="button" class="chip on t-label" @click="openNewFood()"><Icon name="plus" :size="14" :sw="2.4" /> Create a food</button>
+            <button type="button" class="btn sm primary t-label" @click="openNewFood()"><Icon name="plus" :size="14" :sw="2.4" /> Create a food</button>
           </div>
           <div v-for="(food, index) in mineListed" :key="food.id" class="rrow row" :class="{ hl: keyboardEntry && index === hi }" @mouseenter="hi = index">
             <button type="button" class="col grow rtext" @pointerdown="pressFood($event, food)" @click="pickFood($event, food)">
@@ -1454,7 +1454,7 @@ async function deleteEdited() {
           </div>
           <div v-for="(food, index) in recents" :key="food.id" class="rrow row" :class="{ hl: keyboardEntry && index === hi }" @mouseenter="hi = index">
             <button type="button" class="col grow rtext" @pointerdown="pressFood($event, food, { amount: food.amount, unit: food.unit })" @click="pickFood($event, food, { amount: food.amount, unit: food.unit })">
-              <span class="row gap6 nm"><span class="t-body ell">{{ food.name }}</span><span v-if="isMyFood(food)" class="mine t-capn">my food</span></span>
+              <span class="row gap6 nm"><span class="t-body ell">{{ food.name }}</span><span v-if="isMyFood(food)" class="tag t-capn">my food</span></span>
               <span class="t-label c2 ell">{{ withBrand(food.brand, recentSubtitle(food, food.amount, food.unit)) }}</span>
             </button>
             <button type="button" class="cbtn filled"  :aria-label="needTime ? `Pick a time to add ${food.name}` : `Add ${amountLabel(food.amount, food.unit)} ${food.name}`" :disabled="saving || needTime" @click="addRecent(food)">
@@ -1470,12 +1470,12 @@ async function deleteEdited() {
           <p v-if="searching" class="t-label c2" role="status">Searching…</p>
           <div v-if="searchError" class="err col" role="alert">
             <span class="t-label">{{ searchError }}</span>
-            <button v-if="trimmedQuery.length >= 2" type="button" class="chip" @click="runSearch(trimmedQuery)">Try again</button>
+            <button v-if="trimmedQuery.length >= 2" type="button" class="btn sm primary t-label" @click="runSearch(trimmedQuery)"><Icon name="refresh" :size="14" /> Try again</button>
           </div>
           <div v-if="results.length" class="row lhead"><span class="t-cap c2 section-title">Results</span></div>
           <button v-for="(food, index) in results" :key="food.id" type="button" class="rrow row" :class="{ hl: keyboardEntry && index === hi }" @pointerdown="pressFood($event, food)" @click="pickFood($event, food)" @mouseenter="hi = index">
             <span class="col grow rtext">
-              <span class="row gap6 nm"><span class="t-body ell">{{ food.name }}</span><span v-if="isMyFood(food)" class="mine t-capn">my food</span></span>
+              <span class="row gap6 nm"><span class="t-body ell">{{ food.name }}</span><span v-if="isMyFood(food)" class="tag t-capn">my food</span></span>
               <span class="t-label c2 ell">{{ rowSub(food) }}</span>
             </span>
           </button>
@@ -1491,38 +1491,38 @@ async function deleteEdited() {
             <div class="row gap8"><Icon name="alert" :size="18" class="c2" /><span class="t-bodys">{{ offCopy.title }}</span></div>
             <span class="t-label c2">{{ offCopy.detail }}</span>
             <div class="row offacts">
-              <button type="button" class="chip on" @click="askOff"><Icon name="refresh" :size="14" />&nbsp;{{ offCopy.retry }}</button>
-              <button type="button" class="chip" @click="useQuickAdd">{{ offCopy.quickAdd }}</button>
+              <button type="button" class="btn sm primary t-label" @click="askOff"><Icon name="refresh" :size="14" /> {{ offCopy.retry }}</button>
+              <button type="button" class="btn sm secondary t-label" @click="useQuickAdd">{{ offCopy.quickAdd }}</button>
             </div>
           </div>
           <p v-if="off.status === 'ok' && off.missingKcal > 0" class="t-label c2 miss">
             {{ missingKcalLead }}
-            <button type="button" class="linkbtn" @click="openMissingEditor">{{ missingKcalAction }}</button>
+            <button type="button" class="btn sm secondary t-label" @click="openMissingEditor">{{ missingKcalAction }}</button>
           </p>
           <div v-if="showNoMatch" class="col emptyc">
             <span class="t-label c2">No match for “{{ trimmedQuery }}”.</span>
             <div class="row gap8 wrapc">
-              <button type="button" class="chip t-label" @click="openNewFood(trimmedQuery)"><Icon name="plus" :size="14" :sw="2.4" /> Create “{{ trimmedQuery }}”</button>
-              <button type="button" class="chip t-label" @click="useQuickAdd">Quick Add</button>
+              <button type="button" class="btn sm secondary t-label" @click="openNewFood(trimmedQuery)"><Icon name="plus" :size="14" :sw="2.4" /> Create “{{ trimmedQuery }}”</button>
+              <button type="button" class="btn sm secondary t-label" @click="useQuickAdd">Quick Add</button>
             </div>
           </div>
-          <button v-if="showOffButton" type="button" class="chip t-label offask" @click="askOff">Search Open Food Facts</button>
+          <button v-if="showOffButton" type="button" class="btn sm secondary t-label offask" @click="askOff"><Icon name="search" :size="14" /> Search Open Food Facts</button>
         </template>
         <p v-if="formError" class="err t-label" role="alert">{{ formError }}</p>
       </div>
-      <div v-if="session.length" class="session" role="status">
+      <div v-if="session.length" class="well session" role="status">
         <span class="col stext">
           <span class="t-bodys">{{ session.length }} added · {{ int(sessionKcal) }} kcal</span>
           <span class="t-capn c2">{{ pastDay ? dayMonth(ui.foodDate) : "Today" }} · {{ int(foodTotals.kcal) }} kcal</span>
         </span>
         <span class="sbtns">
-          <button v-if="canSaveGroup(session.length)" type="button" class="sess-act t-label" @click="saveSessionGroup">
+          <button v-if="canSaveGroup(session.length)" type="button" class="btn sm secondary t-label" @click="saveSessionGroup">
             <Icon name="layers" :size="14" /> <span>Save as group</span>
           </button>
-          <button v-if="canSaveRecipe(sessionRecipeCount)" type="button" class="sess-act t-label" @click="saveSessionRecipe">
+          <button v-if="canSaveRecipe(sessionRecipeCount)" type="button" class="btn sm secondary t-label" @click="saveSessionRecipe">
             <Icon name="food" :size="14" /> <span>Save as recipe</span>
           </button>
-          <button type="button" class="sess-act primary t-label" @click="closeSheet">Done</button>
+          <button type="button" class="btn sm primary t-label" @click="closeSheet"><Icon name="check" :size="14" :sw="2.4" /> Done</button>
         </span>
       </div>
     </template>
@@ -1557,11 +1557,11 @@ async function deleteEdited() {
         </template>
       </div>
       <p class="t-capn c2 note">Leave kcal empty and it is worked out from P · F · C (4 · 9 · 4 kcal/g).</p>
-      <label v-if="!editing" class="qsave row">
+      <label v-if="!editing" class="well qsave row">
         <input v-model="qSave" type="checkbox" />
         <span class="col"><span class="t-label">Also save as my food</span><span class="t-capn" :class="qSaveNeedsName ? '' : 'c2'">{{ qSaveNeedsName ? "! Add a name above to save it" : "One tap next time · saved per serving · private" }}</span></span>
       </label>
-      <button v-else type="button" class="linkbtn t-label save-link" @click="openSeedEditor">Save as my food…</button>
+      <button v-else type="button" class="btn sm secondary t-label save-link" @click="openSeedEditor">Save as my food…</button>
       <div class="grow" />
       <p v-if="formError" class="err t-label" role="alert">{{ formError }}</p>
       <div v-if="saveError" class="err row" role="alert">
@@ -1570,18 +1570,18 @@ async function deleteEdited() {
           <span class="t-bodys">Server unreachable</span>
           <span class="t-label c2">Nothing was lost — your entry is still here. Try again in a moment.</span>
         </span>
-        <button type="button" class="chip" @click="saveError = false">Dismiss</button>
+        <button type="button" class="btn sm secondary t-label" @click="saveError = false">Dismiss</button>
       </div>
       <Keypad v-if="!keyboardEntry" @key="qKey" />
       <p v-else class="t-capn c3 khint keyhint"><kbd>Tab</kbd> next field · <kbd>Enter</kbd> {{ editing ? "save" : "add" }} · <kbd>Esc</kbd> close</p>
       <div class="row gap8 actions">
-        <button v-if="editing" type="button" class="del-btn t-bodys" aria-label="Copy to another day" :disabled="saving" @click="copyEdited">
+        <button v-if="editing" type="button" class="btn secondary t-bodys" aria-label="Copy to another day" :disabled="saving" @click="copyEdited">
           <Icon name="copy" :size="16" /><span>Copy to…</span>
         </button>
-        <button v-if="editing" type="button" class="del-btn t-bodys" aria-label="Delete" :disabled="saving" @click="deleteEdited">
+        <button v-if="editing" type="button" class="btn secondary t-bodys" aria-label="Delete" :disabled="saving" @click="deleteEdited">
           <Icon name="trash" :size="16" /><span>Delete</span>
         </button>
-        <button type="button" class="primary-btn t-bodys grow" :disabled="saving || (!editing && needTime) || !qKcal || qSaveNeedsName" @click="addQuick">
+        <button type="button" class="btn primary block t-bodys grow" :disabled="saving || (!editing && needTime) || !qKcal || qSaveNeedsName" @click="addQuick">
           {{ saveError ? "Try again" : addVerb }}<template v-if="!needTime"> · {{ int(qKcal) }} kcal</template>
         </button>
       </div>
@@ -1590,108 +1590,77 @@ async function deleteEdited() {
 </template>
 
 <style scoped>
-.hdr { gap: var(--space-gap); min-width: 0; flex-wrap: wrap; align-items: center; }
-.needt { margin: 0; display: flex; align-items: center; gap: 6px; color: var(--text-secondary); }
-.toast-pad { display: flex; flex-direction: column; gap: 12px; padding-top: var(--food-toast-space, 0px); }
-.gap2 { gap: 2px; }
-.gap8 { gap: 8px; }
+.hdr { gap: var(--space-m); min-width: 0; flex-wrap: wrap; align-items: center; }
+.needt { margin: 0; display: flex; align-items: center; gap: var(--space-s); color: var(--text-secondary); }
+.toast-pad { display: flex; flex-direction: column; gap: var(--space-m); padding-top: var(--food-toast-space, 0px); }
+.gap2 { gap: var(--space-2xs); }
+.gap8 { gap: var(--space-s); }
 .center { align-items: center; text-align: center; }
-.field { min-height: 44px; padding: 0 12px; gap: 8px; border-radius: var(--radius-control); background: var(--color-surface-2); flex: none; min-width: 0; }
-.field input { border: 0; outline: 0; background: transparent; min-width: 0; width: 100%; padding: 0; }
-.field input::placeholder { color: var(--text-tertiary); }
+.field { flex: none; }
 .field input::-webkit-search-cancel-button { display: none; }
 .list { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
-.body { flex: 1 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
-.rrow { min-height: 56px; width: 100%; gap: 12px; padding: 6px 0; border-bottom: 1px solid var(--color-border); text-align: left; background: transparent; }
-.list.compact .rrow { min-height: 40px; padding: 2px 0; gap: 8px; }
+.body { flex: 1 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: var(--space-m); }
+.rrow { min-height: 56px; width: 100%; gap: var(--space-m); padding: var(--space-s) 0; border-bottom: 1px solid var(--color-border); text-align: left; background: transparent; }
+.list.compact .rrow { min-height: 40px; padding: var(--space-2xs) 0; gap: var(--space-s); }
 .list.compact .rtext { min-height: 0; }
-.rrow.hl { background: var(--color-surface-2); border-radius: 12px; }
-.rtext { gap: 2px; min-width: 0; align-items: flex-start; }
+.rrow.hl { background: var(--color-surface-2); border-radius: var(--radius-m); }
+.rtext { gap: var(--space-2xs); min-width: 0; align-items: flex-start; }
 .ell { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
 .clr { width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center; flex: none; }
-.qgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; flex: none; min-width: 0; }
-.qf { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 12px 14px; min-height: 72px; border-radius: var(--radius-control); background: var(--color-surface-2); text-align: left; min-width: 0; }
+.qgrid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-s); flex: none; min-width: 0; }
+.qf { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-2xs); padding: var(--space-m) var(--space-l); min-height: 72px; border-radius: var(--radius-m); background: var(--color-surface-2); text-align: left; min-width: 0; }
 .qf.on, .qf:focus-within { box-shadow: inset 0 0 0 1.5px var(--color-action); }
 .qinput, .ginput { width: 8ch; min-width: 0; max-width: 100%; background: transparent; border: 0; outline: 0; padding: 0; }
 .qinput::placeholder { color: var(--text-tertiary); }
 .note, .khint { margin: 0; }
 .khint { text-align: center; }
-.err { gap: 12px; padding: 14px; border-radius: var(--radius-card); border: 1px dashed var(--text-tertiary); flex: none; min-width: 0; }
+.err { gap: var(--space-m); padding: var(--space-l); border-radius: var(--radius-l); border: 1px dashed var(--text-tertiary); flex: none; min-width: 0; }
 .err.t-label { margin: 0; }
-.emptyc { gap: 8px; padding: 12px 0 20px; }
-.lhead { padding: 10px 0 2px; }
+.emptyc { gap: var(--space-s); padding: var(--space-m) 0 var(--space-xl); }
+.lhead { padding: var(--space-m) 0 var(--space-2xs); }
 .rtext { min-height: 44px; justify-content: center; }
-.linkbtn { text-decoration: underline; text-underline-offset: 3px; }
-.miss { margin: 8px 0; }
-.offacts { gap: 8px; flex-wrap: wrap; }
-.offask { align-self: flex-start; margin: 8px 0; }
-.skl { padding: 12px 0; }
+.miss { margin: var(--space-s) 0; }
+.offacts { gap: var(--space-s); flex-wrap: wrap; }
+.offask { align-self: flex-start; margin: var(--space-s) 0; }
+.skl { padding: var(--space-m) 0; }
 .actions { flex: none; flex-wrap: wrap; }
-.actions .primary-btn { width: auto; flex: 1 1 160px; min-width: 0; }
-.del-btn { min-height: 52px; min-width: 44px; padding: 0 18px; border-radius: 26px; background: var(--color-surface-2); display: inline-flex; align-items: center; justify-content: center; gap: 8px; flex: none; }
-.base { min-width: 0; max-width: 100%; display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.actions .btn.primary { width: auto; flex: 1 1 160px; min-width: 0; }
+.base { min-width: 0; max-width: 100%; display: flex; align-items: baseline; gap: var(--space-s); flex-wrap: wrap; }
 .dname { margin: 0; overflow-wrap: anywhere; }
-.preview { display: block; padding: calc(var(--space-gap) / 2) calc(var(--space-gap) / 2) 0; border-radius: var(--radius-card); background: var(--color-surface-2); flex: none; width: 100%; align-self: stretch; box-sizing: border-box; }
-.detail { gap: calc(var(--space-gap) / 6); }
+.preview { display: block; padding: var(--space-s) var(--space-s) 0; border-radius: var(--radius-l); background: var(--color-surface-2); flex: none; width: 100%; align-self: stretch; box-sizing: border-box; }
+.detail { gap: calc(var(--space-m) / 6); }
 .detail .lead { gap: 0; }
 .detail .lead .wrapc { flex-wrap: nowrap; max-width: 100%; }
 .detail .lead .wrapc > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .detail .dname { font-size: max(16px, 0.8824rem); line-height: 1.1; }
-.detail .amount-block { gap: 2px; }
+.detail .amount-block { gap: var(--space-2xs); }
 .detail .ginput { font-size: max(16px, min(1.15rem, 22px)); line-height: 1; }
 .detail .unitword { font-size: max(16px, 0.8824rem); line-height: 1.1; }
-.detail .units, .detail .chips, .detail .unit-radios { gap: calc(var(--space-gap) / 3); }
+.detail .units, .detail .chips, .detail .unit-radios { gap: var(--space-xs); }
 .detail .preview { padding-top: 0; padding-bottom: 0; }
 .preview .panel, .preview .cols, .preview .nrow, .preview :deep(.panel), .preview :deep(.heads), .preview :deep(.nrow) { width: 100%; box-sizing: border-box; }
-.preview .panel, .preview :deep(.panel) { padding: calc(var(--space-gap) / 3) calc(var(--space-gap) / 3) 0; }
-.preview .cols, .preview .nrow { display: grid; grid-template-columns: minmax(0, 1fr) 4.6rem 4.6rem; column-gap: 12px; align-items: baseline; }
+.preview .panel, .preview :deep(.panel) { padding: var(--space-xs) var(--space-xs) 0; }
+.preview .cols, .preview .nrow { display: grid; grid-template-columns: minmax(0, 1fr) 4.6rem 4.6rem; column-gap: var(--space-m); align-items: baseline; }
 .preview .num, .preview .cols span:not(:first-child) { text-align: right; justify-self: stretch; font-variant-numeric: tabular-nums; }
 .preview .name, .preview .cols span:first-child { text-align: left; justify-self: start; }
 .preview .num { font-variant-numeric: tabular-nums; text-align: right; }
-.units, .chips { gap: 8px; flex-wrap: wrap; justify-content: center; max-width: 100%; }
-.unit-radios { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; max-width: 100%; }
-.uchip {
-  position: relative; box-sizing: border-box; min-width: var(--control-hit); min-height: var(--control-hit);
-  padding: calc((var(--control-hit) - var(--control-s)) / 2) var(--space-gap);
-  border: 0; border-radius: calc(var(--control-s) / 2); background: transparent; color: var(--text-primary);
-  display: inline-flex; align-items: center; justify-content: center; gap: calc(var(--space-gap) / 3);
-  isolation: isolate;
-}
-.uchip::before {
-  content: ""; position: absolute; z-index: -1; left: 0; right: 0;
-  top: calc((var(--control-hit) - var(--control-s)) / 2);
-  bottom: calc((var(--control-hit) - var(--control-s)) / 2);
-  border-radius: calc(var(--control-s) / 2); border: 1px solid var(--color-border);
-}
-.uchip > * { position: relative; }
-.uchip.on { color: var(--color-on-action); }
-.uchip.on::before { background: var(--color-action); border-color: var(--color-action); }
-.uchip.add { color: var(--text-secondary); gap: calc(var(--space-gap) / 2); }
-.uchip.add::before { border-style: dashed; }
+.units, .chips { gap: var(--space-s); flex-wrap: wrap; justify-content: center; max-width: 100%; }
+.unit-radios { display: flex; flex-wrap: wrap; gap: var(--space-s); justify-content: center; max-width: 100%; }
 .ug { color: var(--text-secondary); }
-.svform { gap: 8px; padding: 10px 12px; border-radius: 12px; background: var(--color-surface-2); align-items: center; width: 100%; }
-.sinp { height: 44px; width: 110px; min-width: 0; padding: 0 10px; border-radius: 10px; border: 1px solid var(--color-border); background: var(--color-surface); color: var(--text-primary); }
+.svform { gap: var(--space-s); align-items: center; width: 100%; }
+.sinp { width: 110px; }
 .sinp.num { width: 72px; }
-.sinp:focus { outline: none; border-color: var(--color-action); }
 .errline { margin: 0; color: var(--text-secondary); min-height: 1.2em; }
-.linkbtn { min-height: 44px; padding: 8px 2px; }
-.uchip.on .ug { color: var(--color-on-action); }
-.after { gap: 12px; padding: 16px; border-radius: var(--radius-card); border: 1px solid var(--color-border); }
-.arow { gap: 6px; }
-.session { display: flex; flex-direction: column; align-items: stretch; gap: 8px; padding: 12px; border-radius: var(--radius-card); background: var(--color-surface-2); flex: none; min-width: 0; max-width: 100%; box-sizing: border-box; }
+.chip.on .ug { color: var(--color-on-action); }
+.after { gap: var(--space-m); padding: var(--space-l); border-radius: var(--radius-l); border: 1px solid var(--color-border); }
+.arow { gap: var(--space-s); }
+.session { display: flex; flex-direction: column; align-items: stretch; gap: var(--space-s); flex: none; min-width: 0; max-width: 100%; box-sizing: border-box; }
 .stext { min-width: 0; }
-.sbtns { display: flex; flex-wrap: wrap; align-items: stretch; gap: 8px; margin: 0; min-width: 0; max-width: 100%; }
-.sess-act {
-  flex: 1 1 0; min-width: 0; box-sizing: border-box; min-height: 44px; height: 44px;
-  display: inline-flex; align-items: center; justify-content: center; gap: 4px;
-  padding: 4px 6px; border-radius: 22px; border: 1px solid var(--color-border);
-  background: var(--color-surface); color: var(--text-primary); text-align: center; line-height: 1.1;
-}
-.sess-act span { min-width: 0; }
-.sess-act.primary { background: var(--color-action); border-color: var(--color-action); color: var(--color-on-action); }
-html.dt-xl .sess-act { flex-basis: 100%; height: auto; padding: 8px 12px; }
+.sbtns { display: flex; flex-wrap: wrap; align-items: stretch; gap: var(--space-s); margin: 0; min-width: 0; max-width: 100%; }
+.sbtns .btn { flex: 1 1 0; min-width: 0; }
+.sbtns .btn span { min-width: 0; }
+html.dt-xl .sbtns .btn { flex-basis: 100%; }
 .dt-l .units, .dt-l .chips { justify-content: center; }
-.dt-l .uchip { min-height: 44px; }
 html.dt-xl .preview { display: block; }
 /* The header, name, amount, and unit stay near the default size so the largest
    text cannot cover them. The sheet body can still scroll. */
@@ -1714,13 +1683,12 @@ html.dt-xl .preview :deep(.list.paired.pcts .nrow) { grid-template-columns: minm
 html.dt-xl .preview :deep(.name),
 html.dt-xl .preview .name { white-space: nowrap; overflow: visible; text-overflow: clip; }
 .dt-xl .qgrid { grid-template-columns: 1fr; }
-.fchips { gap: var(--space-gap); flex-wrap: wrap; flex: none; }
-.mine { display: inline-flex; align-items: center; gap: 3px; padding: 1px 6px; border-radius: 6px; border: 1px solid var(--color-border); color: var(--text-secondary); white-space: nowrap; flex: none; }
+.fchips { gap: var(--space-m); flex-wrap: wrap; flex: none; }
 .nm { min-width: 0; max-width: 100%; }
-.gap6 { gap: 6px; }
+.gap6 { gap: var(--space-s); }
 .wrapc { flex-wrap: wrap; justify-content: center; }
-.qsave { gap: 12px; align-items: flex-start; padding: 10px 12px; border-radius: 12px; background: var(--color-surface-2); cursor: pointer; flex: none; }
-.qsave input { width: 22px; height: 22px; margin-top: 2px; accent-color: var(--color-action); flex: none; }
-.save-link { align-self: flex-start; padding: 8px 0; }
-.empty { margin: 0; padding: 8px 0; }
+.qsave { gap: var(--space-m); align-items: flex-start; cursor: pointer; flex: none; }
+.qsave input { width: 22px; height: 22px; margin-top: var(--space-2xs); accent-color: var(--color-action); flex: none; }
+.save-link { align-self: flex-start; padding: var(--space-s) 0; }
+.empty { margin: 0; padding: var(--space-s) 0; }
 </style>

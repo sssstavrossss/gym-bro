@@ -138,21 +138,21 @@ async function copy() {
     </div>
     <p class="t-label c2 note"><Icon name="clock" :size="13" /> Times are kept ({{ times }}). Tap an entry afterwards to change it.</p>
     <p v-if="error" class="t-label err" role="alert">{{ error }}</p>
-    <button type="button" class="primary-btn t-bodys" :disabled="saving || !list.length" @click="copy">
+    <button type="button" class="btn primary block t-bodys" :disabled="saving || !list.length" @click="copy">
       {{ saving ? "Copying…" : `Copy to ${buttonLabel}` }}
     </button>
   </BottomSheet>
 </template>
 
 <style scoped>
-.hdr { gap: var(--space-gap); align-items: center; }
+.hdr { gap: var(--space-m); align-items: center; }
 .opts { gap: 0; }
-.opt { position: relative; min-height: 48px; gap: 10px; border-bottom: 1px solid var(--color-border); text-align: left; width: 100%; }
-.radio { width: 22px; height: 22px; border-radius: 11px; border: 1.5px solid var(--text-tertiary); display: flex; align-items: center; justify-content: center; flex: none; }
+.opt { position: relative; min-height: 48px; gap: var(--space-m); border-bottom: 1px solid var(--color-border); text-align: left; width: 100%; }
+.radio { width: 22px; height: 22px; border-radius: var(--radius-m); border: 1.5px solid var(--text-tertiary); display: flex; align-items: center; justify-content: center; flex: none; }
 .radio.on { background: var(--color-action); border-color: var(--color-action); color: var(--color-on-action); }
 /* Above 0 so WebKit will focus the date control. Still invisible on the row. */
 .dinput { position: absolute; inset: 0; opacity: 0.02; width: 100%; height: 100%; cursor: pointer; font-size: 16px; color: transparent; }
-.note { margin: 0; display: flex; align-items: center; gap: 6px; }
+.note { margin: 0; display: flex; align-items: center; gap: var(--space-s); }
 .err { margin: 0; color: var(--text-primary); }
 .can-hover .opt:hover { background: rgba(255, 255, 255, .03); }
 </style>

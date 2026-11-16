@@ -76,27 +76,27 @@ const rightRows = computed(() => rows.value.slice(mid.value));
 </template>
 
 <style scoped>
-.panel { display: flex; flex-direction: column; gap: 4px; min-width: 0; height: 100%; box-sizing: border-box; }
+.panel { display: flex; flex-direction: column; gap: var(--space-xs); min-width: 0; height: 100%; box-sizing: border-box; }
 .list { display: flex; flex-direction: column; flex: none; min-height: 0; justify-content: flex-start; align-content: flex-start; }
 .list.grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   grid-template-rows: repeat(var(--half), auto);
   grid-auto-flow: column;
-  column-gap: var(--space-gap);
-  row-gap: 2px;
+  column-gap: var(--space-m);
+  row-gap: var(--space-2xs);
 }
 .list.halves {
   display: grid;
   grid-template-columns: minmax(max-content, 1fr) minmax(max-content, 1fr);
   align-items: start;
-  column-gap: var(--space-gap);
+  column-gap: var(--space-m);
 }
 .half {
   display: grid;
   grid-template-columns: minmax(max-content, 1fr) max-content max-content;
   column-gap: 0;
-  row-gap: 2px;
+  row-gap: var(--space-2xs);
   align-items: baseline;
 }
 .half.pcts { grid-template-columns: minmax(max-content, 1fr) max-content max-content max-content; }
@@ -104,7 +104,7 @@ const rightRows = computed(() => rows.value.slice(mid.value));
 .list.halves .nums,
 .list.halves .fig { display: contents; }
 .list.halves .name {
-  margin-right: 2px;
+  margin-right: var(--space-2xs);
   white-space: nowrap;
   overflow: visible;
   text-overflow: clip;
@@ -122,7 +122,7 @@ const rightRows = computed(() => rows.value.slice(mid.value));
 .list.halves .pct {
   display: block;
   width: auto;
-  margin: 0 0 0 6px;
+  margin: 0 0 0 var(--space-s);
   text-align: right;
   white-space: nowrap;
   font-size: calc(0.7647rem - 1px);
@@ -131,13 +131,13 @@ const rightRows = computed(() => rows.value.slice(mid.value));
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: baseline;
-  column-gap: 8px;
+  column-gap: var(--space-s);
   min-width: 0;
   margin: 0;
   padding: 0;
   flex: none;
 }
-.heads, .list.paired .nrow { display: grid; grid-template-columns: minmax(0, 1fr) 4.6rem 4.6rem; column-gap: 12px; align-items: baseline; width: 100%; }
+.heads, .list.paired .nrow { display: grid; grid-template-columns: minmax(0, 1fr) 4.6rem 4.6rem; column-gap: var(--space-m); align-items: baseline; width: 100%; }
 .heads.pcts, .list.paired.pcts .nrow { grid-template-columns: minmax(0, 1fr) 4.6rem 2.2rem 4.6rem; }
 .heads span:not(:first-child) { justify-self: stretch; text-align: right; }
 .per, .amt { justify-self: end; }
@@ -151,10 +151,10 @@ const rightRows = computed(() => rows.value.slice(mid.value));
 }
 .fig > .num { text-align: right; }
 .unit { text-align: left; }
-.nums { display: inline-flex; justify-content: flex-end; align-items: baseline; gap: 8px; white-space: nowrap; }
+.nums { display: inline-flex; justify-content: flex-end; align-items: baseline; gap: var(--space-s); white-space: nowrap; }
 .pct { width: 3.6ch; font-variant-numeric: tabular-nums; }
 .name { min-width: 0; overflow-wrap: anywhere; }
-.name.indent { padding-left: 12px; }
+.name.indent { padding-left: var(--space-m); }
 .num { white-space: nowrap; }
 .miss .fig { color: var(--text-tertiary); }
 .pct { color: var(--text-secondary); }

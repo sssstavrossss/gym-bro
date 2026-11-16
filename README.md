@@ -429,6 +429,24 @@ dotnet tool restore
 dotnet tool run dotnet-ef -- migrations add <Name> --project backend/GymBro.Api --output-dir Data/Migrations
 ```
 
+## Design tokens
+
+Spacing, corners and control sizes come from tokens in `frontend/src/styles/main.css`. Components use the tokens, not raw pixels, so the same kind of box has the same padding and corners on every screen.
+
+- **Spacing:** `--space-2xs` 2, `-xs` 4, `-s` 8, `-m` 12, `-l` 16, `-xl` 24, `-2xl` 32. Screen edges and box padding are both `--space-l` (`--space-screen`, `--space-box`).
+- **Corners:** `--radius-xs` 6 (tags), `-s` 8, `-m` 12 (fields, segmented controls, small panels), `-l` 16 (cards), `-xl` 24 (sheets), `--radius-pill` for buttons and chips.
+- **Sizes:** every hit target is at least `--control-hit` (44px). A regular button is 44px tall. A small button or chip draws a 30px face (`--control-chip`) inside a 44px hit area. Icon discs are 32px (`--control-s`).
+
+The shared classes:
+
+- **Buttons:** `.btn.primary` is white and used for the main action (Save, Add food, Log weight, Recalculate). `.btn.secondary` is grey and used for everything else (Cancel, Dismiss, Delete, Reset). `.sm` is the small size and `.block` is full width. A button can carry an icon before its label.
+- **Chips:** `.chip` is only for picking one of several values (rates, units, amounts). `.chip.on` is the picked one.
+- **Segmented:** `Segmented` is full width with 44px options. `size="compact"` is for a switch to the right of its label in a row: a 30px face with a 44px hit area.
+- **Boxes:** `.card` (surface, `--space-box` padding, `--radius-l`), `.card.inset` (a grey card inside a sheet), `.card.outline` (a bordered prompt such as Recalculate this week or Fresh start), and `.well` (a small grey panel, `--space-m` padding, `--radius-m`). Grey buttons and fields inside a grey box switch to a lighter grey so they stay visible.
+- **Fields and tags:** `.field` is the grey 44px input with a focus ring. `.tag` is the small bordered label (`recipe`, `mine`, `M`).
+
+Sheets close with an × icon, and actions use the same icon set (edit, trash, plus, refresh, undo, check, search, scale, logout).
+
 ## Screens
 
 Today, the food log, Progress, saved groups, recipes, and recalculate are in the app. Workouts are out of scope. There is no meal field on a log entry.

@@ -86,7 +86,7 @@ async function onSignOut() {
       <div class="row hdr">
         <button v-if="view === 'zone'" type="button" class="cbtn back" aria-label="Back to settings" @click="view = 'main'"><Icon name="left" :size="18" /></button>
         <h2 class="t-head grow">{{ view === "zone" ? "Time zone" : "Settings" }}</h2>
-        <button type="button" class="cbtn" aria-label="Close" @click="closeSheet">×</button>
+        <button type="button" class="cbtn" aria-label="Close" @click="closeSheet"><Icon name="x" :size="18" /></button>
       </div>
     </template>
 
@@ -105,11 +105,11 @@ async function onSignOut() {
         <h3 id="set-units" class="t-cap c3 m0">Units</h3>
         <div class="frow urow">
           <span class="t-body grow">Weight</span>
-          <Segmented label="Weight unit" :model-value="profile.form.weightUnit" :options="[{ value: 'kg', label: 'kg' }, { value: 'lb', label: 'lb' }]" @update:model-value="chooseWeight" />
+          <Segmented size="compact" label="Weight unit" :model-value="profile.form.weightUnit" :options="[{ value: 'kg', label: 'kg' }, { value: 'lb', label: 'lb' }]" @update:model-value="chooseWeight" />
         </div>
         <div class="frow urow">
           <span class="t-body grow">Height</span>
-          <Segmented label="Height unit" :model-value="profile.form.heightUnit" :options="[{ value: 'cm', label: 'cm' }, { value: 'ftin', label: 'ft·in', ariaLabel: 'feet and inches' }]" @update:model-value="chooseHeight" />
+          <Segmented size="compact" label="Height unit" :model-value="profile.form.heightUnit" :options="[{ value: 'cm', label: 'cm' }, { value: 'ftin', label: 'ft·in', ariaLabel: 'feet and inches' }]" @update:model-value="chooseHeight" />
         </div>
         <span class="t-capn c2">Food stays in grams.</span>
         <p v-if="unitsError" class="t-body m0" role="alert">{{ unitsError }}</p>
@@ -130,7 +130,7 @@ async function onSignOut() {
       <section class="col group" aria-labelledby="set-account">
         <h3 id="set-account" class="t-cap c3 m0">Account</h3>
         <span v-if="boot.name" class="t-label c2 who">Signed in as {{ boot.name }}</span>
-        <button type="button" class="chip t-label signout" @click="onSignOut">Sign out</button>
+        <button type="button" class="btn sm secondary t-label signout" @click="onSignOut"><Icon name="logout" :size="14" /> Sign out</button>
       </section>
 
       <p v-if="build" class="t-capn c3 m0 build" data-build>{{ build }}</p>
@@ -147,7 +147,7 @@ async function onSignOut() {
       <input
         ref="search"
         v-model="query"
-        class="zsearch t-body"
+        class="field zsearch t-body"
         type="search"
         inputmode="search"
         autocomplete="off"
@@ -178,42 +178,34 @@ async function onSignOut() {
 </template>
 
 <style scoped>
-.hdr { gap: 8px; align-items: center; }
+.hdr { gap: var(--space-s); align-items: center; }
 .back { margin-left: -10px; }
 .m0 { margin: 0; overflow-wrap: anywhere; }
-.body { gap: 20px; }
-.group { gap: 8px; min-width: 0; }
-.themes { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-gap); }
+.body { gap: var(--space-xl); }
+.group { gap: var(--space-s); min-width: 0; }
+.themes { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-m); }
 .theme {
   min-height: var(--control-hit); min-width: 0; width: 100%;
-  display: inline-flex; align-items: center; gap: 8px;
-  padding: 0 var(--space-gap); border-radius: 12px; background: var(--color-surface-2); color: var(--text-primary); text-align: left;
+  display: inline-flex; align-items: center; gap: var(--space-s);
+  padding: 0 var(--space-m); border-radius: var(--radius-m); background: var(--color-surface-2); color: var(--text-primary); text-align: left;
 }
 .theme[aria-checked="true"] { box-shadow: inset 0 0 0 1.5px var(--text-primary); }
 .swatch { width: 14px; height: 14px; border-radius: 4px; box-shadow: inset 0 0 0 1px var(--color-border-strong); flex: none; }
 :global(html.dt-xl) .themes { grid-template-columns: 1fr; }
-.frow { min-height: 52px; width: 100%; display: flex; align-items: center; gap: 8px; text-align: left; padding: 0; min-width: 0; }
-.frow .grow { min-width: 0; gap: 2px; }
+.frow { min-height: 52px; width: 100%; display: flex; align-items: center; gap: var(--space-s); text-align: left; padding: 0; min-width: 0; }
+.frow .grow { min-width: 0; gap: var(--space-2xs); }
 .zval { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 55%; }
 .fchev { color: var(--text-tertiary); flex: none; }
-/* The compact segmented control from Profile (Sex), with a 44px hit area. */
 .urow { min-height: var(--control-hit); }
-.urow :deep(.seg) { width: 132px; flex: none; min-height: 30px; padding: 3px; border-radius: 10px; }
-html:not(.dt-xl) .urow :deep(.seg-btn) { min-width: 44px; min-height: 24px; padding: 2px 8px; border-radius: 8px; }
-html:not(.dt-xl) .urow :deep(.seg-btn)::after { content: ""; position: absolute; inset: min(0px, calc((100% - 44px) / 2)) 0; }
 .who { overflow-wrap: anywhere; }
 .signout { align-self: flex-start; }
 .build { text-align: center; }
-.body[data-zone-picker] { gap: var(--space-gap); }
-.zsearch {
-  width: 100%; min-height: var(--control-hit); padding: 0 var(--space-gap);
-  border-radius: 12px; border: 0; background: var(--color-surface-2); color: var(--text-primary);
-  font-size: 16px;
-}
+.body[data-zone-picker] { gap: var(--space-m); }
+.zsearch { width: 100%; font-size: 16px; }
 .zlist { gap: 0; }
-.zrow { width: 100%; min-height: var(--control-hit); display: flex; align-items: center; gap: 8px; text-align: left; padding: 6px 0; border-bottom: 1px solid var(--color-border); min-width: 0; }
+.zrow { width: 100%; min-height: var(--control-hit); display: flex; align-items: center; gap: var(--space-s); text-align: left; padding: var(--space-s) 0; border-bottom: 1px solid var(--color-border); min-width: 0; }
 .zlist .zrow:last-of-type { border-bottom: 0; }
-.zrow .grow { min-width: 0; gap: 2px; }
+.zrow .grow { min-width: 0; gap: var(--space-2xs); }
 .tick { width: 18px; flex: none; display: grid; place-items: center; color: var(--text-primary); }
 .zname { overflow-wrap: anywhere; }
 .zoff { flex: none; white-space: nowrap; font-variant-numeric: tabular-nums; }

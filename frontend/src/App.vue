@@ -158,7 +158,7 @@ function onKey(event: KeyboardEvent) {
     </div>
     <div v-if="profile.offline" class="offline" role="status">
       <span class="t-body grow">Server unreachable, try again.</span>
-      <button type="button" class="t-bodys" @click="retryLoad">Try again</button>
+      <button type="button" class="btn sm primary t-label" @click="retryLoad">Try again</button>
     </div>
   </div>
 </template>

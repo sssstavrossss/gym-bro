@@ -95,7 +95,7 @@ test("controls keep a compact face, a 44px hit, and clear gaps", async ({ page }
       expect(infoBox.height).toBeGreaterThanOrEqual(44);
       const number = page.locator(".wcard .t-nm, .wbig .t-nm").first();
       expect(overlaps(infoBox, await boxOf(number))).toBe(false);
-      const weightChip = page.locator(".wbig .chip, .wcard .chip").first();
+      const weightChip = page.locator(".wbig .btn, .wcard .btn").first();
       if (await weightChip.count()) expect(overlaps(infoBox, await boxOf(weightChip))).toBe(false);
     }
 

@@ -26,9 +26,9 @@ async function maintain() {
 </script>
 
 <template>
-  <section class="card gr" role="region" aria-labelledby="gr-h">
+  <section class="card outline gr" role="region" aria-labelledby="gr-h">
     <div class="row top">
-      <span class="ic" aria-hidden="true"><Icon name="check" :size="18" :sw="2.6" /></span>
+      <span class="disc filled" aria-hidden="true"><Icon name="check" :size="16" :sw="2.6" /></span>
       <div class="col grow">
         <h2 id="gr-h" class="t-bodys section-title m0">You've reached your goal weight</h2>
         <span class="t-label c2">Trend {{ trend != null ? wt(trend) : "—" }} {{ weightUnit() }} · goal {{ goal != null ? wt(goal) : "—" }} {{ weightUnit() }}</span>
@@ -36,19 +36,15 @@ async function maintain() {
     </div>
     <p class="t-body m0">Switch to Maintain, or keep your current goal?</p>
     <div class="row btns">
-      <button type="button" class="chip on t-label big" @click="maintain">Switch to Maintain</button>
-      <button type="button" class="chip t-label big" @click="keep">Keep my goal</button>
+      <button type="button" class="btn sm primary t-label" @click="maintain">Switch to Maintain</button>
+      <button type="button" class="btn sm secondary t-label" @click="keep">Keep my goal</button>
     </div>
     <p class="t-capn c2 m0">Nothing changes until you choose. Maintain eats about what you burn.</p>
   </section>
 </template>
 
 <style scoped>
-.gr { gap: 10px; border: 1px solid var(--color-border); }
 .m0 { margin: 0; }
-.top { gap: 12px; align-items: flex-start; }
-.ic { width: 36px; height: 36px; border-radius: 18px; background: var(--color-action); color: var(--color-on-action); display: flex; align-items: center; justify-content: center; flex: none; }
-.btns { gap: 8px; flex-wrap: wrap; }
-.chip.big { min-height: 44px; padding: 0 16px; border-radius: 22px; color: var(--text-primary); }
-.chip.big.on { color: var(--color-on-action); }
+.top { gap: var(--space-m); align-items: flex-start; }
+.btns { gap: var(--space-s); flex-wrap: wrap; }
 </style>

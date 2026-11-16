@@ -172,15 +172,15 @@ const fields = [
 <template>
   <form v-if="ready" class="fe col" novalidate @submit.prevent="save">
     <h3 class="t-head">{{ editing ? "Edit my food" : "New food" }}</h3>
-    <p v-if="editing" class="note row t-label"><Icon name="info" :size="16" class="c2" />{{ futureLogsNote }}</p>
+    <p v-if="editing" class="well note row t-label"><Icon name="info" :size="16" class="c2" />{{ futureLogsNote }}</p>
     <p v-if="formError" class="t-capn errt m0" role="alert">{{ formError }}</p>
 
     <label class="fl col"><span class="t-capm c2">Name <span aria-hidden="true">*</span></span>
-      <input v-autofocus v-model="name" class="inp t-body" type="text" autocomplete="off" required :aria-invalid="errName" aria-describedby="fe-name-msg" placeholder="e.g. Lentil soup, home-made" />
+      <input v-autofocus v-model="name" class="field t-body" type="text" autocomplete="off" required :aria-invalid="errName" aria-describedby="fe-name-msg" placeholder="e.g. Lentil soup, home-made" />
       <span id="fe-name-msg" class="t-capn" :class="errName ? 'errt' : 'c2'">{{ errName ? nameRequired : sameName ? duplicateNameNote : "" }}</span>
     </label>
     <label class="fl col"><span class="t-capm c2">Brand · optional</span>
-      <input v-model="brand" class="inp t-body" type="text" autocomplete="off" placeholder="e.g. Northbar" />
+      <input v-model="brand" class="field t-body" type="text" autocomplete="off" placeholder="e.g. Northbar" />
     </label>
 
     <div class="col fl">
@@ -189,10 +189,10 @@ const fields = [
     </div>
     <div class="row g8">
       <label class="fl col grow"><span class="t-capm c2">Serving name</span>
-        <input v-model="servingName" class="inp t-body" type="text" autocomplete="off" placeholder="serving" />
+        <input v-model="servingName" class="field t-body" type="text" autocomplete="off" placeholder="serving" />
       </label>
       <label class="fl col grow"><span class="t-capm c2">Serving size · optional</span>
-        <span class="inp row t-body"><input v-model="servingGrams" class="bare grow t-body" inputmode="decimal" autocomplete="off" placeholder="e.g. 60" /><span class="c2">g</span></span>
+        <span class="field t-body"><input v-model="servingGrams" class="bare grow t-body" inputmode="decimal" autocomplete="off" placeholder="e.g. 60" /><span class="c2">g</span></span>
       </label>
     </div>
     <p v-if="servingOnly" class="t-capn c2 m0">{{ servingOnlyNote }}</p>
@@ -200,7 +200,7 @@ const fields = [
     <div class="grid4">
       <label v-for="[key, label, unit] in fields" :key="key" class="fl col">
         <span class="t-capm c2">{{ label }}<span v-if="key === 'kcal'" aria-hidden="true"> *</span> <span class="sub">{{ basis === "100g" ? "/100 g" : "/serving" }}</span></span>
-        <span class="inp row t-body" :class="{ bad: key === 'kcal' && errKcal }">
+        <span class="field t-body" :class="{ bad: key === 'kcal' && errKcal }">
           <input v-if="key === 'kcal'" v-model="kcal" class="bare grow t-body" inputmode="decimal" autocomplete="off" placeholder="0" required :aria-invalid="errKcal" />
           <input v-else-if="key === 'protein'" v-model="protein" class="bare grow t-body" inputmode="decimal" autocomplete="off" placeholder="0" />
           <input v-else-if="key === 'fat'" v-model="fat" class="bare grow t-body" inputmode="decimal" autocomplete="off" placeholder="0" />
@@ -215,39 +215,36 @@ const fields = [
     <p v-if="per100Line" class="t-capn c2 m0">{{ per100Line }}</p>
 
     <label class="fl col"><span class="t-capm c2">Barcode · optional</span>
-      <input v-model="barcode" class="inp t-body" inputmode="numeric" autocomplete="off" placeholder="Number under the barcode" />
+      <input v-model="barcode" class="field t-body" inputmode="numeric" autocomplete="off" placeholder="Number under the barcode" />
       <span class="t-capn c2">Scanning comes in a later version — type the digits for now.</span>
     </label>
     <p class="t-capn c2 m0 priv"><Icon name="lock" :size="12" /> Private — only you see your foods.</p>
 
     <div class="row g8 actions">
-      <button v-if="editing" type="button" class="del-btn t-bodys" :disabled="saving" @click="remove"><Icon name="trash" :size="16" />Delete</button>
-      <button type="button" class="sec-btn t-bodys" @click="emit('cancel')">Cancel</button>
-      <button type="submit" class="primary-btn t-bodys grow" :disabled="saving">{{ editing ? "Save changes" : "Save food" }}</button>
+      <button v-if="editing" type="button" class="btn secondary t-bodys" :disabled="saving" @click="remove"><Icon name="trash" :size="16" />Delete</button>
+      <button type="button" class="btn secondary t-bodys" @click="emit('cancel')">Cancel</button>
+      <button type="submit" class="btn primary block t-bodys grow" :disabled="saving">{{ editing ? "Save changes" : "Save food" }}</button>
     </div>
   </form>
   <p v-else class="t-label c2" role="status">Loading…</p>
 </template>
 
 <style scoped>
-.fe { gap: 12px; padding-bottom: 4px; }
+.fe { gap: var(--space-m); padding-bottom: var(--space-xs); }
 .fe h3 { margin: 0; }
-.fl { gap: 4px; min-width: 0; }
-.g8 { gap: 8px; }
+.fl { gap: var(--space-xs); min-width: 0; }
+.g8 { gap: var(--space-s); }
 .m0 { margin: 0; }
-.inp { height: 44px; padding: 0 12px; border-radius: var(--radius-control); background: var(--color-surface-2); border: 1px solid transparent; color: var(--text-primary); min-width: 0; gap: 6px; align-items: center; }
-input.inp { width: 100%; }
-.inp:focus-within, input.inp:focus { border-color: var(--color-action); outline: none; }
-.inp.bad { border-color: var(--text-primary); border-style: dashed; }
+input.field { width: 100%; }
+.field.bad { box-shadow: inset 0 0 0 1.5px var(--text-primary); }
 .bare { background: transparent; border: 0; outline: 0; color: inherit; font: inherit; min-width: 0; padding: 0; height: 100%; width: 100%; }
-.inp::placeholder, .bare::placeholder { color: var(--text-tertiary); }
-.grid4 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.bare::placeholder { color: var(--text-tertiary); }
+.grid4 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-s); }
 .sub { color: var(--text-secondary); font-weight: 400; text-transform: none; letter-spacing: 0; }
 .errt { color: var(--text-primary); }
-.note { gap: 8px; padding: 10px 12px; border-radius: 12px; background: var(--color-surface-2); margin: 0; align-items: flex-start; }
-.hint { gap: 6px; margin: 0; padding: 8px 10px; border: 1px dashed var(--text-tertiary); border-radius: 10px; color: var(--text-secondary); align-items: flex-start; }
-.priv { display: flex; gap: 6px; align-items: center; }
-.actions { position: sticky; bottom: 0; padding-top: 8px; background: var(--color-surface); flex-wrap: wrap; }
-.actions .primary-btn { width: auto; flex: 1 1 140px; }
-.sec-btn, .del-btn { min-height: 52px; padding: 0 18px; border-radius: 26px; background: var(--color-surface-2); color: var(--text-primary); display: inline-flex; align-items: center; gap: 8px; flex: none; }
+.note { gap: var(--space-s); margin: 0; align-items: flex-start; }
+.hint { gap: var(--space-s); margin: 0; padding: var(--space-s) var(--space-m); border: 1px dashed var(--text-tertiary); border-radius: var(--radius-m); color: var(--text-secondary); align-items: flex-start; }
+.priv { display: flex; gap: var(--space-s); align-items: center; }
+.actions { position: sticky; bottom: 0; padding-top: var(--space-s); background: var(--color-surface); flex-wrap: wrap; }
+.actions .btn.primary { width: auto; flex: 1 1 140px; }
 </style>

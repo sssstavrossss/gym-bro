@@ -101,15 +101,15 @@ const summary = computed(() => {
 </template>
 
 <style scoped>
-.wchart { display: flex; flex-direction: column; gap: 10px; min-width: 0; max-width: 100%; }
-.plot { gap: 6px; align-items: flex-start; min-width: 0; max-width: 100%; }
+.wchart { display: flex; flex-direction: column; gap: var(--space-m); min-width: 0; max-width: 100%; }
+.plot { gap: var(--space-s); align-items: flex-start; min-width: 0; max-width: 100%; }
 .plot svg { flex: 1 1 auto; min-width: 0; max-width: calc(100% - 48px); height: auto; }
 .ylabels { position: relative; flex: 1; min-width: 36px; }
 .ylabels span { position: absolute; left: 0; white-space: nowrap; }
-.xlabels { justify-content: space-between; gap: 8px; }
+.xlabels { justify-content: space-between; gap: var(--space-s); }
 .dt-xl .plot { position: relative; }
 .dt-xl .ylabels { position: absolute; inset: 0; pointer-events: none; }
-.dt-xl .ylabels span { left: 4px; padding: 0 4px; border-radius: 4px; background: rgba(38, 38, 42, .85); }
+.dt-xl .ylabels span { left: 4px; padding: 0 var(--space-xs); border-radius: 4px; background: rgba(38, 38, 42, .85); }
 .dt-xl .ylabels span:not(:first-child):not(:last-child) { display: none; }
 .dt-xl .ylabels span:first-child { top: 0 !important; }
 .dt-xl .ylabels span:last-child { top: auto !important; bottom: 0; }

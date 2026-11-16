@@ -78,20 +78,18 @@ async function save() {
       </div>
     </div>
     <p v-if="error" class="t-label err" role="alert">{{ error }}</p>
-    <button type="button" class="primary-btn t-bodys" :disabled="saving || !ready" @click="save">
+    <button type="button" class="btn primary block t-bodys" :disabled="saving || !ready" @click="save">
       {{ saving ? "Saving…" : `Save group · ${list.length} items · ${int(kcal)} kcal` }}
     </button>
   </BottomSheet>
 </template>
 
 <style scoped>
-.hdr { gap: var(--space-gap); align-items: center; }
-.field { min-height: 44px; padding: 0 12px; border-radius: var(--radius-control); background: var(--color-surface-2); flex: none; }
-.field input { border: 0; outline: 0; background: transparent; min-width: 0; width: 100%; padding: 0; }
-.field input::placeholder { color: var(--text-tertiary); }
+.hdr { gap: var(--space-m); align-items: center; }
+.field { flex: none; }
 .note { margin: 0; }
 .items { gap: 0; }
-.it { min-height: 44px; gap: 8px; border-bottom: 1px solid var(--color-border); }
+.it { min-height: 44px; gap: var(--space-s); border-bottom: 1px solid var(--color-border); }
 .ell { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .err { margin: 0; }
 </style>
