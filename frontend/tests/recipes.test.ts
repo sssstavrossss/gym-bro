@@ -2,6 +2,7 @@ import { expect, it } from "vitest";
 import type { CatalogFood } from "../src/lib/foodAmount";
 import {
   canSaveRecipe,
+  finishedError,
   ingredientMacros,
   matchingRecipes,
   perPortion,
@@ -121,4 +122,13 @@ it("says how many grams a portion is and why an amount can't be logged", () => {
   expect(recipeLogProblem(pot, 1600, "portion")).toBe("Enter portions above 0 and at most 50.");
   expect(recipeLogProblem(pot, 20000, "g")).toBe("Enter grams above 0 and at most 10,000.");
   expect(recipeLogProblem({ ...pot, finishedGrams: null }, 100, "g")).toBe("This recipe has no finished weight, so it can't be logged in grams.");
+  expect(recipeLogProblem(pot, 20000, "g", "oz")).toBe("Enter ounces above 0 and at most 352.");
+  expect(recipeLogProblem({ ...pot, finishedGrams: null }, 100, "g", "oz")).toBe("This recipe has no finished weight, so it can't be logged in ounces.");
+});
+
+it("words the finished weight limit in the shown food unit", () => {
+  expect(finishedError(null)).toBeNull();
+  expect(finishedError(900)).toBeNull();
+  expect(finishedError(0)).toBe("Enter a finished weight above 0 and at most 100,000 g.");
+  expect(finishedError(200_000, "oz")).toBe("Enter a finished weight above 0 and at most 3,527 oz.");
 });

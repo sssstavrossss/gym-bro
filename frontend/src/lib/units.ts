@@ -3,7 +3,8 @@ import { atMostOneDecimal, formatMeasure, parseDecimal } from "./numbers";
 
 /**
  * Display units. The API and the database stay metric: kilograms (two decimals, so a weight typed in pounds
- * comes back as typed) and centimetres. Only what is shown and typed changes. Food stays in grams.
+ * comes back as typed) and centimetres. Only what is shown and typed changes. Food amounts
+ * (g or oz) live in `foodUnits.ts`.
  */
 export type WeightUnit = "kg" | "lb";
 export type HeightUnit = "cm" | "ftin";

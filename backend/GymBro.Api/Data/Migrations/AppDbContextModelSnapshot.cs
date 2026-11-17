@@ -1123,6 +1123,14 @@ namespace GymBro.Api.Data.Migrations
                         .HasColumnType("character varying(8)")
                         .HasColumnName("fat_setting");
 
+                    b.Property<string>("FoodUnit")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(4)
+                        .HasColumnType("character varying(4)")
+                        .HasDefaultValue("g")
+                        .HasColumnName("food_unit");
+
                     b.Property<DateOnly?>("FreshStartDeclinedOn")
                         .HasColumnType("date")
                         .HasColumnName("fresh_start_declined_on");

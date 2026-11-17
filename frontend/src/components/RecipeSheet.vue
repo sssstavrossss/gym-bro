@@ -8,7 +8,8 @@ import Keypad from "./Keypad.vue";
 import MicroRing from "./MicroRing.vue";
 import TimeChip from "./TimeChip.vue";
 import { dayMonth, todayInZone } from "../lib/dates";
-import { amountError, amountLabel, convertAmount, distinctUnits, parseAmount, servingName, unitsForFood, type CatalogFood, type OwnServing, type UnitChoice } from "../lib/foodAmount";
+import { convertAmount, distinctUnits, parseAmount, servingName, unitsForFood, type CatalogFood, type OwnServing, type UnitChoice } from "../lib/foodAmount";
+import { amountErrorIn, fromShown, isConverted, quickAmountsFor, readField, shownChoices, shownField, shownWeightWord, type ShownAmount } from "../lib/foodUnits";
 import { int } from "../lib/format";
 import { acceptSearchResult, preparedSearch, searchDebounceMs } from "../lib/foodSearch";
 import { addNeedsTime, amountForRecent, logTimeForAdd } from "../lib/foodSheet";
@@ -38,6 +39,7 @@ import {
   type RecipeTotals,
 } from "../lib/recipes";
 import { deviceTimeZone } from "../state/profile";
+import { foodAmount, foodUnit } from "../state/units";
 import { findEntry, viewed } from "../state/log";
 import { deleteRecipeWithUndo, fetchRecipe, logSavedRecipe, saveRecipe } from "../state/recipes";
 import { closeRecipeSheet, finishRecipeSave, toast, ui } from "../ui";
@@ -51,6 +53,8 @@ interface DraftLine {
   available: boolean;
   food: CatalogFood | null;
   stored: (RecipeTotals & { amount: number; unit: string }) | null;
+  /** The saved amount the field was filled from, so an untouched field saves it exactly. */
+  origin: ShownAmount | null;
 }
 
 const open = computed(() => ui.sheet === "recipe");
@@ -65,6 +69,7 @@ const step = ref<"form" | "search" | "amount">("form");
 const name = ref("");
 const portionsText = ref("");
 const finishedText = ref("");
+const finishedOrigin = ref<ShownAmount | null>(null);
 const lines = ref<DraftLine[]>([]);
 const notice = ref("");
 const error = ref("");
@@ -82,6 +87,7 @@ const pickOffline = ref(false);
 const ingredient = useFoodAmount({ formError: pickError, saveError: pickOffline, onServings: applyServings });
 const logAmount = ref("1");
 const logUnit = ref<"portion" | "g">("portion");
+const logOrigin = ref<ShownAmount | null>(null);
 const time = ref<string | null>(null);
 const logKey = ref("");
 const snapshot = ref<RecipeLogInput | null>(null);
@@ -95,13 +101,36 @@ const foodToday = computed(() => viewed.today || todayInZone(deviceTimeZone()));
 const pastDay = computed(() => ui.foodDate !== foodToday.value);
 const needTime = computed(() => addNeedsTime(ui.foodDate, foodToday.value, time.value, false));
 const portions = computed(() => parseAmount(portionsText.value));
-const finished = computed(() => (finishedText.value.trim() ? parseAmount(finishedText.value) : null));
+/**
+ * Amounts in this sheet are typed in the shown food unit (ounces with Food set to oz) and saved in grams.
+ * `fill` puts a saved amount in a field and remembers it; `metric` reads a field for the API, giving back
+ * the saved amount while the field is untouched (150 g shows as 5.3 oz, which would save 150.25 g).
+ */
+function fill(amount: number | string, unit: string): ShownAmount {
+  return shownField(String(amount), unit, foodUnit());
+}
+function metric(text: string, unit: string, origin: ShownAmount | null): number {
+  return readField(text, unit, foodUnit(), origin);
+}
+function fillFinished(grams: number | null) {
+  finishedOrigin.value = grams == null ? null : fill(grams, "g");
+  finishedText.value = finishedOrigin.value?.text ?? "";
+}
+/** Also used by the amount chips, which carry the amount in portions or grams. */
+function fillLog(amount: number | string, unit: "portion" | "g") {
+  logOrigin.value = fill(amount, unit);
+  logAmount.value = logOrigin.value.text;
+}
+const weightWord = computed(() => shownWeightWord("g", foodUnit()));
+const weightName = computed(() => (foodUnit() === "oz" ? "ounces" : "grams"));
+
+const finished = computed(() => (finishedText.value.trim() ? metric(finishedText.value, "g", finishedOrigin.value) : null));
 const nameProblem = computed(() => recipeNameError(name.value));
 const portionsProblem = computed(() => (portionsText.value.trim() ? portionsError(portions.value) : "Enter portions above 0 and at most 1,000."));
-const finishedProblem = computed(() => finishedError(finished.value));
+const finishedProblem = computed(() => finishedError(finished.value, foodUnit()));
 
 function macrosOf(line: DraftLine): RecipeTotals | null {
-  const amount = parseAmount(line.amountText);
+  const amount = metric(line.amountText, line.unit, line.origin);
   if (line.food) return ingredientMacros(line.food, amount, line.unit);
   if (line.stored && line.unit === line.stored.unit) return scaleStoredLine(line.stored, amount);
   return null;
@@ -123,10 +152,11 @@ const formReady = computed(() =>
 const showForm = computed(() => !loading.value && mode.value !== "log" && step.value === "form");
 
 const logPreview = computed(() => (
-  snapshot.value ? scaleRecipeLog(snapshot.value, parseAmount(logAmount.value), logUnit.value) : null
+  snapshot.value ? scaleRecipeLog(snapshot.value, metric(logAmount.value, logUnit.value, logOrigin.value), logUnit.value) : null
 ));
-const logProblem = computed(() => (snapshot.value ? recipeLogProblem(snapshot.value, parseAmount(logAmount.value), logUnit.value) : null));
+const logProblem = computed(() => (snapshot.value ? recipeLogProblem(snapshot.value, metric(logAmount.value, logUnit.value, logOrigin.value), logUnit.value, foodUnit()) : null));
 const eachPortion = computed(() => (snapshot.value ? portionGrams(snapshot.value) : null));
+const eachPortionText = computed(() => (eachPortion.value == null ? "" : foodUnit() === "oz" ? foodAmount(eachPortion.value, "g") : `${int(eachPortion.value)} g`));
 const logFigures = computed(() => {
   const preview = logPreview.value;
   return [
@@ -136,11 +166,13 @@ const logFigures = computed(() => {
     { label: "CARBS", value: preview ? recipeMacro(preview.carbs) : "–" },
   ];
 });
+/** Chip amounts in portions or grams; with Food set to oz the gram chips are 2, 4 and 8 oz. The last is the whole recipe. */
 const logChips = computed(() => {
   if (logUnit.value === "portion") return [0.5, 1, 2];
+  const chips = quickAmountsFor("g", foodUnit()).map((value) => fromShown(value, "g", foodUnit()));
   const full = finished.value;
-  const chips = [100, 150, 200];
-  if (full != null && full > 0 && full <= 10000 && !chips.includes(full)) chips.push(full);
+  const whole = full != null && full > 0 && full <= 10000 ? full : null;
+  if (whole != null && !chips.some((grams) => foodAmount(grams, "g") === foodAmount(whole, "g"))) chips.push(whole);
   return chips;
 });
 
@@ -153,7 +185,7 @@ async function reset() {
   step.value = "form";
   name.value = "";
   portionsText.value = "";
-  finishedText.value = "";
+  fillFinished(null);
   lines.value = [];
   notice.value = "";
   error.value = "";
@@ -164,7 +196,7 @@ async function reset() {
   q.value = "";
   results.value = [];
   ingredient.food.value = null;
-  logAmount.value = "1";
+  fillLog(1, "portion");
   logUnit.value = "portion";
   time.value = null;
   logKey.value = "";
@@ -200,28 +232,32 @@ function fillRecipe(recipe: { id: string; name: string; portions: number; finish
   };
   name.value = recipe.name;
   portionsText.value = String(recipe.portions);
-  finishedText.value = recipe.finishedGrams == null ? "" : String(recipe.finishedGrams);
+  fillFinished(recipe.finishedGrams);
   notice.value = recipe.notice;
-  lines.value = recipe.ingredients.map((item) => ({
-    key: item.id,
-    foodId: item.foodId,
-    name: item.name,
-    amountText: String(item.amount),
-    unit: item.unit,
-    available: item.available,
-    food: null,
-    stored: {
-      amount: item.amount,
+  lines.value = recipe.ingredients.map((item) => {
+    const origin = fill(item.amount, item.unit);
+    return {
+      key: item.id,
+      foodId: item.foodId,
+      name: item.name,
+      amountText: origin.text,
       unit: item.unit,
-      kcal: item.kcal,
-      protein: item.protein,
-      fat: item.fat,
-      carbs: item.carbs,
-    },
-  }));
+      available: item.available,
+      food: null,
+      stored: {
+        amount: item.amount,
+        unit: item.unit,
+        kcal: item.kcal,
+        protein: item.protein,
+        fat: item.fat,
+        carbs: item.carbs,
+      },
+      origin,
+    };
+  });
   if (mode.value === "log") {
     portionsText.value = String(recipe.portions);
-    finishedText.value = recipe.finishedGrams == null ? "" : String(recipe.finishedGrams);
+    fillFinished(recipe.finishedGrams);
   }
 }
 
@@ -250,7 +286,7 @@ async function fillFromEntries() {
       const food = await getFood(entry.foodId);
       if (!open.value) return;
       const preset = presetFromLogged(food, entry);
-      lines.value.push(draftFrom(food, preset.amount, preset.unit));
+      lines.value.push(draftFrom(food, fill(preset.amount, preset.unit)));
     } catch {
       leftOut.push(entry.name);
     }
@@ -261,16 +297,18 @@ async function fillFromEntries() {
   }
 }
 
-function draftFrom(food: CatalogFood, amount: string, unit: string): DraftLine {
+/** A new line showing `origin`, an amount in grams (or a count) put in the shown unit. */
+function draftFrom(food: CatalogFood, origin: ShownAmount): DraftLine {
   return {
     key: crypto.randomUUID(),
     foodId: food.id,
     name: food.name,
-    amountText: amount,
-    unit,
+    amountText: origin.text,
+    unit: origin.unit,
     available: true,
     food,
     stored: null,
+    origin,
   };
 }
 
@@ -288,15 +326,16 @@ function showUnits(line: DraftLine): boolean {
 function lineError(line: DraftLine): string | null {
   if (macrosOf(line)) return null;
   if (!line.available) return "That food is no longer available. Keep the saved unit.";
-  return amountError(parseAmount(line.amountText), line.unit) ?? "Choose a unit this food can be logged in.";
+  return amountErrorIn(metric(line.amountText, line.unit, line.origin), line.unit, foodUnit()) ?? "Choose a unit this food can be logged in.";
 }
 
 function unitChoices(line: DraftLine): UnitChoice[] {
-  return line.food ? distinctUnits(unitsForFood(line.food), line.unit) : [];
+  return line.food ? shownChoices(distinctUnits(unitsForFood(line.food), line.unit), foodUnit()) : [];
 }
 
 /** Word next to the amount: the chip's name ("porsjon", "stk"), not the API value ("serving", "piece"). */
 function unitWord(unit: string, choices: readonly UnitChoice[]): string {
+  if (isConverted(unit, foodUnit())) return shownWeightWord(unit, foodUnit());
   const choice = choices.find((item) => item.unit === unit);
   if (!choice) return servingName(unit) ?? unit;
   if (choice.named) return choice.unit;
@@ -308,7 +347,8 @@ function setLineUnit(line: DraftLine, next: UnitChoice) {
   if (next.unit === line.unit) return;
   const choices = line.food ? unitsForFood(line.food) : [];
   const current = choices.find((item) => item.unit === line.unit);
-  line.amountText = convertAmount(parseAmount(line.amountText), current, next, true);
+  line.origin = fill(convertAmount(metric(line.amountText, line.unit, line.origin), current, next, true), next.unit);
+  line.amountText = line.origin.text;
   line.unit = next.unit;
 }
 
@@ -319,8 +359,8 @@ function setLogUnit(next: "portion" | "g") {
   if (each != null) {
     const portion: UnitChoice = { unit: "portion", label: "portion", gramsEach: each };
     const gram: UnitChoice = { unit: "g", label: "g", gramsEach: 1 };
-    const amount = parseAmount(logAmount.value);
-    logAmount.value = next === "g" ? convertAmount(amount, portion, gram) : convertAmount(amount, gram, portion);
+    const amount = metric(logAmount.value, logUnit.value, logOrigin.value);
+    fillLog(next === "g" ? convertAmount(amount, portion, gram) : convertAmount(amount, gram, portion), next);
   }
   logUnit.value = next;
 }
@@ -371,7 +411,7 @@ function onNameFocus(event: FocusEvent) {
 /** The keypad sits at the bottom of the sheet, so it says which field it is typing into. */
 const padCaption = computed(() => {
   if (padTarget.value === "portions") return `Portions: ${portionsText.value || "–"}`;
-  if (padTarget.value === "finished") return `Finished weight: ${finishedText.value || "–"} g`;
+  if (padTarget.value === "finished") return `Finished weight: ${finishedText.value || "–"} ${weightWord.value}`;
   if (padTarget.value === "line") {
     const line = lines.value.find((item) => item.key === padLine.value);
     if (line) return `${line.name}: ${line.amountText || "–"} ${unitWord(line.unit, unitChoices(line))}`;
@@ -511,7 +551,7 @@ function rowFacts(food: FoodSearchRow): string {
   if (!isRecentRow(food)) return foodFacts(food);
   const last = amountForRecent(food, food.amount, food.unit);
   const macros = ingredientMacros(food, Number(last.amount), last.unit);
-  return macros ? `Last ${amountLabel(Number(last.amount), last.unit)} · ${int(macros.kcal)} kcal · P ${recipeMacro(macros.protein)}` : foodFacts(food);
+  return macros ? `Last ${foodAmount(Number(last.amount), last.unit)} · ${int(macros.kcal)} kcal · P ${recipeMacro(macros.protein)}` : foodFacts(food);
 }
 
 function pressIngredient(event: PointerEvent, food: FoodSearchRow) {
@@ -549,12 +589,12 @@ function addPicked() {
   if (!food || lines.value.length >= 100) return;
   const amount = ingredient.amountNumber.value;
   const unit = ingredient.unit.value;
-  const problem = amountError(amount, unit) ?? (ingredientMacros(food, amount, unit) ? null : "Choose a unit for this food.");
+  const problem = amountErrorIn(amount, unit, foodUnit()) ?? (ingredientMacros(food, amount, unit) ? null : "Choose a unit for this food.");
   if (problem) {
     pickError.value = problem;
     return;
   }
-  lines.value.push(draftFrom(food, ingredient.amountText.value, unit));
+  lines.value.push(draftFrom(food, fill(amount, unit)));
   ingredient.food.value = null;
   closePad();
   step.value = "form";
@@ -580,7 +620,7 @@ async function save() {
     finishedGrams: finished.value,
     ingredients: lines.value.map((line) => ({
       foodId: line.foodId,
-      amount: parseAmount(line.amountText),
+      amount: metric(line.amountText, line.unit, line.origin),
       unit: line.unit,
     })),
   }, mode.value === "edit" ? recipeId.value ?? undefined : undefined);
@@ -623,7 +663,7 @@ async function addLog() {
     timeZone: deviceTimeZone(),
     time: when.time,
     idempotencyKey: logKey.value,
-    amount: parseAmount(logAmount.value),
+    amount: metric(logAmount.value, logUnit.value, logOrigin.value),
     unit: logUnit.value,
   });
   saving.value = false;
@@ -632,7 +672,7 @@ async function addLog() {
     error.value = result.message;
     return;
   }
-  toast(`Added ${amountLabel(result.entry.amount, result.entry.unit)} ${result.entry.name} · ${recipeMacro(result.entry.protein)} g protein`);
+  toast(`Added ${foodAmount(result.entry.amount, result.entry.unit)} ${result.entry.name} · ${recipeMacro(result.entry.protein)} g protein`);
   closeRecipeSheet();
 }
 
@@ -695,18 +735,18 @@ async function addLog() {
       <label class="field row">
         <span class="t-label c2">Amount</span>
         <input v-autofocus :value="logAmount" data-replace="1" class="t-body grow num" :inputmode="keyboardEntry ? 'decimal' : 'none'" autocomplete="off" aria-label="Amount to log" @focus="onPadFocus('log', $event)" @beforeinput="markWholeSelection" @input="onPadInput" />
-        <span class="t-label c2">{{ logUnit === "g" ? "g" : "portion" }}</span>
+        <span class="t-label c2">{{ logUnit === "g" ? weightWord : "portion" }}</span>
       </label>
       <div v-if="snapshot?.finishedGrams || eachPortion" class="row unitline">
         <div v-if="snapshot?.finishedGrams" class="row units" role="radiogroup" aria-label="Log by">
           <button type="button" class="chip t-label" role="radio" :class="{ on: logUnit === 'portion' }" :aria-checked="logUnit === 'portion'" @click="setLogUnit('portion')">portion</button>
-          <button type="button" class="chip t-label" role="radio" :class="{ on: logUnit === 'g' }" :aria-checked="logUnit === 'g'" @click="setLogUnit('g')">grams</button>
+          <button type="button" class="chip t-label" role="radio" :class="{ on: logUnit === 'g' }" :aria-checked="logUnit === 'g'" @click="setLogUnit('g')">{{ weightName }}</button>
         </div>
         <span class="grow" />
-        <span v-if="eachPortion" class="t-label c2" data-recipe-each>1 portion = {{ int(eachPortion) }} g</span>
+        <span v-if="eachPortion" class="t-label c2" data-recipe-each>1 portion = {{ eachPortionText }}</span>
       </div>
       <div class="row chips">
-        <button v-for="amount in logChips" :key="amount" type="button" class="chip t-label" @click="logAmount = String(amount)">{{ amountLabel(amount, logUnit === "g" ? "g" : "portion") }}</button>
+        <button v-for="amount in logChips" :key="amount" type="button" class="chip t-label" @click="fillLog(amount, logUnit)">{{ foodAmount(amount, logUnit) }}</button>
       </div>
       <div v-if="!keyboardEntry" class="pad" @mousedown.prevent><Keypad @key="onPadKey" /></div>
       <p v-if="!logPreview && logProblem" class="t-label err" role="status">{{ logProblem }}</p>
@@ -757,8 +797,8 @@ async function addLog() {
           <input :value="portionsText" data-no-autofocus data-replace="1" class="t-body num" :inputmode="keyboardEntry ? 'decimal' : 'none'" autocomplete="off" aria-label="Portions" placeholder="e.g. 4" @focus="onPadFocus('portions', $event)" @beforeinput="markWholeSelection" @input="onPadInput" />
         </label>
         <label class="field tall">
-          <span class="t-label c2">Finished weight (g)</span>
-          <input :value="finishedText" data-no-autofocus data-replace="1" class="t-body num" :inputmode="keyboardEntry ? 'decimal' : 'none'" autocomplete="off" aria-label="Finished weight in grams, optional" placeholder="Optional" @focus="onPadFocus('finished', $event)" @beforeinput="markWholeSelection" @input="onPadInput" />
+          <span class="t-label c2">Finished weight ({{ weightWord }})</span>
+          <input :value="finishedText" data-no-autofocus data-replace="1" class="t-body num" :inputmode="keyboardEntry ? 'decimal' : 'none'" autocomplete="off" :aria-label="`Finished weight in ${weightName}, optional`" placeholder="Optional" @focus="onPadFocus('finished', $event)" @beforeinput="markWholeSelection" @input="onPadInput" />
         </label>
       </div>
       <p v-if="nameProblem && (name.trim() || tried)" class="t-label err" role="status">{{ nameProblem }}</p>

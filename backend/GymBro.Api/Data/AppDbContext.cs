@@ -75,6 +75,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         profile.Property(p => p.TimeZoneFollowsDevice).HasColumnName("time_zone_follows_device").HasDefaultValue(true);
         profile.Property(p => p.WeightUnit).HasColumnName("weight_unit").HasMaxLength(4).HasDefaultValue(Units.Kilograms);
         profile.Property(p => p.HeightUnit).HasColumnName("height_unit").HasMaxLength(4).HasDefaultValue(Units.Centimetres);
+        profile.Property(p => p.FoodUnit).HasColumnName("food_unit").HasMaxLength(4).HasDefaultValue(Units.Grams);
         profile.Property(p => p.FatLimits).HasColumnName("fat_limits").HasMaxLength(8).HasDefaultValue(FatLimits.Normal);
         profile.Property(p => p.FreshStartDeclinedOn).HasColumnName("fresh_start_declined_on");
         profile.Property(p => p.CreatedAt).HasColumnName("created_at");

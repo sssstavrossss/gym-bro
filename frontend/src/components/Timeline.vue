@@ -13,6 +13,7 @@ import { vp } from "../lib/viewport";
 import { removeEntries, retryPending, type LogEntry, type PendingAdd } from "../state/log";
 import { loadGroups, readdSavedGroup, savedGroups } from "../state/groups";
 import { deviceTimeZone } from "../state/profile";
+import { foodAmount } from "../state/units";
 import { endSelect, openCopy, openEdit, openFood, startSelect, toast, ui } from "../ui";
 
 const props = defineProps<{ date: string; today: string; entries: LogEntry[]; pending: PendingAdd[]; compact?: boolean; showEmpty?: boolean; home?: boolean; maxRows?: number }>();
@@ -21,7 +22,7 @@ const ordered = computed(() => rows.value.map((entry) => entry.id));
 const isToday = computed(() => props.date === props.today);
 
 function amountOf(entry: LogEntry): string {
-  if (entry.unit && entry.amount) return `${entry.amount} ${entry.unit}`;
+  if (entry.unit && entry.amount) return foodAmount(entry.amount, entry.unit);
   return "";
 }
 function macros(entry: { protein: number; fat: number; carbs: number }): string {

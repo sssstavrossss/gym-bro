@@ -9,8 +9,10 @@ import { buildLabel } from "../lib/buildInfo";
 import { applyTheme, readTheme, themes, type ThemeId } from "../lib/theme";
 import { allZones, searchZones, suggestedZones, zoneLabel, zoneOffset, zoneTime } from "../lib/timeZones";
 import { boot } from "../state/boot";
+import type { FoodUnit } from "../lib/foodUnits";
 import type { HeightUnit, WeightUnit } from "../lib/units";
-import { applySettings, clearAllDrafts, deviceTimeZone, profile, setUnits } from "../state/profile";
+import { applySettings, clearAllDrafts, deviceTimeZone, profile, setFoodUnit, setUnits } from "../state/profile";
+import { foodUnit } from "../state/units";
 import { closeSheet, ui } from "../ui";
 
 const open = computed(() => ui.sheet === "settings");
@@ -72,6 +74,9 @@ async function chooseWeight(unit: WeightUnit) {
 async function chooseHeight(unit: HeightUnit) {
   unitsError.value = await setUnits(profile.form.weightUnit, unit);
 }
+async function chooseFood(unit: FoodUnit) {
+  unitsError.value = await setFoodUnit(unit);
+}
 
 async function onSignOut() {
   if (!boot.config) return;
@@ -111,7 +116,11 @@ async function onSignOut() {
           <span class="t-body grow">Height</span>
           <Segmented size="compact" label="Height unit" :model-value="profile.form.heightUnit" :options="[{ value: 'cm', label: 'cm' }, { value: 'ftin', label: 'ft·in', ariaLabel: 'feet and inches' }]" @update:model-value="chooseHeight" />
         </div>
-        <span class="t-capn c2 gnote">Food stays in grams.</span>
+        <div class="frow">
+          <span class="t-body grow">Food</span>
+          <Segmented size="compact" label="Food unit" :model-value="foodUnit()" :options="[{ value: 'g', label: 'g' }, { value: 'oz', label: 'oz', ariaLabel: 'ounces' }]" @update:model-value="chooseFood" />
+        </div>
+        <span class="t-capn c2 gnote" data-food-note>{{ foodUnit() === "oz" ? "Food amounts in oz and fl oz." : "Food amounts in g and ml." }} Protein, fat, carbs and nutrients stay in grams.</span>
         <p v-if="unitsError" class="t-body m0" role="alert">{{ unitsError }}</p>
       </section>
 

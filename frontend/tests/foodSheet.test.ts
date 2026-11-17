@@ -83,6 +83,8 @@ describe("recents", () => {
     expect(amountForRecent(oats, 180, "g")).toEqual({ amount: "180", unit: "g" });
     expect(recentSubtitle(oats, 180, "g")).toBe("180 g · 297 kcal · P23.4 F12.6 C25.2");
     expect(recentSubtitle(oats, 1, "serving")).toBe("1 serving (40 g) · 66 kcal · P5.2 F2.8 C5.6");
+    expect(recentSubtitle(oats, 180, "g", "oz")).toBe("6.3 oz · 297 kcal · P23.4 F12.6 C25.2");
+    expect(recentSubtitle(oats, 1, "serving", "oz")).toBe("1 serving (1.4 oz) · 66 kcal · P5.2 F2.8 C5.6");
     const sliced = {
       ...oats,
       servingQuantity: null,

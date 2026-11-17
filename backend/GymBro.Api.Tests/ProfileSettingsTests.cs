@@ -72,24 +72,29 @@ public sealed class ProfileSettingsTests(ApiFactory factory)
         var saved = await TestData.PutProfile(client, TestData.Profile());
         Assert.Equal("kg", saved.GetProperty("profile").GetProperty("weightUnit").GetString());
         Assert.Equal("cm", saved.GetProperty("profile").GetProperty("heightUnit").GetString());
+        Assert.Equal("g", saved.GetProperty("profile").GetProperty("foodUnit").GetString());
 
-        var picked = await client.PutAsJsonAsync("/api/profile/settings", new { weightUnit = "lb", heightUnit = "ftin" });
+        var picked = await client.PutAsJsonAsync("/api/profile/settings", new { weightUnit = "lb", heightUnit = "ftin", foodUnit = "oz" });
         Assert.Equal(HttpStatusCode.OK, picked.StatusCode);
         var body = await picked.Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal("lb", body.GetProperty("weightUnit").GetString());
         Assert.Equal("ftin", body.GetProperty("heightUnit").GetString());
+        Assert.Equal("oz", body.GetProperty("foodUnit").GetString());
         Assert.Equal("UTC", body.GetProperty("timeZone").GetString());
 
         var state = await client.GetFromJsonAsync<JsonElement>("/api/profile");
         Assert.Equal("lb", state.GetProperty("profile").GetProperty("weightUnit").GetString());
         Assert.Equal("ftin", state.GetProperty("profile").GetProperty("heightUnit").GetString());
+        Assert.Equal("oz", state.GetProperty("profile").GetProperty("foodUnit").GetString());
         Assert.Equal(180m, state.GetProperty("profile").GetProperty("heightCm").GetDecimal());
         Assert.Equal(1, await HistoryCount(user));
 
         Assert.Equal(HttpStatusCode.BadRequest, (await client.PutAsJsonAsync("/api/profile/settings", new { weightUnit = "stone" })).StatusCode);
         Assert.Equal(HttpStatusCode.BadRequest, (await client.PutAsJsonAsync("/api/profile/settings", new { heightUnit = "in" })).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await client.PutAsJsonAsync("/api/profile/settings", new { foodUnit = "lb" })).StatusCode);
         state = await client.GetFromJsonAsync<JsonElement>("/api/profile");
         Assert.Equal("lb", state.GetProperty("profile").GetProperty("weightUnit").GetString());
+        Assert.Equal("oz", state.GetProperty("profile").GetProperty("foodUnit").GetString());
     }
 
     [Fact]

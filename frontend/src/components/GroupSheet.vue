@@ -6,6 +6,7 @@ import { int } from "../lib/format";
 import { canSaveGroup, groupName, groupNameMax } from "../lib/groups";
 import { findEntry, type LogEntry } from "../state/log";
 import { saveGroupFromEntries } from "../state/groups";
+import { foodAmount } from "../state/units";
 import { closeGroupSheet, finishGroupSave, toast, ui } from "../ui";
 
 const open = computed(() => ui.sheet === "group");
@@ -25,8 +26,8 @@ watch(open, (isOpen) => {
 });
 
 function amountOf(entry: LogEntry): string {
-  if (entry.unit && entry.amount) return `${entry.amount} ${entry.unit}`;
-  return entry.grams ? `${entry.grams} g` : "";
+  if (entry.unit && entry.amount) return foodAmount(entry.amount, entry.unit);
+  return entry.grams ? foodAmount(entry.grams, "g") : "";
 }
 
 async function save() {
