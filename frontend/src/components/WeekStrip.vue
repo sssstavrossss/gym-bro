@@ -414,9 +414,9 @@ onBeforeUnmount(() => {
 .tile.s-far { background: var(--shade-far); }
 .tile.s-none { outline: 1px dashed var(--color-border); outline-offset: -1px; }
 .tile.s-notarget { color: var(--text-secondary); }
-.tile.over { background-image: repeating-linear-gradient(-45deg, rgba(255,255,255,.28) 0 2px, transparent 2px 6px); }
+.tile.over { background-image: repeating-linear-gradient(-45deg, var(--over-tint) 0 2px, transparent 2px 6px); }
 .tile .mark { position: absolute; top: 4px; right: 4px; }
-.corner { position: absolute; top: 4px; right: 4px; width: 0; height: 0; border-left: 7px solid transparent; border-top: 7px solid var(--text-secondary); }
+.corner { position: absolute; top: 4px; right: 4px; width: 0; height: 0; border-left: 7px solid transparent; border-top: 7px solid var(--over-text); }
 .legend { display: flex; flex-wrap: wrap; gap: var(--space-s) var(--space-m); margin-top: var(--space-s); min-width: 0; }
 .legend span { display: inline-flex; align-items: center; gap: var(--space-s); min-height: 16px; white-space: nowrap; }
 .sw {
@@ -427,7 +427,7 @@ onBeforeUnmount(() => {
 .sw.close { background: var(--shade-close); }
 .sw.off { background: var(--shade-off); }
 .sw.far { background: var(--shade-far); }
-.sw.over { background-color: var(--shade-off); background-image: repeating-linear-gradient(-45deg, rgba(255,255,255,.28) 0 2px, transparent 2px 6px); }
+.sw.over { background-color: var(--shade-off); background-image: repeating-linear-gradient(-45deg, var(--over-tint) 0 2px, transparent 2px 6px); }
 .sw.none { background: transparent; outline: 1px dashed var(--color-border); outline-offset: -2px; }
 .sw.notarget { background: transparent; box-shadow: inset 0 0 0 1px var(--text-secondary); }
 .sw.today { background: transparent; box-shadow: inset 0 0 0 2px var(--color-action); }

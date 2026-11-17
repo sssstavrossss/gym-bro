@@ -6,13 +6,17 @@
     <meta name="theme-color" content="#16181D" />
     <script>
       (function () {
-        var allowed = { graphite: "#16181D", midnight: "#121826", charcoal: "#1A1816", black: "#000000" };
+        var allowed = { graphite: "#16181D", midnight: "#121826", charcoal: "#1A1816", black: "#000000", forest: "#151E1A", plum: "#1A151E" };
         var stored = "";
         try { stored = localStorage.getItem("gymbro-theme") || ""; } catch (e) { stored = ""; }
         var theme = Object.prototype.hasOwnProperty.call(allowed, stored) ? stored : "graphite";
         document.documentElement.dataset.theme = theme;
         var meta = document.querySelector('meta[name="theme-color"]');
         if (meta) meta.setAttribute("content", allowed[theme]);
+        var accents = ["mono", "lagoon", "sunset", "berry", "meadow", "glacier"];
+        var accent = "";
+        try { accent = localStorage.getItem("gymbro-accent") || ""; } catch (e) { accent = ""; }
+        document.documentElement.dataset.accent = accents.indexOf(accent) >= 0 ? accent : "mono";
       })();
     </script>
     <meta name="apple-mobile-web-app-capable" content="yes" />

@@ -9,7 +9,7 @@ async function sign(page: Page, oid: string) {
 
 test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
 
-test("switching theme changes the background and persists", async ({ page }) => {
+test("switching theme and accent changes the colours and persists", async ({ page }) => {
   const oid = `e2e-theme-${Date.now()}-${test.info().project.name}`;
   const when = await page.evaluate(() => {
     const zone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
@@ -39,13 +39,42 @@ test("switching theme changes the background and persists", async ({ page }) => 
   const background = () => page.evaluate(() => getComputedStyle(document.body).backgroundColor);
   expect(await background()).toBe("rgb(22, 24, 29)");
 
+  // WebKit can report the old computed colour for a moment after a click, so these poll.
   await page.getByRole("radio", { name: "Midnight navy" }).click();
-  expect(await background()).toBe("rgb(18, 24, 38)");
+  await expect.poll(() => background()).toBe("rgb(18, 24, 38)");
   expect(await page.locator('meta[name="theme-color"]').getAttribute("content")).toBe("#121826");
   await page.reload();
   await page.getByRole("button", { name: "Settings" }).click();
   await expect(page.getByRole("radio", { name: "Midnight navy" })).toHaveAttribute("aria-checked", "true");
-  expect(await background()).toBe("rgb(18, 24, 38)");
+  await expect.poll(() => background()).toBe("rgb(18, 24, 38)");
 
   await page.getByRole("radio", { name: "Graphite" }).click();
+
+  // Accent: Mono by default. Lagoon paints buttons teal, bars sky and over stripes pink, and stays
+  // after a reload. The theme behind it doesn't change.
+  const settings = page.getByRole("dialog", { name: "Settings" });
+  const accents = settings.getByRole("radiogroup", { name: "Accent" });
+  await expect(accents.getByRole("radio", { name: "Mono" })).toHaveAttribute("aria-checked", "true");
+  const token = (name: string) => page.evaluate((key) => getComputedStyle(document.documentElement).getPropertyValue(key).trim(), name);
+  await expect.poll(() => token("--color-action")).toBe("#ffffff");
+  const preview = settings.locator("[data-accent-preview]");
+  const addFace = () => preview.locator(".btn.primary").evaluate((el) => getComputedStyle(el, "::before").backgroundColor);
+  await expect.poll(() => addFace()).toBe("rgb(255, 255, 255)");
+
+  await accents.getByRole("radio", { name: "Lagoon" }).click();
+  await expect(settings.locator("[data-accent-name]")).toHaveText("Lagoon");
+  await expect.poll(() => addFace()).toBe("rgb(153, 246, 228)");
+  await expect.poll(() => preview.locator(".fill").first().evaluate((el) => getComputedStyle(el).backgroundColor)).toBe("rgb(125, 211, 252)");
+  await expect.poll(() => preview.locator(".bar.over .fill").evaluate((el) => getComputedStyle(el).backgroundImage)).toContain("rgb(253, 164, 175)");
+  await expect.poll(() => background()).toBe("rgb(22, 24, 29)");
+
+  await page.reload();
+  expect(await page.evaluate(() => document.documentElement.dataset.accent)).toBe("lagoon");
+  await page.getByRole("button", { name: "Settings" }).click();
+  await expect(settings.getByRole("radiogroup", { name: "Accent" }).getByRole("radio", { name: "Lagoon" })).toHaveAttribute("aria-checked", "true");
+  await expect.poll(() => token("--chart-line")).toBe("#7dd3fc");
+
+  await settings.getByRole("radiogroup", { name: "Accent" }).getByRole("radio", { name: "Mono" }).click();
+  await expect.poll(() => token("--chart-line")).toBe("#7db1ff");
+  await expect.poll(addFace).toBe("rgb(255, 255, 255)");
 });

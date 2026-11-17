@@ -116,5 +116,5 @@ const extras = computed(() => ["omega3", "omega6", "epaDha", "cholesterol"].map(
 .cap { margin-left: 0.3em; }
 .indent { padding-left: var(--space-m); }
 /* Over the cap: dashed like the over tag, without taking width from a tight row. */
-.overval { text-decoration: underline dashed var(--text-secondary); text-decoration-thickness: 1px; text-underline-offset: 3px; }
+.overval { text-decoration: underline dashed var(--over-text); text-decoration-thickness: 1px; text-underline-offset: 3px; }
 </style>

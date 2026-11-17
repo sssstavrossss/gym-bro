@@ -28,5 +28,5 @@ const fresh = computed(() => (props.over ? 0 : Math.min(total.value, Math.max(0,
 .fill.hit { background: var(--color-hit); }
 .fill.add { background: var(--text-primary); }
 .bar.over { height: 6px; border-radius: 3px; }
-.bar.over .fill { background: repeating-linear-gradient(-45deg, var(--text-primary) 0 3px, var(--shade-off) 3px 6px); }
+.bar.over .fill { background: repeating-linear-gradient(-45deg, var(--over-mark) 0 3px, var(--over-gap) 3px 6px); }
 </style>
