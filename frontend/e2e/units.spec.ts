@@ -21,7 +21,7 @@ test("units: pounds and feet in Settings, typed values kept exactly", async ({ p
     sessionStorage.setItem("gymbro-e2e-oid", id);
   }, oid);
   await page.goto("/profile");
-  await expect(page.getByRole("textbox", { name: "Goal weight in kilograms" })).toHaveValue("80");
+  await expect(page.getByRole("button", { name: /^Goal weight 80 kg\b/ })).toBeVisible();
 
   // Settings: two switches, saved on the account straight away.
   await page.getByRole("button", { name: "Settings" }).click();
@@ -42,21 +42,26 @@ test("units: pounds and feet in Settings, typed values kept exactly", async ({ p
   await expect(settings).toBeHidden();
 
   // The profile now shows pounds and feet.
-  const goal = page.getByRole("textbox", { name: "Goal weight in pounds" });
-  await expect(goal).toHaveValue("176.4");
-  await expect(page.getByRole("group", { name: "Rate" })).toContainText("lb/wk");
-  await expect(page.getByRole("button", { name: "1.1" })).toHaveClass(/on/);
+  const goal = page.getByRole("button", { name: /^Goal weight 176\.4 lb\b/ });
+  await expect(goal).toBeVisible();
+  await expect(page.getByText("lb/wk")).toBeVisible();
+  await expect(page.getByRole("radiogroup", { name: "Rate" }).getByRole("radio", { name: "1.1" })).toHaveAttribute("aria-checked", "true");
   await expect(page.getByRole("textbox", { name: "Height, feet" })).toHaveValue("5");
   await expect(page.getByRole("textbox", { name: "Height, inches" })).toHaveValue("10.9");
-  await expect(page.locator("[data-goal-line]")).toContainText("lb to go");
+  await expect(page.locator("[data-goal-line]")).toContainText("lb");
   await expect(page.getByRole("button", { name: /Weight.*184\.3 lb/ })).toBeVisible();
   if (test.info().project.name === "chromium") {
     await page.screenshot({ path: "/opt/cursor/artifacts/units-profile.png" });
   }
 
-  // A goal typed in pounds keeps two kilogram decimals.
-  await goal.fill("165");
-  await goal.blur();
+  // A goal typed in pounds keeps two kilogram decimals. A phone types it on the app keypad.
+  await goal.click();
+  const goalSheet = page.getByRole("dialog", { name: "Goal weight" });
+  await expect(goalSheet.getByRole("textbox", { name: "Goal weight in pounds" })).toHaveAttribute("inputmode", "none");
+  for (const key of ["1", "6", "5"]) await goalSheet.getByRole("button", { name: key, exact: true }).click();
+  await expect(goalSheet.getByRole("textbox", { name: "Goal weight in pounds" })).toHaveValue("165");
+  await goalSheet.getByRole("button", { name: "Save" }).click();
+  await expect(goalSheet).toBeHidden();
   await expect.poll(async () => (await (await page.request.get("/api/profile", { headers })).json()).profile.goalWeightKg).toBe(74.84);
   // A height typed in feet and inches.
   const inches = page.getByRole("textbox", { name: "Height, inches" });
@@ -76,7 +81,7 @@ test("units: pounds and feet in Settings, typed values kept exactly", async ({ p
 
   // After a reload the units and values stay.
   await page.reload();
-  await expect(page.getByRole("textbox", { name: "Goal weight in pounds" })).toHaveValue("165");
+  await expect(page.getByRole("button", { name: /^Goal weight 165 lb\b/ })).toBeVisible();
   await expect(page.getByRole("textbox", { name: "Height, inches" })).toHaveValue("11");
 
   // Home follows.
@@ -125,5 +130,5 @@ test("units: Setup in pounds and feet", async ({ page }) => {
   expect(state.profile.rateKgPerWeek).toBe(0.5);
   const rows = await (await page.request.get("/api/weigh-ins", { headers })).json();
   expect(rows.weighIns[0].kg).toBe(83.6);
-  await expect(page.getByRole("textbox", { name: "Goal weight in pounds" })).toHaveValue("165");
+  await expect(page.getByRole("button", { name: /^Goal weight 165 lb\b/ })).toBeVisible();
 });

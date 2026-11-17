@@ -10,6 +10,7 @@ import SelectBar from "./components/SelectBar.vue";
 import SideNav from "./components/SideNav.vue";
 import TabBar from "./components/TabBar.vue";
 import Toast from "./components/Toast.vue";
+import GoalWeightSheet from "./components/GoalWeightSheet.vue";
 import SettingsSheet from "./components/SettingsSheet.vue";
 import NotificationsSheet from "./components/NotificationsSheet.vue";
 import NutrientSheet from "./components/NutrientSheet.vue";
@@ -139,6 +140,7 @@ function onKey(event: KeyboardEvent) {
     <GroupSheet />
     <RecipeSheet />
     <WeightSheet />
+    <GoalWeightSheet />
     <RecalculateSheet />
     <AccuracySheet />
     <SettingsSheet />

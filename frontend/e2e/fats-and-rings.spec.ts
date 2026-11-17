@@ -62,7 +62,7 @@ async function signIn(page: Page, oid: string) {
   }, oid);
 }
 
-test("lower fat limits show on the Fats card", async ({ page }) => {
+test("strict saturated fat limits show on the Fats card", async ({ page }) => {
   const oid = `e2e-fats-${Date.now()}`;
   await seed(page.request, oid, await today(page));
   await signIn(page, oid);
@@ -79,27 +79,24 @@ test("lower fat limits show on the Fats card", async ({ page }) => {
   await expect(fats.locator("[data-fat-row='cholesterol']")).toHaveText(/^Cholesterol\s*300 mg$/);
   await expect(fats.locator("[data-fat-limits]")).toHaveCount(0);
 
+  // Saturated fat sits on the Macros card. It saves as a setting: the targets and their history stay.
   await page.goto("/profile");
-  await page.locator("[data-cog]").click();
-  const setting = page.locator("[data-fat-limits-setting]");
-  const shown = setting.locator("[data-fat-note] > span:not(.off)");
-  await expect(shown).toHaveText(/^Saturated fat ≤ 10% of calories/);
-  // Both notes keep their room, so switching doesn't change the sheet's height.
-  const sheetHeight = () => page.locator(".sheet").evaluate((node) => Math.round(node.getBoundingClientRect().height));
-  const before = await sheetHeight();
+  const setting = page.locator("[data-saturated-setting]");
+  const caption = setting.locator("[data-saturated-caption]");
+  await expect(caption).toHaveText(/^≤ \d+ g a day$/);
+  const historyBefore = (await (await page.request.get("/api/profile/history", { headers: headers(oid) })).json()).rows.length;
   await Promise.all([
     page.waitForResponse((response) => response.url().includes("/api/profile/settings") && response.ok()),
-    setting.getByRole("radio", { name: "Lower" }).click(),
+    setting.getByRole("radio", { name: "Strict" }).click(),
   ]);
-  await expect(setting.getByRole("radio", { name: "Lower" })).toHaveAttribute("aria-checked", "true");
-  await expect(shown).toHaveText(/^Saturated fat ≤ 7% of calories and cholesterol ≤ 200 mg a day/);
-  expect(await sheetHeight()).toBe(before);
-  await page.getByRole("button", { name: "Close" }).click();
+  await expect(setting.getByRole("radio", { name: "Strict" })).toHaveAttribute("aria-checked", "true");
+  await expect(caption).toHaveText(/^≤ \d+ g, cholesterol ≤ 200 mg$/);
+  expect((await (await page.request.get("/api/profile/history", { headers: headers(oid) })).json()).rows.length).toBe(historyBefore);
 
   // Saved on the account, so a fresh load keeps it.
   await page.goto("/today");
   await showPanel(card, "fats");
-  await expect(fats.locator("[data-fat-limits]")).toHaveText("Lower limits");
+  await expect(fats.locator("[data-fat-limits]")).toHaveText("Strict limits");
   const limit = fats.locator("[data-saturated-limit]");
   await expect(limit).toContainText("≤ 7% of kcal");
   await expect(limit.locator(".overtag")).toHaveText(/^\+[\d.]+ over$/);

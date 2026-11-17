@@ -10,8 +10,7 @@ import { applyTheme, readTheme, themes, type ThemeId } from "../lib/theme";
 import { allZones, searchZones, suggestedZones, zoneLabel, zoneOffset, zoneTime } from "../lib/timeZones";
 import { boot } from "../state/boot";
 import type { HeightUnit, WeightUnit } from "../lib/units";
-import { fatLimitsOf, type FatLimitsSetting } from "../lib/nutrientCards";
-import { applySettings, clearAllDrafts, deviceTimeZone, profile, setFatLimits, setUnits } from "../state/profile";
+import { applySettings, clearAllDrafts, deviceTimeZone, profile, setUnits } from "../state/profile";
 import { closeSheet, ui } from "../ui";
 
 const open = computed(() => ui.sheet === "settings");
@@ -36,7 +35,6 @@ watch(open, (value) => {
   query.value = "";
   error.value = "";
   unitsError.value = "";
-  limitsError.value = "";
   theme.value = readTheme();
 });
 
@@ -73,17 +71,6 @@ async function chooseWeight(unit: WeightUnit) {
 }
 async function chooseHeight(unit: HeightUnit) {
   unitsError.value = await setUnits(profile.form.weightUnit, unit);
-}
-
-const limitsError = ref("");
-const fatLimits = computed(() => fatLimitsOf(profile.saved?.fatLimits));
-// Both notes stay in the page, stacked in one cell, so switching never changes the sheet's height.
-const fatNotes: { value: FatLimitsSetting; text: string }[] = [
-  { value: "normal", text: "Saturated fat ≤ 10% of calories (NNR 2023). Shown on the Fats card only." },
-  { value: "lower", text: "Saturated fat ≤ 7% of calories and cholesterol ≤ 200 mg a day. Shown on the Fats card only." },
-];
-async function chooseFatLimits(value: FatLimitsSetting) {
-  limitsError.value = await setFatLimits(value);
 }
 
 async function onSignOut() {
@@ -126,18 +113,6 @@ async function onSignOut() {
         </div>
         <span class="t-capn c2 gnote">Food stays in grams.</span>
         <p v-if="unitsError" class="t-body m0" role="alert">{{ unitsError }}</p>
-      </section>
-
-      <section v-if="profile.saved" class="col group" aria-labelledby="set-nutrition" data-fat-limits-setting>
-        <h3 id="set-nutrition" class="t-bodys gtitle"><Icon name="food" :size="16" /> Nutrition</h3>
-        <div class="frow">
-          <span class="t-body grow">Fat limits</span>
-          <Segmented size="compact" label="Fat limits" :model-value="fatLimits" :options="[{ value: 'normal', label: 'Normal' }, { value: 'lower', label: 'Lower' }]" @update:model-value="chooseFatLimits" />
-        </div>
-        <span class="t-capn c2 gnote fatnote" data-fat-note>
-          <span v-for="note in fatNotes" :key="note.value" :class="{ off: note.value !== fatLimits }">{{ note.text }}</span>
-        </span>
-        <p v-if="limitsError" class="t-body m0" role="alert">{{ limitsError }}</p>
       </section>
 
       <section class="col group" aria-labelledby="set-region">
@@ -220,10 +195,6 @@ async function onSignOut() {
 .group > :not(.gtitle) + :not(.gtitle) { border-top: 1px solid var(--color-border); }
 .gnote { padding: var(--space-s) 0 var(--space-m); }
 .group > p[role="alert"] { padding: var(--space-s) 0 var(--space-m); }
-/* The note for the setting not in use keeps its room, hidden, so the card is as tall as the longer one. */
-.fatnote { display: grid; }
-.fatnote > span { grid-area: 1 / 1; }
-.fatnote > .off { visibility: hidden; }
 .themes { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-s); padding: 6px 0 var(--space-m); }
 .theme {
   min-height: var(--control-hit); min-width: 0; width: 100%;
