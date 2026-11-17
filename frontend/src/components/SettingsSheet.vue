@@ -77,6 +77,11 @@ async function chooseHeight(unit: HeightUnit) {
 
 const limitsError = ref("");
 const fatLimits = computed(() => fatLimitsOf(profile.saved?.fatLimits));
+// Both notes stay in the page, stacked in one cell, so switching never changes the sheet's height.
+const fatNotes: { value: FatLimitsSetting; text: string }[] = [
+  { value: "normal", text: "Saturated fat ≤ 10% of calories (NNR 2023). Shown on the Fats card only." },
+  { value: "lower", text: "Saturated fat ≤ 7% of calories and cholesterol ≤ 200 mg a day. Shown on the Fats card only." },
+];
 async function chooseFatLimits(value: FatLimitsSetting) {
   limitsError.value = await setFatLimits(value);
 }
@@ -100,7 +105,7 @@ async function onSignOut() {
 
     <div v-if="view === 'main'" class="col body" data-settings-sheet>
       <section class="col group" aria-labelledby="set-theme">
-        <h3 id="set-theme" class="t-cap c3 m0">Appearance</h3>
+        <h3 id="set-theme" class="t-bodys gtitle"><Icon name="sun" :size="16" /> Appearance</h3>
         <div class="themes" role="radiogroup" aria-label="Theme">
           <button v-for="item in themes" :key="item.id" type="button" role="radio" class="theme" :aria-checked="theme === item.id" @click="chooseTheme(item.id)">
             <span class="swatch" :style="{ background: item.background }" aria-hidden="true"></span>
@@ -110,31 +115,33 @@ async function onSignOut() {
       </section>
 
       <section class="col group" aria-labelledby="set-units" data-units>
-        <h3 id="set-units" class="t-cap c3 m0">Units</h3>
-        <div class="frow urow">
+        <h3 id="set-units" class="t-bodys gtitle"><Icon name="scale" :size="16" /> Units</h3>
+        <div class="frow">
           <span class="t-body grow">Weight</span>
           <Segmented size="compact" label="Weight unit" :model-value="profile.form.weightUnit" :options="[{ value: 'kg', label: 'kg' }, { value: 'lb', label: 'lb' }]" @update:model-value="chooseWeight" />
         </div>
-        <div class="frow urow">
+        <div class="frow">
           <span class="t-body grow">Height</span>
           <Segmented size="compact" label="Height unit" :model-value="profile.form.heightUnit" :options="[{ value: 'cm', label: 'cm' }, { value: 'ftin', label: 'ft·in', ariaLabel: 'feet and inches' }]" @update:model-value="chooseHeight" />
         </div>
-        <span class="t-capn c2">Food stays in grams.</span>
+        <span class="t-capn c2 gnote">Food stays in grams.</span>
         <p v-if="unitsError" class="t-body m0" role="alert">{{ unitsError }}</p>
       </section>
 
       <section v-if="profile.saved" class="col group" aria-labelledby="set-nutrition" data-fat-limits-setting>
-        <h3 id="set-nutrition" class="t-cap c3 m0">Nutrition</h3>
-        <div class="frow urow">
+        <h3 id="set-nutrition" class="t-bodys gtitle"><Icon name="food" :size="16" /> Nutrition</h3>
+        <div class="frow">
           <span class="t-body grow">Fat limits</span>
           <Segmented size="compact" label="Fat limits" :model-value="fatLimits" :options="[{ value: 'normal', label: 'Normal' }, { value: 'lower', label: 'Lower' }]" @update:model-value="chooseFatLimits" />
         </div>
-        <span class="t-capn c2">{{ fatLimits === "lower" ? "Saturated fat ≤ 7% of calories and cholesterol ≤ 200 mg a day, as in a cholesterol-lowering diet. Shown on the Fats card only." : "Saturated fat ≤ 10% of calories (NNR 2023). Shown on the Fats card only." }}</span>
+        <span class="t-capn c2 gnote fatnote" data-fat-note>
+          <span v-for="note in fatNotes" :key="note.value" :class="{ off: note.value !== fatLimits }">{{ note.text }}</span>
+        </span>
         <p v-if="limitsError" class="t-body m0" role="alert">{{ limitsError }}</p>
       </section>
 
       <section class="col group" aria-labelledby="set-region">
-        <h3 id="set-region" class="t-cap c3 m0">Region</h3>
+        <h3 id="set-region" class="t-bodys gtitle"><Icon name="clock" :size="16" /> Region</h3>
         <button type="button" class="frow" data-zone-row @click="openZones">
           <span class="col grow">
             <span class="t-body">Time zone</span>
@@ -146,9 +153,14 @@ async function onSignOut() {
       </section>
 
       <section class="col group" aria-labelledby="set-account">
-        <h3 id="set-account" class="t-cap c3 m0">Account</h3>
-        <span v-if="boot.name" class="t-label c2 who">Signed in as {{ boot.name }}</span>
-        <button type="button" class="btn sm secondary t-label signout" @click="onSignOut"><Icon name="logout" :size="14" /> Sign out</button>
+        <h3 id="set-account" class="t-bodys gtitle"><Icon name="user" :size="16" /> Account</h3>
+        <div class="frow">
+          <span class="col grow">
+            <span class="t-body who">{{ boot.name || "Signed in" }}</span>
+            <span v-if="boot.name" class="t-capn c2">Signed in</span>
+          </span>
+          <button type="button" class="btn sm secondary t-label signout" @click="onSignOut"><Icon name="logout" :size="14" /> Sign out</button>
+        </div>
       </section>
 
       <p v-if="build" class="t-capn c3 m0 build" data-build>{{ build }}</p>
@@ -199,13 +211,24 @@ async function onSignOut() {
 .hdr { gap: var(--space-s); align-items: center; }
 .back { margin-left: -10px; }
 .m0 { margin: 0; overflow-wrap: anywhere; }
-.body { gap: var(--space-xl); }
-.group { gap: var(--space-s); min-width: 0; }
-.themes { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-m); }
+.body { gap: var(--space-m); }
+/* Each group is a card: an icon title, then rows split by a line. Controls in it sit on the
+   sheet colour (--btn-bg) so they still stand out from the card. */
+.group { min-width: 0; gap: 0; padding: 14px var(--space-l) var(--space-2xs); border-radius: var(--radius-l); background: var(--color-surface-2); --btn-bg: var(--color-surface); }
+.gtitle { margin: 0; padding-bottom: 6px; display: flex; align-items: center; gap: var(--space-s); }
+.gtitle svg { color: var(--text-secondary); flex: none; }
+.group > :not(.gtitle) + :not(.gtitle) { border-top: 1px solid var(--color-border); }
+.gnote { padding: var(--space-s) 0 var(--space-m); }
+.group > p[role="alert"] { padding: var(--space-s) 0 var(--space-m); }
+/* The note for the setting not in use keeps its room, hidden, so the card is as tall as the longer one. */
+.fatnote { display: grid; }
+.fatnote > span { grid-area: 1 / 1; }
+.fatnote > .off { visibility: hidden; }
+.themes { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-s); padding: 6px 0 var(--space-m); }
 .theme {
   min-height: var(--control-hit); min-width: 0; width: 100%;
   display: inline-flex; align-items: center; gap: var(--space-s);
-  padding: 0 var(--space-m); border-radius: var(--radius-m); background: var(--color-surface-2); color: var(--text-primary); text-align: left;
+  padding: 0 var(--space-m); border-radius: var(--radius-m); background: var(--color-surface); color: var(--text-primary); text-align: left;
 }
 .theme[aria-checked="true"] { box-shadow: inset 0 0 0 1.5px var(--text-primary); }
 .swatch { width: 14px; height: 14px; border-radius: 4px; box-shadow: inset 0 0 0 1px var(--color-border-strong); flex: none; }
@@ -214,9 +237,8 @@ async function onSignOut() {
 .frow .grow { min-width: 0; gap: var(--space-2xs); }
 .zval { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 55%; }
 .fchev { color: var(--text-tertiary); flex: none; }
-.urow { min-height: var(--control-hit); }
 .who { overflow-wrap: anywhere; }
-.signout { align-self: flex-start; }
+.signout { flex: none; }
 .build { text-align: center; }
 .body[data-zone-picker] { gap: var(--space-m); }
 .zsearch { width: 100%; font-size: 16px; }

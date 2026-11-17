@@ -58,7 +58,10 @@ test("profile: bell, cog, goal line, and a time zone that follows the device", a
   const settings = page.getByRole("dialog", { name: "Settings" });
   await expect(settings.getByRole("radiogroup", { name: "Theme" })).toBeVisible();
   await expect(settings.getByRole("button", { name: "Sign out" })).toBeVisible();
-  await expect(settings.locator("[data-build]")).toBeVisible();
+  await expect(settings.locator("[data-build]")).toHaveText(/^Build \w+/);
+  // Each group is a card with an icon title; the account row has the name and Sign out.
+  await expect(settings.locator("section h3 svg")).toHaveCount(5);
+  await expect(settings.getByRole("heading", { name: "Account" })).toBeVisible();
   const zoneRow = settings.locator("[data-zone-row]");
   await expect(zoneRow).toContainText("Europe/Oslo");
   await expect(zoneRow).toContainText("Follows this device");
