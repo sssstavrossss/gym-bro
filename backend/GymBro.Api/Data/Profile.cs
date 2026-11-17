@@ -43,6 +43,9 @@ public sealed class Profile
     /// <summary>How height is shown: <c>cm</c> or <c>ftin</c>. Storage is always centimetres.</summary>
     public string HeightUnit { get; set; } = Units.Centimetres;
 
+    /// <summary>How food amounts are shown and typed: <c>g</c> (g and ml) or <c>oz</c> (oz and fl oz). Entries are always stored in grams or millilitres.</summary>
+    public string FoodUnit { get; set; } = Units.Grams;
+
     /// <summary>Saturated fat and cholesterol limits on the Fats card: <c>normal</c> or <c>lower</c>. Display only.</summary>
     public string FatLimits { get; set; } = global::GymBro.Api.Data.FatLimits.Normal;
 
@@ -67,10 +70,14 @@ public static class Units
     public const string Pounds = "lb";
     public const string Centimetres = "cm";
     public const string FeetInches = "ftin";
+    public const string Grams = "g";
+    public const string Ounces = "oz";
 
     public static bool IsWeight(string value) => value is Kilograms or Pounds;
 
     public static bool IsHeight(string value) => value is Centimetres or FeetInches;
+
+    public static bool IsFood(string value) => value is Grams or Ounces;
 }
 
 /// <summary>

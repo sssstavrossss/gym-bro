@@ -35,6 +35,8 @@ it("filters groups by name or item and describes a row", () => {
   expect(matchingGroups(groups, "  ")).toHaveLength(2);
   expect(groupItemLine({ amount: 2, unit: "slice", grams: 80, kcal: 140 })).toBe("2 slices · 140 kcal");
   expect(groupItemLine({ amount: 1, unit: "", grams: null, kcal: 123 })).toBe("123 kcal");
+  expect(groupItemLine({ amount: 113.4, unit: "g", grams: 113.4, kcal: 152 }, "oz")).toBe("4 oz · 152 kcal");
+  expect(groupItemLine({ amount: 2, unit: "slice", grams: 80, kcal: 140 }, "oz")).toBe("2 slices · 140 kcal");
 });
 
 it("names skipped foods in the re-add notice", () => {

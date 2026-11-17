@@ -1,5 +1,4 @@
 import {
-  amountLabel,
   defaultAmount,
   macroFigure,
   macrosForFood,
@@ -9,6 +8,7 @@ import {
   type CatalogFood,
 } from "./foodAmount";
 import { int } from "./format";
+import { foodAmountLabel, type FoodUnit } from "./foodUnits";
 import { preparedSearch } from "./foodSearch";
 
 export interface RecentAddInput {
@@ -102,12 +102,13 @@ export function amountForRecent(food: CatalogFood, amount: number, unit: string)
   return defaultAmount(food);
 }
 
-/** "180 g · 297 kcal · P56 F6 C0" for the amount a one-tap add will log. */
-export function recentSubtitle(food: CatalogFood, amount: number, unit: string): string {
+/** "180 g · 297 kcal · P56 F6 C0" (or "6.3 oz · …") for the amount a one-tap add will log. */
+export function recentSubtitle(food: CatalogFood, amount: number, unit: string, setting: FoodUnit = "g"): string {
   const picked = amountForRecent(food, amount, unit);
   const macros = macrosForFood(food, Number(picked.amount), picked.unit);
-  const grams = macros.grams != null && picked.unit !== "g" && picked.unit !== "ml" ? ` (${int(macros.grams)} g)` : "";
-  return `${amountLabel(Number(picked.amount), picked.unit)}${grams} · ${int(macros.kcal)} kcal · P${macroFigure(macros.protein)} F${macroFigure(macros.fat)} C${macroFigure(macros.carbs)}`;
+  const weight = macros.grams == null ? "" : setting === "oz" ? foodAmountLabel(macros.grams, "g", setting) : `${int(macros.grams)} g`;
+  const grams = weight && picked.unit !== "g" && picked.unit !== "ml" ? ` (${weight})` : "";
+  return `${foodAmountLabel(Number(picked.amount), picked.unit, setting)}${grams} · ${int(macros.kcal)} kcal · P${macroFigure(macros.protein)} F${macroFigure(macros.fat)} C${macroFigure(macros.carbs)}`;
 }
 
 export const recentEmptyTitle = "Nothing here yet";

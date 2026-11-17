@@ -37,6 +37,7 @@ import {
   type Sex,
 } from "../lib/nutrition";
 import { atMostOneDecimal, formatMeasure, parseDecimal, sameNumber } from "../lib/numbers";
+import { foodUnitOf, type FoodUnit } from "../lib/foodUnits";
 import { fatLimitsOf, type FatLimitsSetting, type NutrientPerson } from "../lib/nutrientCards";
 import { osloYear } from "../lib/nutrients";
 import {
@@ -452,6 +453,7 @@ export function applySettings(settings: SettingsResponse): void {
       timeZoneFollowsDevice: settings.timeZoneFollowsDevice,
       weightUnit,
       heightUnit,
+      foodUnit: foodUnitOf(settings.foodUnit),
       fatLimits: fatLimitsOf(settings.fatLimits),
     };
   }
@@ -472,6 +474,22 @@ export async function setUnits(weightUnit: WeightUnit, heightUnit: HeightUnit): 
     return "";
   } catch (error) {
     convertFormUnits(profile.form, before.weightUnit, before.heightUnit, profile.saved);
+    if (error instanceof ServerUnreachable) return "Server unreachable, so the units weren't changed.";
+    return error instanceof ApiError ? error.message : "Couldn't save the units.";
+  }
+}
+
+/** Saves how food amounts are shown. Lists switch at once and switch back if the save fails. Returns an error, or "". */
+export async function setFoodUnit(foodUnit: FoodUnit): Promise<string> {
+  const saved = profile.saved;
+  if (!saved) return "";
+  const before = foodUnitOf(saved.foodUnit);
+  profile.saved = { ...saved, foodUnit };
+  try {
+    applySettings(await putSettings({ foodUnit }));
+    return "";
+  } catch (error) {
+    if (profile.saved) profile.saved = { ...profile.saved, foodUnit: before };
     if (error instanceof ServerUnreachable) return "Server unreachable, so the units weren't changed.";
     return error instanceof ApiError ? error.message : "Couldn't save the units.";
   }

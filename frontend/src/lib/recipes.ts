@@ -9,6 +9,7 @@ import {
   unitsForFood,
   type CatalogFood,
 } from "./foodAmount";
+import { G_PER_OZ, type FoodUnit } from "./foodUnits";
 
 export const recipeNameMax = 120;
 export const recipePortionsMax = 1000;
@@ -54,10 +55,13 @@ export function portionsError(value: number): string | null {
   return null;
 }
 
-export function finishedError(value: number | null): string | null {
+/** `value` is in grams; with Food set to oz the limit is worded in ounces. */
+export function finishedError(value: number | null, setting: FoodUnit = "g"): string | null {
   if (value == null) return null;
-  if (!(value > 0) || value > recipeFinishedMax) return "Enter a finished weight above 0 and at most 100,000 g.";
-  return null;
+  if (value > 0 && value <= recipeFinishedMax) return null;
+  return setting === "oz"
+    ? `Enter a finished weight above 0 and at most ${Math.floor(recipeFinishedMax / G_PER_OZ).toLocaleString("en-US")} oz.`
+    : "Enter a finished weight above 0 and at most 100,000 g.";
 }
 
 export function sumTotals(rows: readonly RecipeTotals[]): RecipeTotals {
@@ -143,11 +147,12 @@ export function portionGrams(recipe: { portions: number; finishedGrams: number |
 }
 
 /** Why an amount can't be logged, in words. Null when it can. Same limits as `scaleRecipeLog`. */
-export function recipeLogProblem(recipe: RecipeLogInput, amount: number, unit: "portion" | "g"): string | null {
+export function recipeLogProblem(recipe: RecipeLogInput, amount: number, unit: "portion" | "g", setting: FoodUnit = "g"): string | null {
   if (scaleRecipeLog(recipe, amount, unit)) return null;
   if (unit === "g") {
-    if (!(recipe.finishedGrams != null && recipe.finishedGrams > 0)) return "This recipe has no finished weight, so it can't be logged in grams.";
-    return "Enter grams above 0 and at most 10,000.";
+    const word = setting === "oz" ? "ounces" : "grams";
+    if (!(recipe.finishedGrams != null && recipe.finishedGrams > 0)) return `This recipe has no finished weight, so it can't be logged in ${word}.`;
+    return setting === "oz" ? "Enter ounces above 0 and at most 352." : "Enter grams above 0 and at most 10,000.";
   }
   return `Enter portions above 0 and at most ${recipeLogPortionsMax}.`;
 }

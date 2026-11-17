@@ -2,6 +2,7 @@ import { accessToken } from "./auth/session";
 import type { CatalogFood, OwnServing } from "./lib/foodAmount";
 import { kg as formatKg } from "./lib/format";
 import type { FatLimitsSetting } from "./lib/nutrientCards";
+import type { FoodUnit } from "./lib/foodUnits";
 import { e2eSession } from "./auth/e2e";
 import { loadPublicConfig, type PublicConfig } from "./auth/publicConfig";
 
@@ -57,6 +58,8 @@ export interface ProfileResponse {
   /** Display units. Values stay in kg and cm. */
   weightUnit?: "kg" | "lb";
   heightUnit?: "cm" | "ftin";
+  /** Food amounts in g and ml, or oz and fl oz. Entries stay in grams and ml. */
+  foodUnit?: FoodUnit;
   /** Saturated fat and cholesterol limits on the Fats card. Display only. */
   fatLimits?: FatLimitsSetting;
 }
@@ -431,6 +434,7 @@ export interface SettingsBody {
   timeZoneFollowsDevice?: boolean;
   weightUnit?: "kg" | "lb";
   heightUnit?: "cm" | "ftin";
+  foodUnit?: FoodUnit;
   fatLimits?: FatLimitsSetting;
 }
 
@@ -439,6 +443,7 @@ export interface SettingsResponse {
   timeZoneFollowsDevice: boolean;
   weightUnit: "kg" | "lb";
   heightUnit: "cm" | "ftin";
+  foodUnit: FoodUnit;
   fatLimits: FatLimitsSetting;
 }
 

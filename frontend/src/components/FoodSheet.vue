@@ -14,8 +14,6 @@ import { focusField, primeKeyboard } from "../lib/focusField";
 import { int } from "../lib/format";
 import { useFoodAmount } from "../lib/useFoodAmount";
 import {
-  amountError,
-  amountLabel,
   defaultAmount,
   macrosForFood,
   normalizeUnit,
@@ -23,6 +21,7 @@ import {
   servingName,
   type OwnServing,
 } from "../lib/foodAmount";
+import { amountErrorIn } from "../lib/foodUnits";
 import { acceptSearchResult, preparedSearch, searchDebounceMs } from "../lib/foodSearch";
 import {
   addNeedsTime,
@@ -64,6 +63,7 @@ import { canSaveGroup, groupTimeNote, matchingGroups, readdToast } from "../lib/
 import { canSaveRecipe, matchingRecipes, recipeFoodEntries } from "../lib/recipes";
 import { deleteSavedGroup, loadGroups, readdSavedGroup, savedGroups } from "../state/groups";
 import { loadRecipes, savedRecipes } from "../state/recipes";
+import { foodAmount, foodUnit } from "../state/units";
 import { closeFoodLayer, closeSheet, openCopy, openGroupSheet, openRecipeCreate, openRecipeEdit, openRecipeFromEntries, openRecipeLog, toast, ui } from "../ui";
 
 const open = computed(() => ui.sheet === "food");
@@ -231,7 +231,7 @@ function fill(entry: LogEntry | null) {
 
 /** The amount screen. A serving saved there also updates this sheet's lists. */
 const amount = useFoodAmount({ entry: () => editingFood.value, formError, saveError, onServings: applyServings });
-const { food: detailFood, amountText, unit, fresh, amountNumber, preview } = amount;
+const { food: detailFood, unit, amountNumber, preview } = amount;
 /** The preview is the Home card for the day the food goes to, with this food in it. */
 const sheetGoal = computed(() => foodTarget.value ?? (ui.foodDate === foodToday.value ? profile.targets : null));
 /** The day's totals before this food: an edited entry's old amounts come out first. */
@@ -572,7 +572,7 @@ async function addRecent(food: RecentFood) {
       return;
     }
     recentKeys.delete(food.id);
-    toast(`Added ${amountLabel(result.entry.amount, result.entry.unit || picked.unit)} ${result.entry.name} · ${int(result.entry.kcal)} kcal`);
+    toast(`Added ${foodAmount(result.entry.amount, result.entry.unit || picked.unit)} ${result.entry.name} · ${int(result.entry.kcal)} kcal`);
     noteSession(result.entry);
     justAdded.value = food.id;
     window.clearTimeout(justTimer);
@@ -622,9 +622,7 @@ async function prepareEdit(entry: LogEntry) {
   const standard = normalizeUnit(entry.unit);
   const named = standard ? null : servingName(entry.unit);
   const kind = standard ?? (named ?? (entry.grams == null ? "serving" : "g"));
-  unit.value = kind;
-  amountText.value = String(entry.amount);
-  fresh.value = true;
+  amount.showStored(entry.amount, kind);
   foodChanged.value = false;
   detailFood.value = null;
   if (!entry.foodId) {
@@ -909,7 +907,7 @@ async function addDetail() {
     saveError.value = false;
     return;
   }
-  const limit = amountError(amountNumber.value, unit.value);
+  const limit = amountErrorIn(amountNumber.value, unit.value, foodUnit());
   if (limit) {
     formError.value = limit;
     saveError.value = false;
@@ -962,7 +960,7 @@ async function addDetail() {
       formError.value = result.unreachable ? "" : (result.message ?? "");
       return;
     }
-    toast(`Added ${amountLabel(result.entry.amount, result.entry.unit || unit.value)} ${result.entry.name} · ${int(result.entry.kcal)} kcal`);
+    toast(`Added ${foodAmount(result.entry.amount, result.entry.unit || unit.value)} ${result.entry.name} · ${int(result.entry.kcal)} kcal`);
     noteSession(result.entry);
     const backToSearch = searchView.value;
     ui.detailFoodId = null;
@@ -1117,7 +1115,7 @@ async function deleteEdited() {
             </button>
             <MicroRing :nutrients="food.nutrients" />
             <button type="button" class="cbtn"  :aria-label="`Edit ${food.name}`" @click="editMine(food, 'list')"><Icon name="edit" :size="17" /></button>
-            <button type="button" class="cbtn filled"  :aria-label="needTime ? `Pick a time to add ${food.name}` : `Add ${amountLabel(Number(listedPreset(food).amount), listedPreset(food).unit)} ${food.name}`" :disabled="saving || needTime" @click="addListed(food)">
+            <button type="button" class="cbtn filled"  :aria-label="needTime ? `Pick a time to add ${food.name}` : `Add ${foodAmount(Number(listedPreset(food).amount), listedPreset(food).unit)} ${food.name}`" :disabled="saving || needTime" @click="addListed(food)">
               <Icon :name="justAdded === food.id ? 'check' : 'plus'" :size="18" :sw="2.4" />
             </button>
           </div>
@@ -1132,10 +1130,10 @@ async function deleteEdited() {
           <div v-for="(food, index) in recents" :key="food.id" class="rrow row" :class="{ hl: keyboardEntry && index === hi }" @mouseenter="hi = index">
             <button type="button" class="col grow rtext" @pointerdown="pressFood($event, food, { amount: food.amount, unit: food.unit })" @click="pickFood($event, food, { amount: food.amount, unit: food.unit })">
               <span class="row gap6 nm"><span class="t-body ell">{{ food.name }}</span><span v-if="isMyFood(food)" class="tag t-capn">my food</span></span>
-              <span class="t-label c2 ell">{{ withBrand(food.brand, recentSubtitle(food, food.amount, food.unit)) }}</span>
+              <span class="t-label c2 ell">{{ withBrand(food.brand, recentSubtitle(food, food.amount, food.unit, foodUnit())) }}</span>
             </button>
             <MicroRing :nutrients="food.nutrients" />
-            <button type="button" class="cbtn filled"  :aria-label="needTime ? `Pick a time to add ${food.name}` : `Add ${amountLabel(food.amount, food.unit)} ${food.name}`" :disabled="saving || needTime" @click="addRecent(food)">
+            <button type="button" class="cbtn filled"  :aria-label="needTime ? `Pick a time to add ${food.name}` : `Add ${foodAmount(food.amount, food.unit)} ${food.name}`" :disabled="saving || needTime" @click="addRecent(food)">
               <Icon :name="justAdded === food.id ? 'check' : 'plus'" :size="18" :sw="2.4" />
             </button>
           </div>

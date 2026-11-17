@@ -1,4 +1,4 @@
-import { amountLabel } from "./foodAmount";
+import { foodAmountLabel, type FoodUnit } from "./foodUnits";
 import { int } from "./format";
 
 export const groupNameMax = 40;
@@ -42,10 +42,10 @@ export function matchingGroups<T extends GroupMatch>(groups: readonly T[], query
     || group.items.some((item) => item.name.toLowerCase().includes(needle)));
 }
 
-export function groupItemLine(item: GroupLine): string {
+export function groupItemLine(item: GroupLine, setting: FoodUnit = "g"): string {
   const amount = item.unit
-    ? amountLabel(item.amount, item.unit)
-    : item.grams ? `${item.grams} g` : "";
+    ? foodAmountLabel(item.amount, item.unit, setting)
+    : item.grams ? foodAmountLabel(item.grams, "g", setting) : "";
   const kcal = `${int(item.kcal)} kcal`;
   return amount ? `${amount} · ${kcal}` : kcal;
 }

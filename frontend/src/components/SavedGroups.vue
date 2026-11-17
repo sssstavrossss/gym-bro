@@ -6,6 +6,7 @@ import { int } from "../lib/format";
 import { groupItemLine } from "../lib/groups";
 import { keyboardEntry } from "../lib/viewport";
 import type { SavedGroup } from "../api";
+import { foodUnit } from "../state/units";
 
 defineProps<{
   groups: SavedGroup[];
@@ -79,7 +80,7 @@ function onAdd(event: MouseEvent, group: SavedGroup) {
       <div v-if="openId === group.id" class="gitems col">
         <div v-for="item in group.items" :key="item.id" class="row gi">
           <span class="t-label grow ell">{{ item.name }}<template v-if="!item.available"> · won't be added</template></span>
-          <span class="t-label c2">{{ groupItemLine(item) }}</span>
+          <span class="t-label c2">{{ groupItemLine(item, foodUnit()) }}</span>
         </div>
         <button type="button" class="btn sm secondary t-label gdel" :disabled="saving" @click="emit('remove', group)">
           <Icon name="trash" :size="14" /> Delete group

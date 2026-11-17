@@ -1,3 +1,4 @@
+import { foodAmountLabel, foodUnitOf, type FoodUnit } from "../lib/foodUnits";
 import { heightText, signedWeight, weightText, type HeightUnit, type WeightUnit } from "../lib/units";
 import { profile } from "./profile";
 
@@ -27,4 +28,14 @@ export function wtUnit(kg: number, digits = 1): string {
 
 export function ht(cm: number): string {
   return heightText(cm, heightUnit());
+}
+
+/** How food amounts are shown: g (and ml) or oz (and fl oz). Macros and nutrients stay in grams. */
+export function foodUnit(): FoodUnit {
+  return foodUnitOf(profile.saved?.foodUnit);
+}
+
+/** A logged amount with its unit in the shown food unit: "113.4 g" or "4 oz", "2 slices". Use it for any food amount on screen. */
+export function foodAmount(amount: number, unit: string): string {
+  return foodAmountLabel(amount, unit, foodUnit());
 }

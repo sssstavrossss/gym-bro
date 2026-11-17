@@ -6,8 +6,7 @@ import MacroRows from "./MacroRows.vue";
 import NutrientPanelSet from "./NutrientPanelSet.vue";
 import SwipePanels from "./SwipePanels.vue";
 import { primeKeyboard } from "../lib/focusField";
-import { amountLabel, type OwnServing } from "../lib/foodAmount";
-import { int } from "../lib/format";
+import type { OwnServing } from "../lib/foodAmount";
 import type { MacroAmounts, MacroGoal } from "../lib/macros";
 import { fatLimitsOf } from "../lib/nutrientCards";
 import { panelsForSize } from "../lib/nutrients";
@@ -76,15 +75,16 @@ function editServing(row: OwnServing) {
     </div>
     <div class="col center amount-block">
       <div class="base">
-        <input ref="field" v-autofocus :value="a.amountText" data-replace="1" class="t-dl num ginput" :inputmode="keyboardEntry ? 'decimal' : 'none'" autocomplete="off" :aria-label="`Amount in ${a.unit}`"
+        <input ref="field" v-autofocus :value="a.amountText" data-replace="1" class="t-dl num ginput" :inputmode="keyboardEntry ? 'decimal' : 'none'" autocomplete="off" :aria-label="`Amount in ${a.fieldUnit}`"
           @beforeinput="markWholeSelection" @focus="a.fresh = true" @input="a.input" @keydown.enter.prevent="emit('submit')" />
         <span class="t-head c2 unitword">{{ a.unitWord }}</span>
       </div>
-      <span v-if="a.isCount && a.preview.grams != null && a.gramsEach" class="t-label c2" aria-live="polite">= {{ int(a.preview.grams) }} g<template v-if="a.amountNumber !== 1"> · 1 {{ a.unitWord1 }} = {{ a.gramsEach }} g</template></span>
+      <span v-if="a.isCount && a.preview.grams != null && a.gramsEach" class="t-label c2" aria-live="polite">= {{ a.size(a.preview.grams, true) }}<template v-if="a.amountNumber !== 1"> · 1 {{ a.unitWord1 }} = {{ a.size(a.gramsEach) }}</template></span>
+      <span v-else-if="a.metricLine" class="t-label c2" aria-live="polite" data-metric-line>{{ a.metricLine }}</span>
       <div class="row units">
         <div class="unit-radios" role="radiogroup" aria-label="Unit">
           <button v-for="choice in a.units" :key="choice.unit" type="button" role="radio" class="chip t-label" :class="{ on: choice.unit === a.unit }" :aria-checked="choice.unit === a.unit" @click="a.setUnit(choice)">
-            {{ choice.label }}<span v-if="choice.gramsEach && choice.unit !== 'g' && choice.unit !== 'ml' && !choice.named" class="ug"> · {{ choice.gramsEach }} g</span><span v-if="choice.named" class="sr-only"> your serving</span>
+            {{ choice.label }}<span v-if="choice.gramsEach && choice.unit !== 'g' && choice.unit !== 'ml' && !choice.named" class="ug"> · {{ a.size(choice.gramsEach) }}</span><span v-if="choice.named" class="sr-only"> your serving</span>
           </button>
         </div>
         <button v-if="a.canAddServing" type="button" class="btn sm secondary t-label" :aria-expanded="a.servingOpen" @click="toggleServing"><Icon name="plus" :size="14" :sw="2.4" /> Serving</button>
@@ -94,8 +94,8 @@ function editServing(row: OwnServing) {
           <span class="t-label">1</span>
           <input v-model="a.servingNameText" v-autofocus class="field sinp t-body" type="text" maxlength="16" autocomplete="off" aria-label="Serving name" placeholder="slice" />
           <span class="t-label">=</span>
-          <input v-model="a.servingGrams" class="field sinp t-body num" inputmode="decimal" autocomplete="off" aria-label="Grams in one serving" placeholder="35" @keydown.enter.prevent="a.saveServing" />
-          <span class="t-label c2">g</span>
+          <input v-model="a.servingGrams" class="field sinp t-body num" inputmode="decimal" autocomplete="off" :aria-label="`${a.servingWord === 'oz' ? 'Ounces' : 'Grams'} in one serving`" :placeholder="a.servingWord === 'oz' ? '1.2' : '35'" @keydown.enter.prevent="a.saveServing" />
+          <span class="t-label c2">{{ a.servingWord }}</span>
           <button type="button" class="btn sm primary t-label" :disabled="Boolean(a.servingProblem) || a.savingServing" @click="a.saveServing"><Icon name="check" :size="14" :sw="2.4" /> Save</button>
         </div>
         <div class="row gap8 wrapc">
@@ -106,7 +106,7 @@ function editServing(row: OwnServing) {
         <p v-if="a.servingProblem && (a.servingNameText.trim() || a.servingGrams.trim())" class="t-capn errline" role="status">{{ a.servingProblem }}</p>
       </div>
       <div class="row gap8 chips">
-        <button v-for="value in a.quickAmounts" :key="value" type="button" class="chip t-label" @click="a.setAmount(value)">{{ amountLabel(value, a.unit) }}</button>
+        <button v-for="chip in a.quickAmounts" :key="chip.value" type="button" class="chip t-label" @click="a.setAmount(chip.value)">{{ chip.label }}</button>
       </div>
     </div>
     <div class="preview" aria-live="polite">

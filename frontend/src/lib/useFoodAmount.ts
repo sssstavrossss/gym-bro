@@ -1,7 +1,6 @@
 import { computed, ref, type Ref } from "vue";
 import { ApiError, createServing, deleteServing, ServerUnreachable, updateServing, type FoodSearchRow } from "../api";
 import {
-  amountLabel,
   convertAmount,
   defaultAmount,
   distinctUnits,
@@ -9,10 +8,9 @@ import {
   hasGramBasis,
   macroFigure,
   macrosForFood,
-  parseAmount,
+  normalizeUnit,
   per100Line,
   scaleStored,
-  servingDefinitionError,
   servingName,
   unitsForEntry,
   unitsForFood,
@@ -20,6 +18,21 @@ import {
   type UnitChoice,
 } from "./foodAmount";
 import { amountForRecent } from "./foodSheet";
+import {
+  foodAmountLabel,
+  isConverted,
+  quickAmountsFor,
+  readField,
+  servingErrorIn,
+  servingLabelIn,
+  shownAmountLabel,
+  shownChoices,
+  shownField,
+  shownWeightWord,
+  sizeLabel,
+  typingLimits,
+  type ShownAmount,
+} from "./foodUnits";
 import { int } from "./format";
 import type { MacroAmounts } from "./macros";
 import { scaleMap, valuesOf, type NutrientMap, type NutrientSource } from "./nutrients";
@@ -27,6 +40,7 @@ import { typeInto } from "./numbers";
 import { afterInsertion, nextQuickInput, tookWholeSelection } from "./quickEntry";
 import { toast } from "../ui";
 import type { LogEntry } from "../state/log";
+import { foodUnit } from "../state/units";
 
 export interface FoodAmountOptions {
   /** A logged entry being edited: its own units and stored values, not the food's. */
@@ -43,6 +57,9 @@ export interface FoodAmountOptions {
  * The amount screen's state, shared by the food sheet (log a food) and the recipe sheet
  * (add an ingredient): the food, the amount and unit as typed, the macros and nutrients of
  * that amount, and the private serving form. `FoodAmountView` draws it.
+ *
+ * With Food set to oz, `amountText` is typed in ounces (or fl oz) and `amountNumber` is still
+ * grams (or ml), the unit the API, the preview and the macros use.
  */
 export function useFoodAmount(options: FoodAmountOptions) {
   const { formError, saveError } = options;
@@ -52,16 +69,23 @@ export function useFoodAmount(options: FoodAmountOptions) {
   const unit = ref<UnitChoice["unit"]>("g");
   /** The next key replaces the amount instead of adding to it. */
   const fresh = ref(true);
+  /** The stored amount the field was filled from, so an untouched field saves it exactly. */
+  const origin = ref<ShownAmount | null>(null);
+
+  const setting = computed(() => foodUnit());
 
   const units = computed(() => {
     const current = entry.value;
     if (current?.source === "recipe" && (current.grams == null || current.grams <= 0)) {
       return [{ unit: "portion", label: "portion", gramsEach: null }];
     }
-    if (current) return unitsForEntry(current);
-    return food.value ? distinctUnits(unitsForFood(food.value), unit.value) : [];
+    const choices = current ? unitsForEntry(current) : food.value ? distinctUnits(unitsForFood(food.value), unit.value) : [];
+    return shownChoices(choices, setting.value);
   });
-  const amountNumber = computed(() => parseAmount(amountText.value));
+  /** Grams or ml for the API, from what is typed (ounces with Food set to oz). */
+  const amountNumber = computed(() => readField(amountText.value, unit.value, setting.value, origin.value));
+  /** The food's own measure: what a serving or piece size is in. */
+  const baseUnit = computed<"g" | "ml">(() => (units.value.some((item) => item.unit === "ml") && !units.value.some((item) => item.unit === "g") ? "ml" : "g"));
   const preview = computed(() => {
     if (entry.value) return scaleStored(entry.value, amountNumber.value, unit.value);
     if (food.value) return macrosForFood(food.value, amountNumber.value, unit.value);
@@ -69,10 +93,23 @@ export function useFoodAmount(options: FoodAmountOptions) {
   });
   const adding = computed<MacroAmounts>(() => ({ kcal: preview.value.kcal, p: preview.value.protein, f: preview.value.fat, c: preview.value.carbs }));
   const isCount = computed(() => unit.value !== "g" && unit.value !== "ml");
-  const unitWord = computed(() => amountLabel(amountNumber.value || 0, unit.value).replace(/^[\d.]+ /, ""));
-  const unitWord1 = computed(() => amountLabel(1, unit.value).replace(/^[\d.]+ /, ""));
+  const unitWord = computed(() => foodAmountLabel(amountNumber.value || 0, unit.value, setting.value).replace(/^[\d.]+ /, ""));
+  const unitWord1 = computed(() => foodAmountLabel(1, unit.value, setting.value).replace(/^[\d.]+ /, ""));
   const gramsEach = computed(() => units.value.find((item) => item.unit === unit.value)?.gramsEach ?? null);
-  const quickAmounts = computed(() => (unit.value === "g" ? [100, 150, 200] : unit.value === "ml" ? [100, 250, 500] : [0.5, 1, 2, 3]));
+  /** Under an amount typed in ounces, what is saved: "= 113 g". */
+  const metricLine = computed(() => (isConverted(unit.value, setting.value) ? `= ${int(amountNumber.value)} ${normalizeUnit(unit.value)}` : ""));
+  /** Quick chips, in the unit typed. */
+  const quickAmounts = computed(() => quickAmountsFor(unit.value, setting.value).map((value) => ({ value, label: shownAmountLabel(value, unit.value, setting.value) })));
+  /** The unit the amount field is typed in, for its label: "g", "oz", "fl oz", "serving". */
+  const fieldUnit = computed(() => (isConverted(unit.value, setting.value) ? shownWeightWord(unit.value, setting.value) : unit.value));
+  /** The word for the serving form's weight: g or oz. */
+  const servingWord = computed(() => shownWeightWord("g", setting.value));
+
+  /** A serving or piece size in the shown unit: "150 g" or "5.3 oz". `whole` rounds grams for a total. */
+  function size(value: number, whole = false): string {
+    if (whole && setting.value === "g") return `${int(value)} ${baseUnit.value}`;
+    return sizeLabel(value, baseUnit.value, setting.value);
+  }
   const title = computed(() => food.value?.name ?? entry.value?.name ?? "");
   const per100 = computed(() => {
     if (food.value && !entry.value) return per100Line(food.value);
@@ -119,10 +156,23 @@ export function useFoodAmount(options: FoodAmountOptions) {
   function show(next: FoodSearchRow, preset?: { amount: number; unit: string }) {
     const start = preset ? amountForRecent(next, preset.amount, preset.unit) : defaultAmount(next);
     food.value = next;
-    unit.value = start.unit;
-    amountText.value = start.amount;
+    place(start.amount, start.unit);
     fresh.value = true;
     resetServingForm();
+  }
+
+  /** Fill the field from a stored amount in grams or a count; with Food set to oz it shows ounces. */
+  function place(stored: string, next: string) {
+    const field = shownField(stored, next, setting.value);
+    unit.value = next;
+    amountText.value = field.text;
+    origin.value = field;
+  }
+
+  /** Show a stored amount (an entry being edited). */
+  function showStored(amount: number, next: string) {
+    place(String(amount), next);
+    fresh.value = true;
   }
 
   function setUnit(next: UnitChoice) {
@@ -135,10 +185,9 @@ export function useFoodAmount(options: FoodAmountOptions) {
     }
     const current = units.value.find((item) => item.unit === unit.value);
     const amount = amountNumber.value;
-    unit.value = next.unit;
     fresh.value = true;
     formError.value = "";
-    amountText.value = convertAmount(amount, current, next);
+    place(convertAmount(amount, current, next), next.unit);
   }
 
   function setAmount(value: number) {
@@ -147,9 +196,8 @@ export function useFoodAmount(options: FoodAmountOptions) {
     formError.value = "";
   }
 
-  /** Grams and ml take five whole digits and one decimal; counts two and two. */
   function limits() {
-    return { maxInt: unit.value === "g" || unit.value === "ml" ? 5 : 2, decimals: isCount.value ? 2 : 1 };
+    return typingLimits(unit.value, setting.value);
   }
 
   function key(pressed: string) {
@@ -187,12 +235,16 @@ export function useFoodAmount(options: FoodAmountOptions) {
   const servingGrams = ref("");
   const servingEditId = ref<string | null>(null);
   const savingServing = ref(false);
-  const servingProblem = computed(() => servingDefinitionError(servingNameText.value, parseAmount(servingGrams.value)));
+  /** The serving form's weight in grams, typed in ounces with Food set to oz. */
+  const servingOrigin = ref<ShownAmount | null>(null);
+  const servingGramsValue = computed(() => readField(servingGrams.value, "g", setting.value, servingOrigin.value));
+  const servingProblem = computed(() => servingErrorIn(servingNameText.value, servingGramsValue.value, setting.value));
 
   function resetServingForm() {
     servingOpen.value = false;
     servingNameText.value = "";
     servingGrams.value = "";
+    servingOrigin.value = null;
     servingEditId.value = null;
   }
 
@@ -206,7 +258,9 @@ export function useFoodAmount(options: FoodAmountOptions) {
     servingOpen.value = true;
     servingEditId.value = row.id;
     servingNameText.value = row.name;
-    servingGrams.value = gramText(row.grams);
+    const field = shownField(gramText(row.grams), "g", setting.value);
+    servingGrams.value = field.text;
+    servingOrigin.value = field;
   }
 
   function applyServings(foodId: string, servings: OwnServing[]) {
@@ -225,8 +279,8 @@ export function useFoodAmount(options: FoodAmountOptions) {
   async function saveServing() {
     const shown = food.value;
     if (!shown || savingServing.value) return;
-    const grams = parseAmount(servingGrams.value);
-    const error = servingDefinitionError(servingNameText.value, grams);
+    const grams = servingGramsValue.value;
+    const error = servingErrorIn(servingNameText.value, grams, setting.value);
     if (error) {
       formError.value = error;
       return;
@@ -244,7 +298,7 @@ export function useFoodAmount(options: FoodAmountOptions) {
       amountText.value = "1";
       fresh.value = true;
       resetServingForm();
-      toast(`Saved 1 ${saved.name} = ${gramText(saved.grams)} g for ${shown.name} · only you see it`);
+      toast(`Saved ${servingLabelIn(saved.name, saved.grams, setting.value)} for ${shown.name} · only you see it`);
     } catch (error) {
       if (error instanceof ServerUnreachable) saveError.value = true;
       else formError.value = error instanceof ApiError ? error.message : "Couldn't save that serving.";
@@ -273,8 +327,7 @@ export function useFoodAmount(options: FoodAmountOptions) {
       applyServings(shown.id, left);
       if (servingName(unit.value)?.localeCompare(row.name, undefined, { sensitivity: "accent" }) === 0) {
         const total = Math.round(amountNumber.value * row.grams);
-        unit.value = "g";
-        amountText.value = String(total > 0 ? total : 100);
+        place(String(total > 0 ? total : 100), "g");
         fresh.value = true;
       }
       if (servingEditId.value === row.id) resetServingForm();
@@ -304,13 +357,18 @@ export function useFoodAmount(options: FoodAmountOptions) {
     unitWord,
     unitWord1,
     gramsEach,
+    metricLine,
+    fieldUnit,
     quickAmounts,
+    servingWord,
+    size,
     title,
     per100,
     values,
     per100Values,
     sources,
     show,
+    showStored,
     setUnit,
     setAmount,
     key,
