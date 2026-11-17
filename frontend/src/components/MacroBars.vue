@@ -15,7 +15,6 @@ const props = defineProps<{
   target?: TargetsResponse | null;
   totals?: DayTotals | null;
   label?: string;
-  manual?: boolean;
   entries?: (NutrientSource & { id: string; kcal: number })[];
   /** The day shown. Loads the week average behind the rings' inner circle. */
   date?: string;
@@ -56,7 +55,7 @@ const totals = computed(() => props.totals ?? dayTotals());
   </section>
   <section v-else class="card macros fit" data-nutrient-card :aria-label="label || 'Today\'s macros'">
     <SwipePanels tight :count="panels.length + 1" :lock-index="-1" :label="label || 'Today\'s macros'">
-      <MacroRows title="Macros" :goal="target" :eaten="totals" :manual="manual" />
+      <MacroRows title="Macros" :goal="target" :eaten="totals" />
       <NutrientPanelSet :panels="panels" :values="nutrientValues" :entries="sources" :carbs="totals.c" :person="person" :fat-limits="fatLimits" :large="large" :week="week" />
     </SwipePanels>
   </section>

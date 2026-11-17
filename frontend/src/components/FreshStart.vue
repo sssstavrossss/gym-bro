@@ -4,8 +4,6 @@ import Icon from "./Icon.vue";
 import { addDays, shortDate } from "../lib/dates";
 import { int } from "../lib/format";
 import { gapLabel } from "../lib/weightDisplay";
-import { dismissFresh } from "../lib/prompts";
-import { boot } from "../state/boot";
 import { answerFreshStart, profile } from "../state/profile";
 import { wtUnit } from "../state/units";
 import { toast } from "../ui";
@@ -23,11 +21,9 @@ async function yes() {
 }
 
 async function no() {
-  const date = fresh.value?.date;
   const ok = await answerFreshStart(false);
-  if (!ok || !date) return;
-  dismissFresh(boot.accountId, date);
-  toast("Kept your targets · Monday's update runs as usual");
+  if (!ok) return;
+  toast("Kept your targets · Recalculate any time from Profile");
 }
 </script>
 
@@ -48,7 +44,7 @@ async function no() {
       <button type="button" class="btn sm primary t-label" @click="yes"><Icon name="refresh" :size="14" /> Recalculate</button>
       <button type="button" class="btn sm secondary t-label" @click="no">Not now</button>
     </div>
-    <p class="t-capn c2 m0">Either way, the weekly update runs on Monday as usual.</p>
+    <p class="t-capn c2 m0">Recalculate goes back to the formula at today's weight. Your burn is measured again from here.</p>
   </section>
 </template>
 

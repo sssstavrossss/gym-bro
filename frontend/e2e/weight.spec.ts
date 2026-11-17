@@ -131,7 +131,7 @@ test("low accuracy dot, sheet, and profile", async ({ page }) => {
   }
 });
 
-test("fresh start asks, and Not now writes nothing", async ({ page }) => {
+test("fresh start asks, and Not now keeps the targets and is remembered", async ({ page }) => {
   const oid = `e2e-fresh-no-${Date.now()}`;
   const when = await clock(page);
   await seedPastWeighIn(page.request, oid, when.ago, 80);
@@ -157,6 +157,12 @@ test("fresh start asks, and Not now writes nothing", async ({ page }) => {
   expect(after.targets.reason).toBe(before.targets.reason);
   expect(after.targets.kcal).toBe(before.targets.kcal);
   expect(after.targets.reason).not.toBe("fresh_start");
+  // The answer is kept on the server, so loading the app again does not ask again.
+  const settled = await (await page.request.get("/api/profile", { headers: headers(oid) })).json();
+  expect(settled.weight.freshStart.recalculatePending).toBe(false);
+  await page.reload();
+  await expect(page.getByRole("main", { name: "Today" })).toBeVisible();
+  await expect(page.getByText("Recalculate your targets from today's weight?")).toHaveCount(0);
 });
 
 test("fresh start Recalculate writes today's fresh_start target", async ({ page }) => {
@@ -166,12 +172,16 @@ test("fresh start Recalculate writes today's fresh_start target", async ({ page 
   await putProfile(page.request, oid, when.zone, 70);
   await putWeighIn(page.request, oid, when.today, 90, when.zone, true);
   await openApp(page, oid, 390);
-  await page.getByRole("region", { name: "Fresh start" }).getByRole("button", { name: "Recalculate" }).click();
+  // The card shows what accepting saves: the formula at today's weight.
+  const card = page.getByRole("region", { name: "Fresh start" });
+  const shown = (await card.getByText(/→ [\d,]+ kcal/).textContent())?.match(/→ ([\d,]+) kcal/)?.[1]?.replace(/,/g, "");
+  await card.getByRole("button", { name: "Recalculate" }).click();
   await expect(page.getByRole("heading", { name: "Fresh start" })).toHaveCount(0);
   const after = await (await page.request.get("/api/profile", { headers: headers(oid) })).json();
   expect(after.targets.reason).toBe("fresh_start");
   expect(after.targets.reasons).toEqual(["profile_change", "fresh_start"]);
   expect(after.targets.weightKg).toBe(90);
+  expect(Number(shown)).toBe(after.targets.kcal);
   await expect(page.getByText(/New target from today/)).toBeHidden({ timeout: 6000 });
   await expectClean(page);
 });

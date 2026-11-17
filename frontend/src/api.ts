@@ -451,8 +451,9 @@ export async function putSettings(body: SettingsBody): Promise<SettingsResponse>
   }));
 }
 
-export async function previewTargets(body: ProfileBody): Promise<PreviewResponse> {
-  return jsonOrThrow(await request("/api/targets/preview", {
+/** What a profile would give. `fresh` previews a fresh start: the formula at the restarted trend, as accepting one saves. */
+export async function previewTargets(body: ProfileBody, fresh = false): Promise<PreviewResponse> {
+  return jsonOrThrow(await request(fresh ? "/api/targets/preview?fresh=true" : "/api/targets/preview", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -845,15 +846,13 @@ export interface RecalculateNumbers {
   fat: number;
   carbs: number;
   floorApplied: boolean;
-  manualKept: boolean;
 }
 
-export interface RecalculateDay {
+/** A logged day under 20% of its target. Counted unless the person leaves it out. */
+export interface RecalculateLowDay {
   date: string;
   kcal: number;
   targetKcal: number | null;
-  fasting: boolean;
-  canExclude: boolean;
   included: boolean;
 }
 
@@ -865,22 +864,48 @@ export interface RecalculateCalendarDay {
   counted: boolean;
 }
 
+/** The least-squares line through the weigh-ins the period reads. */
+export interface RecalculateFit {
+  weighIns: number;
+  first: string;
+  last: string;
+  rateKgPerWeek: number;
+}
+
+/** The confidence-weighted step from the old burn toward the measured one. */
+export interface RecalculateStep {
+  prior: number;
+  measured: number;
+  measuredSd: number;
+  burn: number;
+  gain: number;
+}
+
 export interface RecalculateReview {
   from: string;
   to: string;
   periodDays: number;
-  days: RecalculateDay[];
+  /** The period was cut to the last 8 weeks. */
+  capped: boolean;
+  lastUpdate: string | null;
+  /** The first weigh-in day the slope reads after the settling week, when that week falls inside the read. */
+  settledFrom: string | null;
+  lowDays: RecalculateLowDay[];
   calendar: RecalculateCalendarDay[];
   includedDays: number;
-  enough: boolean;
+  measured: boolean;
   blocked: string | null;
-  trendStartKg: number | null;
-  trendEndKg: number | null;
-  trendChangeKg: number | null;
+  weighInsNeeded: number;
   averageKcal: number | null;
-  burn: number | null;
-  proposed: RecalculateNumbers | null;
+  fit: RecalculateFit | null;
+  step: RecalculateStep | null;
+  burn: number;
+  burnSdKcal: number;
+  proposed: RecalculateNumbers;
   formula: RecalculateNumbers;
+  /** The target with every low day counted, and with every one left out. Null without low days. */
+  countedKcal: number | null;
+  leftOutKcal: number | null;
 }
 
 export async function getRecalculateBanner(): Promise<{ show: boolean; weekStart: string | null }> {
@@ -905,7 +930,14 @@ export async function previewRecalculate(exclude: string[], includeZero: string[
   }));
 }
 
-export async function saveRecalculate(exclude: string[], includeZero: string[], mode: "adaptive" | "formula"): Promise<RecalculateReview> {
+/** What a recalculation saved: `recalculation_adaptive`, `recalculation_kept`, or `recalculation_formula`, the burn, and the new target. */
+export interface RecalculateSaved {
+  reason: string;
+  burn: number;
+  targets: TargetsResponse;
+}
+
+export async function saveRecalculate(exclude: string[], includeZero: string[], mode: "adaptive" | "formula"): Promise<RecalculateSaved> {
   return jsonOrThrow(await request("/api/recalculate", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -928,15 +960,53 @@ export interface NotificationSettings {
   types?: { id: string; enabled: boolean }[];
 }
 
+export interface TargetRecalculationDetails {
+  from: string;
+  to: string;
+  periodDays: number;
+  countedDays: number;
+  lowDays: number;
+  lowCounted: number;
+  measured: boolean;
+  weighIns: number;
+  rateKgPerWeek: number | null;
+  averageKcal: number | null;
+  measuredBurn: number | null;
+  measuredSd: number | null;
+  priorBurn: number | null;
+  stepPercent: number | null;
+}
+
+export interface TargetProfileChange {
+  field: string;
+  from: string;
+  to: string;
+}
+
 export interface TargetHistoryRow {
+  kind: "target" | "declined";
   date: string;
   kcal: number;
-  suggestedKcal?: number | null;
+  suggestedKcal: number | null;
   protein: number;
   fat: number;
   carbs: number;
+  burn: number;
+  previousKcal: number | null;
+  previousBurn: number | null;
+  weightKg: number | null;
   reasons: string[];
   floorApplied: boolean;
+  recalculation: TargetRecalculationDetails | null;
+  changes: TargetProfileChange[] | null;
+  periodFrom: string | null;
+  periodTo: string | null;
+}
+
+export interface TargetHistoryPage {
+  rows: TargetHistoryRow[];
+  total: number;
+  more: boolean;
 }
 
 export interface InboxItem {
@@ -994,8 +1064,8 @@ export async function putNotificationType(type: string, enabled: boolean): Promi
   }));
 }
 
-export async function getTargetHistory(): Promise<{ rows: TargetHistoryRow[] }> {
-  return jsonOrThrow(await request("/api/profile/history"));
+export async function getTargetHistory(offset = 0, limit = 20): Promise<TargetHistoryPage> {
+  return jsonOrThrow(await request(`/api/profile/history?offset=${offset}&limit=${limit}`));
 }
 
 export async function savePushSubscription(subscription: { endpoint: string; keys: { p256dh: string; auth: string } }): Promise<void> {

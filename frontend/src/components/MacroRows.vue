@@ -2,7 +2,6 @@
 import { computed } from "vue";
 import Bar from "./Bar.vue";
 import Icon from "./Icon.vue";
-import ManualTag from "./ManualTag.vue";
 import OverTag from "./OverTag.vue";
 import { int } from "../lib/format";
 import { macroRows, type MacroAmounts, type MacroGoal } from "../lib/macros";
@@ -15,7 +14,6 @@ const props = defineProps<{
   eaten: MacroAmounts;
   /** Food sheet: the food about to be added. Its part of each bar is brighter, and its amount sits beside the total. */
   adding?: MacroAmounts | null;
-  manual?: boolean;
 }>();
 
 const rows = computed(() => (props.goal ? macroRows(props.goal, props.eaten, props.adding) : []));
@@ -44,7 +42,6 @@ function barLabel(row: (typeof rows.value)[number]): string {
         <div class="mrow">
           <span class="left">
             <span class="t-label" :class="row.status === 'under' ? 'c2' : ''">{{ row.label }}<span v-if="row.min" class="c3 t-capn"> · min</span></span>
-            <ManualTag v-if="manual && row.kind === 'kcal'" />
             <OverTag v-if="row.status === 'over'" :text="row.tag" />
             <span v-else-if="row.tag" class="tag t-capn lefttag" data-left>{{ row.tag }}</span>
           </span>

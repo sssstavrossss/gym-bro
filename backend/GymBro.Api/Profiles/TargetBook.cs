@@ -33,15 +33,24 @@ public static class TargetBook
     }
 
     /// <summary>
-    /// Inserts today's row, or updates it. The numbers are replaced. Reasons
-    /// already on the row stay, and <paramref name="reasons"/> are appended
-    /// in order, skipping any that are already there.
+    /// The burn the next target starts from: the row in effect carried to today's
+    /// formula, with that row's spread. No row means the formula itself.
+    /// </summary>
+    public static (int Burn, int SdKcal) CarriedBurn(TargetHistory? row, NutritionResult formulaNow) => row is null
+        ? (formulaNow.Tdee, NutritionMath.Round(BurnEstimate.FormulaSdKcal))
+        : (BurnEstimate.Carry(formulaNow.Tdee, row.Tdee, row.FormulaTdee), row.BurnSdKcal);
+
+    /// <summary>
+    /// Inserts today's row, or updates it. The numbers and burn are replaced.
+    /// Reasons already on the row stay, and <paramref name="reasons"/> are appended
+    /// in order, skipping any that are already there. Details merge the same way.
     /// </summary>
     public static async Task<TargetHistory> StageAsync(
         AppDbContext db,
         string userId,
         DateOnly effectiveDate,
         NutritionResult result,
+        TargetBurn burn,
         decimal weightKg,
         IReadOnlyList<string> reasons,
         DateTimeOffset createdAt,
@@ -52,7 +61,7 @@ public static class TargetBook
             cancellationToken);
         if (row is null)
         {
-            var created = NewRow(userId, effectiveDate, result, weightKg, reasons, createdAt);
+            var created = NewRow(userId, effectiveDate, result, burn, weightKg, reasons, createdAt);
             db.TargetHistories.Add(created);
             return created;
         }
@@ -64,6 +73,9 @@ public static class TargetBook
         row.FatGrams = result.Fat;
         row.CarbGrams = result.Carbs;
         row.FloorApplied = result.FloorApplied;
+        row.FormulaTdee = burn.FormulaTdee;
+        row.BurnSdKcal = burn.BurnSdKcal;
+        row.Details = TargetDetails.Serialize(TargetDetails.Merge(TargetDetails.Parse(row.Details), burn.Details));
         row.WeightKg = decimal.Round(weightKg, 2, MidpointRounding.AwayFromZero);
         row.Reasons = MergeReasons(row.Reasons, reasons);
         row.CreatedAt = createdAt;
@@ -96,6 +108,7 @@ public static class TargetBook
         string userId,
         DateOnly effectiveDate,
         NutritionResult result,
+        TargetBurn burn,
         decimal weightKg,
         IReadOnlyList<string> reasons,
         DateTimeOffset createdAt)
@@ -111,6 +124,9 @@ public static class TargetBook
             FatGrams = result.Fat,
             CarbGrams = result.Carbs,
             FloorApplied = result.FloorApplied,
+            FormulaTdee = burn.FormulaTdee,
+            BurnSdKcal = burn.BurnSdKcal,
+            Details = TargetDetails.Serialize(burn.Details),
             Reasons = MergeReasons([], reasons),
             WeightKg = decimal.Round(weightKg, 2, MidpointRounding.AwayFromZero),
             CreatedAt = createdAt,

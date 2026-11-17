@@ -24,7 +24,6 @@ builder.Services.AddScoped<UserDirectory>();
 builder.Services.AddScoped<MatvaretabellenImporter>();
 builder.Services.AddScoped<KassalappImporter>();
 builder.Services.Configure<WebPushOptions>(builder.Configuration.GetSection(WebPushOptions.SectionName));
-builder.Services.AddScoped<WeeklyTargetRecalculator>();
 builder.Services.AddScoped<MondayReminder>();
 builder.Services.AddSingleton<OpenFoodFactsGate>();
 builder.Services.AddHttpClient<IOpenFoodFactsClient, OpenFoodFactsClient>((serviceProvider, client) =>

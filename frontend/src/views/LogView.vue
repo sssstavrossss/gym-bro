@@ -2,7 +2,6 @@
 import { computed, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import Icon from "../components/Icon.vue";
-import ManualTag from "../components/ManualTag.vue";
 import Timeline from "../components/Timeline.vue";
 import WeekStrip from "../components/WeekStrip.vue";
 import {
@@ -15,7 +14,6 @@ import {
   summaryCells,
 } from "../lib/dayLog";
 import { shortDate, todayInZone } from "../lib/dates";
-import { isManualTarget } from "../lib/manualTarget";
 import { vp } from "../lib/viewport";
 import { deviceTimeZone } from "../state/profile";
 import { loadDay, pendingFor, setFasting, totalsOf, viewed } from "../state/log";
@@ -38,7 +36,6 @@ const pending = computed(() => pendingFor(shown.value));
 const totals = computed(() => totalsOf(entries.value));
 const target = computed(() => (ready.value ? viewed.target : null));
 const cells = computed(() => summaryCells(totals.value, target.value));
-const manual = computed(() => ready.value && isManualTarget(viewed.target?.reasons));
 const totalLine = computed(() => dayTotalText(totals.value.kcal, entries.value.length));
 const canPrev = computed(() => shiftLogDate(date.value, -1, today.value, setup.value) !== null);
 const canNext = computed(() => shiftLogDate(date.value, 1, today.value, setup.value) !== null);
@@ -94,7 +91,7 @@ async function onFasting(event: Event) {
     <div v-else class="body" :class="{ desk: vp.desktop, stale: viewed.dim }" data-day-cards>
       <section class="summary" :aria-label="target ? 'Day total against that day\'s target' : 'Day total, no target'">
         <div v-for="cell in cells" :key="cell.key" class="col">
-          <span class="row gap6"><span class="t-ns" :class="{ overv: cell.over }" data-num>{{ cell.value }}<span v-if="cell.over" class="sr-only"> over</span></span><ManualTag v-if="manual && cell.key === 'kcal'" short /></span>
+          <span class="row gap6"><span class="t-ns" :class="{ overv: cell.over }" data-num>{{ cell.value }}<span v-if="cell.over" class="sr-only"> over</span></span></span>
           <span class="t-capn c3">{{ cell.caption }}</span>
         </div>
       </section>

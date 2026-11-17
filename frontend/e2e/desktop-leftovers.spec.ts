@@ -1,4 +1,3 @@
-import { execFileSync } from "node:child_process";
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 
 function headers(oid: string): Record<string, string> {
@@ -67,14 +66,6 @@ async function logQuick(request: APIRequestContext, oid: string, date: string, z
   expect(response.ok(), await response.text()).toBeTruthy();
 }
 
-/** Stores the prototype's manual-number reason on today's target. The UI only reads it. */
-function storeManualReason(oid: string) {
-  execFileSync("psql", [
-    "-h", "127.0.0.1", "-U", "gymbro", "-d", "gymbro",
-    "-c", `UPDATE target_history SET reasons = CASE WHEN 'manual_changed' = ANY(reasons) THEN reasons ELSE array_append(reasons, 'manual_changed') END WHERE user_id = '${oid}'`,
-  ], { env: { ...process.env, PGPASSWORD: "gymbro" } });
-}
-
 async function expectNoSideScroll(page: Page) {
   const overflow = await page.evaluate(() => {
     const scroller = document.querySelector(".scroller");
@@ -85,22 +76,18 @@ async function expectNoSideScroll(page: Page) {
   expect(overflow).toBe(true);
 }
 
-test("Open log and the manual mark follow the stored target", async ({ page }) => {
+test("Open log shows on desktop and opens the day's log", async ({ page }) => {
   const oid = `e2e-leftover-${Date.now()}-${test.info().project.name}`;
   const when = await clock(page);
   await putWeighIn(page.request, oid, when.today, when.zone);
   await putProfile(page.request, oid, when.zone);
   await logQuick(page.request, oid, when.today, when.zone);
-  storeManualReason(oid);
   await sign(page, oid);
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/today");
   await expect(page.getByRole("main", { name: "Today" })).toBeVisible();
   await expect(page.getByText("Open log")).toHaveCount(0);
-  const mark = page.getByLabel("Manual target, my own number");
-  await expect(mark).toBeVisible();
-  await expect(mark).toHaveAttribute("title", "Manual target (my own number)");
   await expectNoSideScroll(page);
   if (test.info().project.name === "chromium") {
     await page.screenshot({ path: "/opt/cursor/artifacts/leftovers-phone.png" });
@@ -108,9 +95,7 @@ test("Open log and the manual mark follow the stored target", async ({ page }) =
 
   await page.setViewportSize({ width: 1440, height: 900 });
   await expect(page.getByRole("link", { name: "Open log" })).toBeVisible();
-  await expect(page.getByText("M = manual")).toBeVisible();
-  const week = page.getByRole("region", { name: "This week" });
-  await expect(week.getByLabel("Manual target, my own number")).toBeVisible();
+  await expect(page.getByRole("region", { name: "This week", exact: true })).toBeVisible();
   await expectNoSideScroll(page);
   if (test.info().project.name === "chromium") {
     await page.screenshot({ path: "/opt/cursor/artifacts/leftovers-desktop.png" });
@@ -119,5 +104,4 @@ test("Open log and the manual mark follow the stored target", async ({ page }) =
   await page.getByRole("link", { name: "Open log" }).click();
   await expect(page).toHaveURL(new RegExp(`/log/${when.today}$`));
   await expect(page.getByRole("heading", { name: "Log", exact: true })).toBeVisible();
-  await expect(page.getByLabel("Manual target, my own number")).toBeVisible();
 });

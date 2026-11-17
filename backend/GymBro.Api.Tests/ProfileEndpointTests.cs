@@ -133,85 +133,6 @@ public sealed class ProfileEndpointTests(ApiFactory factory)
     }
 
     [Fact]
-    public async Task Weekly_recalculation_runs_on_Monday_and_is_idempotent()
-    {
-        factory.Clock.UtcNow = new DateTimeOffset(2026, 10, 26, 8, 0, 0, TimeSpan.Zero);
-        var user = TestData.NewUser("weekly");
-        using var client = factory.AsUser(user);
-        await TestData.PutWeighIn(client, "2026-10-26", """{"kg":83.6,"timeZone":"UTC"}""");
-        await TestData.PutProfile(client, TestData.Profile());
-
-        factory.Clock.UtcNow = new DateTimeOffset(2026, 10, 26, 9, 0, 0, TimeSpan.Zero);
-        Assert.Equal(1, await HistoryCount(user));
-        Assert.True(await RunWeekly() >= 1);
-        Assert.Equal(1, await HistoryCount(user));
-        Assert.Equal(0, await RunWeekly());
-        Assert.Equal(1, await HistoryCount(user));
-        var stored = await RowsFor(user);
-        var mondayRow = Assert.Single(stored);
-        Assert.Contains(TargetReasons.ProfileChange, mondayRow.Reasons);
-        Assert.Contains(TargetReasons.WeeklyRecalculation, mondayRow.Reasons);
-
-        var monday = await client.GetFromJsonAsync<JsonElement>("/api/targets?date=2026-10-26");
-        Assert.Equal(TargetReasons.WeeklyRecalculation, monday.GetProperty("targets").GetProperty("reason").GetString());
-        Assert.Equal(2218, monday.GetProperty("targets").GetProperty("kcal").GetInt32());
-
-        factory.Clock.UtcNow = new DateTimeOffset(2026, 10, 27, 9, 0, 0, TimeSpan.Zero);
-        Assert.Equal(0, await RunWeekly());
-        var stillMonday = await client.GetFromJsonAsync<JsonElement>("/api/targets?date=2026-10-26");
-        Assert.Equal(TargetReasons.WeeklyRecalculation, stillMonday.GetProperty("targets").GetProperty("reason").GetString());
-    }
-
-    [Fact]
-    public async Task A_missed_Monday_is_written_on_the_day_the_job_actually_runs()
-    {
-        factory.Clock.UtcNow = new DateTimeOffset(2026, 10, 25, 8, 0, 0, TimeSpan.Zero);
-        var user = TestData.NewUser("missed-monday");
-        using var client = factory.AsUser(user);
-        await TestData.PutWeighIn(client, "2026-10-25", """{"kg":83.6,"timeZone":"UTC"}""");
-        await TestData.PutProfile(client, TestData.Profile());
-
-        factory.Clock.UtcNow = new DateTimeOffset(2026, 10, 28, 9, 0, 0, TimeSpan.Zero);
-        Assert.True(await RunWeekly() >= 1);
-        Assert.Equal(0, await RunWeekly());
-
-        await using var scope = factory.Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var weekly = (await db.TargetHistories.Where(row => row.UserId == user).ToListAsync())
-            .Single(row => row.Reasons.Contains(TargetReasons.WeeklyRecalculation));
-        Assert.Equal(new DateOnly(2026, 10, 28), weekly.EffectiveDate);
-        Assert.Equal(83.60m, weekly.WeightKg);
-
-        var monday = await client.GetFromJsonAsync<JsonElement>("/api/targets?date=2026-10-26");
-        Assert.Equal(TargetReasons.ProfileChange, monday.GetProperty("targets").GetProperty("reason").GetString());
-        var wednesday = await client.GetFromJsonAsync<JsonElement>("/api/targets?date=2026-10-28");
-        Assert.Equal(TargetReasons.WeeklyRecalculation, wednesday.GetProperty("targets").GetProperty("reason").GetString());
-        Assert.Equal("2026-10-28", wednesday.GetProperty("targets").GetProperty("effectiveDate").GetString());
-    }
-
-    [Fact]
-    public async Task Weekly_recalculation_uses_the_published_trend_from_two_consecutive_weigh_ins()
-    {
-        factory.Clock.UtcNow = new DateTimeOffset(2026, 10, 26, 8, 0, 0, TimeSpan.Zero);
-        var user = TestData.NewUser("sparse");
-        using var client = factory.AsUser(user);
-        await TestData.PutWeighIn(client, "2026-10-25", """{"kg":80,"timeZone":"UTC"}""");
-        await TestData.PutWeighIn(client, "2026-10-26", """{"kg":90,"timeZone":"UTC","confirm":true}""");
-        var saved = await TestData.PutProfile(client, TestData.Profile());
-        Assert.Equal(TrendWeight.Normal, saved.GetProperty("weight").GetProperty("trendState").GetString());
-        Assert.Equal(81.00m, saved.GetProperty("weight").GetProperty("trendKg").GetDecimal());
-        Assert.Equal("trend", saved.GetProperty("weight").GetProperty("source").GetString());
-        Assert.Equal(81.00m, saved.GetProperty("targets").GetProperty("weightKg").GetDecimal());
-
-        factory.Clock.UtcNow = new DateTimeOffset(2026, 11, 2, 9, 0, 0, TimeSpan.Zero);
-        Assert.True(await RunWeekly() >= 1);
-        var next = await client.GetFromJsonAsync<JsonElement>("/api/targets?date=2026-11-02");
-        Assert.Equal(TargetReasons.WeeklyRecalculation, next.GetProperty("targets").GetProperty("reason").GetString());
-        Assert.Equal(81.00m, next.GetProperty("targets").GetProperty("weightKg").GetDecimal());
-        Assert.Equal("2026-11-02", next.GetProperty("targets").GetProperty("effectiveDate").GetString());
-    }
-
-    [Fact]
     public async Task One_day_keeps_one_row_when_body_and_macros_change_together()
     {
         factory.Clock.UtcNow = new DateTimeOffset(2026, 10, 24, 8, 0, 0, TimeSpan.Zero);
@@ -227,28 +148,6 @@ public sealed class ProfileEndpointTests(ApiFactory factory)
         Assert.Equal(1, await HistoryCount(user));
     }
 
-    [Fact]
-    public async Task A_missed_Monday_merges_into_the_day_the_job_runs()
-    {
-        factory.Clock.UtcNow = new DateTimeOffset(2026, 10, 25, 8, 0, 0, TimeSpan.Zero);
-        var user = TestData.NewUser("catch-up");
-        using var client = factory.AsUser(user);
-        await TestData.PutWeighIn(client, "2026-10-25", """{"kg":83.6,"timeZone":"UTC"}""");
-        await TestData.PutProfile(client, TestData.Profile());
-
-        factory.Clock.UtcNow = new DateTimeOffset(2026, 10, 28, 9, 0, 0, TimeSpan.Zero);
-        await TestData.PutProfile(client, TestData.Profile(fatSetting: "more", fatPercent: 30));
-        Assert.True(await RunWeekly() >= 1);
-
-        var rows = await RowsFor(user);
-        Assert.Equal(2, rows.Count);
-        var sunday = rows.Single(row => row.EffectiveDate == new DateOnly(2026, 10, 25));
-        Assert.Equal([TargetReasons.ProfileChange], sunday.Reasons);
-        var wednesday = rows.Single(row => row.EffectiveDate == new DateOnly(2026, 10, 28));
-        Assert.Equal([TargetReasons.MacroBalanceChange, TargetReasons.WeeklyRecalculation], wednesday.Reasons);
-        Assert.DoesNotContain(rows, row => row.EffectiveDate == new DateOnly(2026, 10, 26));
-    }
-
     private async Task<int> HistoryCount(string userId) => (await RowsFor(userId)).Count;
 
     private async Task<List<TargetHistory>> RowsFor(string userId)
@@ -256,12 +155,5 @@ public sealed class ProfileEndpointTests(ApiFactory factory)
         await using var scope = factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         return await db.TargetHistories.Where(row => row.UserId == userId).ToListAsync();
-    }
-
-    private async Task<int> RunWeekly()
-    {
-        await using var scope = factory.Services.CreateAsyncScope();
-        var job = scope.ServiceProvider.GetRequiredService<WeeklyTargetRecalculator>();
-        return await job.RunAsync(CancellationToken.None);
     }
 }

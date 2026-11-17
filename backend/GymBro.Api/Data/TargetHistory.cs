@@ -30,8 +30,23 @@ public sealed class TargetHistory
     public bool FloorApplied { get; set; }
 
     /// <summary>
+    /// The Mifflin-St Jeor burn for the same body on the same day. <see cref="Tdee"/>
+    /// minus this is how far a measured burn sits from the formula; a later
+    /// profile change keeps that distance. Equal to <see cref="Tdee"/> for a formula row.
+    /// </summary>
+    public int FormulaTdee { get; set; }
+
+    /// <summary>How unsure <see cref="Tdee"/> is, in kcal a day. The formula alone is 350.</summary>
+    public int BurnSdKcal { get; set; }
+
+    /// <summary>JSON <see cref="Profiles.TargetDetails"/>: how a recalculation was measured, or what a profile change changed.</summary>
+    public string? Details { get; set; }
+
+    /// <summary>
     /// Every reason that wrote this date, in the order they first applied.
-    /// Known values: <c>profile_change</c>, <c>macro_balance_change</c>, <c>weekly_recalculation</c>, <c>fresh_start</c>.
+    /// Known values: <c>profile_change</c>, <c>macro_balance_change</c>, <c>fresh_start</c>,
+    /// <c>recalculation_adaptive</c>, <c>recalculation_kept</c>, <c>recalculation_formula</c>,
+    /// and the retired <c>weekly_recalculation</c>.
     /// </summary>
     public string[] Reasons { get; set; } = [];
 
