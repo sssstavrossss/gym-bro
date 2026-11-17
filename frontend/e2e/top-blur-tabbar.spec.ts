@@ -5,6 +5,8 @@ const themes = [
   ["midnight", "rgb(18, 24, 38)", "#121826"],
   ["charcoal", "rgb(26, 24, 22)", "#1A1816"],
   ["black", "rgb(0, 0, 0)", "#000000"],
+  ["forest", "rgb(21, 30, 26)", "#151E1A"],
+  ["plum", "rgb(26, 21, 30)", "#1A151E"],
 ] as const;
 
 function headers(oid: string) {

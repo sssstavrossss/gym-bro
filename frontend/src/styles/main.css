@@ -89,6 +89,44 @@ html[data-theme="black"] {
   --shade-far: #333338;
 }
 
+html[data-theme="forest"] {
+  --color-bg: #151e1a;
+  --color-surface: #1f2b25;
+  --color-surface-2: #293830;
+  --color-border: #374d42;
+  --color-track: #2b3c34;
+  --color-hover: #33473d;
+  --color-hit: #e7ebe9;
+  --color-on-action: #151e1a;
+  --text-primary: #e7ebe9;
+  --text-secondary: #b4c2bb;
+  --text-tertiary: #91a59b;
+  --color-border-strong: #6c8478;
+  --shade-on-target: #e7ebe9;
+  --shade-close: #a8b8b0;
+  --shade-off: #567666;
+  --shade-far: #293830;
+}
+
+html[data-theme="plum"] {
+  --color-bg: #1a151e;
+  --color-surface: #261f2b;
+  --color-surface-2: #322839;
+  --color-border: #44374d;
+  --color-track: #352b3c;
+  --color-hover: #3f3347;
+  --color-hit: #e9e6ec;
+  --color-on-action: #1a151e;
+  --text-primary: #e9e6ec;
+  --text-secondary: #bcb3c3;
+  --text-tertiary: #9d8fa7;
+  --color-border-strong: #7a6a86;
+  --shade-on-target: #e9e6ec;
+  --shade-close: #b2a7b9;
+  --shade-off: #695577;
+  --shade-far: #322839;
+}
+
 :root {
   /* ---- The one scale. Components use these, never raw px for spacing or corners. ----
      Spacing: gaps between items and padding inside boxes. 1px hairlines stay as they are. */

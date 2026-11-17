@@ -44,7 +44,7 @@ describe("contrast tokens", () => {
   });
 
   it("finds every theme", () => {
-    expect(Object.keys(themes)).toEqual(["graphite", "midnight", "charcoal", "black"]);
+    expect(Object.keys(themes)).toEqual(["graphite", "midnight", "charcoal", "black", "forest", "plum"]);
   });
 
   it.each(Object.keys(themes))("%s keeps text at 4.5:1, on the raised box too", (name) => {

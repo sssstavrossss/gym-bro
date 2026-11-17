@@ -5,6 +5,8 @@ export const themes = [
   { id: "midnight", label: "Midnight navy", background: "#121826" },
   { id: "charcoal", label: "Warm charcoal", background: "#1A1816" },
   { id: "black", label: "Pure black", background: "#000000" },
+  { id: "forest", label: "Forest", background: "#151E1A" },
+  { id: "plum", label: "Plum", background: "#1A151E" },
 ] as const;
 
 export type ThemeId = (typeof themes)[number]["id"];

@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#16181D" />
     <script>
       (function () {
-        var allowed = { graphite: "#16181D", midnight: "#121826", charcoal: "#1A1816", black: "#000000" };
+        var allowed = { graphite: "#16181D", midnight: "#121826", charcoal: "#1A1816", black: "#000000", forest: "#151E1A", plum: "#1A151E" };
         var stored = "";
         try { stored = localStorage.getItem("gymbro-theme") || ""; } catch (e) { stored = ""; }
         var theme = Object.prototype.hasOwnProperty.call(allowed, stored) ? stored : "graphite";
