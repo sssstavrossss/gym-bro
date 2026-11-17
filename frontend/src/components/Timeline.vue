@@ -20,6 +20,7 @@ const props = defineProps<{ date: string; today: string; entries: LogEntry[]; pe
 const rows = computed(() => byTime(props.entries));
 const ordered = computed(() => rows.value.map((entry) => entry.id));
 const isToday = computed(() => props.date === props.today);
+const isLater = computed(() => props.date > props.today);
 
 function amountOf(entry: LogEntry): string {
   if (entry.unit && entry.amount) return foodAmount(entry.amount, entry.unit);
@@ -67,6 +68,14 @@ async function del(entry: LogEntry) {
 async function retry(pending: PendingAdd) {
   await retryPending(pending.idempotencyKey);
 }
+const emptyTitle = computed(() => {
+  if (isToday.value) return "Nothing logged yet today";
+  return isLater.value ? `Nothing planned for ${dayMonth(props.date)}` : `Nothing logged on ${dayMonth(props.date)}`;
+});
+const emptyHint = computed(() => {
+  if (isToday.value) return "Add food as you eat — each entry gets the time you add it.";
+  return isLater.value ? "Plan food for this day and pick the time you'll eat it." : "Add food to this day and pick the time it was eaten.";
+});
 function add() {
   openFood("search", props.date);
 }
@@ -131,8 +140,8 @@ function onMenu(event: Event) {
   <div class="tl" :class="{ compact, selecting: ui.selecting, limited: Boolean(maxRows) }">
     <div v-if="showEmpty && !rows.length && !pending.length" class="empty col">
       <span class="eic"><Icon name="food" :size="22" /></span>
-      <span class="t-head">{{ isToday ? "Nothing logged yet today" : `Nothing logged on ${dayMonth(date)}` }}</span>
-      <span class="t-label c2">{{ isToday ? "Add food as you eat — each entry gets the time you add it." : "Add food to this day and pick the time it was eaten." }}</span>
+      <span class="t-head">{{ emptyTitle }}</span>
+      <span class="t-label c2">{{ emptyHint }}</span>
       <button type="button" class="btn primary t-bodys ebtn" @click="add"><Icon name="plus" :size="18" :sw="2.6" /> Add food</button>
       <template v-if="groupChips.length">
         <span class="t-capn c3">or add a saved group</span>

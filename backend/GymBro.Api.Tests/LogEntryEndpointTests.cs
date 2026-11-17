@@ -83,15 +83,15 @@ public sealed class LogEntryEndpointTests(ApiFactory factory)
         await Setup(client, "2026-10-20");
         factory.Clock.UtcNow = new DateTimeOffset(2026, 10, 24, 9, 0, 0, TimeSpan.Zero);
 
-        Assert.Equal(HttpStatusCode.BadRequest, (await client.PostAsync("/api/log-entries", Json(Quick("d1", "2026-10-25")))).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await client.PostAsync("/api/log-entries", Json(Quick("d1", "2027-10-25")))).StatusCode);
         Assert.Equal(HttpStatusCode.BadRequest, (await client.PostAsync("/api/log-entries", Json(Quick("d2", "2026-10-19")))).StatusCode);
         Assert.Equal(HttpStatusCode.Created, (await client.PostAsync("/api/log-entries", Json(Quick("d3", "2026-10-20")))).StatusCode);
         var today = await client.PostAsync("/api/log-entries", Json(Quick("d4", "2026-10-24")));
         Assert.Equal(HttpStatusCode.Created, today.StatusCode);
         var id = (await today.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
 
-        var future = await client.PatchAsync($"/api/log-entries/{id}", Json("""{"localDate":"2026-10-25"}"""));
-        Assert.Equal(HttpStatusCode.BadRequest, future.StatusCode);
+        var tooFar = await client.PatchAsync($"/api/log-entries/{id}", Json("""{"localDate":"2027-10-25"}"""));
+        Assert.Equal(HttpStatusCode.BadRequest, tooFar.StatusCode);
         var before = await client.PatchAsync($"/api/log-entries/{id}", Json("""{"localDate":"2026-10-19"}"""));
         Assert.Equal(HttpStatusCode.BadRequest, before.StatusCode);
         var listed = await client.GetFromJsonAsync<JsonElement>("/api/log-entries?date=2026-10-24");
@@ -99,7 +99,7 @@ public sealed class LogEntryEndpointTests(ApiFactory factory)
     }
 
     [Fact]
-    public async Task Time_zone_is_stored_and_one_day_ahead_is_allowed_only_for_that_zone()
+    public async Task Time_zone_is_stored_and_later_days_are_planned_in_any_zone()
     {
         factory.Clock.UtcNow = new DateTimeOffset(2026, 10, 1, 8, 0, 0, TimeSpan.Zero);
         using var client = factory.AsUser(TestData.NewUser("zone"));
@@ -114,11 +114,11 @@ public sealed class LogEntryEndpointTests(ApiFactory factory)
         var stored = await ahead.Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal("Pacific/Auckland", stored.GetProperty("timeZone").GetString());
 
-        var twoDays = await client.PostAsync("/api/log-entries", Json(Quick("z2", "2026-11-01", "10", null, "Pacific/Auckland")));
-        Assert.Equal(HttpStatusCode.BadRequest, twoDays.StatusCode);
-
-        var utcTomorrow = await client.PostAsync("/api/log-entries", Json(Quick("z3", "2026-10-31", "10", null, "UTC")));
-        Assert.Equal(HttpStatusCode.BadRequest, utcTomorrow.StatusCode);
+        // A later day is a planned day, in any zone.
+        var twoDays = await client.PostAsync("/api/log-entries", Json(Quick("z2", "2026-11-01", "10", "\"time\":\"12:00\"", "Pacific/Auckland")));
+        Assert.Equal(HttpStatusCode.Created, twoDays.StatusCode);
+        var utcTomorrow = await client.PostAsync("/api/log-entries", Json(Quick("z3", "2026-10-31", "10", "\"time\":\"12:00\"", "UTC")));
+        Assert.Equal(HttpStatusCode.Created, utcTomorrow.StatusCode);
     }
 
     [Fact]

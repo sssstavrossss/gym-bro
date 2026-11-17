@@ -8,18 +8,18 @@ const props = withDefaults(defineProps<{ modelValue: string | null; date: string
 });
 const emit = defineEmits<{ "update:modelValue": [string | null] }>();
 const el = ref<HTMLInputElement | null>(null);
-const past = computed(() => props.date !== (props.today || todayIso()));
-const needed = computed(() => past.value && !props.modelValue);
+const otherDay = computed(() => props.date !== (props.today || todayIso()));
+const needed = computed(() => otherDay.value && !props.modelValue);
 const label = computed(() => {
-  const time = props.modelValue ?? (past.value || props.allowNow === false ? "Pick a time" : "Now");
-  return past.value ? `${dayMonth(props.date)} · ${time}` : time;
+  const time = props.modelValue ?? (otherDay.value || props.allowNow === false ? "Pick a time" : "Now");
+  return otherDay.value ? `${dayMonth(props.date)} · ${time}` : time;
 });
 
 // The input covers the chip, so the tap focuses it in the same gesture.
 // A later focus() would not raise the iOS keyboard. Font size stays at 16px.
 function prime() {
   const input = el.value;
-  if (input && !input.value && !past.value) input.value = props.modelValue ?? nowHM();
+  if (input && !input.value && !otherDay.value) input.value = props.modelValue ?? nowHM();
 }
 function arm() {
   prime();
@@ -52,7 +52,7 @@ function change(event: Event) {
       <span>{{ label }}</span>
       <input ref="el" class="tinput" type="time" data-no-autofocus :aria-label="`Time: ${label}. Change time`" :value="modelValue ?? ''" @pointerdown="arm" @click="pick" @change="change" />
     </span>
-    <button v-if="modelValue && !past && allowNow" type="button" class="now t-capn c2" @click="emit('update:modelValue', null)">Now</button>
+    <button v-if="modelValue && !otherDay && allowNow" type="button" class="now t-capn c2" @click="emit('update:modelValue', null)">Now</button>
   </span>
 </template>
 

@@ -102,7 +102,7 @@ async function onFasting(event: Event) {
         </div>
         <Timeline :date="shown" :today="today" :entries="entries" :pending="pending" show-empty />
       </div>
-      <label class="done row">
+      <label v-if="shown <= today" class="done row">
         <input :checked="viewed.fasting" type="checkbox" :disabled="saving" aria-describedby="fast-hint" @change="onFasting" />
         <span class="col">
           <span class="t-bodys">{{ fastingLabel }}</span>

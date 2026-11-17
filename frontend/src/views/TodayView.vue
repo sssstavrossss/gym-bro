@@ -22,7 +22,8 @@ import { vp } from "../lib/viewport";
 import { isFreshStart, isLowAccuracy, trendChange, weightSubtitle } from "../lib/weightDisplay";
 import { boot } from "../state/boot";
 import { refreshInbox } from "../state/inbox";
-import { loadDay, pendingFor, totalsOf, viewed } from "../state/log";
+import { lastPlanDate } from "../lib/dayLog";
+import { loadDay, onLogChange, pendingFor, totalsOf, viewed } from "../state/log";
 import { deviceTimeZone, profile } from "../state/profile";
 import { weightUnit, wt, wtUnit } from "../state/units";
 import { loadWeekDays, weekCache } from "../state/week";
@@ -62,7 +63,7 @@ const tip = "The trend smooths out day-to-day swings from water, salt and food. 
 const today = computed(() => viewed.today || todayInZone(deviceTimeZone()));
 const selected = ref(today.value);
 watch(today, (value) => {
-  if (selected.value > value) selected.value = value;
+  if (selected.value > lastPlanDate(value)) selected.value = value;
 });
 watch(selected, (value) => { void loadDay(value); }, { immediate: true });
 const shownDay = computed(() => (viewed.loaded && viewed.date ? viewed.date : selected.value));
@@ -79,6 +80,7 @@ const spanText = computed(() => span.value ? spanLabel(span.value[0], span.value
 function pageTitle(day: string, now: string) {
   if (!day || day === now) return "Today";
   if (day === addDays(now, -1)) return "Yesterday";
+  if (day === addDays(now, 1)) return "Tomorrow";
   if (Math.abs(diffDays(now, day)) <= 6) return weekday(day);
   return shortDate(day);
 }
@@ -86,7 +88,13 @@ function pageTitle(day: string, now: string) {
 const foodTitle = computed(() => {
   if (shownDay.value === today.value) return "Foods today";
   if (shownDay.value === addDays(today.value, -1)) return `Foods yesterday, ${dayMonth(shownDay.value)}`;
+  if (shownDay.value === addDays(today.value, 1)) return `Foods tomorrow, ${dayMonth(shownDay.value)}`;
   return `Foods on ${weekdayShort(shownDay.value)} ${dayMonth(shownDay.value)}`;
+});
+/** The phone's empty-day prompt: a later day is planned, not logged. */
+const promptTitle = computed(() => {
+  if (shownDay.value === today.value) return "Log your first food today";
+  return shownDay.value > today.value ? "Plan food for this day" : "Nothing logged this day";
 });
 const addFoodLabel = computed(() => (shownDay.value === today.value ? "Add food" : "Add"));
 const addFoodName = computed(() => (
@@ -101,15 +109,12 @@ const weekDates = computed(() => {
   const start = weekStart(today.value || "1970-01-01");
   return Array.from({ length: 7 }, (_, index) => addDays(start, index));
 });
-watch(
-  [layout, today, () => viewed.loggedDates.join("|")],
-  () => {
-    if (layout.value === "phone" || layout.value === "tablet" || !today.value) return;
-    const dates = weekDates.value.filter((date) => date <= today.value);
-    void loadWeekDays(dates, new Set(viewed.loggedDates));
-  },
-  { immediate: true },
-);
+function refreshWeek() {
+  if (layout.value === "phone" || layout.value === "tablet" || !today.value) return;
+  void loadWeekDays(weekDates.value, new Set(viewed.loggedDates));
+}
+watch([layout, today, () => viewed.loggedDates.join("|")], refreshWeek, { immediate: true });
+onLogChange(refreshWeek);
 const logHref = computed(() => `/log/${selected.value}`);
 const weekRows = computed(() => {
   weekCache.stamp;
@@ -137,7 +142,8 @@ const weekRows = computed(() => {
       target: known && !future ? goalForDay : null,
     });
     const name = `${weekdayShort(date)} ${dayNum(date)}`;
-    let detail = ", later";
+    // A later day shows what is planned on it, without judging it.
+    let detail = logged ? " kcal planned" : ", nothing planned";
     if (!future && !known) detail = ", loading";
     else if (!future && !logged) detail = ", nothing logged";
     else if (!future && judged.targetKcal == null) detail = " kcal, no target";
@@ -187,7 +193,7 @@ const weekRows = computed(() => {
           <button v-if="layout === 'phone' && !hasDay" type="button" class="card prompt row" @click="openFood('search', shownDay)">
             <span class="disc filled"><Icon name="plus" :size="18" :sw="2.6" /></span>
             <span class="col grow">
-              <span class="t-bodys">{{ shownDay === today ? "Log your first food today" : "Nothing logged this day" }}</span>
+              <span class="t-bodys">{{ promptTitle }}</span>
               <span class="t-capn c2">Search, pick a recent food or add a saved group</span>
             </span>
             <Icon name="right" :size="16" class="c3" />
@@ -244,7 +250,6 @@ const weekRows = computed(() => {
             type="button"
             class="row wrow"
             :class="{ sel: row.date === selected }"
-            :disabled="row.future"
             :aria-pressed="row.date === selected"
             @click="pick(row.date)"
           >

@@ -1,5 +1,6 @@
 import { reactive } from "vue";
 import { todayInZone, todayIso } from "./lib/dates";
+import { lastPlanDate } from "./lib/dayLog";
 import { primeKeyboard, rememberOpener } from "./lib/focusField";
 import type { SheetName } from "./lib/layout";
 import { deviceTimeZone } from "./state/profile";
@@ -146,7 +147,7 @@ export function openFood(tab: "search" | "quick" = "search", date?: string): voi
   ui.detailFoodId = null;
   ui.foodEditor = null;
   ui.foodTab = tab;
-  ui.foodDate = date && date <= today ? date : today;
+  ui.foodDate = date && date <= lastPlanDate(today) ? date : today;
   ui.sheet = "food";
 }
 
@@ -268,7 +269,7 @@ export function openEdit(id: string, date?: string): void {
   primeKeyboard();
   const today = todayInZone(deviceTimeZone());
   ui.editEntryId = id;
-  ui.foodDate = date && date <= today ? date : ui.foodDate || today;
+  ui.foodDate = date && date <= lastPlanDate(today) ? date : ui.foodDate || today;
   ui.foodTab = "quick";
   ui.sheet = "food";
 }

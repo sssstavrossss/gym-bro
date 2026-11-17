@@ -71,7 +71,7 @@ public static class LogEntryEndpoints
             return ApiResults.Error(window.Error);
         }
 
-        var dateError = LogEntryRules.RejectDate(draft.LocalDate, window.SetupDate, window.ClientToday, window.ServerToday);
+        var dateError = LogEntryRules.RejectLogDate(draft.LocalDate, window.SetupDate, window.ClientToday);
         if (dateError is not null)
         {
             return ApiResults.Error(dateError);
@@ -261,7 +261,7 @@ public static class LogEntryEndpoints
         }
 
         var localDate = patch.LocalDate ?? entry.LocalDate;
-        var dateError = LogEntryRules.RejectDate(localDate, window.SetupDate, window.ClientToday, window.ServerToday);
+        var dateError = LogEntryRules.RejectLogDate(localDate, window.SetupDate, window.ClientToday);
         if (dateError is not null)
         {
             return ApiResults.Error(dateError);
@@ -450,7 +450,7 @@ public static class LogEntryEndpoints
             return ApiResults.Error(window.Error);
         }
 
-        var dateError = LogEntryRules.RejectDate(draft.LocalDate, window.SetupDate, window.ClientToday, window.ServerToday);
+        var dateError = LogEntryRules.RejectLogDate(draft.LocalDate, window.SetupDate, window.ClientToday);
         if (dateError is not null)
         {
             return ApiResults.Error(dateError);

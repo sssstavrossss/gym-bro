@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   byTime,
   clampLogDate,
+  lastPlanDate,
   dayTotalText,
   fastingHint,
   nextFasting,
@@ -23,28 +24,41 @@ const target = {
 };
 
 describe("day navigation", () => {
-  it("offers no future day and stops at the setup date", () => {
-    expect(clampLogDate("2026-11-02", "2026-11-01", "2026-10-20")).toBe("2026-11-01");
+  it("plans up to a year ahead and stops at the setup date", () => {
+    expect(lastPlanDate("2026-11-01")).toBe("2027-11-01");
+    expect(clampLogDate("2026-11-02", "2026-11-01", "2026-10-20")).toBe("2026-11-02");
+    expect(clampLogDate("2027-11-02", "2026-11-01", "2026-10-20")).toBe("2027-11-01");
     expect(clampLogDate("nope", "2026-11-01", "2026-10-20")).toBe("2026-11-01");
     expect(clampLogDate("2026-10-01", "2026-11-01", "2026-10-20")).toBe("2026-10-20");
-    expect(shiftLogDate("2026-11-01", 1, "2026-11-01", "2026-10-20")).toBeNull();
+    expect(shiftLogDate("2026-11-01", 1, "2026-11-01", "2026-10-20")).toBe("2026-11-02");
+    expect(shiftLogDate("2027-11-01", 1, "2026-11-01", "2026-10-20")).toBeNull();
     expect(shiftLogDate("2026-10-20", -1, "2026-11-01", "2026-10-20")).toBeNull();
     expect(shiftLogDate("2026-10-21", -1, "2026-11-01", "2026-10-20")).toBe("2026-10-20");
 
     const days = weekDays("2026-11-04", "2026-11-04", "2026-11-04", "2026-11-03", ["2026-11-03", "2026-11-05"]);
     expect(days.find((day) => day.date === "2026-11-02")?.disabled).toBe(true);
     expect(days.find((day) => day.date === "2026-11-03")?.logged).toBe(true);
-    expect(days.filter((day) => day.date > "2026-11-04").every((day) => day.disabled && !day.logged)).toBe(true);
+    expect(days.filter((day) => day.date > "2026-11-04").every((day) => !day.disabled)).toBe(true);
+    expect(days.find((day) => day.date === "2026-11-05")?.logged).toBe(true);
     const wednesday = days.find((day) => day.date === "2026-11-04");
     expect(wednesday?.disabled).toBe(false);
     expect(wednesday?.label).toBe("W4, Wednesday 4, nothing logged, today, selected");
     expect(days.find((day) => day.date === "2026-11-02")?.label).toBe("M2, Monday 2, before you set up");
     expect(weekPageSelection("2026-11-04", "2026-10-26", "2026-11-04", "2026-10-20")).toBe("2026-10-28");
     expect(weekPageSelection("2026-11-04", "2026-11-02", "2026-11-04", "2026-10-20")).toBe("2026-11-04");
+    expect(weekPageSelection("2026-11-04", "2026-11-09", "2026-11-04", "2026-10-20")).toBe("2026-11-11");
     expect(weekPageSelection("2026-11-04", "2026-10-05", "2026-11-04", "2026-10-20")).toBeNull();
     expect(days.find((day) => day.date === "2026-11-03")?.label).toBe("T3, Tuesday 3, logged");
-    expect(days.find((day) => day.date === "2026-11-05")?.label).toBe("T5, Thursday 5, later");
-    expect(days.find((day) => day.date === "2026-11-06")?.label).toBe("F6, Friday 6, later");
+    expect(days.find((day) => day.date === "2026-11-05")?.label).toBe("T5, Thursday 5, planned");
+    expect(days.find((day) => day.date === "2026-11-06")?.label).toBe("F6, Friday 6, nothing planned");
+
+    // The plan window ends a year out: the last week stops on that day.
+    expect(weekPageSelection("2026-11-04", "2027-11-01", "2026-11-04", "2026-10-20")).toBe("2027-11-03");
+    expect(weekPageSelection("2026-11-06", "2027-11-01", "2026-11-04", "2026-10-20")).toBe("2027-11-04");
+    expect(weekPageSelection("2026-11-04", "2027-11-08", "2026-11-04", "2026-10-20")).toBeNull();
+    const last = weekDays("2027-11-04", "2027-11-04", "2026-11-04", "2026-10-20", []);
+    expect(last.find((day) => day.date === "2027-11-05")?.disabled).toBe(true);
+    expect(last.find((day) => day.date === "2027-11-05")?.label).toBe("F5, Friday 5, too far ahead");
   });
 });
 
@@ -53,6 +67,8 @@ describe("past-day add", () => {
     expect(addNeedsTime("2026-11-08", "2026-11-09", null, false)).toBe(true);
     expect(addNeedsTime("2026-11-08", "2026-11-09", "08:15", false)).toBe(false);
     expect(addNeedsTime("2026-11-09", "2026-11-09", null, false)).toBe(false);
+    expect(addNeedsTime("2026-11-10", "2026-11-09", null, false)).toBe(true);
+    expect(addNeedsTime("2026-11-10", "2026-11-09", "12:30", false)).toBe(false);
     expect(addNeedsTime("2026-11-08", "2026-11-09", null, true)).toBe(false);
     expect(sameAddTap(1_000, 1_400)).toBe(true);
     expect(sameAddTap(1_000, 1_700)).toBe(false);

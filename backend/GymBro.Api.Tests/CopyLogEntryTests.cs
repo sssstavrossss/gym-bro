@@ -139,7 +139,7 @@ public sealed class CopyLogEntryTests(ApiFactory factory)
     }
 
     [Fact]
-    public async Task Copy_rejects_a_future_date_and_a_date_before_setup()
+    public async Task Copy_rejects_a_date_over_a_year_ahead_and_a_date_before_setup()
     {
         factory.Clock.UtcNow = new DateTimeOffset(2026, 10, 20, 9, 0, 0, TimeSpan.Zero);
         var user = TestData.NewUser("copy-window");
@@ -149,9 +149,9 @@ public sealed class CopyLogEntryTests(ApiFactory factory)
         var created = await client.PostAsync("/api/log-entries", Json(Quick("win-src", "2026-10-24", "25", "\"time\":\"09:00\"")));
         var id = (await created.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
 
-        var future = await Copy(client, "2026-10-25", (id, "win-future"));
+        var future = await Copy(client, "2027-10-25", (id, "win-future"));
         Assert.Equal(HttpStatusCode.BadRequest, future.StatusCode);
-        Assert.Equal("That date is in the future.", (await future.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("error").GetString());
+        Assert.Equal("Plan at most a year ahead.", (await future.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("error").GetString());
 
         var early = await Copy(client, "2026-10-19", (id, "win-early"));
         Assert.Equal(HttpStatusCode.BadRequest, early.StatusCode);
@@ -166,7 +166,7 @@ public sealed class CopyLogEntryTests(ApiFactory factory)
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var rows = await db.LogEntries.AsNoTracking().Where(row => row.UserId == user).ToListAsync();
         Assert.Equal(3, rows.Count);
-        Assert.DoesNotContain(rows, row => row.LocalDate == new DateOnly(2026, 10, 25) || row.LocalDate == new DateOnly(2026, 10, 19));
+        Assert.DoesNotContain(rows, row => row.LocalDate == new DateOnly(2027, 10, 25) || row.LocalDate == new DateOnly(2026, 10, 19));
     }
 
     [Fact]

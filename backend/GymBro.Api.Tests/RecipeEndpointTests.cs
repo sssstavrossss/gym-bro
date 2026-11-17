@@ -313,7 +313,10 @@ public sealed class RecipeEndpointTests(ApiFactory factory)
 
         var future = await Log(client, id, "2026-10-25", "future", 1, "portion");
         Assert.Equal(HttpStatusCode.BadRequest, future.StatusCode);
-        Assert.Equal("That date is in the future.", (await future.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("error").GetString());
+        Assert.Equal("Pick a time.", (await future.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("error").GetString());
+        var tooFar = await Log(client, id, "2027-10-25", "too-far", 1, "portion", "08:00");
+        Assert.Equal(HttpStatusCode.BadRequest, tooFar.StatusCode);
+        Assert.Equal("Plan at most a year ahead.", (await tooFar.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("error").GetString());
         var early = await Log(client, id, "2026-10-21", "early", 1, "portion", "08:00");
         Assert.Equal(HttpStatusCode.BadRequest, early.StatusCode);
         Assert.Equal("That date is before you set up Gym Bro.", (await early.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("error").GetString());

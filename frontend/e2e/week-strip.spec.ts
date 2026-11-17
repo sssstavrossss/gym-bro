@@ -108,8 +108,11 @@ async function expectBand(week: ReturnType<Page["getByRole"]>, surface: string, 
   await expect(week).toHaveCSS("border-radius", "16px");
   const selected = week.locator(".circle.on");
   await expect(selected).toHaveCSS("background-color", "rgb(255, 255, 255)");
-  const future = week.locator("button:disabled .circle").first();
-  await expect(future).toHaveCSS("color", muted);
+  // Only a day before setup is locked and muted. A later day can be planned, so it reads like any other.
+  const locked = week.locator("button:disabled .circle");
+  if (await locked.count()) await expect(locked.first()).toHaveCSS("color", muted);
+  const later = week.locator("button:not(:disabled) .circle:not(.on)").last();
+  await expect(later).not.toHaveCSS("color", muted);
   await expect(week.locator(".letter").first()).toHaveCSS("color", muted);
   const dot = week.locator(".dot.on");
   if (await dot.count()) await expect(dot.first()).toHaveCSS("background-color", muted);

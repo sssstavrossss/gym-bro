@@ -69,7 +69,8 @@ import { closeFoodLayer, closeSheet, openCopy, openGroupSheet, openRecipeCreate,
 const open = computed(() => ui.sheet === "food");
 const editing = computed(() => findEntry(ui.editEntryId));
 const foodToday = computed(() => viewed.today || todayInZone(deviceTimeZone()));
-const pastDay = computed(() => ui.foodDate !== foodToday.value);
+/** Any day but today, earlier or planned, needs a picked time, never now. */
+const otherDay = computed(() => ui.foodDate !== foodToday.value);
 const needTime = computed(() => addNeedsTime(ui.foodDate, foodToday.value, time.value, Boolean(editing.value)));
 const editingFood = computed(() => (editing.value && editing.value.source !== "quick" ? editing.value : null));
 const showEditor = computed(() => ui.foodEditor != null);
@@ -134,7 +135,7 @@ const sessionKcal = computed(() => session.value.reduce((sum, row) => sum + row.
 const visibleGroups = computed(() => matchingGroups(savedGroups.list, q.value));
 const visibleRecipes = computed(() => matchingRecipes(savedRecipes.list, q.value));
 const sessionRecipeCount = computed(() => recipeFoodEntries(session.value.map((row) => findEntry(row.id)).filter((entry) => entry !== null)).length);
-const groupNote = computed(() => groupTimeNote(needTime.value, pastDay.value, time.value));
+const groupNote = computed(() => groupTimeNote(needTime.value, otherDay.value, time.value));
 const foodEntries = computed(() => {
   if (viewed.date === ui.foodDate) return viewed.entries;
   if (ui.foodDate === foodToday.value) return log.entries;
@@ -145,7 +146,7 @@ const foodTarget = computed(() => (viewed.date === ui.foodDate ? viewed.target :
 const addVerb = computed(() => {
   if (editing.value) return "Save";
   if (needTime.value) return "Pick a time to add";
-  if (pastDay.value && time.value) return `Add to ${dayMonth(ui.foodDate)} at ${time.value}`;
+  if (otherDay.value && time.value) return `Add to ${dayMonth(ui.foodDate)} at ${time.value}`;
   if (time.value) return `Add at ${time.value}`;
   return "Add";
 });
@@ -881,7 +882,7 @@ async function addQuick() {
       : `Added ${result.entry.name} · ${int(result.entry.kcal)} kcal`);
     noteSession(result.entry);
     if (savedMine) void loadMine();
-    const held = pastDay.value ? time.value : null;
+    const held = otherDay.value ? time.value : null;
     fill(null);
     if (held) time.value = held;
     saveError.value = false;
@@ -1004,7 +1005,7 @@ async function deleteEdited() {
         </button>
         <h2 v-else-if="!searchView" class="t-head">{{ editing ? "Edit food" : "Add food" }}</h2>
         <span class="grow" />
-        <TimeChip v-if="!showEditor && (showDetail || !searchView)" v-model="time" :date="ui.foodDate" :today="foodToday" :allow-now="!pastDay && !editing" />
+        <TimeChip v-if="!showEditor && (showDetail || !searchView)" v-model="time" :date="ui.foodDate" :today="foodToday" :allow-now="!otherDay && !editing" />
         <button type="button" class="cbtn"  aria-label="Close" @click="closeSheet">
           <Icon name="x" :size="18" />
         </button>
@@ -1192,7 +1193,7 @@ async function deleteEdited() {
       <div v-if="session.length" v-show="!searchFocused" class="well session" role="status" data-session>
         <span class="col stext">
           <span class="t-bodys">{{ session.length }} added · {{ int(sessionKcal) }} kcal</span>
-          <span class="t-capn c2">{{ pastDay ? dayMonth(ui.foodDate) : "Today" }} · {{ int(foodTotals.kcal) }} kcal</span>
+          <span class="t-capn c2">{{ otherDay ? dayMonth(ui.foodDate) : "Today" }} · {{ int(foodTotals.kcal) }} kcal</span>
         </span>
         <span class="sbtns">
           <button v-if="canSaveGroup(session.length)" type="button" class="btn sm secondary t-label" @click="saveSessionGroup">

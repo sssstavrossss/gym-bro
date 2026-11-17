@@ -208,7 +208,7 @@ public sealed class SavedGroupTests(ApiFactory factory)
     }
 
     [Fact]
-    public async Task Readding_rejects_a_future_date_and_a_date_before_setup()
+    public async Task Readding_rejects_a_date_over_a_year_ahead_and_a_date_before_setup()
     {
         factory.Clock.UtcNow = new DateTimeOffset(2026, 10, 20, 9, 0, 0, TimeSpan.Zero);
         var user = TestData.NewUser("group-window");
@@ -217,9 +217,9 @@ public sealed class SavedGroupTests(ApiFactory factory)
         factory.Clock.UtcNow = new DateTimeOffset(2026, 10, 24, 9, 0, 0, TimeSpan.Zero);
         var groupId = await GroupOfThree(client, "2026-10-24");
 
-        var future = await Readd(client, groupId, "2026-10-25", "future");
+        var future = await Readd(client, groupId, "2027-10-25", "future", "08:00");
         Assert.Equal(HttpStatusCode.BadRequest, future.StatusCode);
-        Assert.Equal("That date is in the future.", (await future.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("error").GetString());
+        Assert.Equal("Plan at most a year ahead.", (await future.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("error").GetString());
         var early = await Readd(client, groupId, "2026-10-19", "early", "08:00");
         Assert.Equal(HttpStatusCode.BadRequest, early.StatusCode);
         Assert.Equal("That date is before you set up Gym Bro.", (await early.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("error").GetString());
@@ -231,7 +231,7 @@ public sealed class SavedGroupTests(ApiFactory factory)
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var rows = await db.LogEntries.AsNoTracking().Where(row => row.UserId == user).ToListAsync();
         Assert.Equal(9, rows.Count);
-        Assert.DoesNotContain(rows, row => row.LocalDate == new DateOnly(2026, 10, 25) || row.LocalDate == new DateOnly(2026, 10, 19));
+        Assert.DoesNotContain(rows, row => row.LocalDate == new DateOnly(2027, 10, 25) || row.LocalDate == new DateOnly(2026, 10, 19));
         Assert.Equal(3, rows.Count(row => row.LocalDate == new DateOnly(2026, 10, 20) && row.LoggedAt.Hour == 7));
     }
 

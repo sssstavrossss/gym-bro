@@ -48,7 +48,8 @@ public static class DayStatusEndpoints
             return ApiResults.Error(window.Error);
         }
 
-        var dateError = LogEntryRules.RejectDate(localDate, window.SetupDate, window.ClientToday, window.ServerToday);
+        // A planned day opens like any other. Marking it complete or fasting (Put) waits for the day.
+        var dateError = LogEntryRules.RejectLogDate(localDate, window.SetupDate, window.ClientToday);
         if (dateError is not null)
         {
             return ApiResults.Error(dateError);
@@ -150,8 +151,9 @@ public static class DayStatusEndpoints
             return ApiResults.Error(window.Error);
         }
 
+        // Future days count too: food can be planned ahead.
         var start = fromDate < window.SetupDate ? window.SetupDate : fromDate;
-        var end = toDate > window.ClientToday ? window.ClientToday : toDate;
+        var end = toDate;
         var userId = Caller.Id(principal);
         var logged = new List<DateOnly>();
         if (start <= end)

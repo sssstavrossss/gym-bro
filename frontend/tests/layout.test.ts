@@ -139,6 +139,8 @@ describe("this week", () => {
 
   it("does not judge a future day, an empty day, or a day with no target", () => {
     expect(judgeWeekDay({ date: "2026-11-05", today: "2026-11-04", logged: false, eaten: null, target }).future).toBe(true);
+    const planned = judgeWeekDay({ date: "2026-11-05", today: "2026-11-04", logged: true, eaten: { kcal: 2000, protein: 160, fat: 60, carbs: 200 }, target });
+    expect(planned).toMatchObject({ future: true, logged: true, targetKcal: null, on: false, over: false, bar: null });
     expect(judgeWeekDay({ date: "2026-11-05", today: "2026-11-04", logged: false, eaten: null, target }).on).toBe(false);
     const empty = judgeWeekDay({ date: "2026-11-01", today: "2026-11-04", logged: false, eaten: null, target });
     expect(empty.logged).toBe(false);

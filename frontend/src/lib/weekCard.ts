@@ -36,8 +36,9 @@ export function judgeWeekDay(input: {
   eaten: MacroTotals | null;
   target: DayTarget | null;
 }): WeekJudgement {
+  // A later day can hold planned food: it shows the total but is not judged.
   const future = input.date > input.today;
-  const logged = !future && input.logged;
+  const logged = input.logged;
   const target = future ? null : input.target;
   const eaten = logged ? input.eaten : null;
   const targetKcal = target?.kcal ?? null;

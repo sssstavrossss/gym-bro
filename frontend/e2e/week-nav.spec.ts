@@ -65,9 +65,10 @@ test("the Home header names the week and its arrows turn it, ahead too", async (
 
   await ahead.click();
   await expect(firstDay(page)).toHaveAttribute("aria-label", new RegExp(`Monday ${monday(when.today, 1)},`));
-  await expect(firstDay(page)).toBeDisabled();
+  // Next week can be planned: its days open, and the same weekday is picked.
+  await expect(firstDay(page)).toBeEnabled();
   await expect(label).toHaveText(new RegExp(`^${monday(when.today, 1)} `));
-  await expect(page.getByRole("heading", { level: 1, name: "Today" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1 })).not.toHaveText("Today");
   // Clicking a header arrow must not scroll the header sideways and clip the title.
   expect(await head.evaluate((el) => el.scrollLeft)).toBe(0);
 
