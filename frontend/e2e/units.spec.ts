@@ -21,7 +21,7 @@ test("units: pounds and feet in Settings, typed values kept exactly", async ({ p
     sessionStorage.setItem("gymbro-e2e-oid", id);
   }, oid);
   await page.goto("/profile");
-  await expect(page.getByRole("button", { name: /^Goal weight, 80 kg/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Goal weight 80 kg\b/ })).toBeVisible();
 
   // Settings: two switches, saved on the account straight away.
   await page.getByRole("button", { name: "Settings" }).click();
@@ -42,7 +42,7 @@ test("units: pounds and feet in Settings, typed values kept exactly", async ({ p
   await expect(settings).toBeHidden();
 
   // The profile now shows pounds and feet.
-  const goal = page.getByRole("button", { name: /^Goal weight, 176\.4 lb/ });
+  const goal = page.getByRole("button", { name: /^Goal weight 176\.4 lb\b/ });
   await expect(goal).toBeVisible();
   await expect(page.getByText("lb/wk")).toBeVisible();
   await expect(page.getByRole("radiogroup", { name: "Rate" }).getByRole("radio", { name: "1.1" })).toHaveAttribute("aria-checked", "true");
@@ -81,7 +81,7 @@ test("units: pounds and feet in Settings, typed values kept exactly", async ({ p
 
   // After a reload the units and values stay.
   await page.reload();
-  await expect(page.getByRole("button", { name: /^Goal weight, 165 lb/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Goal weight 165 lb\b/ })).toBeVisible();
   await expect(page.getByRole("textbox", { name: "Height, inches" })).toHaveValue("11");
 
   // Home follows.
@@ -130,5 +130,5 @@ test("units: Setup in pounds and feet", async ({ page }) => {
   expect(state.profile.rateKgPerWeek).toBe(0.5);
   const rows = await (await page.request.get("/api/weigh-ins", { headers })).json();
   expect(rows.weighIns[0].kg).toBe(83.6);
-  await expect(page.getByRole("button", { name: /^Goal weight, 165 lb/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Goal weight 165 lb\b/ })).toBeVisible();
 });

@@ -175,13 +175,9 @@ function onTextCommit() {
               </span>
               <Segmented size="compact" label="Rate" :model-value="rateValue" :options="rateOptions" @update:model-value="setRate" />
             </div>
-            <button type="button" class="frow last" :aria-label="`Goal weight, ${profile.form.goalWeight || 'not set'} ${weightUnit()}, change`" data-goal-weight @click="openGoalWeight">
-              <span class="t-body c2">Goal weight</span>
-              <span class="gfield">
-                <span class="t-body t-ns gnum">{{ profile.form.goalWeight || "—" }}</span>
-                <span class="t-label c2">{{ weightUnit() }}</span>
-                <Icon name="edit" :size="14" class="c3" />
-              </span>
+            <!-- Named by its own text (axe: the name must contain what is shown); the spaces keep the words apart. -->
+            <button type="button" class="frow last" data-goal-weight @click="openGoalWeight">
+              <span class="t-body c2">Goal weight</span> <span class="gfield"><span class="t-body t-ns gnum">{{ profile.form.goalWeight || "—" }}</span> <span class="t-label c2">{{ weightUnit() }}</span><span class="sr-only">, change</span><Icon name="edit" :size="14" class="c3" /></span>
             </button>
           </div>
           <dl v-if="stats" class="gstats" data-goal-line>
