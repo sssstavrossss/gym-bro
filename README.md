@@ -69,7 +69,7 @@ Sign-in settings are not baked into the JavaScript bundle. The API reads them fr
 | `Dockerfile` | Multi-stage build. One runtime image, Node and the SDK are not in it. |
 | `docker-compose.yml` | `app` and `postgres`. Every secret and id comes from the environment. |
 | `.env.example` | The values you copy into `.env`. `.env` is gitignored. |
-| `.github/workflows/tests.yml` | Parallel `checks` (backend tests, frontend checks, Docker image) and `e2e` jobs (Chromium and WebKit in two halves each, plus axe), gathered by the required `tests` job. A separate `prototype` job builds `prototype/`. |
+| `.github/workflows/tests.yml` | Parallel `checks` (backend tests, frontend checks, Docker image) and `e2e` jobs (Chromium and WebKit in four parts each, plus axe), gathered by the required `tests` job. A separate `prototype` job builds `prototype/`. |
 
 ## Endpoints
 
@@ -427,7 +427,7 @@ cd frontend && npm run typecheck && npm test && npm run build && npm run e2e
 
 Backend tests use Testcontainers Postgres 17 and `TestAuthHandler`. They do not call Entra. The end-to-end smoke test starts the API with `ASPNETCORE_ENVIRONMENT=E2e` and `E2E_AUTH=true` (both are required; that handler is not registered otherwise) and a browser session flag. It needs Postgres on `127.0.0.1:5432` with user, password, and database `gymbro`.
 
-CI is `.github/workflows/tests.yml`. The required check is the `tests` job, which only waits for the others and passes when all of them passed, so splitting jobs never changes branch protection. The jobs run side by side: `checks` runs backend tests (Testcontainers starts their Postgres), the frontend checks, and the Docker image build. `e2e` is five jobs, each with its own Postgres service, API and dev server on ports 8100 and 5173: the Playwright suite on Chromium and on WebKit, each split in two with `--shard`, and the axe spec (`npx playwright test --config e2e/retro.config.ts`) on Chromium and WebKit. Inside a job the tests still run one at a time. A new push to a PR cancels that PR's older run. A separate `prototype` job runs `npm ci && npm run build && node scripts/unit-trend.mjs` in `prototype/` and is not part of the `tests` check.
+CI is `.github/workflows/tests.yml`. The required check is the `tests` job, which only waits for the others and passes when all of them passed, so splitting jobs never changes branch protection. The jobs run side by side: `checks` runs backend tests (Testcontainers starts their Postgres), the frontend checks, and the Docker image build. `e2e` is nine jobs, each with its own Postgres service, API and dev server on ports 8100 and 5173: the Playwright suite on Chromium and on WebKit, each split in four with `--shard`, and the axe spec (`npx playwright test --config e2e/retro.config.ts`) on Chromium and WebKit. Inside a job the tests still run one at a time. A new push to a PR cancels that PR's older run. A separate `prototype` job runs `npm ci && npm run build && node scripts/unit-trend.mjs` in `prototype/` and is not part of the `tests` check.
 
 New migrations, when you need one:
 
