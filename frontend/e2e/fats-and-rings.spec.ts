@@ -82,12 +82,18 @@ test("lower fat limits show on the Fats card", async ({ page }) => {
   await page.goto("/profile");
   await page.locator("[data-cog]").click();
   const setting = page.locator("[data-fat-limits-setting]");
+  const shown = setting.locator("[data-fat-note] > span:not(.off)");
+  await expect(shown).toHaveText(/^Saturated fat ≤ 10% of calories/);
+  // Both notes keep their room, so switching doesn't change the sheet's height.
+  const sheetHeight = () => page.locator(".sheet").evaluate((node) => Math.round(node.getBoundingClientRect().height));
+  const before = await sheetHeight();
   await Promise.all([
     page.waitForResponse((response) => response.url().includes("/api/profile/settings") && response.ok()),
     setting.getByRole("radio", { name: "Lower" }).click(),
   ]);
   await expect(setting.getByRole("radio", { name: "Lower" })).toHaveAttribute("aria-checked", "true");
-  await expect(setting).toContainText("≤ 7% of calories");
+  await expect(shown).toHaveText(/^Saturated fat ≤ 7% of calories and cholesterol ≤ 200 mg a day/);
+  expect(await sheetHeight()).toBe(before);
   await page.getByRole("button", { name: "Close" }).click();
 
   // Saved on the account, so a fresh load keeps it.
