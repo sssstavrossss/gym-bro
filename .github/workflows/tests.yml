@@ -8,11 +8,72 @@ on:
 permissions:
   contents: read
 
+# A new push to a PR cancels that PR's older run. Runs on main always finish.
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
-  tests:
-    name: tests
+  # Backend tests start their own Postgres with Testcontainers, so this job needs no service.
+  checks:
+    name: checks
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Backend tests
+        run: dotnet test GymBro.slnx --configuration Release
+
+      - name: Frontend typecheck, test, and build
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run typecheck
+          npm test
+          npm run build
+
+      - name: Docker image
+        run: docker build -t gymbro:ci .
+
+  # The end-to-end suite runs in parallel jobs, each with its own Postgres, API and dev server,
+  # so the tests run one at a time inside a job exactly as they do locally.
+  e2e:
+    name: e2e (${{ matrix.name }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: chromium 1/2
+            browsers: chromium
+            run: npx playwright test --project=chromium --shard=1/2
+          - name: chromium 2/2
+            browsers: chromium
+            run: npx playwright test --project=chromium --shard=2/2
+          - name: webkit 1/2
+            browsers: webkit
+            run: npx playwright test --project=webkit --shard=1/2
+          - name: webkit 2/2
+            browsers: webkit
+            run: npx playwright test --project=webkit --shard=2/2
+          - name: retro a11y
+            browsers: chromium webkit
+            run: npx playwright test --config e2e/retro.config.ts
     services:
       postgres:
         image: postgres:17
@@ -43,37 +104,35 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
-      - name: Backend tests
-        run: dotnet test GymBro.slnx --configuration Release
-
-      - name: Frontend typecheck, test, and build
+      - name: Install packages
         working-directory: frontend
-        run: |
-          npm ci
-          npm run typecheck
-          npm test
-          npm run build
+        run: npm ci
 
       - name: Install Playwright
         working-directory: frontend
-        run: npx playwright install --with-deps chromium webkit
+        run: npx playwright install --with-deps ${{ matrix.browsers }}
 
       # Three e2e tests insert a past weigh-in with psql. The runner image does not ship it.
       - name: Install PostgreSQL client
         run: sudo apt-get update && sudo apt-get install -y postgresql-client
 
-      - name: End-to-end smoke
+      - name: End-to-end
         working-directory: frontend
-        run: npm run e2e
+        run: ${{ matrix.run }}
 
-      # retro.config.ts binds the same 8100 and 5173 ports as the smoke config.
-      # Keep this step after the smoke step so the two never run together.
-      - name: Retro accessibility
-        working-directory: frontend
-        run: npx playwright test --config e2e/retro.config.ts
-
-      - name: Docker image
-        run: docker build -t gymbro:ci .
+  # The required check. It passes only when every job above passed, so branch protection
+  # keeps requiring one check called "tests" however the jobs are split.
+  tests:
+    name: tests
+    if: always()
+    needs: [checks, e2e]
+    runs-on: ubuntu-latest
+    steps:
+      - name: All jobs passed
+        run: |
+          echo "checks: ${{ needs.checks.result }}, e2e: ${{ needs.e2e.result }}"
+          test "${{ needs.checks.result }}" = success
+          test "${{ needs.e2e.result }}" = success
 
   prototype:
     name: prototype
