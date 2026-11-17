@@ -298,12 +298,19 @@ public static class WeighInEndpoints
             return ApiResults.Error("Save your profile before recalculating targets.");
         }
 
+        var weight = await WeightReader.ReadAsync(db, userId, today, cancellationToken);
         if (!accept)
         {
+            // "Not now" is remembered for this fresh start, on every device.
+            if (weight.FreshStart is { } declined)
+            {
+                profile.FreshStartDeclinedOn = declined.Date;
+                await db.SaveChangesAsync(cancellationToken);
+            }
+
             return Results.Ok(new FreshStartDecisionResponse(false, false, null));
         }
 
-        var weight = await WeightReader.ReadAsync(db, userId, today, cancellationToken);
         if (weight.FreshStart is null || weight.TrendKg is not decimal trendKg)
         {
             return ApiResults.Error("Today's weight is not a fresh start.", StatusCodes.Status409Conflict);
@@ -315,6 +322,7 @@ public static class WeighInEndpoints
             userId,
             today,
             result,
+            TargetBurn.Formula(result),
             trendKg,
             [TargetReasons.FreshStart],
             clock.GetUtcNow(),

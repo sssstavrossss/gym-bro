@@ -283,68 +283,6 @@ public sealed class RetroApiTests(ApiFactory factory)
     }
 
     [Fact]
-    public async Task Oslo_monday_is_dated_monday_while_utc_is_still_sunday()
-    {
-        factory.Clock.UtcNow = new DateTimeOffset(2026, 10, 25, 12, 0, 0, TimeSpan.Zero);
-        var user = TestData.NewUser("oslo");
-        using var client = factory.AsUser(user);
-        await TestData.PutWeighIn(client, "2026-10-25", """{"kg":83.6,"timeZone":"Europe/Oslo"}""");
-        await TestData.PutProfile(client, TestData.Profile(timeZone: "Europe/Oslo"));
-
-        factory.Clock.UtcNow = new DateTimeOffset(2026, 10, 25, 23, 30, 0, TimeSpan.Zero);
-        Assert.True(await RunWeekly() >= 1);
-
-        var sunday = await client.GetFromJsonAsync<JsonElement>("/api/targets?date=2026-10-25");
-        var monday = await client.GetFromJsonAsync<JsonElement>("/api/targets?date=2026-10-26");
-        Assert.Equal("profile_change", sunday.GetProperty("targets").GetProperty("reason").GetString());
-        Assert.Equal("2026-10-25", sunday.GetProperty("targets").GetProperty("effectiveDate").GetString());
-        Assert.Equal("weekly_recalculation", monday.GetProperty("targets").GetProperty("reason").GetString());
-        Assert.Equal("2026-10-26", monday.GetProperty("targets").GetProperty("effectiveDate").GetString());
-    }
-
-    [Fact]
-    public async Task Los_Angeles_does_not_start_monday_while_it_is_still_sunday_there()
-    {
-        factory.Clock.UtcNow = new DateTimeOffset(2026, 10, 19, 18, 0, 0, TimeSpan.Zero);
-        var user = TestData.NewUser("la");
-        using var client = factory.AsUser(user);
-        await TestData.PutWeighIn(client, "2026-10-19", """{"kg":83.6,"timeZone":"America/Los_Angeles"}""");
-        await TestData.PutProfile(client, TestData.Profile(timeZone: "America/Los_Angeles"));
-        Assert.True(await RunWeekly() >= 1);
-
-        factory.Clock.UtcNow = new DateTimeOffset(2026, 10, 26, 6, 0, 0, TimeSpan.Zero);
-        var before = await RowsFor(user);
-        await RunWeekly();
-        Assert.Equal(before, await RowsFor(user));
-        var stillSunday = await client.GetFromJsonAsync<JsonElement>("/api/targets?date=2026-10-25");
-        Assert.Equal("weekly_recalculation", stillSunday.GetProperty("targets").GetProperty("reason").GetString());
-        Assert.Equal("2026-10-19", stillSunday.GetProperty("targets").GetProperty("effectiveDate").GetString());
-
-        factory.Clock.UtcNow = new DateTimeOffset(2026, 10, 26, 7, 0, 0, TimeSpan.Zero);
-        Assert.True(await RunWeekly() >= 1);
-        var monday = await client.GetFromJsonAsync<JsonElement>("/api/targets?date=2026-10-26");
-        Assert.Equal("2026-10-26", monday.GetProperty("targets").GetProperty("effectiveDate").GetString());
-    }
-
-    [Fact]
-    public async Task A_midweek_signup_keeps_a_single_history_row()
-    {
-        factory.Clock.UtcNow = new DateTimeOffset(2026, 10, 28, 8, 0, 0, TimeSpan.Zero);
-        var user = TestData.NewUser("midweek");
-        using var client = factory.AsUser(user);
-        await TestData.PutWeighIn(client, "2026-10-28", """{"kg":83.6,"timeZone":"UTC"}""");
-        await TestData.PutProfile(client, TestData.Profile());
-        await RunWeekly();
-
-        await using var scope = factory.Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var rows = await db.TargetHistories.Where(row => row.UserId == user).OrderBy(row => row.Id).ToListAsync();
-        var row = Assert.Single(rows);
-        Assert.Equal(new DateOnly(2026, 10, 28), row.EffectiveDate);
-        Assert.Equal(["profile_change"], row.Reasons);
-    }
-
-    [Fact]
     public async Task Log_row_cannot_reference_another_users_food()
     {
         var owner = TestData.NewUser("food-owner");
@@ -399,13 +337,6 @@ public sealed class RetroApiTests(ApiFactory factory)
             servingLabel = new string('a', 200),
         });
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-    }
-
-    private async Task<int> RunWeekly()
-    {
-        await using var scope = factory.Services.CreateAsyncScope();
-        var job = scope.ServiceProvider.GetRequiredService<WeeklyTargetRecalculator>();
-        return await job.RunAsync(CancellationToken.None);
     }
 
     private async Task<int> RowsFor(string userId)

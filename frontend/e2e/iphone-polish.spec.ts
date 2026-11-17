@@ -107,7 +107,7 @@ test("home, progress, pads, search, and recalculate preview on an iPhone", async
   await page.getByRole("button", { name: "Recalculate", exact: true }).click();
   const sheet = page.getByRole("dialog", { name: "Recalculate" });
   await expect(sheet.locator("[data-recalc-preview]")).toBeVisible();
-  await expect(sheet.locator("[data-derivation]")).toContainText(/Adaptive|Formula fallback/);
+  await expect(sheet.locator("[data-burn-card]")).toBeVisible();
   await expect(sheet.getByRole("button", { name: "Accept" })).toBeVisible();
   await sheet.getByRole("button", { name: "Decline" }).click();
   await expect(sheet).toBeHidden();

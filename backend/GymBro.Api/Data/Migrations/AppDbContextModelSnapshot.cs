@@ -1123,6 +1123,10 @@ namespace GymBro.Api.Data.Migrations
                         .HasColumnType("character varying(8)")
                         .HasColumnName("fat_setting");
 
+                    b.Property<DateOnly?>("FreshStartDeclinedOn")
+                        .HasColumnType("date")
+                        .HasColumnName("fresh_start_declined_on");
+
                     b.Property<string>("Goal")
                         .IsRequired()
                         .HasMaxLength(16)
@@ -1853,6 +1857,10 @@ namespace GymBro.Api.Data.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("bmr");
 
+                    b.Property<int>("BurnSdKcal")
+                        .HasColumnType("integer")
+                        .HasColumnName("burn_sd_kcal");
+
                     b.Property<int>("CarbGrams")
                         .HasColumnType("integer")
                         .HasColumnName("carb_grams");
@@ -1860,6 +1868,10 @@ namespace GymBro.Api.Data.Migrations
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
+
+                    b.Property<string>("Details")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("details");
 
                     b.Property<DateOnly>("EffectiveDate")
                         .HasColumnType("date")
@@ -1872,6 +1884,10 @@ namespace GymBro.Api.Data.Migrations
                     b.Property<bool>("FloorApplied")
                         .HasColumnType("boolean")
                         .HasColumnName("floor_applied");
+
+                    b.Property<int>("FormulaTdee")
+                        .HasColumnType("integer")
+                        .HasColumnName("formula_tdee");
 
                     b.Property<int>("Kcal")
                         .HasColumnType("integer")

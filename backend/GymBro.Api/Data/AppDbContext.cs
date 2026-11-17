@@ -76,6 +76,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         profile.Property(p => p.WeightUnit).HasColumnName("weight_unit").HasMaxLength(4).HasDefaultValue(Units.Kilograms);
         profile.Property(p => p.HeightUnit).HasColumnName("height_unit").HasMaxLength(4).HasDefaultValue(Units.Centimetres);
         profile.Property(p => p.FatLimits).HasColumnName("fat_limits").HasMaxLength(8).HasDefaultValue(FatLimits.Normal);
+        profile.Property(p => p.FreshStartDeclinedOn).HasColumnName("fresh_start_declined_on");
         profile.Property(p => p.CreatedAt).HasColumnName("created_at");
         profile.Property(p => p.UpdatedAt).HasColumnName("updated_at");
         profile.HasOne<AppUser>().WithMany().HasForeignKey(p => p.UserId).OnDelete(DeleteBehavior.Cascade);
@@ -107,6 +108,9 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         target.Property(t => t.Reasons).HasColumnName("reasons").HasColumnType("text[]");
         target.Property(t => t.WeightKg).HasColumnName("weight_kg").HasPrecision(5, 2);
         target.Property(t => t.CreatedAt).HasColumnName("created_at");
+        target.Property(t => t.FormulaTdee).HasColumnName("formula_tdee");
+        target.Property(t => t.BurnSdKcal).HasColumnName("burn_sd_kcal");
+        target.Property(t => t.Details).HasColumnName("details").HasColumnType("jsonb");
         target.HasIndex(t => new { t.UserId, t.EffectiveDate })
             .IsUnique()
             .HasDatabaseName("ux_target_history_user_date");

@@ -179,14 +179,40 @@ public sealed class WeightEdgeCaseTests(ApiFactory factory)
         Assert.Equal(TrendWeight.FreshStartState, still.GetProperty("trendState").GetString());
         Assert.True(still.GetProperty("freshStart").GetProperty("recalculatePending").GetBoolean());
 
+        // Any recalculation after the fresh start answers the prompt.
         On(monday);
-        Assert.True(await RunWeekly() >= 1);
+        var saved = await client.PostAsJsonAsync("/api/recalculate", new { mode = "adaptive" });
+        Assert.Equal(HttpStatusCode.OK, saved.StatusCode);
         var cleared = await client.GetFromJsonAsync<JsonElement>("/api/weight/trend");
         Assert.Equal(Iso(monday), cleared.GetProperty("asOf").GetString());
         Assert.Equal(TrendWeight.FreshStartState, cleared.GetProperty("trendState").GetString());
         Assert.False(cleared.GetProperty("freshStart").GetProperty("recalculatePending").GetBoolean());
         Assert.DoesNotContain(await History(user), row => row.Reasons.Contains(TargetReasons.FreshStart, StringComparison.Ordinal));
-        Assert.Contains(await History(user), row => row.Reasons.Contains(TargetReasons.WeeklyRecalculation, StringComparison.Ordinal));
+        Assert.Contains(await History(user), row => row.Reasons.Contains(RecalculationReasons.Kept, StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task Not_now_on_a_fresh_start_is_remembered_on_the_server()
+    {
+        var today = new DateOnly(2026, 10, 21);
+        var user = TestData.NewUser("fresh-not-now");
+        using var client = factory.AsUser(user);
+        await PutOn(client, today.AddDays(-35), 80m);
+        await TestData.PutProfile(client, TestData.Profile(goalWeightKg: 70));
+        On(today);
+        await TestData.PutWeighIn(client, Iso(today), WeighIn(90m, confirm: true));
+
+        var declined = await client.PostAsJsonAsync("/api/weight/fresh-start", new { accept = false });
+        Assert.Equal(HttpStatusCode.OK, declined.StatusCode);
+        var trend = await client.GetFromJsonAsync<JsonElement>("/api/weight/trend");
+        Assert.False(trend.GetProperty("freshStart").GetProperty("recalculatePending").GetBoolean());
+        Assert.DoesNotContain(await History(user), row => row.Reasons.Contains(TargetReasons.FreshStart, StringComparison.Ordinal));
+
+        // A later fresh start asks again.
+        On(today.AddDays(40));
+        await TestData.PutWeighIn(client, Iso(today.AddDays(40)), WeighIn(84m, confirm: true));
+        var again = await client.GetFromJsonAsync<JsonElement>("/api/weight/trend");
+        Assert.True(again.GetProperty("freshStart").GetProperty("recalculatePending").GetBoolean());
     }
 
     [Fact(DisplayName = "35.6a")]
@@ -498,13 +524,6 @@ public sealed class WeightEdgeCaseTests(ApiFactory factory)
         Assert.Equal(kg, body.GetProperty("kg").GetDecimal());
         Assert.Equal(previousTrend, body.GetProperty("previousTrendKg").GetDecimal());
         Assert.Equal(limitKg, body.GetProperty("limitKg").GetDecimal());
-    }
-
-    private async Task<int> RunWeekly()
-    {
-        await using var scope = factory.Services.CreateAsyncScope();
-        var job = scope.ServiceProvider.GetRequiredService<WeeklyTargetRecalculator>();
-        return await job.RunAsync(CancellationToken.None);
     }
 
     private async Task<List<HistoryRow>> History(string userId)

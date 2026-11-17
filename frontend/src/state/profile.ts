@@ -380,7 +380,7 @@ async function loadChart(): Promise<void> {
     const weight = profile.weight;
     if (weight?.freshStart?.recalculatePending && profile.saved) {
       const built = buildBody(formFromProfile(profile.saved), profile.saved);
-      if (!("error" in built)) profile.proposal = await previewTargets(built.body);
+      if (!("error" in built)) profile.proposal = await previewTargets(built.body, true);
     }
   } catch (error) {
     if (error instanceof ServerUnreachable) profile.offline = true;

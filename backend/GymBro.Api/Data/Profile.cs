@@ -52,6 +52,9 @@ public sealed class Profile
     /// <summary>Weekly recalculate push. On unless the person turns that type off.</summary>
     public bool NotifyRecalculate { get; set; } = true;
 
+    /// <summary>The fresh-start day the person said "Not now" to. The prompt stays hidden for that fresh start.</summary>
+    public DateOnly? FreshStartDeclinedOn { get; set; }
+
     public DateTimeOffset CreatedAt { get; set; }
 
     public DateTimeOffset UpdatedAt { get; set; }

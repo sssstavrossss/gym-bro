@@ -12,7 +12,7 @@ namespace GymBro.Api.Tests;
 public sealed class RecalculateEndpointTests(ApiFactory factory)
 {
     [Fact]
-    public async Task Formula_confirmation_writes_today_and_stays_on_the_caller()
+    public async Task Without_enough_data_the_burn_is_kept_and_the_period_keeps_running()
     {
         factory.Clock.UtcNow = new DateTimeOffset(2026, 11, 10, 8, 0, 0, TimeSpan.Zero);
         var owner = TestData.NewUser("recalc-owner");
@@ -24,30 +24,190 @@ public sealed class RecalculateEndpointTests(ApiFactory factory)
 
         var review = await client.GetFromJsonAsync<JsonElement>("/api/recalculate");
         Assert.True(review.GetProperty("includedDays").GetInt32() < 7);
-        Assert.Equal(JsonValueKind.Null, review.GetProperty("proposed").ValueKind);
+        Assert.False(review.GetProperty("measured").GetBoolean());
         Assert.Equal(AdaptiveTarget.NeedMoreDays, review.GetProperty("blocked").GetString());
+        Assert.Equal(2218, review.GetProperty("proposed").GetProperty("kcal").GetInt32());
+        Assert.Equal(JsonValueKind.Null, review.GetProperty("step").ValueKind);
+        var from = review.GetProperty("from").GetString();
 
         var denied = await stranger.GetAsync("/api/recalculate");
         Assert.Equal(HttpStatusCode.BadRequest, denied.StatusCode);
+        var noMode = await client.PostAsJsonAsync("/api/recalculate", new { exclude = Array.Empty<string>() });
+        Assert.Equal(HttpStatusCode.BadRequest, noMode.StatusCode);
 
-        var adaptive = await client.PostAsJsonAsync("/api/recalculate", new { exclude = Array.Empty<string>(), mode = "adaptive" });
-        Assert.Equal(HttpStatusCode.BadRequest, adaptive.StatusCode);
-
-        var unchanged = await client.PostAsJsonAsync("/api/recalculate", new { exclude = Array.Empty<string>(), mode = "formula" });
-        Assert.Equal(HttpStatusCode.OK, unchanged.StatusCode);
-        var before = await client.GetFromJsonAsync<JsonElement>("/api/targets?date=2026-11-10");
-        Assert.DoesNotContain(RecalculationReasons.Formula, before.GetProperty("targets").GetProperty("reasons").EnumerateArray().Select(item => item.GetString()));
-
-        Assert.Equal(HttpStatusCode.OK, (await client.PutAsync("/api/weigh-ins/2026-11-10", JsonContent.Create(new { kg = 90, timeZone = "Europe/Oslo", confirm = true }))).StatusCode);
-        var saved = await client.PostAsJsonAsync("/api/recalculate", new { exclude = Array.Empty<string>(), mode = "formula" });
-        Assert.Equal(HttpStatusCode.OK, saved.StatusCode);
+        // Same numbers still write a row: it marks the recalculation.
+        var kept = await client.PostAsJsonAsync("/api/recalculate", new { mode = "adaptive" });
+        Assert.Equal(HttpStatusCode.OK, kept.StatusCode);
         var today = await client.GetFromJsonAsync<JsonElement>("/api/targets?date=2026-11-10");
-        Assert.Equal(RecalculationReasons.Formula, today.GetProperty("targets").GetProperty("reason").GetString());
-        Assert.Equal("2026-11-10", today.GetProperty("targets").GetProperty("effectiveDate").GetString());
+        Assert.Contains(RecalculationReasons.Kept, today.GetProperty("targets").GetProperty("reasons").EnumerateArray().Select(item => item.GetString()));
+        Assert.Equal(2218, today.GetProperty("targets").GetProperty("kcal").GetInt32());
+        var again = await client.GetFromJsonAsync<JsonElement>("/api/recalculate");
+        Assert.Equal(from, again.GetProperty("from").GetString());
+
+        var formula = await client.PostAsJsonAsync("/api/recalculate", new { mode = "formula" });
+        Assert.Equal(HttpStatusCode.OK, formula.StatusCode);
+        var after = await client.GetFromJsonAsync<JsonElement>("/api/targets?date=2026-11-10");
+        Assert.Equal(RecalculationReasons.Formula, after.GetProperty("targets").GetProperty("reason").GetString());
+        var restarted = await client.GetFromJsonAsync<JsonElement>("/api/recalculate");
+        Assert.Equal("2026-11-11", restarted.GetProperty("from").GetString());
+        Assert.Equal(0, restarted.GetProperty("periodDays").GetInt32());
 
         await using var scope = factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        Assert.DoesNotContain(await db.TargetHistories.Where(row => row.UserId == other).ToListAsync(), row => row.Reasons.Contains(RecalculationReasons.Formula));
+        Assert.Empty(await db.TargetHistories.Where(row => row.UserId == other).ToListAsync());
+    }
+
+    [Fact]
+    public async Task A_measured_burn_is_saved_with_its_details_and_a_profile_edit_keeps_it()
+    {
+        var setup = new DateOnly(2026, 10, 1);
+        var today = setup.AddDays(28);
+        var owner = TestData.NewUser("recalc-measured");
+        using var client = factory.AsUser(owner);
+        await Seed(client, owner, setup, today, kcal: 2000m, startKg: 84m, lossPerDay: 0.5m / 7m);
+
+        var review = await client.GetFromJsonAsync<JsonElement>("/api/recalculate");
+        Assert.True(review.GetProperty("measured").GetBoolean());
+        Assert.Equal(JsonValueKind.Null, review.GetProperty("blocked").ValueKind);
+        Assert.Equal("2026-10-01", review.GetProperty("from").GetString());
+        Assert.Equal(28, review.GetProperty("periodDays").GetInt32());
+        Assert.Equal("2026-10-08", review.GetProperty("settledFrom").GetString());
+        Assert.False(review.GetProperty("capped").GetBoolean());
+        Assert.Equal(22, review.GetProperty("fit").GetProperty("weighIns").GetInt32());
+        Assert.Equal(-0.5m, review.GetProperty("fit").GetProperty("rateKgPerWeek").GetDecimal());
+        Assert.Equal(2000, review.GetProperty("averageKcal").GetInt32());
+        Assert.InRange(review.GetProperty("step").GetProperty("measured").GetInt32(), 2540, 2560);
+        var burn = review.GetProperty("burn").GetInt32();
+        Assert.InRange(burn, 2540, 2600);
+        Assert.Equal(burn - 550, review.GetProperty("proposed").GetProperty("kcal").GetInt32());
+
+        var saved = await client.PostAsJsonAsync("/api/recalculate", new { mode = "adaptive" });
+        Assert.Equal(HttpStatusCode.OK, saved.StatusCode);
+        var answer = await saved.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(RecalculationReasons.Adaptive, answer.GetProperty("reason").GetString());
+        Assert.Equal(burn, answer.GetProperty("burn").GetInt32());
+        var row = (await Rows(owner)).Single(item => item.EffectiveDate == today);
+        Assert.Equal(row.Kcal, answer.GetProperty("targets").GetProperty("kcal").GetInt32());
+        Assert.Contains(RecalculationReasons.Adaptive, row.Reasons);
+        Assert.Equal(burn, row.Tdee);
+        Assert.Equal(review.GetProperty("formula").GetProperty("tdee").GetInt32(), row.FormulaTdee);
+        Assert.True(row.BurnSdKcal < 100);
+        Assert.Contains("\"measuredBurn\":", row.Details);
+        var distance = row.Tdee - row.FormulaTdee;
+        Assert.True(distance < -100);
+
+        // Less activity lowers the formula; the measured distance from it stays.
+        var edited = await TestData.PutProfile(client, TestData.Profile(activity: "light"));
+        var after = (await Rows(owner)).Single(item => item.EffectiveDate == today);
+        Assert.True(after.FormulaTdee < row.FormulaTdee);
+        Assert.Equal(distance, after.Tdee - after.FormulaTdee);
+        Assert.Equal(after.Kcal, edited.GetProperty("targets").GetProperty("kcal").GetInt32());
+        Assert.Contains("\"changes\":", after.Details);
+        Assert.Contains("\"measuredBurn\":", after.Details);
+
+        var next = await client.GetFromJsonAsync<JsonElement>("/api/recalculate");
+        Assert.Equal(0, next.GetProperty("periodDays").GetInt32());
+    }
+
+    [Fact]
+    public async Task A_long_gap_reads_only_the_last_eight_weeks()
+    {
+        var setup = new DateOnly(2026, 6, 1);
+        var today = new DateOnly(2026, 11, 10);
+        var owner = TestData.NewUser("recalc-long");
+        using var client = factory.AsUser(owner);
+        await Seed(client, owner, setup, today, kcal: 2200m, startKg: 84m, lossPerDay: 0m, every: 5);
+
+        var review = await client.GetFromJsonAsync<JsonElement>("/api/recalculate");
+        Assert.True(review.GetProperty("capped").GetBoolean());
+        Assert.Equal(56, review.GetProperty("periodDays").GetInt32());
+        Assert.Equal("2026-09-15", review.GetProperty("from").GetString());
+        Assert.Equal(56, review.GetProperty("calendar").GetArrayLength());
+        Assert.Equal(JsonValueKind.Null, review.GetProperty("lastUpdate").ValueKind);
+        Assert.True(review.GetProperty("measured").GetBoolean());
+    }
+
+    [Fact]
+    public async Task History_pages_newest_first_with_changes_and_local_decline_dates()
+    {
+        factory.Clock.UtcNow = new DateTimeOffset(2026, 11, 10, 8, 0, 0, TimeSpan.Zero);
+        var owner = TestData.NewUser("history");
+        using var client = factory.AsUser(owner);
+        await TestData.PutWeighIn(client, "2026-11-10", """{"kg":83.6,"timeZone":"Europe/Oslo"}""");
+        await TestData.PutProfile(client, TestData.Profile(timeZone: "Europe/Oslo"));
+        factory.Clock.UtcNow = new DateTimeOffset(2026, 11, 11, 8, 0, 0, TimeSpan.Zero);
+        await TestData.PutProfile(client, TestData.Profile(timeZone: "Europe/Oslo", goalWeightKg: 78));
+        factory.Clock.UtcNow = new DateTimeOffset(2026, 11, 11, 23, 30, 0, TimeSpan.Zero);
+        Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync("/api/recalculate/decline", new { })).StatusCode);
+
+        var first = await client.GetFromJsonAsync<JsonElement>("/api/profile/history?limit=2");
+        Assert.Equal(3, first.GetProperty("total").GetInt32());
+        Assert.True(first.GetProperty("more").GetBoolean());
+        var rows = first.GetProperty("rows");
+        Assert.Equal(2, rows.GetArrayLength());
+        Assert.Equal("declined", rows[0].GetProperty("kind").GetString());
+        Assert.Equal("2026-11-12", rows[0].GetProperty("date").GetString());
+        var edit = rows[1];
+        Assert.Equal("target", edit.GetProperty("kind").GetString());
+        Assert.Equal("2026-11-11", edit.GetProperty("date").GetString());
+        Assert.Equal(edit.GetProperty("kcal").GetInt32(), edit.GetProperty("previousKcal").GetInt32());
+        Assert.Equal(2768, edit.GetProperty("burn").GetInt32());
+        var change = Assert.Single(edit.GetProperty("changes").EnumerateArray());
+        Assert.Equal("goalWeightKg", change.GetProperty("field").GetString());
+        Assert.Equal("80", change.GetProperty("from").GetString());
+        Assert.Equal("78", change.GetProperty("to").GetString());
+
+        var rest = await client.GetFromJsonAsync<JsonElement>("/api/profile/history?offset=2&limit=2");
+        Assert.False(rest.GetProperty("more").GetBoolean());
+        var setupRow = Assert.Single(rest.GetProperty("rows").EnumerateArray());
+        Assert.Equal(JsonValueKind.Null, setupRow.GetProperty("previousKcal").ValueKind);
+        Assert.Equal(JsonValueKind.Null, setupRow.GetProperty("changes").ValueKind);
+    }
+
+    /// <summary>Sets up on <paramref name="setup"/>, then fills weigh-ins and one log a day straight into the database, and moves the clock to <paramref name="today"/>.</summary>
+    private async Task Seed(HttpClient client, string userId, DateOnly setup, DateOnly today, decimal kcal, decimal startKg, decimal lossPerDay, int every = 1)
+    {
+        factory.Clock.UtcNow = new DateTimeOffset(setup.ToDateTime(new TimeOnly(8, 0)), TimeSpan.Zero);
+        var kg = startKg.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        await TestData.PutWeighIn(client, setup.ToString("yyyy-MM-dd"), $$"""{"kg":{{kg}},"timeZone":"UTC"}""");
+        await TestData.PutProfile(client, TestData.Profile());
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            for (var day = setup.AddDays(every); day <= today; day = day.AddDays(every))
+            {
+                var offset = day.DayNumber - setup.DayNumber;
+                db.WeighIns.Add(new WeighIn { Id = Guid.NewGuid(), UserId = userId, LocalDate = day, Kg = decimal.Round(startKg - lossPerDay * offset, 2), UpdatedAt = DateTimeOffset.UtcNow });
+            }
+
+            for (var day = setup; day < today; day = day.AddDays(1))
+            {
+                db.LogEntries.Add(new LogEntry
+                {
+                    Id = Guid.NewGuid(),
+                    UserId = userId,
+                    LocalDate = day,
+                    LoggedAt = day.ToDateTime(new TimeOnly(12, 0)),
+                    TimeZone = "UTC",
+                    Name = "Day",
+                    Amount = 1,
+                    Unit = "serving",
+                    Kcal = kcal,
+                    IdempotencyKey = "seed-" + Guid.NewGuid().ToString("N"),
+                });
+            }
+
+            await db.SaveChangesAsync();
+        }
+
+        factory.Clock.UtcNow = new DateTimeOffset(today.ToDateTime(new TimeOnly(8, 0)), TimeSpan.Zero);
+    }
+
+    private async Task<List<TargetHistory>> Rows(string userId)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        return await db.TargetHistories.AsNoTracking().Where(row => row.UserId == userId).ToListAsync();
     }
 
     [Fact]

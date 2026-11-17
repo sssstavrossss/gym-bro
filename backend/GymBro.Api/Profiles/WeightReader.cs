@@ -41,28 +41,24 @@ public static class WeightReader
         var series = rows.Select(row => (row.LocalDate, row.Kg)).ToList();
         var profile = await db.Profiles.AsNoTracking()
             .Where(row => row.UserId == userId)
-            .Select(row => new { row.Goal, row.GoalWeightKg })
+            .Select(row => new { row.Goal, row.GoalWeightKg, row.FreshStartDeclinedOn })
             .FirstOrDefaultAsync(cancellationToken);
         var computed = TrendWeight.Compute(series, asOf);
         var promptSettled = false;
         if (computed.FreshStart is not null)
         {
             var freshDate = computed.FreshStart.Date;
-            var accepted = await db.TargetHistories.AsNoTracking().AnyAsync(
-                row => row.UserId == userId
-                    && row.Reasons.Contains(TargetReasons.FreshStart)
-                    && row.EffectiveDate >= freshDate
-                    && row.EffectiveDate <= asOf,
-                cancellationToken);
-            // An unanswered prompt ends when the Monday job has written a weekly row
-            // after the fresh-start day. A job that already ran earlier that week does not count.
-            var clearedByMonday = await db.TargetHistories.AsNoTracking().AnyAsync(
-                row => row.UserId == userId
-                    && row.Reasons.Contains(TargetReasons.WeeklyRecalculation)
-                    && row.EffectiveDate > freshDate
-                    && row.EffectiveDate <= asOf,
-                cancellationToken);
-            promptSettled = accepted || clearedByMonday;
+            promptSettled = profile?.FreshStartDeclinedOn == freshDate;
+            if (!promptSettled)
+            {
+                // Accepting the prompt, or any recalculation since that day, answers it.
+                var since = await db.TargetHistories.AsNoTracking()
+                    .Where(row => row.UserId == userId && row.EffectiveDate >= freshDate && row.EffectiveDate <= asOf)
+                    .Select(row => row.Reasons)
+                    .ToListAsync(cancellationToken);
+                promptSettled = since.Any(reasons => reasons.Any(reason =>
+                    reason == TargetReasons.FreshStart || RecalculationReasons.IsRecalculation(reason)));
+            }
         }
 
         return FromSeries(

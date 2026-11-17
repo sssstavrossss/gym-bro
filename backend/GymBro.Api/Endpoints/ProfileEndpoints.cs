@@ -41,8 +41,19 @@ public static class ProfileEndpoints
         return Results.Ok(new ProfileStateResponse(ToResponse(profile), ToWeight(weight), ToTargets(targets), Matvaretabellen.Citation, OpenFoodFactsCredit.Citation));
     }
 
+    public const int HistoryPage = 20;
+
+    public const int HistoryPageMax = 100;
+
+    /// <summary>
+    /// Target rows and declined recalculations, newest first, a page at a time.
+    /// Each target row carries the kcal and burn of the row before it, so the
+    /// app can show the change. A decline is dated in the person's time zone.
+    /// </summary>
     private static async Task<IResult> History(
         ClaimsPrincipal principal,
+        int? offset,
+        int? limit,
         AppDbContext db,
         CancellationToken cancellationToken)
     {
@@ -52,6 +63,11 @@ public static class ProfileEndpoints
         }
 
         var userId = Caller.Id(principal);
+        var zoneId = await db.Profiles.AsNoTracking()
+            .Where(row => row.UserId == userId)
+            .Select(row => row.TimeZone)
+            .FirstOrDefaultAsync(cancellationToken);
+        var zone = LocalDates.TryZone(zoneId, out var found) ? found : TimeZoneInfo.Utc;
         var rows = await db.TargetHistories.AsNoTracking()
             .Where(row => row.UserId == userId)
             .OrderByDescending(row => row.EffectiveDate)
@@ -60,49 +76,98 @@ public static class ProfileEndpoints
             .ToListAsync(cancellationToken);
         var declines = await db.RecalculationDeclines.AsNoTracking()
             .Where(row => row.UserId == userId)
-            .OrderByDescending(row => row.CreatedAt)
-            .ThenByDescending(row => row.Id)
             .ToListAsync(cancellationToken);
-        var combined = rows.Select(row => new
+        var targets = rows.Select((row, index) =>
         {
-            sort = row.CreatedAt,
-            id = row.Id,
-            date = row.EffectiveDate,
+            var previous = index + 1 < rows.Count ? rows[index + 1] : null;
+            return new HistoryRow(
+                row.CreatedAt,
+                row.Id,
+                "target",
+                row.EffectiveDate,
+                row.Kcal,
+                null,
+                row.ProteinGrams,
+                row.FatGrams,
+                row.CarbGrams,
+                row.Tdee,
+                previous?.Kcal,
+                previous?.Tdee,
+                row.WeightKg,
+                row.Reasons,
+                row.FloorApplied,
+                TargetDetails.Parse(row.Details),
+                null,
+                null);
+        });
+        var declined = declines.Select(row => new HistoryRow(
+            row.CreatedAt,
+            row.Id,
+            "declined",
+            DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(row.CreatedAt, zone).DateTime),
+            row.KeptKcal,
+            row.SuggestedKcal,
+            row.SuggestedProtein,
+            row.SuggestedFat,
+            row.SuggestedCarbs,
+            row.SuggestedTdee,
+            null,
+            null,
+            null,
+            ["recalculation_declined"],
+            false,
+            null,
+            row.PeriodFrom,
+            row.PeriodTo));
+        var all = targets.Concat(declined)
+            .OrderByDescending(row => row.Date)
+            .ThenByDescending(row => row.Sort)
+            .ThenByDescending(row => row.Id)
+            .ToList();
+        var skip = Math.Max(0, offset ?? 0);
+        var take = Math.Clamp(limit ?? HistoryPage, 1, HistoryPageMax);
+        var page = all.Skip(skip).Take(take).Select(row => new
+        {
+            kind = row.Kind,
+            date = row.Date,
             kcal = row.Kcal,
-            suggestedKcal = (int?)null,
-            protein = row.ProteinGrams,
-            fat = row.FatGrams,
-            carbs = row.CarbGrams,
+            suggestedKcal = row.SuggestedKcal,
+            protein = row.Protein,
+            fat = row.Fat,
+            carbs = row.Carbs,
+            burn = row.Burn,
+            previousKcal = row.PreviousKcal,
+            previousBurn = row.PreviousBurn,
+            weightKg = row.WeightKg,
             reasons = row.Reasons,
             floorApplied = row.FloorApplied,
-        }).Concat(declines.Select(row => new
-        {
-            sort = row.CreatedAt,
-            id = row.Id,
-            date = DateOnly.FromDateTime(row.CreatedAt.UtcDateTime),
-            kcal = row.KeptKcal,
-            suggestedKcal = (int?)row.SuggestedKcal,
-            protein = row.SuggestedProtein,
-            fat = row.SuggestedFat,
-            carbs = row.SuggestedCarbs,
-            reasons = new[] { "recalculation_declined" },
-            floorApplied = false,
-        })).OrderByDescending(row => row.sort).ThenByDescending(row => row.id);
-        return Results.Ok(new
-        {
-            rows = combined.Select(row => new
-            {
-                date = row.date,
-                kcal = row.kcal,
-                suggestedKcal = row.suggestedKcal,
-                protein = row.protein,
-                fat = row.fat,
-                carbs = row.carbs,
-                reasons = row.reasons,
-                floorApplied = row.floorApplied,
-            }),
+            recalculation = row.Details?.Recalculation,
+            changes = row.Details?.Changes,
+            periodFrom = row.PeriodFrom,
+            periodTo = row.PeriodTo,
         });
+        return Results.Ok(new { rows = page, total = all.Count, more = skip + take < all.Count });
     }
+
+    private sealed record HistoryRow(
+        DateTimeOffset Sort,
+        long Id,
+        string Kind,
+        DateOnly Date,
+        int Kcal,
+        int? SuggestedKcal,
+        int Protein,
+        int Fat,
+        int Carbs,
+        int Burn,
+        int? PreviousKcal,
+        int? PreviousBurn,
+        decimal? WeightKg,
+        string[] Reasons,
+        bool FloorApplied,
+        TargetDetails? Details,
+        DateOnly? PeriodFrom,
+        DateOnly? PeriodTo);
 
     private static async Task<IResult> Put(
         ClaimsPrincipal principal,
@@ -158,20 +223,40 @@ public static class ProfileEndpoints
         }
 
         var reasons = ProfileRules.ReasonFor(profile, normalized);
+        TargetHistory? inEffect = null;
+        TargetDetails? details = null;
         if (profile is null)
         {
             profile = new Profile { UserId = userId, CreatedAt = now };
             db.Profiles.Add(profile);
         }
+        else
+        {
+            inEffect = await TargetBook.InEffectAsync(db, userId, today, cancellationToken);
+            var changes = ProfileChange.Between(profile, normalized);
+            details = changes.Count == 0 ? null : new TargetDetails(null, changes);
+        }
 
         ProfileRules.Apply(profile, normalized);
         profile.UpdatedAt = now;
-        var result = NutritionMath.Calculate(ProfileRules.ToInput(normalized, weightKg, today.Year));
-        await TargetBook.StageAsync(db, userId, today, result, weightKg, reasons, now, cancellationToken);
+        var (result, burn) = Retarget(ProfileRules.ToInput(normalized, weightKg, today.Year), inEffect, details);
+        await TargetBook.StageAsync(db, userId, today, result, burn, weightKg, reasons, now, cancellationToken);
         await db.SaveChangesAsync(cancellationToken);
 
         var saved = await TargetBook.InEffectAsync(db, userId, today, cancellationToken);
         return Results.Ok(new ProfileStateResponse(ToResponse(profile), ToWeight(weight), ToTargets(saved), Matvaretabellen.Citation, OpenFoodFactsCredit.Citation));
+    }
+
+    /// <summary>
+    /// New targets for an edited profile. A measured burn is kept: it moves by
+    /// as much as the formula moves, so activity, weight, and age still count.
+    /// Only a fresh start or choosing the formula goes back to Mifflin-St Jeor.
+    /// </summary>
+    private static (NutritionResult Result, TargetBurn Burn) Retarget(NutritionInput input, TargetHistory? inEffect, TargetDetails? details)
+    {
+        var formula = NutritionMath.Calculate(input);
+        var (burn, sd) = TargetBook.CarriedBurn(inEffect, formula);
+        return (NutritionMath.FromExpenditure(input, burn), new TargetBurn(formula.Tdee, sd, details));
     }
 
     private static async Task<IResult> PutSettings(
@@ -243,9 +328,15 @@ public static class ProfileEndpoints
         return Results.Ok(new SettingsResponse(profile.TimeZone, profile.TimeZoneFollowsDevice, profile.WeightUnit, profile.HeightUnit, profile.FatLimits));
     }
 
+    /// <summary>
+    /// The targets a saved profile would give. A profile edit keeps the measured burn;
+    /// <paramref name="fresh"/> previews a fresh start instead, which goes back to the formula
+    /// at the restarted trend, as accepting one does.
+    /// </summary>
     private static async Task<IResult> Preview(
         ClaimsPrincipal principal,
         ProfileRequest request,
+        bool? fresh,
         AppDbContext db,
         TimeProvider clock,
         CancellationToken cancellationToken)
@@ -273,7 +364,18 @@ public static class ProfileEndpoints
             return ApiResults.Error("Add a weigh-in before targets can be calculated.");
         }
 
-        var result = NutritionMath.Calculate(ProfileRules.ToInput(normalized, weightKg, today.Year));
+        NutritionResult result;
+        if (fresh == true)
+        {
+            weightKg = weight.TrendKg ?? weightKg;
+            result = NutritionMath.Calculate(ProfileRules.ToInput(normalized, weightKg, today.Year));
+        }
+        else
+        {
+            var inEffect = await TargetBook.InEffectAsync(db, userId, today, cancellationToken);
+            (result, _) = Retarget(ProfileRules.ToInput(normalized, weightKg, today.Year), inEffect, null);
+        }
+
         return Results.Ok(new PreviewResponse(
             today.Year - normalized.BirthYear,
             result.Bmr,

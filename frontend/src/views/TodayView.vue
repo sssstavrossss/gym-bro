@@ -8,7 +8,6 @@ import GoalReached from "../components/GoalReached.vue";
 import Icon from "../components/Icon.vue";
 import InfoTip from "../components/InfoTip.vue";
 import MacroBars from "../components/MacroBars.vue";
-import ManualTag from "../components/ManualTag.vue";
 import Sparkline from "../components/Sparkline.vue";
 import RecalcPrompt from "../components/RecalcPrompt.vue";
 import Timeline from "../components/Timeline.vue";
@@ -17,8 +16,7 @@ import WeightChart from "../components/WeightChart.vue";
 import { addDays, dayMonth, dayNum, diffDays, shortDate, spanLabel, todayInZone, weekday, weekdayShort, weekStart } from "../lib/dates";
 import { int } from "../lib/format";
 import { screenLayoutFromFlags } from "../lib/layout";
-import { freshDismissed, goalDismissed, promptState } from "../lib/prompts";
-import { isManualTarget } from "../lib/manualTarget";
+import { goalDismissed, promptState } from "../lib/prompts";
 import { judgeWeekDay } from "../lib/weekCard";
 import { vp } from "../lib/viewport";
 import { isFreshStart, isLowAccuracy, trendChange, weightSubtitle } from "../lib/weightDisplay";
@@ -51,11 +49,8 @@ const aria = computed(() => {
   const spoken = subtitle.value.replace(`${weightUnit()}/wk`, `${weightUnit()} this week`);
   return `Weight trend ${wtUnit(weight.value.trendKg)}${low.value ? ", low accuracy" : ""}. ${spoken}. Open weight`;
 });
-const showFresh = computed(() => {
-  promptState.fresh;
-  const start = weight.value?.freshStart;
-  return !!start?.recalculatePending && !freshDismissed(boot.accountId, start.date);
-});
+/** Not now is saved on the server, so the card stays gone on every device until the next fresh start. */
+const showFresh = computed(() => !!weight.value?.freshStart?.recalculatePending);
 const showGoal = computed(() => {
   promptState.goal;
   const latest = weight.value?.latestDate;
@@ -115,8 +110,6 @@ watch(
   },
   { immediate: true },
 );
-const manualSelected = computed(() => ready.value && isManualTarget(viewed.target?.reasons));
-const weekHasManual = computed(() => weekRows.value.some((row) => !row.future && row.manual));
 const logHref = computed(() => `/log/${selected.value}`);
 const weekRows = computed(() => {
   weekCache.stamp;
@@ -136,7 +129,6 @@ const weekRows = computed(() => {
     const goalForDay = live
       ? (viewed.target ? { kcal: viewed.target.kcal, protein: viewed.target.protein, fat: viewed.target.fat, carbs: viewed.target.carbs } : null)
       : cached?.target ?? null;
-    const manual = !future && (live ? isManualTarget(viewed.target?.reasons) : Boolean(cached?.manual));
     const judged = judgeWeekDay({
       date,
       today: today.value,
@@ -152,7 +144,7 @@ const weekRows = computed(() => {
     else if (!future && judged.on) detail = ` of ${int(judged.targetKcal ?? 0)}, on target`;
     else if (!future && judged.over) detail = ` of ${int(judged.targetKcal ?? 0)}, over`;
     else if (!future) detail = ` of ${int(judged.targetKcal ?? 0)}`;
-    return { date, name, detail, pending: !future && !known, kcal: food?.kcal ?? 0, manual, ...judged };
+    return { date, name, detail, pending: !future && !known, kcal: food?.kcal ?? 0, ...judged };
   });
 });
 </script>
@@ -191,7 +183,7 @@ const weekRows = computed(() => {
           <span class="sk" />
         </section>
         <div v-else class="daycards" :class="{ stale: viewed.dim }" data-day-cards>
-          <MacroBars :manual="manualSelected" :target="goal" :totals="totalsOf(entries)" :entries="entries" :date="shownDay" :label="shownDay === today ? 'Today\'s macros' : 'That day\'s macros'" />
+          <MacroBars :target="goal" :totals="totalsOf(entries)" :entries="entries" :date="shownDay" :label="shownDay === today ? 'Today\'s macros' : 'That day\'s macros'" />
           <button v-if="layout === 'phone' && !hasDay" type="button" class="card prompt row" @click="openFood('search', shownDay)">
             <span class="disc filled"><Icon name="plus" :size="18" :sw="2.6" /></span>
             <span class="col grow">
@@ -244,7 +236,7 @@ const weekRows = computed(() => {
         <section v-if="layout === 'two' || layout === 'three'" class="card weekc" aria-labelledby="week-heading">
           <div class="row weekhead">
             <h2 id="week-heading" class="t-cap c2 section-title">This week</h2>
-            <span class="t-capn c2 legend">line = that day's target · ✓ on · hatched = over{{ weekHasManual ? " · M = manual" : "" }}</span>
+            <span class="t-capn c2 legend">line = that day's target · ✓ on · hatched = over</span>
           </div>
           <button
             v-for="row in weekRows"
@@ -263,7 +255,6 @@ const weekRows = computed(() => {
               <Bar v-if="row.logged && row.bar != null" :pct="row.bar" :hit="row.on" :over="row.over" />
               <span class="tgt" aria-hidden="true" />
             </div>
-            <span class="wm"><ManualTag v-if="!row.future && row.manual" short /></span>
             <span class="wst" aria-hidden="true"><Icon v-if="row.on" name="check" :size="12" :sw="3" /></span>
             <span v-if="row.over" class="t-capn c2">+</span>
             <span class="t-bodys wk" :class="{ c2: row.future || !row.logged }">{{ row.logged ? int(row.kcal) : "–" }}</span>
@@ -309,7 +300,6 @@ const weekRows = computed(() => {
 .wrow.sel { background: var(--color-surface-2); }
 .wl { width: 4.5rem; flex: none; }
 .tgl { gap: var(--space-m); align-items: center; }
-.wm { width: 18px; flex: none; display: inline-flex; align-items: center; }
 .wst { width: 14px; flex: none; display: inline-flex; justify-content: center; }
 .loghead { align-items: center; }
 .foods { margin: 0; text-align: left; min-width: 0; }

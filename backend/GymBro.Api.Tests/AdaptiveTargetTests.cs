@@ -5,222 +5,268 @@ namespace GymBro.Api.Tests;
 
 public sealed class AdaptiveTargetTests
 {
+    // BMR 1786, formula burn 2768, formula target 2218.
     private static readonly NutritionInput Person = new(
         Sexes.Male, 83.6m, 180m, 36, ActivityLevels.Moderate, Goals.Lose, 0.5m, 2.0m, 25m);
 
-    [Fact]
-    public void Worked_example_turns_intake_and_trend_into_a_target_above_the_floor()
+    private static readonly DateOnly From = new(2026, 10, 1);
+
+    private static readonly DateOnly To = From.AddDays(20);
+
+    private const decimal LossPerDay = 0.5m / 7m;
+
+    private static List<DayFact> Days(decimal kcal, int target = 2218) =>
+        Enumerable.Range(0, 21).Select(offset => new DayFact(From.AddDays(offset), kcal, true, target)).ToList();
+
+    /// <summary>A weigh-in every <paramref name="every"/> days from three days before the period through the day after it.</summary>
+    private static List<(DateOnly, decimal)> Line(int every = 1, params decimal[] noise)
     {
-        var from = new DateOnly(2026, 10, 1);
-        var facts = Enumerable.Range(0, 14).Select(offset =>
+        var start = From.AddDays(-BurnEstimate.LookbackDays);
+        var rows = new List<(DateOnly, decimal)>();
+        var index = 0;
+        for (var date = start; date <= To.AddDays(1); date = date.AddDays(every), index++)
         {
-            var date = from.AddDays(offset);
-            var kcal = offset < 7 ? 2000m : 2200m;
-            return new DayFact(date, kcal, true, false, 2218);
-        }).ToList();
-
-        var review = AdaptiveTarget.Review(
-            from,
-            from.AddDays(13),
-            facts,
-            new HashSet<DateOnly>(),
-            84.0m,
-            83.3m,
-            true,
-            true,
-            Person,
-            null);
-
-        Assert.True(review.Enough);
-        Assert.Equal(14, review.PeriodDays);
-        Assert.Equal(14, review.IncludedDays);
-        Assert.Empty(review.Days);
-        Assert.Equal(-0.7m, review.TrendChangeKg);
-        Assert.Equal(2100m, review.AverageKcal);
-        Assert.Equal(2100m - (-0.7m * 7700m / 14m), review.Burn);
-        Assert.NotNull(review.Proposed);
-        Assert.Equal(1786, review.Proposed.Bmr);
-        Assert.Equal(2485, review.Proposed.Tdee);
-        Assert.Equal(1935, review.Proposed.Kcal);
-        Assert.Equal(167, review.Proposed.Protein);
-        Assert.Equal(54, review.Proposed.Fat);
-        Assert.Equal(196, review.Proposed.Carbs);
-        Assert.False(review.Proposed.FloorApplied);
-    }
-
-    [Fact]
-    public void The_documented_seven_day_burn_keeps_the_bmr_floor_and_macros()
-    {
-        var from = new DateOnly(2026, 10, 1);
-        var facts = Enumerable.Range(0, 14).Select(offset =>
-            new DayFact(from.AddDays(offset), 2000m, true, false, 2218)).ToList();
-        var review = AdaptiveTarget.Review(
-            from, from.AddDays(13), facts, new HashSet<DateOnly>(), 84.0m, 83.3m, true, true, Person, null);
-        Assert.Equal(2385m, review.Burn);
-        Assert.Equal(1835, review.Proposed!.Kcal);
-        Assert.Equal(1786, review.Proposed.Bmr);
-        Assert.Equal(167, review.Proposed.Protein);
-        Assert.Equal(51, review.Proposed.Fat);
-        Assert.Equal(177, review.Proposed.Carbs);
-    }
-
-    [Fact]
-    public void Days_at_80_percent_or_less_are_listed_and_can_be_excluded()
-    {
-        var from = new DateOnly(2026, 10, 1);
-        var exact = from;
-        var justOver = from.AddDays(1);
-        var facts = new List<DayFact>
-        {
-            new(exact, 1600m, true, false, 2000),
-            new(justOver, 1602m, true, false, 2000),
-        };
-        for (var i = 0; i < 6; i++)
-        {
-            facts.Add(new DayFact(from.AddDays(2 + i), 2000m, true, false, 2000));
+            var offset = noise.Length == 0 ? 0m : noise[index % noise.Length];
+            rows.Add((date, 84m - LossPerDay * (date.DayNumber - start.DayNumber) + offset));
         }
 
-        var open = AdaptiveTarget.Review(
-            from, facts[^1].Date, facts, new HashSet<DateOnly>(), 80m, 80m, true, true, Person, null);
-        var listed = Assert.Single(open.Days);
-        Assert.Equal(exact, listed.Date);
-        Assert.Equal(1600, listed.Kcal);
-        Assert.True(listed.CanExclude);
-        Assert.True(listed.Included);
-        Assert.False(listed.Fasting);
-        Assert.DoesNotContain(open.Days, day => day.Date == justOver);
-        Assert.Equal(8, open.IncludedDays);
+        return rows;
+    }
 
-        var closed = AdaptiveTarget.Review(
-            from, facts[^1].Date, facts, new HashSet<DateOnly> { exact }, 80m, 80m, true, true, Person, null);
-        Assert.False(closed.Days.Single().Included);
-        Assert.Equal(7, closed.IncludedDays);
-        Assert.DoesNotContain(1600m, ClosedAverage(closed));
+    private static AdaptiveReview Review(
+        List<DayFact> facts,
+        List<(DateOnly, decimal)> weighIns,
+        int prior = 2768,
+        int priorSd = 350,
+        IReadOnlySet<DateOnly>? excluded = null,
+        IReadOnlySet<DateOnly>? includeZero = null) =>
+        AdaptiveTarget.Review(
+            new ReviewInput(From, To, facts, weighIns, Person, prior, priorSd),
+            excluded ?? new HashSet<DateOnly>(),
+            includeZero);
+
+    [Fact]
+    public void Clean_daily_weigh_ins_measure_the_burn_and_move_most_of_the_way()
+    {
+        var review = Review(Days(2000m), Line());
+
+        Assert.True(review.Measured);
+        Assert.Null(review.Blocked);
+        Assert.Equal(21, review.PeriodDays);
+        Assert.Equal(21, review.IncludedDays);
+        Assert.Equal(2000m, review.AverageKcal);
+        var fit = Assert.IsType<WeightFit>(review.Fit);
+        Assert.Equal(-0.5m, decimal.Round(fit.RateKgPerWeek, 3));
+        var step = Assert.IsType<BurnStep>(review.Step);
+        Assert.Equal(2550m, decimal.Round(step.Measured));
+        Assert.Equal(2768m, step.Prior);
+        Assert.InRange(step.Gain, 0.95m, 0.99m);
+        Assert.InRange(review.Burn, 2550, 2565);
+        Assert.Equal(review.Burn, review.Proposed.Tdee);
+        Assert.Equal(review.Burn - 550, review.Proposed.Kcal);
+        Assert.Equal(2768, review.Formula.Tdee);
+        Assert.Equal(2218, review.Formula.Kcal);
+        Assert.True(review.BurnSdKcal < 100);
     }
 
     [Fact]
-    public void A_fasting_day_counts_only_when_it_has_a_log_and_only_at_that_log()
+    public void A_burn_already_close_to_the_measurement_stays_put()
     {
-        var from = new DateOnly(2026, 10, 1);
-        var facts = Enumerable.Range(0, 5).Select(offset =>
-            new DayFact(from.AddDays(offset), 2000m, true, false, 2000)).ToList();
-        var loggedAbove = from.AddDays(5);
-        var loggedLow = from.AddDays(6);
-        var empty = from.AddDays(7);
-        facts.Add(new DayFact(loggedAbove, 1700m, true, true, 2000));
-        facts.Add(new DayFact(loggedLow, 1600m, true, true, 2000));
-        facts.Add(new DayFact(empty, 0m, false, true, 2000));
-
-        var review = AdaptiveTarget.Review(
-            from, empty, facts, new HashSet<DateOnly> { loggedLow }, 80m, 80m, true, true, Person, null);
-        var row = Assert.Single(review.Days);
-        Assert.Equal(loggedLow, row.Date);
-        Assert.Equal(1600, row.Kcal);
-        Assert.False(row.Fasting);
-        Assert.True(row.CanExclude);
-        Assert.False(row.Included);
-        Assert.Equal(6, review.IncludedDays);
-        Assert.DoesNotContain(review.Days, day => day.Date == empty || day.Date == loggedAbove);
-        Assert.DoesNotContain(0m, ClosedAverage(review));
+        var review = Review(Days(2000m), Line(), prior: 2550, priorSd: 80);
+        Assert.InRange(review.Burn, 2549, 2551);
     }
 
     [Fact]
-    public void Fewer_than_seven_included_days_or_no_weigh_ins_do_not_invent_a_target()
+    public void Sparse_noisy_weigh_ins_move_the_burn_less_than_daily_ones()
     {
-        var from = new DateOnly(2026, 10, 1);
-        var facts = Enumerable.Range(0, 6).Select(offset =>
-            new DayFact(from.AddDays(offset), 2000m, true, false, 2000)).ToList();
-        var shortPeriod = AdaptiveTarget.Review(
-            from, from.AddDays(5), facts, new HashSet<DateOnly>(), 80m, 79m, true, true, Person, null);
-        Assert.False(shortPeriod.Enough);
-        Assert.Null(shortPeriod.Proposed);
-        Assert.Equal(AdaptiveTarget.NeedMoreDays, shortPeriod.Blocked);
-        Assert.Equal(1786, shortPeriod.Formula.Bmr);
-        Assert.NotEqual(0, shortPeriod.Formula.Kcal);
+        var daily = Review(Days(2000m), Line(1, 0.3m, -0.3m));
+        var weekly = Review(Days(2000m), Line(7, 0.3m, -0.3m));
 
-        var noScale = AdaptiveTarget.Review(
-            from, from.AddDays(13), Enumerable.Range(0, 14).Select(offset =>
-                new DayFact(from.AddDays(offset), 2000m, true, false, 2000)).ToList(),
-            new HashSet<DateOnly>(), null, null, false, false, Person, null);
-        Assert.False(noScale.Enough);
-        Assert.Null(noScale.Proposed);
-        Assert.Null(noScale.Burn);
-        Assert.Equal(AdaptiveTarget.NeedWeighIns, noScale.Blocked);
+        Assert.True(daily.Measured);
+        Assert.True(weekly.Measured);
+        Assert.Equal(4, weekly.Fit!.WeighIns);
+        Assert.True(weekly.Step!.MeasuredSd > daily.Step!.MeasuredSd);
+        Assert.True(weekly.Step.Gain < daily.Step.Gain);
+        Assert.True(weekly.Step.Gain > 0.3m);
     }
 
     [Fact]
-    public void A_burn_under_bmr_is_raised_to_the_floor_unless_the_number_is_manual()
+    public void Low_days_count_unless_left_out_and_the_left_out_target_is_offered()
     {
-        var from = new DateOnly(2026, 10, 1);
-        var facts = Enumerable.Range(0, 7).Select(offset =>
-            new DayFact(from.AddDays(offset), 1500m, true, false, 2218)).ToList();
-        var floored = AdaptiveTarget.Review(
-            from, from.AddDays(6), facts, new HashSet<DateOnly>(), 80m, 80m, true, true, Person, null);
-        Assert.True(floored.Proposed!.FloorApplied);
-        Assert.Equal(floored.Proposed.Bmr, floored.Proposed.Kcal);
+        var facts = Days(2000m);
+        facts[3] = facts[3] with { LoggedKcal = 1700m };
+        facts[9] = facts[9] with { LoggedKcal = 1000m };
+        var counted = Review(facts, Line());
 
-        var manual = AdaptiveTarget.Review(
-            from, from.AddDays(6), facts, new HashSet<DateOnly>(), 80m, 80m, true, true, Person, 1500);
-        Assert.Equal(1500, manual.Proposed!.Kcal);
-        Assert.True(manual.Proposed.ManualKept);
-        Assert.False(manual.Proposed.FloorApplied);
-        Assert.True(manual.Proposed.Tdee > 0);
+        Assert.Equal(2, counted.LowDays.Count);
+        Assert.All(counted.LowDays, day => Assert.True(day.Included));
+        Assert.Equal(21, counted.IncludedDays);
+        Assert.Equal(AdaptiveTarget.Low, counted.Calendar[3].Status);
+        Assert.True(counted.Calendar[3].Counted);
+        Assert.Equal(AdaptiveTarget.Normal, counted.Calendar[0].Status);
+
+        var excluded = new HashSet<DateOnly> { From.AddDays(3), From.AddDays(9) };
+        var leftOut = Review(facts, Line(), excluded: excluded);
+        Assert.Equal(19, leftOut.IncludedDays);
+        Assert.Equal(2000m, leftOut.AverageKcal);
+        Assert.All(leftOut.LowDays, day => Assert.False(day.Included));
+        Assert.Equal(leftOut.Proposed.Kcal, counted.LeftOutKcal);
+        Assert.Equal(counted.Proposed.Kcal, counted.CountedKcal);
+        Assert.True(counted.LeftOutKcal > counted.Proposed.Kcal);
+
+        // A mixed choice still offers both: all counted and all left out.
+        var mixed = Review(facts, Line(), excluded: new HashSet<DateOnly> { From.AddDays(9) });
+        Assert.Equal(counted.Proposed.Kcal, mixed.CountedKcal);
+        Assert.Equal(leftOut.Proposed.Kcal, mixed.LeftOutKcal);
     }
 
     [Fact]
-    public void A_day_with_no_log_is_left_out()
+    public void Exactly_80_percent_is_low_and_a_day_over_target_is_over()
     {
-        var from = new DateOnly(2026, 10, 1);
-        var facts = Enumerable.Range(0, 7).Select(offset =>
-            new DayFact(from.AddDays(offset), 2000m, true, false, 2000)).ToList();
-        facts.Add(new DayFact(from.AddDays(7), 0m, false, false, 2000));
-        var review = AdaptiveTarget.Review(
-            from, from.AddDays(7), facts, new HashSet<DateOnly>(), 80m, 80m, true, true, Person, null);
-        Assert.Equal(7, review.IncludedDays);
-        Assert.Empty(review.Days);
+        Assert.Equal(AdaptiveTarget.Low, AdaptiveTarget.StatusOf(new DayFact(From, 1600m, true, 2000)));
+        Assert.Equal(AdaptiveTarget.Normal, AdaptiveTarget.StatusOf(new DayFact(From, 1601m, true, 2000)));
+        Assert.Equal(AdaptiveTarget.Over, AdaptiveTarget.StatusOf(new DayFact(From, 2001m, true, 2000)));
+        Assert.Equal(AdaptiveTarget.NoLog, AdaptiveTarget.StatusOf(new DayFact(From, 0m, false, 2000)));
     }
 
     [Fact]
-    public void A_counted_zero_day_counts_toward_seven_and_the_calendar_names_each_status()
+    public void A_day_with_no_log_is_left_out_unless_counted_as_zero()
     {
-        var from = new DateOnly(2026, 10, 1);
-        var facts = new List<DayFact>();
-        for (var i = 0; i < 6; i++)
-        {
-            facts.Add(new DayFact(from.AddDays(i), 2000m, true, false, 2000));
-        }
+        var facts = Days(2000m);
+        facts[5] = new DayFact(From.AddDays(5), 0m, false, 2218);
+        var review = Review(facts, Line());
+        Assert.Equal(20, review.IncludedDays);
+        Assert.Equal(AdaptiveTarget.NoLog, review.Calendar[5].Status);
+        Assert.False(review.Calendar[5].Counted);
+        Assert.Null(review.Calendar[5].Kcal);
+        Assert.Empty(review.LowDays);
+        Assert.Null(review.LeftOutKcal);
+        Assert.Null(review.CountedKcal);
 
-        var low = from.AddDays(6);
-        var justOver = from.AddDays(7);
-        var over = from.AddDays(8);
-        var empty = from.AddDays(9);
-        facts.Add(new DayFact(low, 1600m, true, false, 2000));
-        facts.Add(new DayFact(justOver, 1602m, true, false, 2000));
-        facts.Add(new DayFact(over, 2500m, true, false, 2000));
-        facts.Add(new DayFact(empty, 0m, false, true, 2000));
+        var zero = Review(facts, Line(), includeZero: new HashSet<DateOnly> { From.AddDays(5) });
+        Assert.Equal(21, zero.IncludedDays);
+        Assert.True(zero.Calendar[5].Counted);
+        Assert.Equal(2000m * 20 / 21, zero.AverageKcal);
+    }
 
-        var open = AdaptiveTarget.Review(
-            from, empty, facts, new HashSet<DateOnly>(), 80m, 80m, true, true, Person, null);
-        Assert.Equal(AdaptiveTarget.Low, open.Calendar.Single(day => day.Date == low).Status);
-        Assert.Equal(AdaptiveTarget.Normal, open.Calendar.Single(day => day.Date == justOver).Status);
-        Assert.Equal(AdaptiveTarget.Over, open.Calendar.Single(day => day.Date == over).Status);
-        Assert.Equal(AdaptiveTarget.NoLog, open.Calendar.Single(day => day.Date == empty).Status);
-        Assert.False(open.Calendar.Single(day => day.Date == empty).Counted);
-        Assert.Null(open.Calendar.Single(day => day.Date == empty).Kcal);
-        Assert.Equal(9, open.IncludedDays);
+    [Fact]
+    public void Fewer_than_seven_counted_days_keep_the_current_burn()
+    {
+        var facts = Days(2000m).Select((day, index) => index < 6 ? day : new DayFact(day.Date, 0m, false, 2218)).ToList();
+        var review = Review(facts, Line(), prior: 2600, priorSd: 120);
 
-        var withZero = AdaptiveTarget.Review(
-            from, empty, facts, new HashSet<DateOnly>(), 80m, 80m, true, true, Person, null, new HashSet<DateOnly> { empty });
-        Assert.Equal(10, withZero.IncludedDays);
-        Assert.True(withZero.Calendar.Single(day => day.Date == empty).Counted);
-        Assert.True(withZero.Enough);
-        var sum = 6 * 2000m + 1600m + 1602m + 2500m;
-        Assert.Equal(sum / 9m, open.AverageKcal);
-        Assert.Equal(sum / 10m, withZero.AverageKcal);
+        Assert.False(review.Measured);
+        Assert.Equal(AdaptiveTarget.NeedMoreDays, review.Blocked);
+        Assert.Null(review.Step);
+        Assert.Equal(2600, review.Burn);
+        Assert.Equal(120, review.BurnSdKcal);
+        Assert.Equal(2050, review.Proposed.Kcal);
+    }
 
-        var overStays = AdaptiveTarget.Review(
-            from, empty, facts, new HashSet<DateOnly> { over }, 80m, 80m, true, true, Person, null);
-        Assert.True(overStays.Calendar.Single(day => day.Date == over).Counted);
+    [Fact]
+    public void Too_few_or_bunched_weigh_ins_say_what_is_missing()
+    {
+        var one = Review(Days(2000m), [(From, 84m)]);
+        Assert.Equal(AdaptiveTarget.NeedWeighIns(2), one.Blocked);
+        Assert.Equal(2, one.WeighInsNeeded);
+        Assert.Equal("Weigh in 2 more times to measure your burn.", one.Blocked);
+        Assert.Equal("Weigh in 1 more time to measure your burn.", AdaptiveTarget.NeedWeighIns(1));
+        Assert.Equal(2768, one.Burn);
+
+        var bunched = Review(Days(2000m), [(To, 84m), (To.AddDays(-2), 84.1m), (To.AddDays(-4), 84.2m)]);
+        Assert.Equal(AdaptiveTarget.NeedSpread, bunched.Blocked);
+        Assert.Equal(0, bunched.WeighInsNeeded);
+    }
+
+    [Fact]
+    public void A_measured_burn_under_bmr_is_raised_to_bmr()
+    {
+        var review = Review(Days(900m, 2218), Line(), prior: 1900, priorSd: 50);
+        Assert.True(review.Measured);
+        Assert.Equal(1786, review.Burn);
+        Assert.Equal(1786, review.Proposed.Kcal);
+        Assert.True(review.Proposed.FloorApplied);
+    }
+
+    [Fact]
+    public void Fit_is_a_least_squares_line_with_a_noise_floor()
+    {
+        var day = new DateOnly(2026, 1, 1);
+        var fit = BurnEstimate.Fit([(day, 80m), (day.AddDays(7), 79.3m), (day.AddDays(14), 78.6m), (day.AddDays(14), 78.6m)]);
+        Assert.NotNull(fit);
+        Assert.Equal(3, fit.WeighIns);
+        Assert.Equal(14, fit.SpanDays);
+        Assert.Equal(-0.1m, decimal.Round(fit.SlopeKgPerDay, 6));
+        // A perfect line still assumes 0.5 kg of noise with only three weigh-ins: 0.5 / sqrt(98).
+        Assert.Equal(0.0505m, decimal.Round(fit.SlopeSeKgPerDay, 4));
+        Assert.Null(BurnEstimate.Fit([(day, 80m), (day.AddDays(7), 79m)]));
+        Assert.Null(BurnEstimate.Fit([(day, 80m), (day.AddDays(2), 79m), (day.AddDays(5), 79m)]));
+    }
+
+    [Fact]
+    public void Step_weighs_prior_and_measurement_by_how_sure_each_is()
+    {
+        var even = BurnEstimate.Step(2500m, 100m, 0m, 2700m, 100m);
+        Assert.Equal(0.5m, decimal.Round(even.Gain, 4));
+        Assert.Equal(2600m, decimal.Round(even.Burn, 4));
+
+        // Weeks without a measurement make the prior less sure, never past the formula's spread.
+        var drifted = BurnEstimate.Step(2500m, 100m, 4m, 2700m, 100m);
+        Assert.True(drifted.Gain > even.Gain);
+        var capped = BurnEstimate.Step(2500m, 340m, 100m, 2700m, 100m);
+        Assert.Equal(BurnEstimate.FormulaSdKcal, decimal.Round(capped.PriorSd, 6));
+    }
+
+    [Fact]
+    public void A_carried_burn_keeps_its_distance_from_the_formula()
+    {
+        Assert.Equal(2600, BurnEstimate.Carry(2500, 2700, 2600));
+        Assert.Equal(2500, BurnEstimate.Carry(2500, 2600, 2600));
+    }
+
+    [Fact]
+    public void The_period_starts_after_the_last_period_start_and_reaches_back_eight_weeks_at_most()
+    {
+        var today = new DateOnly(2026, 11, 17);
+        var setup = new DateOnly(2026, 1, 1);
+
+        var weekly = RecalculatePeriod.For(today, setup, null, today.AddDays(-8), null);
+        Assert.Equal(today.AddDays(-7), weekly.From);
+        Assert.Equal(today.AddDays(-1), weekly.To);
+        Assert.Equal(today.AddDays(-10), weekly.SlopeFrom);
+        Assert.False(weekly.Capped);
+        Assert.Null(weekly.SettledFrom);
+
+        var long_ = RecalculatePeriod.For(today, setup, null, new DateOnly(2026, 3, 14), null);
+        Assert.True(long_.Capped);
+        Assert.Equal(56, long_.To.DayNumber - long_.From.DayNumber + 1);
+        Assert.Equal(new DateOnly(2026, 3, 14), long_.LastUpdate);
+    }
+
+    [Fact]
+    public void A_new_account_or_fresh_start_skips_the_first_week_of_weigh_ins()
+    {
+        var today = new DateOnly(2026, 11, 17);
+        var setup = today.AddDays(-21);
+
+        var first = RecalculatePeriod.For(today, setup, setup.AddDays(-1), null, null);
+        Assert.Equal(setup.AddDays(-1), first.From);
+        Assert.Equal(setup.AddDays(7), first.SlopeFrom);
+        Assert.Equal(setup.AddDays(7), first.SettledFrom);
+
+        var fresh = today.AddDays(-10);
+        var afterGap = RecalculatePeriod.For(today, new DateOnly(2026, 1, 1), null, today.AddDays(-60), fresh);
+        Assert.Equal(fresh, afterGap.From);
+        Assert.Equal(fresh.AddDays(7), afterGap.SlopeFrom);
+    }
+
+    [Fact]
+    public void The_latest_fresh_start_is_the_last_weigh_in_after_a_gap_over_28_days()
+    {
+        var day = new DateOnly(2026, 1, 1);
+        Assert.Null(RecalculatePeriod.LatestFreshStart([(day, 80m), (day.AddDays(28), 80m)], day.AddDays(60)));
+        Assert.Equal(day.AddDays(29), RecalculatePeriod.LatestFreshStart([(day, 80m), (day.AddDays(29), 80m), (day.AddDays(30), 80m)], day.AddDays(60)));
+        Assert.Null(RecalculatePeriod.LatestFreshStart([(day, 80m), (day.AddDays(29), 80m)], day.AddDays(20)));
     }
 
     [Fact]
@@ -243,7 +289,4 @@ public sealed class AdaptiveTargetTests
         Assert.Equal(TimeSpan.Zero, utc.Offset);
         Assert.Equal(new DateTimeOffset(2026, 11, 8, 23, 0, 0, TimeSpan.Zero), utc);
     }
-
-    private static IEnumerable<decimal> ClosedAverage(AdaptiveReview review) =>
-        review.Days.Where(day => day.Included).Select(day => (decimal)day.Kcal);
 }

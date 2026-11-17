@@ -106,6 +106,7 @@ public static class NotificationBook
                 && row.EffectiveDate <= today
                 && (row.Reasons.Contains(RecalculationReasons.Adaptive)
                     || row.Reasons.Contains(RecalculationReasons.Formula)
+                    || row.Reasons.Contains(RecalculationReasons.Kept)
                     || row.Reasons.Contains(TargetReasons.WeeklyRecalculation)),
             cancellationToken);
     }

@@ -15,8 +15,6 @@ public static class RecalculateEndpoints
 
     public const string NeedMode = "Say whether to use the adaptive target or the formula.";
 
-    public const string NotEnough = "There is not enough of your own data for an adaptive target.";
-
     public static RouteGroupBuilder MapRecalculate(this RouteGroupBuilder api)
     {
         api.MapGet("/recalculate", Get);
@@ -99,7 +97,7 @@ public static class RecalculateEndpoints
         }
 
         var built = await BuildAsync(Caller.Id(principal), new HashSet<DateOnly>(), new HashSet<DateOnly>(), db, clock, cancellationToken);
-        return built.Error is not null ? ApiResults.Error(built.Error) : Results.Ok(ToResponse(built.Review!));
+        return built.Error is not null ? ApiResults.Error(built.Error) : Results.Ok(ToResponse(built));
     }
 
     private static async Task<IResult> Preview(
@@ -121,7 +119,7 @@ public static class RecalculateEndpoints
         }
 
         var built = await BuildAsync(Caller.Id(principal), body.Exclude, body.IncludeZero, db, clock, cancellationToken);
-        return built.Error is not null ? ApiResults.Error(built.Error) : Results.Ok(ToResponse(built.Review!));
+        return built.Error is not null ? ApiResults.Error(built.Error) : Results.Ok(ToResponse(built));
     }
 
     private static async Task<IResult> Save(
@@ -151,54 +149,42 @@ public static class RecalculateEndpoints
         await users.UpsertAsync(principal, cancellationToken);
         var userId = Caller.Id(principal);
         var built = await BuildAsync(userId, body.Exclude, body.IncludeZero, db, clock, cancellationToken);
-        if (built.Error is not null || built.Review is null || built.Profile is null || built.WeightKg is not decimal weightKg)
+        if (built.Error is not null || built.Review is null || built.WeightKg is not decimal weightKg)
         {
             return ApiResults.Error(built.Error ?? NeedProfile);
         }
 
         var review = built.Review;
         NutritionResult result;
+        TargetBurn burn;
         string reason;
         if (body.Mode == "formula")
         {
             result = NutritionMath.Calculate(built.Input!);
+            burn = TargetBurn.Formula(result, TargetDetails.From(review));
             reason = RecalculationReasons.Formula;
         }
         else
         {
-            if (!review.Enough || review.Proposed is null || review.Burn is not decimal burn)
-            {
-                return ApiResults.Error(review.Blocked ?? NotEnough);
-            }
-
-            result = NutritionMath.FromExpenditure(built.Input!, burn, built.ManualKcal);
-            reason = RecalculationReasons.Adaptive;
+            result = NutritionMath.FromExpenditure(built.Input!, review.Burn);
+            burn = new TargetBurn(review.Formula.Tdee, review.BurnSdKcal, TargetDetails.From(review));
+            reason = review.Measured ? RecalculationReasons.Adaptive : RecalculationReasons.Kept;
         }
 
-        var current = await TargetBook.InEffectAsync(db, userId, built.Today, cancellationToken);
-        var changed = current is null
-            || current.Kcal != result.Kcal
-            || current.ProteinGrams != result.Protein
-            || current.FatGrams != result.Fat
-            || current.CarbGrams != result.Carbs
-            || current.Bmr != result.Bmr
-            || current.Tdee != result.Tdee;
-        if (changed)
-        {
-            await TargetBook.StageAsync(
-                db,
-                userId,
-                built.Today,
-                result,
-                weightKg,
-                [reason],
-                clock.GetUtcNow(),
-                cancellationToken);
-        }
+        // Always a row, even with the same numbers: it is what starts the next period.
+        var row = await TargetBook.StageAsync(
+            db,
+            userId,
+            built.Today,
+            result,
+            burn,
+            weightKg,
+            [reason],
+            clock.GetUtcNow(),
+            cancellationToken);
         await NotificationBook.MarkCurrentWeekReadAsync(db, userId, clock, cancellationToken);
         await db.SaveChangesAsync(cancellationToken);
-        var saved = await BuildAsync(userId, body.Exclude, body.IncludeZero, db, clock, cancellationToken);
-        return Results.Ok(ToResponse(saved.Review!));
+        return Results.Ok(new { reason, burn = result.Tdee, targets = ProfileEndpoints.ToTargets(row) });
     }
 
     private static async Task<IResult> Decline(
@@ -227,7 +213,7 @@ public static class RecalculateEndpoints
         }
 
         var review = built.Review;
-        var suggestion = review.Enough && review.Proposed is not null ? review.Proposed : review.Formula;
+        var suggestion = review.Proposed;
         var kept = await TargetBook.InEffectAsync(db, userId, built.Today, cancellationToken);
         db.RecalculationDeclines.Add(new RecalculationDecline
         {
@@ -258,7 +244,7 @@ public static class RecalculateEndpoints
         var profile = await db.Profiles.AsNoTracking().FirstOrDefaultAsync(row => row.UserId == userId, cancellationToken);
         if (profile is null || !LocalDates.TryToday(profile.TimeZone, clock, out var today) || !LocalDates.TryZone(profile.TimeZone, out var zone))
         {
-            return new Built(null, null, null, default, null, null, NeedProfile);
+            return Built.Failed(NeedProfile);
         }
 
         var history = await db.TargetHistories.AsNoTracking()
@@ -266,115 +252,115 @@ public static class RecalculateEndpoints
             .OrderBy(row => row.EffectiveDate)
             .ToListAsync(cancellationToken);
         var current = history.LastOrDefault(row => row.EffectiveDate <= today);
-        if (current is null)
+        var weight = await WeightReader.ReadAsync(db, userId, today, cancellationToken);
+        if (current is null || weight.UsedKg is not decimal weightKg)
         {
-            return new Built(null, null, null, today, null, null, NeedProfile);
+            return Built.Failed(NeedProfile);
         }
 
-        var last = history.LastOrDefault(row => row.Reasons.Any(RecalculationReasons.IsRecalculation));
         var created = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(profile.CreatedAt, zone).DateTime);
         var firstLog = await db.LogEntries.AsNoTracking()
             .Where(row => row.UserId == userId && row.DeletedAt == null)
             .OrderBy(row => row.LocalDate)
             .Select(row => (DateOnly?)row.LocalDate)
             .FirstOrDefaultAsync(cancellationToken);
-        var origin = firstLog is DateOnly logged && logged < created ? logged : created;
-        var from = last is null ? origin : last.EffectiveDate.AddDays(1);
-        var to = today.AddDays(-1);
+        var weighIns = weight.Series.Days
+            .Where(day => day.Real && day.WeighInKg is not null)
+            .Select(day => (day.Date, Kg: day.WeighInKg!.Value))
+            .ToList();
+        var lastStart = history.LastOrDefault(row => row.Reasons.Any(RecalculationReasons.StartsPeriod));
+        var period = RecalculatePeriod.For(
+            today,
+            created,
+            firstLog,
+            lastStart?.EffectiveDate,
+            RecalculatePeriod.LatestFreshStart(weighIns, today));
 
-        var logs = new List<(DateOnly Date, decimal Kcal)>();
-        if (from <= to)
+        var facts = new List<DayFact>();
+        if (period.From <= period.To)
         {
             var rawLogs = await db.LogEntries.AsNoTracking()
-                .Where(row => row.UserId == userId && row.DeletedAt == null && row.LocalDate >= from && row.LocalDate <= to)
+                .Where(row => row.UserId == userId && row.DeletedAt == null && row.LocalDate >= period.From && row.LocalDate <= period.To)
                 .Select(row => new { row.LocalDate, row.Kcal })
                 .ToListAsync(cancellationToken);
-            logs = rawLogs
+            var byDay = rawLogs
                 .GroupBy(row => row.LocalDate)
-                .Select(group => (group.Key, group.Sum(row => row.Kcal)))
-                .ToList();
-        }
-
-        var byDay = logs.ToDictionary(row => row.Date, row => row.Kcal);
-        var facts = new List<DayFact>();
-        if (from <= to)
-        {
-            for (var day = from; day <= to; day = day.AddDays(1))
+                .ToDictionary(group => group.Key, group => group.Sum(row => row.Kcal));
+            for (var day = period.From; day <= period.To; day = day.AddDays(1))
             {
                 var target = history.LastOrDefault(row => row.EffectiveDate <= day);
-                byDay.TryGetValue(day, out var kcal);
-                facts.Add(new DayFact(day, kcal, byDay.ContainsKey(day), false, target?.Kcal));
+                var logged = byDay.TryGetValue(day, out var kcal);
+                facts.Add(new DayFact(day, kcal, logged, target?.Kcal));
             }
         }
 
-        var weighIns = await db.WeighIns.AsNoTracking()
-            .Where(row => row.UserId == userId && row.LocalDate <= (to < from ? today : to))
-            .OrderBy(row => row.LocalDate)
-            .Select(row => new { row.LocalDate, row.Kg })
-            .ToListAsync(cancellationToken);
-        var series = weighIns.Select(row => (row.LocalDate, row.Kg)).ToList();
-        decimal? trendStart = from <= to ? TrendWeight.Compute(series, from).TrendKg : null;
-        decimal? trendEnd = from <= to ? TrendWeight.Compute(series, to).TrendKg : null;
-        var onOrBefore = weighIns.Any(row => row.LocalDate <= from);
-        var inside = weighIns.Any(row => row.LocalDate >= from && row.LocalDate <= to);
-        var weight = await WeightReader.ReadAsync(db, userId, today, cancellationToken);
-        if (weight.UsedKg is not decimal weightKg)
-        {
-            return new Built(null, null, null, today, null, null, NeedProfile);
-        }
-
-        var manual = current.Reasons.Any(reason => reason is TargetReasons.ManualChanged or TargetReasons.ModeSwitch);
+        var slope = weighIns.Where(row => row.Date >= period.SlopeFrom && row.Date <= today).ToList();
         var input = ProfileRules.ToInput(profile, weightKg, today.Year);
+        var (prior, priorSd) = TargetBook.CarriedBurn(current, NutritionMath.Calculate(input));
         var review = AdaptiveTarget.Review(
-            from,
-            to,
-            facts,
+            new ReviewInput(period.From, period.To, facts, slope, input, prior, priorSd),
             excluded,
-            trendStart,
-            trendEnd,
-            onOrBefore,
-            inside,
-            input,
-            manual ? current.Kcal : null,
             includeZero);
-        return new Built(review, input, profile, today, weightKg, manual ? current.Kcal : null, null);
+        return new Built(review, period, input, today, weightKg, null);
     }
 
-    private static object ToResponse(AdaptiveReview review) => new
+    private static object ToResponse(Built built)
     {
-        from = review.From,
-        to = review.To,
-        periodDays = review.PeriodDays,
-        days = review.Days.Select(day => new
+        var review = built.Review!;
+        var period = built.Period!;
+        return new
         {
-            date = day.Date,
-            kcal = day.Kcal,
-            targetKcal = day.TargetKcal,
-            fasting = day.Fasting,
-            canExclude = day.CanExclude,
-            included = day.Included,
-        }),
-        includedDays = review.IncludedDays,
-        enough = review.Enough,
-        blocked = review.Blocked,
-        trendStartKg = review.TrendStartKg,
-        trendEndKg = review.TrendEndKg,
-        trendChangeKg = review.TrendChangeKg,
-        averageKcal = review.AverageKcal,
-        burn = review.Burn,
-        proposed = Target(review.Proposed),
-        formula = Target(review.Formula),
-        calendar = review.Calendar.Select(day => new
-        {
-            date = day.Date,
-            kcal = day.Kcal,
-            targetKcal = day.TargetKcal,
-            status = day.Status,
-            counted = day.Counted,
-        }),
-    };
+            from = review.From,
+            to = review.To,
+            periodDays = review.PeriodDays,
+            capped = period.Capped,
+            lastUpdate = period.LastUpdate,
+            settledFrom = period.SettledFrom,
+            lowDays = review.LowDays.Select(day => new
+            {
+                date = day.Date,
+                kcal = day.Kcal,
+                targetKcal = day.TargetKcal,
+                included = day.Included,
+            }),
+            includedDays = review.IncludedDays,
+            measured = review.Measured,
+            blocked = review.Blocked,
+            weighInsNeeded = review.WeighInsNeeded,
+            averageKcal = review.AverageKcal is decimal eaten ? NutritionMath.Round(eaten) : (int?)null,
+            fit = review.Fit is { } fit ? new
+            {
+                weighIns = fit.WeighIns,
+                first = fit.First,
+                last = fit.Last,
+                rateKgPerWeek = decimal.Round(fit.RateKgPerWeek, 2, MidpointRounding.AwayFromZero),
+            } : null,
+            step = review.Step is { } step ? new
+            {
+                prior = NutritionMath.Round(step.Prior),
+                measured = NutritionMath.Round(step.Measured),
+                measuredSd = NutritionMath.Round(step.MeasuredSd),
+                burn = NutritionMath.Round(step.Burn),
+                gain = decimal.Round(step.Gain, 2, MidpointRounding.AwayFromZero),
+            } : null,
+            burn = review.Burn,
+            burnSdKcal = review.BurnSdKcal,
+            proposed = Target(review.Proposed),
+            formula = Target(review.Formula),
+            countedKcal = review.CountedKcal,
+            leftOutKcal = review.LeftOutKcal,
+            calendar = review.Calendar.Select(day => new
+            {
+                date = day.Date,
+                kcal = day.Kcal,
+                targetKcal = day.TargetKcal,
+                status = day.Status,
+                counted = day.Counted,
+            }),
+        };
+    }
 
-    private static object? Target(ProposedTarget? target) => target is null ? null : new
+    private static object Target(ProposedTarget target) => new
     {
         bmr = target.Bmr,
         tdee = target.Tdee,
@@ -383,17 +369,18 @@ public static class RecalculateEndpoints
         fat = target.Fat,
         carbs = target.Carbs,
         floorApplied = target.FloorApplied,
-        manualKept = target.ManualKept,
     };
 
     private readonly record struct Built(
         AdaptiveReview? Review,
+        RecalculatePeriod? Period,
         NutritionInput? Input,
-        Profile? Profile,
         DateOnly Today,
         decimal? WeightKg,
-        int? ManualKcal,
-        string? Error);
+        string? Error)
+    {
+        public static Built Failed(string error) => new(null, null, null, default, null, error);
+    }
 
     private readonly record struct Body(HashSet<DateOnly> Exclude, HashSet<DateOnly> IncludeZero, string? Mode, string? Error);
 
