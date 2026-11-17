@@ -5,6 +5,7 @@ import { getProgress } from "../api";
 import { addDays, weekStart } from "../lib/dates";
 import { dayShade } from "../lib/dayShade";
 import { weekDays, weekPageSelection } from "../lib/dayLog";
+import { onLogChange } from "../state/log";
 import { swipeAxis, swipeSpeed, swipeTurn, type SwipeSample } from "../lib/weekSwipe";
 
 const props = withDefaults(defineProps<{
@@ -246,6 +247,8 @@ function setExpanded(next: boolean) {
   if (next) void loadShades();
   void glideStage();
 }
+// The calendar's colours come from the server's totals, so they follow the log.
+onLogChange(() => { if (expanded.value) void loadShades(); });
 async function loadShades() {
   try {
     const data = await getProgress("90d");
@@ -407,6 +410,8 @@ onBeforeUnmount(() => {
   display: flex; align-items: center; justify-content: center; color: var(--text-primary);
 }
 .tile.future { color: var(--text-tertiary); }
+/* A planned day opens like any other. It has no shade yet, so it reads one step quieter than a judged day. */
+.tile.s-future { color: var(--text-secondary); }
 .tile.today { box-shadow: inset 0 0 0 2px var(--color-action); }
 .tile.s-on { background: var(--shade-on-target); color: var(--color-on-action); }
 .tile.s-close { background: var(--shade-close); color: var(--color-on-action); }

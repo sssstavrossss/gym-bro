@@ -46,14 +46,23 @@ const REASON: Record<string, string> = {
 export const fastingLabel = "Fasting day";
 export const fastingHint = "Counts as 0 kcal. Logging food does not clear this.";
 
-/** A date the screens may show. Future days and days before setup are not offered. */
+/** Food can be planned this many days ahead. The server allows the same. */
+export const planDaysAhead = 365;
+
+/** The last day food can be planned on. */
+export function lastPlanDate(today: string): string {
+  return addDays(today, planDaysAhead);
+}
+
+/** A date the screens may show: from setup to a year ahead. Anything else opens today. */
 export function clampLogDate(date: string, today: string, setupDate: string): string {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date > today) return today;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return today;
+  if (date > lastPlanDate(today)) return lastPlanDate(today);
   if (setupDate && date < setupDate) return setupDate;
   return date;
 }
 
-/** Null when the step would leave the allowed window, including any move into the future. */
+/** Null when the step would leave the allowed window (before setup or past a year ahead). */
 export function shiftLogDate(date: string, by: number, today: string, setupDate: string): string | null {
   const next = clampLogDate(addDays(date, by), today, setupDate);
   return next === date ? null : next;
@@ -61,19 +70,20 @@ export function shiftLogDate(date: string, by: number, today: string, setupDate:
 
 /**
  * The day to keep selected when the strip pages to `start` (that week's Monday).
- * Same weekday as `from` when that day can be chosen. A future day clamps to today.
- * A week that is entirely before setup has nothing to select.
+ * Same weekday as `from` when that day can be chosen; later weeks can be planned too.
+ * A week entirely before setup or past the plan window has nothing to select.
  */
 export function weekPageSelection(from: string, start: string, today: string, setupDate: string): string | null {
   const index = (parse(from).getDay() + 6) % 7;
   let candidate = addDays(start, index);
   const end = addDays(start, 6);
-  if (candidate > today) candidate = today;
+  const last = lastPlanDate(today);
+  if (candidate > last) candidate = last;
   if (setupDate && candidate < setupDate) {
-    if (setupDate <= end && setupDate <= today) candidate = setupDate;
+    if (setupDate <= end) candidate = setupDate;
     else return null;
   }
-  if (candidate < start || candidate > end || candidate > today) return null;
+  if (candidate < start || candidate > end) return null;
   return candidate;
 }
 
@@ -90,15 +100,15 @@ export function weekDays(
     const date = addDays(start, index);
     const future = date > today;
     const beforeSetup = Boolean(setupDate) && date < setupDate;
-    const disabled = future || beforeSetup;
+    const disabled = beforeSetup || date > lastPlanDate(today);
     const loggedDay = !disabled && logged.has(date);
     const letter = weekday(date)[0];
     const number = dayNum(date);
-    let status = "nothing logged";
-    if (future) status = "later";
-    else if (beforeSetup) status = "before you set up";
-    else if (loggedDay) status = "logged";
-    if (date === today) status = future ? status : `${status}, today`;
+    // A later day opens like any other, to plan food on it.
+    let status = future ? "nothing planned" : "nothing logged";
+    if (disabled) status = beforeSetup ? "before you set up" : "too far ahead";
+    else if (loggedDay) status = future ? "planned" : "logged";
+    if (date === today) status = `${status}, today`;
     if (date === selected) status = `${status}, selected`;
     // The letter and the number are separate elements, and axe joins their text
     // with no space ("M" + "9" is "M9"). That string has to lead the name.

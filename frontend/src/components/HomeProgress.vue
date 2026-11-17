@@ -9,6 +9,7 @@ import { dayMonth, spanLabel } from "../lib/dates";
 import { int } from "../lib/format";
 import type { IntakeDay } from "../lib/progressChart";
 import { fiberMinimum, intakeStats, isMinimum, PAGE_TITLES, PROGRESS_PAGES, type ProgressPage } from "../lib/progressCard";
+import { onLogChange } from "../state/log";
 import { profile } from "../state/profile";
 import { weightUnit, wt, wtSigned, wtUnit } from "../state/units";
 import { openWeight, toast } from "../ui";
@@ -90,6 +91,8 @@ watch(
   () => `${profile.weight?.latestDate ?? ""}:${profile.weight?.latestKg ?? ""}:${profile.weight?.trendKg ?? ""}`,
   () => { void load(); },
 );
+// Adding, editing or deleting food changes the intake pages.
+onLogChange(() => { void load(); });
 
 const days = computed<ProgressDay[]>(() => data.value?.days ?? []);
 const periodText = computed(() => {

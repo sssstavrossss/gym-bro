@@ -96,9 +96,11 @@ test("select, copy to today, and hover-delete with undo", async ({ page }) => {
   const sheet = page.getByRole("dialog", { name: "Copy to" });
   await expect(sheet.getByRole("heading", { name: /Copy 2 items to/ })).toBeVisible();
   await expect(sheet.getByRole("radio", { name: /^Today/ })).toBeChecked();
-  await expect(sheet.getByRole("radio", { name: /Tomorrow/ })).toHaveCount(0);
+  // Tomorrow leads the list, to plan it. The picker reaches a year ahead.
+  await expect(sheet.getByRole("radio", { name: /Tomorrow/ })).toHaveCount(1);
   const picker = sheet.getByLabel("Pick another date");
-  await expect(picker).toHaveAttribute("max", when.today);
+  const max = await picker.getAttribute("max");
+  expect(max && max > when.today).toBeTruthy();
   const min = await picker.getAttribute("min");
   expect(min && min <= when.today).toBeTruthy();
   expect(min && min > when.today).toBeFalsy();

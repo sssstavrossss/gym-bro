@@ -12,7 +12,7 @@ namespace GymBro.Api.Tests;
 public sealed class DayStatusEndpointTests(ApiFactory factory)
 {
     [Fact]
-    public async Task Future_and_pre_setup_dates_are_rejected_for_day_status()
+    public async Task Marking_a_future_or_pre_setup_day_is_rejected()
     {
         factory.Clock.UtcNow = new DateTimeOffset(2026, 10, 20, 9, 0, 0, TimeSpan.Zero);
         using var client = factory.AsUser(TestData.NewUser("status-window"));
@@ -27,8 +27,9 @@ public sealed class DayStatusEndpointTests(ApiFactory factory)
         Assert.Equal(HttpStatusCode.BadRequest, early.StatusCode);
         Assert.Equal("That date is before you set up Gym Bro.", (await early.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("error").GetString());
 
-        var futureRead = await client.GetAsync("/api/day-status?date=2026-10-25&timeZone=UTC");
-        Assert.Equal(HttpStatusCode.BadRequest, futureRead.StatusCode);
+        // A planned day can be opened, but not marked until it comes.
+        var futureRead = await client.GetFromJsonAsync<JsonElement>("/api/day-status?date=2026-10-25&timeZone=UTC");
+        Assert.False(futureRead.GetProperty("complete").GetBoolean());
         var earlyRead = await client.GetAsync("/api/day-status?date=2026-10-19&timeZone=UTC");
         Assert.Equal(HttpStatusCode.BadRequest, earlyRead.StatusCode);
 

@@ -19,6 +19,11 @@ public static class LogEntryRules
 
     public const string FutureDate = "That date is in the future.";
 
+    public const string TooFarAhead = "Plan at most a year ahead.";
+
+    /// <summary>How far ahead food can be logged to plan a day.</summary>
+    public const int MaxDaysAhead = 365;
+
     public const string BeforeSetup = "That date is before you set up Gym Bro.";
 
     public const string NeedProfile = "Save your profile before logging food.";
@@ -152,6 +157,21 @@ public static class LogEntryRules
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// Food can go on any day from setup to a year past the client's today, so a day can be
+    /// planned ahead. Weigh-ins and day status stay on <see cref="RejectDate"/>: they record
+    /// what happened.
+    /// </summary>
+    public static string? RejectLogDate(DateOnly localDate, DateOnly setupDate, DateOnly clientToday)
+    {
+        if (localDate.DayNumber - clientToday.DayNumber > MaxDaysAhead)
+        {
+            return TooFarAhead;
+        }
+
+        return localDate < setupDate ? BeforeSetup : null;
     }
 
     public static DateOnly SetupDate(DateTimeOffset createdAt, TimeZoneInfo zone)

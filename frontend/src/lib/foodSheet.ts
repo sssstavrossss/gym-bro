@@ -48,7 +48,7 @@ export type RecentAddResult =
 
 /**
  * Today may leave the time empty so the server stamps now.
- * A past day must already have a picked time. It is never filled with now.
+ * Any day but today (earlier or planned) must already have a picked time. It is never filled with now.
  */
 export function logTimeForAdd(date: string, today: string, picked: string | null): { ok: true; time: string | null } | { ok: false; needTime: true } {
   if (date === today) return { ok: true, time: picked };

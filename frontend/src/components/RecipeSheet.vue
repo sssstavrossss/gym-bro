@@ -98,7 +98,8 @@ let searchGen = 0;
 let searchTimer = 0;
 
 const foodToday = computed(() => viewed.today || todayInZone(deviceTimeZone()));
-const pastDay = computed(() => ui.foodDate !== foodToday.value);
+/** Any day but today, earlier or planned, needs a picked time, never now. */
+const otherDay = computed(() => ui.foodDate !== foodToday.value);
 const needTime = computed(() => addNeedsTime(ui.foodDate, foodToday.value, time.value, false));
 const portions = computed(() => parseAmount(portionsText.value));
 /**

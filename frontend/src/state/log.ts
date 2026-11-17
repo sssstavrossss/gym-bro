@@ -1,4 +1,4 @@
-import { reactive } from "vue";
+import { getCurrentInstance, onBeforeUnmount, reactive, watch } from "vue";
 import {
   addLogEntry,
   ApiError,
@@ -16,7 +16,7 @@ import {
   type TargetsResponse,
   whenReachable,
 } from "../api";
-import { byTime } from "../lib/dayLog";
+import { byTime, lastPlanDate } from "../lib/dayLog";
 import { addDays, todayInZone, todayIso, weekStart } from "../lib/dates";
 import { boot } from "./boot";
 import { deviceTimeZone } from "./profile";
@@ -77,6 +77,9 @@ export const log = reactive({
   loading: false,
   loaded: false,
   unreachable: false,
+  /** Goes up whenever an entry is added, edited, moved, copied, deleted or restored, on any
+   * day. Home's charts reload on it, since their numbers come from the server. */
+  revision: 0,
 });
 
 /** The day open on Today or Log. Today's own list stays in `log` for the side column. */
@@ -193,10 +196,24 @@ function noteIfEmpty(date: string): void {
 
 /** Puts the entry on today's list and on the open day. Does not touch day complete. */
 function place(entry: LogEntry): void {
+  log.revision += 1;
   sortInto(log.entries, entry, log.date === entry.localDate);
   sortInto(viewed.entries, entry, viewed.date === entry.localDate);
   noteLogged(entry.localDate);
   rememberViewed();
+}
+
+/**
+ * Calls `reload` shortly after the log changes on any day, once for a burst of changes (a saved
+ * group, an undo of several). For views whose numbers come from the server, such as Home's charts.
+ */
+export function onLogChange(reload: () => void, delay = 300): void {
+  let timer = 0;
+  watch(() => log.revision, () => {
+    window.clearTimeout(timer);
+    timer = window.setTimeout(reload, delay);
+  });
+  if (getCurrentInstance()) onBeforeUnmount(() => window.clearTimeout(timer));
 }
 
 export function findEntry(id: string | null): LogEntry | null {
@@ -338,8 +355,8 @@ async function fetchDay(date: string, zone: string): Promise<CachedDay> {
 }
 
 function prefetchDay(date: string, zone: string, today: string, setupDate: string | null): void {
-  // Before setup the server refuses the day (400), so there is nothing to fetch.
-  if (!date || date > today || (setupDate && date < setupDate) || dayCache.has(date) || prefetching.has(date)) return;
+  // Before setup or past the plan window the server refuses the day (400), so there is nothing to fetch.
+  if (!date || date > lastPlanDate(today) || (setupDate && date < setupDate) || dayCache.has(date) || prefetching.has(date)) return;
   const job = fetchDay(date, zone).then((snap) => {
     if (!dayCache.has(snap.date)) dayCache.set(snap.date, snap);
   }).catch(() => {
@@ -356,7 +373,7 @@ export async function loadDay(date: string): Promise<void> {
   const gen = ++viewGeneration;
   const zone = deviceTimeZone();
   const clientToday = todayInZone(zone);
-  const asked = date > clientToday ? clientToday : date;
+  const asked = date > lastPlanDate(clientToday) ? lastPlanDate(clientToday) : date;
   const cached = dayCache.get(asked);
   if (cached) showCached(cached);
   else if (viewed.loaded) holdPrevious(asked);
@@ -365,7 +382,7 @@ export async function loadDay(date: string): Promise<void> {
     const days = await listLogDays(weekStart(asked), addDays(weekStart(asked), 6), zone);
     if (gen !== viewGeneration) return;
     const today = days.today || clientToday;
-    const day = asked > today ? today : days.setupDate && asked < days.setupDate ? days.setupDate : asked;
+    const day = asked > lastPlanDate(today) ? lastPlanDate(today) : days.setupDate && asked < days.setupDate ? days.setupDate : asked;
     const snap = await fetchDay(day, zone);
     if (gen !== viewGeneration) return;
     viewed.setupDate = days.setupDate;
@@ -530,6 +547,7 @@ export async function removeEntries(entries: LogEntry[], options?: { announce?: 
     toast(error instanceof ApiError ? error.message : fallback);
     return false;
   }
+  log.revision += 1;
   for (const entry of removed) {
     log.entries = log.entries.filter((row) => row.id !== entry.id);
     viewed.entries = viewed.entries.filter((row) => row.id !== entry.id);

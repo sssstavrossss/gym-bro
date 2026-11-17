@@ -4,7 +4,8 @@ import { useRouter } from "vue-router";
 import BottomSheet from "./BottomSheet.vue";
 import Icon from "./Icon.vue";
 import { acceptCopyDate, copyDates, copyDayLabel } from "../lib/copyDays";
-import { addDays, shortDate, todayInZone } from "../lib/dates";
+import { lastPlanDate } from "../lib/dayLog";
+import { shortDate, todayInZone } from "../lib/dates";
 import { int } from "../lib/format";
 import { deviceTimeZone } from "../state/profile";
 import { copySelected, discardCopies, findEntry, viewed, type LogEntry } from "../state/log";
@@ -54,17 +55,16 @@ const times = computed(() => {
   if (!rows.length) return "";
   return rows[0].time === rows[rows.length - 1].time ? rows[0].time : `${rows[0].time}–${rows[rows.length - 1].time}`;
 });
-const buttonLabel = computed(() => {
-  const name = named(target.value);
-  if (name === "Today") return "today";
-  if (name === "Yesterday") return "yesterday";
-  return shortDate(target.value);
-});
+/** "tomorrow", "today", "yesterday" or the date, for the button and the toast. */
+function inSentence(day: string): string {
+  return copyDayLabel(day, today.value)?.toLowerCase() ?? shortDate(day);
+}
+const buttonLabel = computed(() => inSentence(target.value));
 
 async function copy() {
   if (saving.value || !list.value.length) return;
   if (!acceptCopyDate(target.value, today.value, setup.value)) {
-    error.value = "That date is in the future.";
+    error.value = "Pick a day from setup to a year ahead.";
     return;
   }
   saving.value = true;
@@ -84,7 +84,7 @@ async function copy() {
   ui.copySingle = false;
   endSelect();
   closeCopy();
-  const place = named(to).replace(/^T/, "t").replace(/^Y/, "y");
+  const place = inSentence(to);
   toast(`Copied ${count} item${count > 1 ? "s" : ""} · ${int(total)} kcal to ${place}`, {
     label: "Undo",
     run: () => { void discardCopies(copies); },
@@ -118,7 +118,7 @@ async function copy() {
         @click="choose(day)"
       >
         <span class="t-body grow">{{ named(day) }}<span v-if="day === from" class="c3"> · same day (duplicate)</span></span>
-        <span class="t-label c3">{{ day === today || day === addDays(today, -1) ? shortDate(day) : "" }}</span>
+        <span class="t-label c3">{{ copyDayLabel(day, today) ? shortDate(day) : "" }}</span>
         <span class="radio" :class="{ on: target === day }"><Icon v-if="target === day" name="check" :size="12" :sw="3.2" /></span>
       </button>
       <label class="opt row" :class="{ on: !!custom && target === custom }">
@@ -129,7 +129,7 @@ async function copy() {
           class="dinput"
           type="date"
           :min="setup || undefined"
-          :max="today"
+          :max="lastPlanDate(today)"
           :value="custom"
           aria-label="Pick another date"
           @change="pickCustom"

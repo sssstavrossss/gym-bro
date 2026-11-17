@@ -200,7 +200,7 @@ public static class GroupEndpoints
             return ApiResults.Error(window.Error);
         }
 
-        var dateError = LogEntryRules.RejectDate(draft.LocalDate, window.SetupDate, window.ClientToday, window.ServerToday);
+        var dateError = LogEntryRules.RejectLogDate(draft.LocalDate, window.SetupDate, window.ClientToday);
         if (dateError is not null)
         {
             return ApiResults.Error(dateError);

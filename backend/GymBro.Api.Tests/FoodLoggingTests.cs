@@ -229,7 +229,7 @@ public sealed class FoodLoggingTests(ApiFactory factory)
         var foodId = found.GetProperty("foods").EnumerateArray().Single(row => row.GetProperty("sourceId").GetString() == "test.kylling").GetProperty("id").GetGuid();
 
         Assert.Equal(HttpStatusCode.BadRequest, (await client.PostAsync("/api/log-entries", Json(Entry("win-0", foodId, "100", "g", zone: "Not/AZone")))).StatusCode);
-        Assert.Equal(HttpStatusCode.BadRequest, (await client.PostAsync("/api/log-entries", Json(Entry("win-1", foodId, "100", "g", date: "2026-10-25")))).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await client.PostAsync("/api/log-entries", Json(Entry("win-1", foodId, "100", "g", date: "2027-10-25")))).StatusCode);
         Assert.Equal(HttpStatusCode.BadRequest, (await client.PostAsync("/api/log-entries", Json(Entry("win-2", foodId, "100", "g", date: "2026-10-23")))).StatusCode);
 
         var created = await client.PostAsync("/api/log-entries", Json(Entry("win-3", foodId, "100", "g", "\"time\":\"09:15\"")));

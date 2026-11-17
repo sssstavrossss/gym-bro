@@ -46,8 +46,9 @@ describe("selecting log entries", () => {
 });
 
 describe("copy dates", () => {
-  it("starts at today and never offers a future day or a day before setup", () => {
+  it("offers tomorrow, then today back to setup, and accepts a day up to a year ahead", () => {
     expect(copyDates("2026-11-09", "2026-11-01")).toEqual([
+      "2026-11-10",
       "2026-11-09",
       "2026-11-08",
       "2026-11-07",
@@ -56,13 +57,17 @@ describe("copy dates", () => {
       "2026-11-04",
       "2026-11-03",
     ]);
-    expect(copyDates("2026-11-09", "2026-11-09")).toEqual(["2026-11-09"]);
-    expect(copyDates("2026-11-09", "2026-11-07").every((day) => day <= "2026-11-09" && day >= "2026-11-07")).toBe(true);
-    expect(acceptCopyDate("2026-11-10", "2026-11-09", "2026-11-01")).toBe(false);
+    expect(copyDates("2026-11-09", "2026-11-09")).toEqual(["2026-11-10", "2026-11-09"]);
+    expect(copyDates("2026-11-09", "2026-11-07").every((day) => day <= "2026-11-10" && day >= "2026-11-07")).toBe(true);
+    expect(acceptCopyDate("2026-11-10", "2026-11-09", "2026-11-01")).toBe(true);
+    expect(acceptCopyDate("2027-11-09", "2026-11-09", "2026-11-01")).toBe(true);
+    expect(acceptCopyDate("2027-11-10", "2026-11-09", "2026-11-01")).toBe(false);
     expect(acceptCopyDate("2026-10-31", "2026-11-09", "2026-11-01")).toBe(false);
     expect(acceptCopyDate("2026-11-09", "2026-11-09", "2026-11-01")).toBe(true);
     expect(acceptCopyDate("2026-11-01", "2026-11-09", "2026-11-01")).toBe(true);
+    expect(copyDayLabel("2026-11-10", "2026-11-09")).toBe("Tomorrow");
     expect(copyDayLabel("2026-11-09", "2026-11-09")).toBe("Today");
+    expect(copyDayLabel("2026-11-07", "2026-11-09")).toBeNull();
     expect(copyDayLabel("2026-11-08", "2026-11-09")).toBe("Yesterday");
   });
 });

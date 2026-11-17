@@ -27,7 +27,7 @@ export function canSaveGroup(count: number): boolean {
 }
 
 /**
- * A past day has no default time. Add stays off until a time is picked.
+ * A day other than today has no default time. Add stays off until a time is picked.
  * Today can mean now.
  */
 export function groupAddNeedsTime(date: string, today: string, picked: string | null): boolean {
@@ -58,8 +58,8 @@ export function readdToast(name: string, added: number, kcal: number, notice: st
   return extra ? `${base}. ${extra}` : base;
 }
 
-export function groupTimeNote(needsTime: boolean, past: boolean, picked: string | null): string {
+export function groupTimeNote(needsTime: boolean, otherDay: boolean, picked: string | null): string {
   if (needsTime) return "at the time you pick";
-  if (picked || past) return `at ${picked}`;
+  if (picked || otherDay) return `at ${picked}`;
   return "now";
 }
