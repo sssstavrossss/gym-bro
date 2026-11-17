@@ -41,9 +41,9 @@ test("food in ounces: typed in oz, saved in grams, untouched amounts kept exactl
   // Settings: Food sits under Weight and Height and saves at once. It's a setting, not a target change.
   await page.getByRole("button", { name: "Settings" }).click();
   const settings = page.getByRole("dialog", { name: "Settings" });
-  await expect(settings.locator("[data-food-note]")).toHaveText("Food amounts in g and ml. Protein, fat, carbs and nutrients stay in grams.");
+  await expect(settings.locator("[data-food-note]")).toHaveText("Protein, fat, carbs and nutrients stay in grams.");
   await settings.getByRole("radiogroup", { name: "Food unit" }).getByRole("radio", { name: "ounces" }).click();
-  await expect(settings.locator("[data-food-note]")).toHaveText("Food amounts in oz and fl oz. Protein, fat, carbs and nutrients stay in grams.");
+  await expect(settings.getByRole("radio", { name: "ounces" })).toHaveAttribute("aria-checked", "true");
   await expect.poll(async () => (await (await page.request.get("/api/profile", { headers })).json()).profile.foodUnit).toBe("oz");
   const history = await (await page.request.get("/api/profile/history", { headers })).json();
   expect(history.rows).toHaveLength(1);

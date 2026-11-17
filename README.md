@@ -502,7 +502,7 @@ While this week's recalculate reminder is open, Home shows a compact "Recalculat
 - Height is two fields, feet and inches (inches to one decimal, under 12; blank inches is 0), and must come to 100–250 cm.
 - A value that is shown and not edited is sent unchanged, so switching units or saving another field never nudges 80 kg to 80.01 kg or 182 cm to 182.1 cm.
 
-Food in ounces (`foodUnit` `oz`; the note under the switch reads "Food amounts in oz and fl oz. Protein, fat, carbs and nutrients stay in grams."):
+Food in ounces (`foodUnit` `oz`; the note under the switches reads "Protein, fat, carbs and nutrients stay in grams."):
 
 - Only the amount of food changes. Grams show as oz and millilitres as fl oz (1 oz = 28.349523125 g, 1 fl oz = 29.5735295625 ml), one decimal, everywhere an amount is shown: Foods today, the Log, recents and search, groups, recipes, and the toasts ("Added 4 oz Kylling"). Servings, pieces and portions are counts and stay as they are. Macros, nutrients, "per 100 g" and the custom food form stay metric.
 - The amount screen types ounces (three digits and one decimal) with "= 113 g" under the field and quick chips 2, 4, 8 oz (8, 12, 16 fl oz for a drink). A serving's size reads in ounces ("1 slice = 1.2 oz", "porsjon · 5.3 oz"), and + Serving takes its weight in ounces.
