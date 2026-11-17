@@ -89,6 +89,12 @@ export function openWeight(): void {
   ui.sheet = "weight";
 }
 
+/** Goal weight types on the app keypad on a phone, like the weight sheet, so nothing primes the keyboard. */
+export function openGoalWeight(): void {
+  rememberOpener();
+  ui.sheet = "goal-weight";
+}
+
 export function openAccuracy(from?: "weight"): void {
   if (from === "weight") ui.keepWeightDraft = true;
   ui.accReturn = from ?? null;

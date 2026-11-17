@@ -652,11 +652,12 @@ test("large text keeps the close button, units, and the info hit target", async 
     await expect(weight).toHaveText(/^\d+\.\d\s+kg$/);
     expect(await weight.evaluate((node) => node.getClientRects().length)).toBe(1);
 
-    const goal = page.locator(".frow", { hasText: "Goal weight" }).locator(".fval");
+    // Goal weight is a tinted field that opens the keypad sheet: number, unit, and pencil on one line.
+    const goal = page.locator("[data-goal-weight] .gfield");
     await goal.scrollIntoViewIfNeeded();
-    const goalInput = await goal.locator("input").boundingBox();
-    const goalUnit = await goal.locator("span").boundingBox();
-    expect(goalInput && goalUnit && overlapsY(goalInput, goalUnit)).toBe(true);
-    expect(goalUnit!.x).toBeGreaterThan(goalInput!.x);
+    const goalNumber = await goal.locator(".gnum").boundingBox();
+    const goalUnit = await goal.locator(".t-label").boundingBox();
+    expect(goalNumber && goalUnit && overlapsY(goalNumber, goalUnit)).toBe(true);
+    expect(goalUnit!.x).toBeGreaterThan(goalNumber!.x);
   }
 });

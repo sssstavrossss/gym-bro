@@ -7,17 +7,19 @@ import TargetHistory from "../components/TargetHistory.vue";
 import { ACTIVITY, FAT_PRESETS, PROTEIN_PRESETS, RATES, type ActivityKey, type Goal, type MacroSetting, type Sex } from "../lib/nutrition";
 import { dayMonth, todayInZone } from "../lib/dates";
 import { int } from "../lib/format";
+import { fatCaption, goalStats, isExact, proteinCaption, saturatedCaption } from "../lib/goalCards";
 import { goalLine } from "../lib/goalLine";
+import { fatLimits, fatLimitsOf, type FatLimitsSetting } from "../lib/nutrientCards";
 import { parseDecimal } from "../lib/numbers";
 import { rateText, toKg } from "../lib/units";
-import { commitProfile, deviceTimeZone, profile, shownTargets, weightCaption } from "../state/profile";
+import { commitProfile, deviceTimeZone, profile, setFatLimits, shownTargets, weightCaption } from "../state/profile";
 import { inbox } from "../state/inbox";
 import { heightUnit, weightUnit, wt } from "../state/units";
-import { openNotifications, openRecalculate, openSettings, openWeight } from "../ui";
+import { openGoalWeight, openNotifications, openRecalculate, openSettings, openWeight } from "../ui";
 import { vp } from "../lib/viewport";
 
 const actOpen = ref(false);
-const customOpen = ref(false);
+const exactOpen = ref(false);
 const year = new Date().getFullYear();
 const age = computed(() => {
   if (!/^\d{4}$/.test(profile.form.birthYear.trim())) return null;
@@ -28,19 +30,24 @@ const caption = computed(() => weightCaption(profile.weight, weightUnit()));
 /** The date the targets in effect started. A preview of unsaved edits has none. */
 const updated = computed(() => (shown.value && shown.value === profile.targets ? profile.targets.effectiveDate : null));
 
-const balance = computed(() => {
-  const form = profile.form;
-  if (form.proteinSetting === "normal" && form.fatSetting === "normal") return "Normal";
-  const protein = PROTEIN_PRESETS.find((item) => item.key === form.proteinSetting)?.label ?? `${form.proteinGramsPerKg} g/kg`;
-  const fat = FAT_PRESETS.find((item) => item.key === form.fatSetting)?.label ?? `${form.fatPercent}%`;
-  return `Protein ${protein.toLowerCase()} · fat ${fat.toLowerCase()}`;
-});
+const goalOptions: { value: Goal; label: string }[] = [{ value: "lose", label: "Lose" }, { value: "maintain", label: "Maintain" }, { value: "gain", label: "Gain" }];
+const rateOptions = computed(() => RATES.map((rate) => ({ value: String(rate), label: rateText(rate, weightUnit()) })));
+/** The rate as one of the options' values ("0.5", "1"), or "" when none is set. */
+const rateValue = computed(() => (profile.form.rate.trim() ? String(Number(profile.form.rate)) : ""));
+const presetOptions = (presets: readonly { key: string; label: string }[]) => presets.map((item) => ({ value: item.key as MacroSetting, label: item.label }));
+const proteinOptions = presetOptions(PROTEIN_PRESETS);
+const fatOptions = presetOptions(FAT_PRESETS);
+const saturatedOptions: { value: FatLimitsSetting; label: string }[] = [{ value: "normal", label: "Standard" }, { value: "lower", label: "Strict" }];
+
+const saturated = computed(() => fatLimitsOf(profile.saved?.fatLimits));
+const limits = computed(() => fatLimits(saturated.value, shown.value?.kcal));
+const limitsError = ref("");
+const macrosDefault = computed(() => profile.form.proteinSetting === "normal" && profile.form.fatSetting === "normal" && saturated.value === "normal");
 
 const goalKg = computed(() => {
   const typed = parseDecimal(profile.form.goalWeight);
   return typed == null ? null : toKg(typed, profile.form.weightUnit);
 });
-const weightWord = computed(() => (weightUnit() === "lb" ? "pounds" : "kilograms"));
 
 const line = computed(() => {
   const weight = profile.weight;
@@ -52,6 +59,7 @@ const line = computed(() => {
     today: todayInZone(profile.form.timeZone || deviceTimeZone()),
   });
 });
+const stats = computed(() => (line.value?.kind === "way" ? goalStats(line.value, wt, weightUnit()) : null));
 
 function setSex(value: string) {
   profile.form.sex = value as Sex;
@@ -67,19 +75,28 @@ function setActivity(key: ActivityKey) {
   actOpen.value = false;
   void commitProfile();
 }
-function setRate(rate: number) {
+function setRate(value: string) {
+  const rate = Number(value);
   profile.form.rate = rate === 1 ? "1.0" : String(rate);
   void commitProfile();
 }
-function setProtein(key: MacroSetting, value: number) {
+function setProtein(key: MacroSetting) {
+  const preset = PROTEIN_PRESETS.find((item) => item.key === key);
+  if (!preset) return;
   profile.form.proteinSetting = key;
-  profile.form.proteinGramsPerKg = value.toFixed(1);
+  profile.form.proteinGramsPerKg = preset.value.toFixed(1);
   void commitProfile();
 }
-function setFat(key: MacroSetting, value: number) {
+function setFat(key: MacroSetting) {
+  const preset = FAT_PRESETS.find((item) => item.key === key);
+  if (!preset) return;
   profile.form.fatSetting = key;
-  profile.form.fatPercent = Number.isInteger(value) ? String(value) : value.toFixed(1);
+  profile.form.fatPercent = String(preset.value);
   void commitProfile();
+}
+/** Saturated fat only sets the Fats card limits, so it saves as a setting and leaves the targets alone. */
+async function setSaturated(value: FatLimitsSetting) {
+  limitsError.value = await setFatLimits(value);
 }
 function onExactProtein() {
   const parsed = parseDecimal(profile.form.proteinGramsPerKg);
@@ -101,6 +118,7 @@ function resetMacros() {
   profile.form.fatSetting = "normal";
   profile.form.fatPercent = "25";
   void commitProfile();
+  if (saturated.value !== "normal") void setSaturated("normal");
 }
 function onTextCommit() {
   void commitProfile();
@@ -148,63 +166,89 @@ function onTextCommit() {
       <div class="pcol">
         <section class="card o2" aria-labelledby="goal-h">
           <h2 id="goal-h" class="section-title c2">Goal</h2>
-          <div>
-            <Segmented size="compact" class="full" label="Goal" :model-value="profile.form.goal" :options="[{ value: 'lose', label: 'Lose' }, { value: 'maintain', label: 'Maintain' }, { value: 'gain', label: 'Gain' }]" @update:model-value="setGoal" />
-          </div>
-          <div v-if="profile.form.goal !== 'maintain'" class="rate" role="group" aria-label="Rate">
-            <span class="t-body c2">Rate</span>
-            <button v-for="rate in RATES" :key="rate" type="button" class="chip t-label" :class="{ on: Number(profile.form.rate) === rate }" @click="setRate(rate)">{{ rateText(rate, weightUnit()) }}</button>
-            <span class="t-label c2">{{ weightUnit() }}/wk</span>
-          </div>
+          <Segmented size="compact" class="full" label="Goal" :model-value="profile.form.goal" :options="goalOptions" @update:model-value="setGoal" />
           <div class="col">
-            <label class="frow">
-              <span class="t-body c2">Goal weight</span>
-              <span class="fval">
-                <input v-model="profile.form.goalWeight" class="ninput" type="text" inputmode="decimal" autocomplete="off" :aria-label="`Goal weight in ${weightWord}`" @blur="onTextCommit" />
-                <span class="t-label c2">{{ weightUnit() }}</span>
+            <div v-if="profile.form.goal !== 'maintain'" class="frow mrow">
+              <span class="col mlab">
+                <span class="t-body c2">Rate</span>
+                <span class="t-capn c2">{{ weightUnit() }}/wk</span>
               </span>
-            </label>
-            <button type="button" class="frow" :class="{ last: !customOpen }" :aria-expanded="customOpen" data-macro-balance @click="customOpen = !customOpen">
-              <span class="t-body c2">Macro balance</span>
-              <span class="grow" />
-              <span class="t-body bal">{{ balance }}</span>
-              <Icon :name="customOpen ? 'down' : 'right'" :size="16" class="fchev" />
+              <Segmented size="compact" label="Rate" :model-value="rateValue" :options="rateOptions" @update:model-value="setRate" />
+            </div>
+            <button type="button" class="frow last" :aria-label="`Goal weight, ${profile.form.goalWeight || 'not set'} ${weightUnit()}, change`" data-goal-weight @click="openGoalWeight">
+              <span class="t-body c2">Goal weight</span>
+              <span class="gfield">
+                <span class="t-body t-ns gnum">{{ profile.form.goalWeight || "—" }}</span>
+                <span class="t-label c2">{{ weightUnit() }}</span>
+                <Icon name="edit" :size="14" class="c3" />
+              </span>
             </button>
           </div>
-          <div v-if="customOpen" class="custom">
-            <div role="group" aria-label="Protein">
-              <span class="t-label c2">Protein</span>
-              <div class="rate">
-                <button v-for="item in PROTEIN_PRESETS" :key="item.key" type="button" class="chip t-label" :class="{ on: profile.form.proteinSetting === item.key }" @click="setProtein(item.key, item.value)">{{ item.label }}</button>
-              </div>
-              <label class="frow last">
-                <span class="t-body c2">Exact</span>
+          <dl v-if="stats" class="gstats" data-goal-line>
+            <div v-for="item in stats" :key="item.label">
+              <dt class="t-capn c2">{{ item.label }}</dt>
+              <dd class="t-bodys">{{ item.value }}</dd>
+            </div>
+          </dl>
+          <p v-else-if="line?.kind === 'reached'" class="t-label c2 m0 gstats reached" data-goal-line>You're at your goal weight.</p>
+        </section>
+
+        <section class="card o2" aria-labelledby="macros-h" data-macros>
+          <div class="row thead">
+            <h2 id="macros-h" class="section-title c2 grow">Macros</h2>
+            <span v-if="shown" class="t-capn c2">of {{ int(shown.kcal) }} kcal</span>
+          </div>
+          <div class="col">
+            <div class="frow mrow" role="group" aria-labelledby="m-protein">
+              <span class="col mlab">
+                <span class="row mname"><span id="m-protein" class="t-body">Protein</span><span v-if="isExact(profile.form.proteinSetting)" class="xmark t-capn" data-exact>Exact</span></span>
+                <span class="t-capn c2">{{ proteinCaption(profile.form.proteinGramsPerKg, shown?.protein ?? null) }}</span>
+              </span>
+              <Segmented size="compact" label="Protein" :model-value="profile.form.proteinSetting" :options="proteinOptions" @update:model-value="setProtein" />
+            </div>
+            <div class="frow mrow" role="group" aria-labelledby="m-fat">
+              <span class="col mlab">
+                <span class="row mname"><span id="m-fat" class="t-body">Fat</span><span v-if="isExact(profile.form.fatSetting)" class="xmark t-capn" data-exact>Exact</span></span>
+                <span class="t-capn c2">{{ fatCaption(profile.form.fatPercent, shown?.fat ?? null) }}</span>
+              </span>
+              <Segmented size="compact" label="Fat" :model-value="profile.form.fatSetting" :options="fatOptions" @update:model-value="setFat" />
+            </div>
+            <div class="frow mrow">
+              <span class="col mlab">
+                <span class="t-body">Carbs</span>
+                <span class="t-capn c2">The rest of the calories</span>
+              </span>
+              <span v-if="shown" class="t-body t-ns mval">{{ int(shown.carbs) }} g</span>
+            </div>
+            <div class="frow mrow" :class="{ last: !exactOpen }" data-saturated-setting>
+              <span class="col mlab">
+                <span class="t-body">Saturated fat</span>
+                <span class="t-capn c2" data-saturated-caption>{{ saturatedCaption(limits) }}</span>
+              </span>
+              <Segmented size="compact" label="Saturated fat" :model-value="saturated" :options="saturatedOptions" @update:model-value="setSaturated" />
+            </div>
+            <template v-if="exactOpen">
+              <label class="frow">
+                <span class="t-body c2">Exact protein</span>
                 <span class="fval">
                   <input v-model="profile.form.proteinGramsPerKg" class="ninput" type="text" inputmode="decimal" aria-label="Exact protein, grams per kilogram" @blur="onExactProtein" />
                   <span class="t-label c2">g/kg</span>
                 </span>
               </label>
-            </div>
-            <div role="group" aria-label="Fat">
-              <span class="t-label c2">Fat</span>
-              <div class="rate">
-                <button v-for="item in FAT_PRESETS" :key="item.key" type="button" class="chip t-label" :class="{ on: profile.form.fatSetting === item.key }" @click="setFat(item.key, item.value)">{{ item.label }}</button>
-              </div>
               <label class="frow last">
-                <span class="t-body c2">Exact</span>
+                <span class="t-body c2">Exact fat</span>
                 <span class="fval">
                   <input v-model="profile.form.fatPercent" class="ninput" type="text" inputmode="decimal" aria-label="Exact fat, percent" @blur="onExactFat" />
                   <span class="t-label c2">%</span>
                 </span>
               </label>
-            </div>
-            <button type="button" class="btn sm secondary t-label reset" @click="resetMacros"><Icon name="undo" :size="14" /> Reset to default</button>
-            <p class="t-body c2 m0">More carbs means less protein or fat.</p>
+            </template>
           </div>
-          <p v-if="line" class="t-label c2 m0 gline" data-goal-line>
-            <template v-if="line.kind === 'reached'">You're at your goal weight.</template>
-            <template v-else>{{ wt(line.fromKg) }} → {{ wt(line.toKg) }} {{ weightUnit() }} · <b>{{ wt(line.leftKg) }} {{ weightUnit() }} to go</b>, about <b>{{ line.weeks }} {{ line.weeks === 1 ? "week" : "weeks" }}</b> ({{ line.by }})</template>
-          </p>
+          <p v-if="limitsError" class="t-body m0" role="alert">{{ limitsError }}</p>
+          <div class="row macts">
+            <button type="button" class="btn sm secondary t-label" :aria-expanded="exactOpen" data-exact-values @click="exactOpen = !exactOpen"><Icon :name="exactOpen ? 'check' : 'edit'" :size="14" /> {{ exactOpen ? "Done" : "Exact values" }}</button>
+            <button v-if="!macrosDefault" type="button" class="btn sm secondary t-label" @click="resetMacros"><Icon name="undo" :size="14" /> Reset</button>
+          </div>
         </section>
 
         <section class="card about o3" aria-labelledby="about-h">
@@ -280,9 +324,7 @@ function onTextCommit() {
   .stats.top { flex-wrap: wrap; row-gap: var(--space-m); }
   .stats.top > div:first-child { flex-basis: 100%; }
 }
-.gline b { color: var(--text-primary); font-weight: 600; }
 .m0 { margin: 0; }
-.bal { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .frow { min-height: 44px; display: flex; align-items: center; gap: var(--space-s); border-bottom: 1px solid var(--color-border); width: 100%; text-align: left; }
 .sexrow { flex-wrap: wrap; }
 .lowrow { gap: var(--space-s); }
@@ -293,11 +335,29 @@ function onTextCommit() {
 .ninput.ft { width: 32px; }
 .ninput.inch { width: 4.2ch; }
 .fchev { color: var(--text-tertiary); flex: none; }
-.recalc, .reset { align-self: flex-start; }
-.acts, .custom { display: flex; flex-direction: column; gap: var(--space-m); }
+.recalc { align-self: flex-start; }
+/* A row with a label and a caption on the left and a control on the right. */
+.mrow { min-height: 52px; padding: var(--space-xs) 0; }
+.mlab { flex: 1 1 auto; min-width: 0; gap: var(--space-2xs); }
+.mname { gap: var(--space-s); }
+.mval { margin-left: auto; white-space: nowrap; }
+/* Set by hand: no preset is lit, so a quiet mark says why. */
+.xmark { padding: 0 var(--space-s); border-radius: 999px; box-shadow: inset 0 0 0 1px var(--color-border-strong, var(--color-border)); color: var(--text-secondary); line-height: 1.5; }
+/* Goal weight reads as a field: a tinted box with a pencil. It opens the keypad sheet. */
+.gfield { display: inline-flex; align-items: center; gap: var(--space-xs); flex: none; margin-left: auto; min-height: 36px; padding: 0 var(--space-m); border-radius: var(--radius-m); background: var(--color-surface-2); }
+.gnum { color: var(--text-primary); font-variant-numeric: tabular-nums; }
+.gfield .c3 { align-self: center; margin-left: var(--space-2xs); }
+/* What is left, how long, and when, as three figures. 16px above and below inside the card. */
+.gstats { display: grid; grid-template-columns: repeat(3, auto); justify-content: space-between; gap: var(--space-m); margin: 0; padding: var(--space-m); border-radius: var(--radius-m); background: var(--color-surface-2); }
+.gstats > div { display: flex; flex-direction: column; gap: var(--space-2xs); min-width: 0; }
+.gstats dt, .gstats dd { margin: 0; }
+.gstats dd { color: var(--text-primary); font-weight: 600; overflow-wrap: anywhere; }
+.gstats.reached { display: block; }
+.macts { gap: var(--space-s); flex-wrap: wrap; }
+.macts .btn { display: inline-flex; align-items: center; gap: var(--space-xs); }
+.acts { display: flex; flex-direction: column; gap: var(--space-m); }
 .act { min-height: 44px; display: flex; align-items: center; gap: var(--space-m); text-align: left; border-radius: var(--radius-m); padding: 0 var(--space-s); }
 .act.on { background: var(--color-surface-2); }
-.rate { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-s); }
 .stats { display: flex; gap: var(--space-m); }
 .stats > div { flex: 1; display: flex; flex-direction: column; gap: var(--space-2xs); min-width: 0; }
 .figure { display: inline-flex; align-items: baseline; gap: var(--space-xs); flex-wrap: nowrap; white-space: nowrap; min-width: 0; }
@@ -319,15 +379,15 @@ h2 { margin: 0; }
 .dt-l .frow > * { max-width: 100%; }
 .dt-l .frow:has(.fchev) { padding-right: var(--space-2xl); }
 .dt-l .fchev { position: absolute; right: 0; top: 50%; transform: translateY(-50%); }
-.dt-l .fval { margin-left: 0; }
+.dt-l .fval, .dt-l .gfield, .dt-l .mval { margin-left: 0; }
 .dt-l .fval .ninput { width: 6.5ch; min-width: 2ch; text-align: left; }
 @supports (field-sizing: content) {
   .dt-l .fval .ninput { field-sizing: content; width: auto; min-width: 2ch; }
 }
-.dt-l .sexrow :deep(.seg) { flex: 1 1 auto; width: 100%; max-width: 100%; min-width: 0; align-self: stretch; }
+.dt-l .sexrow :deep(.seg), .dt-l .mrow :deep(.seg) { flex: 1 1 auto; width: 100%; max-width: 100%; min-width: 0; align-self: stretch; }
 .dt-l .lowrow { white-space: normal; max-width: 100%; }
-.dt-l .bal { white-space: normal; }
 .dt-xl .stats { flex-direction: column; align-items: stretch; }
 .dt-xl .stats > div { width: 100%; max-width: 100%; }
+.dt-xl .gstats { grid-template-columns: minmax(0, 1fr); }
 .dt-xl .pcol > p { max-width: 100%; overflow-wrap: anywhere; }
 </style>

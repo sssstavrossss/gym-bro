@@ -59,7 +59,7 @@ for (const layout of widths) {
     await expect(page.getByText("Matvaretabellen 2026. Mattilsynet. www.matvaretabellen.no")).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Sign out" })).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Settings" })).toBeVisible();
-    await expect(page.getByText("More carbs means less protein or fat.")).toHaveCount(0);
+    await expect(page.locator("[data-macros]")).toBeVisible();
 
     if (layout.nav === "tabs") {
       await expect(page.locator("nav.tabbar")).toBeVisible();
@@ -76,11 +76,9 @@ for (const layout of widths) {
 
     if (layout.width !== 390) return;
 
-    await page.getByRole("button", { name: /Macro balance/ }).click();
-    await expect(page.getByText("More carbs means less protein or fat.")).toBeVisible();
-    await page.getByRole("group", { name: "Protein" }).getByRole("button", { name: "More" }).click();
+    await page.getByRole("radiogroup", { name: "Protein" }).getByRole("radio", { name: "More" }).click();
     await expect(page.locator("[data-field=protein]")).toHaveText("201");
-    await page.getByRole("button", { name: "1.0" }).click();
+    await page.getByRole("radiogroup", { name: "Rate" }).getByRole("radio", { name: "1.0" }).click();
     await expect(page.locator("[data-field=kcal]")).toHaveText("1,786");
     await expect(page.locator("[data-floor=true]")).toBeVisible();
 

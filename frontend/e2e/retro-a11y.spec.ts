@@ -50,8 +50,8 @@ test("setup, profile, weight sheet, and placeholders", async ({ page }, info) =>
   await expect(page.locator("[data-field=kcal]")).toHaveText("2,218");
   await check(page, `${info.project.name} profile`);
 
-  await page.getByRole("button", { name: /Macro balance/ }).click();
-  await expect(page.getByText("More carbs means less protein or fat.")).toBeVisible();
+  await page.getByRole("button", { name: "Exact values" }).click();
+  await expect(page.getByRole("textbox", { name: "Exact protein, grams per kilogram" })).toBeVisible();
   await check(page, `${info.project.name} customise`);
 
   await page.getByRole("button", { name: /trend/i }).click();

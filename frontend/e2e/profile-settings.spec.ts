@@ -34,7 +34,8 @@ test("profile: bell, cog, goal line, and a time zone that follows the device", a
   await page.getByRole("link", { name: /Profile/ }).click();
   const targets = page.locator("[data-targets]");
   await expect(targets.locator("[data-updated]")).toContainText("Updated");
-  await expect(page.locator("[data-goal-line]")).toContainText("kg to go");
+  await expect(page.locator("[data-goal-line]")).toContainText("To go");
+  await expect(page.locator("[data-goal-line]")).toContainText("kg");
   if (test.info().project.name === "chromium") {
     await page.screenshot({ path: "/opt/cursor/artifacts/profile-settings-phone.png" });
   }
@@ -49,9 +50,11 @@ test("profile: bell, cog, goal line, and a time zone that follows the device", a
   await expect(page.getByRole("button", { name: "Notifications", exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: /Unread/ })).toHaveCount(0);
 
-  // Macro balance folds into Goal.
-  await page.getByRole("button", { name: /Macro balance/ }).click();
-  await expect(page.getByText("More carbs means less protein or fat.")).toBeVisible();
+  // Macros is its own card, every control in view.
+  const macros = page.locator("[data-macros]");
+  await expect(macros.getByRole("radiogroup", { name: "Protein" })).toBeVisible();
+  await expect(macros.getByText("The rest of the calories")).toBeVisible();
+  await expect(macros.getByRole("radiogroup", { name: "Saturated fat" })).toBeVisible();
 
   // The cog: appearance, time zone, account, build.
   await page.getByRole("button", { name: "Settings" }).click();
@@ -60,7 +63,9 @@ test("profile: bell, cog, goal line, and a time zone that follows the device", a
   await expect(settings.getByRole("button", { name: "Sign out" })).toBeVisible();
   await expect(settings.locator("[data-build]")).toHaveText(/^Build \w+/);
   // Each group is a card with an icon title; the account row has the name and Sign out.
-  await expect(settings.locator("section h3 svg")).toHaveCount(5);
+  await expect(settings.locator("section h3 svg")).toHaveCount(4);
+  // Saturated fat moved to the Macros card.
+  await expect(settings.getByText("Fat limits")).toHaveCount(0);
   await expect(settings.getByRole("heading", { name: "Account" })).toBeVisible();
   const zoneRow = settings.locator("[data-zone-row]");
   await expect(zoneRow).toContainText("Europe/Oslo");
@@ -88,7 +93,7 @@ test("profile: bell, cog, goal line, and a time zone that follows the device", a
   await page.getByRole("button", { name: "Settings" }).click();
   await expect(page.getByRole("dialog", { name: "Settings" })).toBeVisible();
   await expect(page.locator("[data-zone-row]")).toContainText("Asia/Tokyo");
-  // The row sits below the Nutrition section: bring it into the open sheet before tapping.
+  // Bring the row into the open sheet before tapping.
   await page.locator("[data-zone-row]").scrollIntoViewIfNeeded();
   await expect(page.locator("[data-zone-row]")).toBeInViewport();
   await page.locator("[data-zone-row]").click();

@@ -60,7 +60,7 @@ const extras = computed(() => ["omega3", "omega6", "epaDha", "cholesterol"].map(
     <div class="head">
       <span class="section-title panel-title">Fats</span>
       <span class="t-label num" data-fat-total>{{ grams(breakdown.total) }}</span>
-      <span v-if="lower" class="tag t-capn" data-fat-limits="lower">Lower limits</span>
+      <span v-if="lower" class="tag t-capn" data-fat-limits="lower">Strict limits</span>
       <span v-if="note" class="t-capn c3 note">{{ note }}</span>
     </div>
     <div class="fstack" role="img" :aria-label="stackLabel">
