@@ -13,6 +13,10 @@
         document.documentElement.dataset.theme = theme;
         var meta = document.querySelector('meta[name="theme-color"]');
         if (meta) meta.setAttribute("content", allowed[theme]);
+        var accents = ["mono", "lagoon", "sunset", "berry", "meadow", "glacier"];
+        var accent = "";
+        try { accent = localStorage.getItem("gymbro-accent") || ""; } catch (e) { accent = ""; }
+        document.documentElement.dataset.accent = accents.indexOf(accent) >= 0 ? accent : "mono";
       })();
     </script>
     <meta name="apple-mobile-web-app-capable" content="yes" />

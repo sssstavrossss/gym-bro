@@ -101,7 +101,7 @@ circle { fill: none; }
 .fill { stroke: var(--color-progress); stroke-width: 3.5; stroke-linecap: round; }
 .ring.hit .fill { stroke: var(--color-hit); }
 /* Above the upper limit: the whole ring, dashed, like the striped over bars. */
-.limit { stroke: var(--text-primary); stroke-width: 3.5; stroke-dasharray: 3 2.6; }
+.limit { stroke: var(--over-mark); stroke-width: 3.5; stroke-dasharray: 3 2.6; }
 .wtrack { stroke: var(--color-track); stroke-width: 1.5; stroke-opacity: 0.6; }
 .week { stroke: var(--text-tertiary); stroke-width: 1.5; stroke-linecap: round; }
 .pc { font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; }

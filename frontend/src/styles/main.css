@@ -7,9 +7,11 @@
   src: url("@fontsource-variable/inter/files/inter-latin-wght-normal.woff2") format("woff2-variations");
 }
 
-/* Tokens. Theme blocks below override the surfaces. Chart blue stays the same in every theme. */
+/* Tokens. Theme blocks below override the surfaces; accent blocks after them recolour buttons,
+   bars, rings, charts and over marks. The selectors are bare attributes, not html[...], so a
+   settings swatch carrying data-theme or data-accent gets that palette's colours too. */
 :root,
-html[data-theme="graphite"] {
+[data-theme="graphite"] {
   color-scheme: dark;
   --color-bg: #16181d;
   --color-surface: #20232a;
@@ -32,7 +34,7 @@ html[data-theme="graphite"] {
   --shade-far: #2a2e37;
 }
 
-html[data-theme="midnight"] {
+[data-theme="midnight"] {
   --color-bg: #121826;
   --color-surface: #1b2233;
   --color-surface-2: #263044;
@@ -51,7 +53,7 @@ html[data-theme="midnight"] {
   --shade-far: #263044;
 }
 
-html[data-theme="charcoal"] {
+[data-theme="charcoal"] {
   --color-bg: #1a1816;
   --color-surface: #24211e;
   --color-surface-2: #302c28;
@@ -70,7 +72,7 @@ html[data-theme="charcoal"] {
   --shade-far: #302c28;
 }
 
-html[data-theme="black"] {
+[data-theme="black"] {
   --color-bg: #000000;
   --color-surface: #1a1a1c;
   --color-surface-2: #26262a;
@@ -89,7 +91,7 @@ html[data-theme="black"] {
   --shade-far: #333338;
 }
 
-html[data-theme="forest"] {
+[data-theme="forest"] {
   --color-bg: #151e1a;
   --color-surface: #1f2b25;
   --color-surface-2: #293830;
@@ -108,7 +110,7 @@ html[data-theme="forest"] {
   --shade-far: #293830;
 }
 
-html[data-theme="plum"] {
+[data-theme="plum"] {
   --color-bg: #1a151e;
   --color-surface: #261f2b;
   --color-surface-2: #322839;
@@ -125,6 +127,68 @@ html[data-theme="plum"] {
   --shade-close: #b2a7b9;
   --shade-off: #695577;
   --shade-far: #322839;
+}
+
+/* Over marks: striped bars, rings past an upper limit, over tags and over days. Mono draws them
+   in the text colours; an accent draws them in its over colour. */
+:root {
+  --over-mark: var(--text-primary);
+  --over-gap: var(--shade-off);
+  --over-text: var(--text-secondary);
+  --over-tint: rgb(255 255 255 / 0.28);
+}
+
+/* Accents. Each is three colours: main (buttons, selection, on target), fill (progress while
+   filling, chart lines) and over. Mono keeps the theme's own white and grey; its three are only
+   for the settings swatch, since the rule below leaves Mono's tokens alone. */
+[data-accent="mono"] {
+  --accent-main: #ffffff;
+  --accent-fill: #7c7c84;
+  --accent-over: var(--shade-off);
+}
+
+[data-accent="lagoon"] {
+  --accent-main: #99f6e4;
+  --accent-fill: #7dd3fc;
+  --accent-over: #fda4af;
+}
+
+[data-accent="sunset"] {
+  --accent-main: #fde68a;
+  --accent-fill: #fda4af;
+  --accent-over: #c4b5fd;
+}
+
+[data-accent="berry"] {
+  --accent-main: #f5d0fe;
+  --accent-fill: #bba6fd;
+  --accent-over: #fdba74;
+}
+
+[data-accent="meadow"] {
+  --accent-main: #d9f99d;
+  --accent-fill: #6ee7b7;
+  --accent-over: #fdba74;
+}
+
+[data-accent="glacier"] {
+  --accent-main: #a5f3fc;
+  --accent-fill: #a5b4fc;
+  --accent-over: #f9a8d4;
+}
+
+/* Text on main stays the theme background (--color-on-action), so it reads dark on every pastel. */
+html[data-accent]:not([data-accent="mono"]) {
+  --color-action: var(--accent-main);
+  --color-hit: var(--accent-main);
+  --shade-on-target: var(--accent-main);
+  --color-progress: var(--accent-fill);
+  --chart-line: var(--accent-fill);
+  --shade-close: color-mix(in srgb, var(--accent-fill) 70%, var(--color-bg));
+  --over-mark: var(--accent-over);
+  --over-gap: color-mix(in srgb, var(--accent-over) 30%, var(--color-bg));
+  --over-text: var(--accent-over);
+  --over-tint: color-mix(in srgb, var(--accent-over) 55%, transparent);
 }
 
 :root {

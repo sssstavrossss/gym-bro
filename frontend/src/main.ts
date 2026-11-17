@@ -3,10 +3,11 @@ import { createRouter, createWebHistory } from "vue-router";
 import App from "./App.vue";
 import { vAutofocus } from "./lib/autofocus";
 import { routes } from "./router";
-import { applyTheme, readTheme } from "./lib/theme";
+import { applyAccent, applyTheme, readAccent, readTheme } from "./lib/theme";
 import "./styles/main.css";
 
 applyTheme(readTheme());
+applyAccent(readAccent());
 
 const router = createRouter({
   history: createWebHistory(),

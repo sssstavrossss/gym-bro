@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from "vue";
+import Bar from "./Bar.vue";
 import BottomSheet from "./BottomSheet.vue";
 import Segmented from "./Segmented.vue";
 import Icon from "./Icon.vue";
 import { putSettings } from "../api";
 import { signOut } from "../auth/session";
 import { buildLabel } from "../lib/buildInfo";
-import { applyTheme, readTheme, themes, type ThemeId } from "../lib/theme";
+import { accents, applyAccent, applyTheme, readAccent, readTheme, themes, type AccentId, type ThemeId } from "../lib/theme";
 import { allZones, searchZones, suggestedZones, zoneLabel, zoneOffset, zoneTime } from "../lib/timeZones";
 import { boot } from "../state/boot";
 import type { FoodUnit } from "../lib/foodUnits";
@@ -18,6 +19,9 @@ import { closeSheet, ui } from "../ui";
 const open = computed(() => ui.sheet === "settings");
 const view = ref<"main" | "zone">("main");
 const theme = ref<ThemeId>(readTheme());
+const accent = ref<AccentId>(readAccent());
+const themeLabel = computed(() => themes.find((item) => item.id === theme.value)?.label ?? "");
+const accentLabel = computed(() => accents.find((item) => item.id === accent.value)?.label ?? "");
 const query = ref("");
 const busy = ref(false);
 const error = ref("");
@@ -38,11 +42,17 @@ watch(open, (value) => {
   error.value = "";
   unitsError.value = "";
   theme.value = readTheme();
+  accent.value = readAccent();
 });
 
 function chooseTheme(id: ThemeId) {
   theme.value = id;
   applyTheme(id);
+}
+
+function chooseAccent(id: AccentId) {
+  accent.value = id;
+  applyAccent(id);
 }
 
 function openZones() {
@@ -98,11 +108,28 @@ async function onSignOut() {
     <div v-if="view === 'main'" class="col body" data-settings-sheet>
       <section class="col group" aria-labelledby="set-theme">
         <h3 id="set-theme" class="t-bodys gtitle"><Icon name="sun" :size="16" /> Appearance</h3>
-        <div class="themes" role="radiogroup" aria-label="Theme">
-          <button v-for="item in themes" :key="item.id" type="button" role="radio" class="theme" :aria-checked="theme === item.id" @click="chooseTheme(item.id)">
-            <span class="swatch" :style="{ background: item.background }" aria-hidden="true"></span>
-            <span class="t-label">{{ item.label }}</span>
-          </button>
+        <!-- Each circle carries its palette's data-theme or data-accent, so main.css paints it. -->
+        <div class="frow look">
+          <span class="col grow"><span class="t-body">Theme</span><span class="t-capn c2" data-theme-name>{{ themeLabel }}</span></span>
+          <div class="dots" role="radiogroup" aria-label="Theme">
+            <button v-for="item in themes" :key="item.id" type="button" role="radio" class="dot" :aria-label="item.label" :aria-checked="theme === item.id" @click="chooseTheme(item.id)">
+              <span class="ring" aria-hidden="true"><span class="face theme" :data-theme="item.id"></span></span>
+            </button>
+          </div>
+        </div>
+        <div class="frow look">
+          <span class="col grow"><span class="t-body">Accent</span><span class="t-capn c2" data-accent-name>{{ accentLabel }}</span></span>
+          <div class="dots" role="radiogroup" aria-label="Accent">
+            <button v-for="item in accents" :key="item.id" type="button" role="radio" class="dot" :aria-label="item.label" :aria-checked="accent === item.id" @click="chooseAccent(item.id)">
+              <span class="ring" aria-hidden="true"><span class="face accent" :data-accent="item.id"></span></span>
+            </button>
+          </div>
+        </div>
+        <!-- What the accent paints, since the sheet covers the app: filling, on target, over, a button. -->
+        <div class="frow preview" aria-hidden="true" data-accent-preview>
+          <span class="t-capn c2 plabel">Preview</span>
+          <span class="col grow pbars"><Bar :pct="0.62" /><Bar :pct="1" hit /><Bar :pct="1" over /></span>
+          <span class="btn primary sm padd">Add</span>
         </div>
       </section>
 
@@ -204,15 +231,22 @@ async function onSignOut() {
 .group > :not(.gtitle) + :not(.gtitle) { border-top: 1px solid var(--color-border); }
 .gnote { padding: var(--space-s) 0 var(--space-m); }
 .group > p[role="alert"] { padding: var(--space-s) 0 var(--space-m); }
-.themes { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-s); padding: 6px 0 var(--space-m); }
-.theme {
-  min-height: var(--control-hit); min-width: 0; width: 100%;
-  display: inline-flex; align-items: center; gap: var(--space-s);
-  padding: 0 var(--space-m); border-radius: var(--radius-m); background: var(--color-surface); color: var(--text-primary); text-align: left;
-}
-.theme[aria-checked="true"] { box-shadow: inset 0 0 0 1.5px var(--text-primary); }
-.swatch { width: 14px; height: 14px; border-radius: 4px; box-shadow: inset 0 0 0 1px var(--color-border-strong); flex: none; }
-:global(html.dt-xl) .themes { grid-template-columns: 1fr; }
+/* Theme and accent: a name on the left, six 28px circles in 44px hit boxes on the right. A long
+   name wraps onto two lines; with large text the circles move under the name. */
+.look { min-height: 56px; padding: var(--space-xs) 0; column-gap: 0; }
+:global(html.dt-l) .look { flex-wrap: wrap; }
+.look .grow { gap: var(--space-2xs); }
+.dots { display: flex; margin: 0 calc(var(--space-s) * -1) 0 auto; }
+.dot { width: var(--control-hit); height: var(--control-hit); display: inline-flex; align-items: center; justify-content: center; padding: 0; border-radius: 50%; }
+.ring { width: 28px; height: 28px; border-radius: 50%; display: block; }
+.dot[aria-checked="true"] .ring { box-shadow: 0 0 0 2px var(--color-surface-2), 0 0 0 4px var(--text-primary); }
+.face { width: 100%; height: 100%; border-radius: 50%; display: block; box-shadow: inset 0 0 0 1px var(--color-border-strong); }
+.face.theme { background: linear-gradient(135deg, var(--color-surface-2) 0 50%, var(--color-bg) 50% 100%); }
+.face.accent { background: conic-gradient(var(--accent-main) 0 50%, var(--accent-fill) 50% 75%, var(--accent-over) 75% 100%); }
+.preview { gap: var(--space-m); padding: var(--space-s) 0 var(--space-m); }
+.plabel { width: 52px; flex: none; }
+.pbars { gap: var(--space-s); }
+.padd { pointer-events: none; }
 .frow { min-height: 52px; width: 100%; display: flex; align-items: center; gap: var(--space-s); text-align: left; padding: 0; min-width: 0; }
 .frow .grow { min-width: 0; gap: var(--space-2xs); }
 .zval { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 55%; }

@@ -129,7 +129,7 @@ async function onFasting(event: Event) {
 .navlbl { min-width: 108px; text-align: center; }
 .summary { padding: var(--space-m) var(--space-l); border-radius: var(--radius-l); background: var(--color-surface); min-width: 0; }
 .is-tablet .summary { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-m) var(--space-l); }
-.overv { text-decoration: underline dashed var(--text-secondary); text-underline-offset: 4px; }
+.overv { text-decoration: underline dashed var(--over-text); text-underline-offset: 4px; }
 .dayline { min-height: 44px; gap: 0; padding-top: var(--space-xs); }
 .done { gap: var(--space-m); padding: var(--space-m) var(--space-l); border-radius: var(--radius-l); background: var(--color-surface); cursor: pointer; align-items: flex-start; }
 .done input { width: 22px; height: 22px; margin: 1px 0 0; accent-color: var(--color-action); flex: none; }
