@@ -120,7 +120,7 @@ async function onSignOut() {
           <span class="t-body grow">Food</span>
           <Segmented size="compact" label="Food unit" :model-value="foodUnit()" :options="[{ value: 'g', label: 'g' }, { value: 'oz', label: 'oz', ariaLabel: 'ounces' }]" @update:model-value="chooseFood" />
         </div>
-        <span class="t-capn c2 gnote" data-food-note>{{ foodUnit() === "oz" ? "Food amounts in oz and fl oz." : "Food amounts in g and ml." }} Protein, fat, carbs and nutrients stay in grams.</span>
+        <span class="t-capn c2 gnote" data-food-note>Protein, fat, carbs and nutrients stay in grams.</span>
         <p v-if="unitsError" class="t-body m0" role="alert">{{ unitsError }}</p>
       </section>
 
