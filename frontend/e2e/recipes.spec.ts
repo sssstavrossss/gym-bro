@@ -120,8 +120,16 @@ test("create a recipe, see per-portion protein update, log it, and retire it", a
   await sheet.getByRole("button", { name: "Add ingredient" }).click();
   await sheet.getByLabel("Search foods").fill("Fictional recipe chicken");
   await sheet.getByRole("button", { name: /Fictional recipe chicken/ }).click();
-  await sheet.getByLabel("Amount of Fictional recipe chicken").fill("250");
-  await sheet.getByRole("button", { name: "Add to recipe" }).click();
+  await sheet.getByLabel("Amount in g").fill("250");
+  // The same amount screen as logging a food: the name in the body, the swipe card with this
+  // ingredient's macros (a recipe has no target, so no bars), and the kcal on the button.
+  await expect(sheet.getByRole("heading", { name: "Fictional recipe chicken" })).toBeVisible();
+  const card = sheet.locator(".preview");
+  await expect(card.getByText("This ingredient")).toBeVisible();
+  await expect(card.locator("[data-macro='p'] [data-num]")).toHaveText("250");
+  await expect(card.locator("[data-macro] .bar")).toHaveCount(0);
+  await expect(card.locator("button.dot")).toHaveCount(5);
+  await sheet.getByRole("button", { name: "Add to recipe · 1,000 kcal" }).click();
   await expect(sheet.getByText("1,000 kcal · P 250")).toBeVisible();
   await sheet.getByLabel("Portions").fill("5");
   await expect(sheet.locator("[data-recipe-portion]")).toHaveText("P 50 · F 5 · C 0");

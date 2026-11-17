@@ -2,18 +2,20 @@
 import { computed, ref, watch } from "vue";
 import { getFood, listMyFoods, listRecentFoods, searchFoods, type FoodSearchRow, type RecentFood, type RecipeIngredient } from "../api";
 import BottomSheet from "./BottomSheet.vue";
+import FoodAmountView from "./FoodAmountView.vue";
 import Icon from "./Icon.vue";
 import Keypad from "./Keypad.vue";
 import MicroRing from "./MicroRing.vue";
 import TimeChip from "./TimeChip.vue";
 import { dayMonth, todayInZone } from "../lib/dates";
-import { amountError, amountLabel, convertAmount, defaultAmount, distinctUnits, parseAmount, servingName, unitsForFood, type CatalogFood, type UnitChoice } from "../lib/foodAmount";
+import { amountError, amountLabel, convertAmount, distinctUnits, parseAmount, servingName, unitsForFood, type CatalogFood, type OwnServing, type UnitChoice } from "../lib/foodAmount";
 import { int } from "../lib/format";
 import { acceptSearchResult, preparedSearch, searchDebounceMs } from "../lib/foodSearch";
 import { addNeedsTime, amountForRecent, logTimeForAdd } from "../lib/foodSheet";
 import { bindPick, clickPick } from "../lib/cleanTap";
 import { armReplace, primeKeyboard, selectField } from "../lib/focusField";
 import { afterInsertion, markWholeSelection, nextQuickInput, nextQuickNumber, tookWholeSelection } from "../lib/quickEntry";
+import { useFoodAmount } from "../lib/useFoodAmount";
 import { keyboardEntry } from "../lib/viewport";
 import {
   cleanRecipeName,
@@ -74,9 +76,10 @@ const q = ref("");
 const mine = ref<FoodSearchRow[]>([]);
 const results = ref<FoodSearchRow[]>([]);
 const searching = ref(false);
-const picked = ref<CatalogFood | null>(null);
-const pickAmount = ref("100");
-const pickUnit = ref("g");
+/** Adding an ingredient: the same amount screen as logging a food. */
+const pickError = ref("");
+const pickOffline = ref(false);
+const ingredient = useFoodAmount({ formError: pickError, saveError: pickOffline, onServings: applyServings });
 const logAmount = ref("1");
 const logUnit = ref<"portion" | "g">("portion");
 const time = ref<string | null>(null);
@@ -160,7 +163,7 @@ async function reset() {
   recipeId.value = ui.recipeId;
   q.value = "";
   results.value = [];
-  picked.value = null;
+  ingredient.food.value = null;
   logAmount.value = "1";
   logUnit.value = "portion";
   time.value = null;
@@ -309,13 +312,6 @@ function setLineUnit(line: DraftLine, next: UnitChoice) {
   line.unit = next.unit;
 }
 
-function setPickUnit(next: UnitChoice) {
-  if (!picked.value || next.unit === pickUnit.value) return;
-  const current = unitsForFood(picked.value).find((item) => item.unit === pickUnit.value);
-  pickAmount.value = convertAmount(parseAmount(pickAmount.value), current, next);
-  pickUnit.value = next.unit;
-}
-
 /** Same food, same size: one portion is finished weight ÷ portions. */
 function setLogUnit(next: "portion" | "g") {
   if (next === logUnit.value) return;
@@ -346,12 +342,11 @@ function selectAmount(event: FocusEvent) {
 }
 
 const padReplace = ref(false);
-const padTarget = ref<"log" | "pick" | "portions" | "finished" | "line" | null>(null);
+const padTarget = ref<"log" | "portions" | "finished" | "line" | null>(null);
 const padLine = ref<string | null>(null);
 
 function readPad(): string {
   if (padTarget.value === "log") return logAmount.value;
-  if (padTarget.value === "pick") return pickAmount.value;
   if (padTarget.value === "portions") return portionsText.value;
   if (padTarget.value === "finished") return finishedText.value;
   if (padTarget.value === "line") return lines.value.find((line) => line.key === padLine.value)?.amountText ?? "";
@@ -360,7 +355,6 @@ function readPad(): string {
 
 function writePad(next: string) {
   if (padTarget.value === "log") logAmount.value = next;
-  else if (padTarget.value === "pick") pickAmount.value = next;
   else if (padTarget.value === "portions") portionsText.value = next;
   else if (padTarget.value === "finished") finishedText.value = next;
   else if (padTarget.value === "line") {
@@ -397,7 +391,7 @@ function donePad() {
   if (active instanceof HTMLInputElement) active.blur();
 }
 
-function onPadFocus(target: "log" | "pick" | "portions" | "finished" | "line", event: FocusEvent, lineKey?: string) {
+function onPadFocus(target: "log" | "portions" | "finished" | "line", event: FocusEvent, lineKey?: string) {
   padTarget.value = target;
   padLine.value = lineKey ?? null;
   padReplace.value = true;
@@ -536,34 +530,32 @@ async function chooseFood(food: FoodSearchRow) {
     current = food;
   }
   if (!open.value) return;
-  picked.value = current;
-  const start = last ? amountForRecent(current, last.amount, last.unit) : defaultAmount(current);
-  pickAmount.value = start.amount;
-  pickUnit.value = start.unit;
+  ingredient.show(current, last ?? undefined);
+  pickError.value = "";
+  pickOffline.value = false;
   step.value = "amount";
 }
 
-const pickMacros = computed(() => (picked.value ? ingredientMacros(picked.value, parseAmount(pickAmount.value), pickUnit.value) : null));
-const pickFigures = computed(() => {
-  const macros = pickMacros.value;
-  return [
-    { label: "KCAL", value: macros ? int(macros.kcal) : "–" },
-    { label: "PROTEIN", value: macros ? recipeMacro(macros.protein) : "–" },
-    { label: "FAT", value: macros ? recipeMacro(macros.fat) : "–" },
-    { label: "CARBS", value: macros ? recipeMacro(macros.carbs) : "–" },
-  ];
-});
-const pickChips = computed(() => (pickUnit.value === "g" ? [50, 100, 150, 200] : pickUnit.value === "ml" ? [100, 250, 500] : [0.5, 1, 2]));
-const pickProblem = computed(() => {
-  if (!picked.value) return null;
-  return amountError(parseAmount(pickAmount.value), pickUnit.value);
-});
+/** A serving saved on the amount screen also shows on this food in the lists. */
+function applyServings(foodId: string, servings: OwnServing[]) {
+  const next = <T extends { id: string }>(food: T): T => (food.id === foodId ? { ...food, servings } : food);
+  results.value = results.value.map(next);
+  recents.value = recents.value.map(next);
+  mine.value = mine.value.map(next);
+}
 
 function addPicked() {
-  const food = picked.value;
-  if (!food || !pickMacros.value || lines.value.length >= 100) return;
-  lines.value.push(draftFrom(food, pickAmount.value, pickUnit.value));
-  picked.value = null;
+  const food = ingredient.food.value;
+  if (!food || lines.value.length >= 100) return;
+  const amount = ingredient.amountNumber.value;
+  const unit = ingredient.unit.value;
+  const problem = amountError(amount, unit) ?? (ingredientMacros(food, amount, unit) ? null : "Choose a unit for this food.");
+  if (problem) {
+    pickError.value = problem;
+    return;
+  }
+  lines.value.push(draftFrom(food, ingredient.amountText.value, unit));
+  ingredient.food.value = null;
   closePad();
   step.value = "form";
 }
@@ -654,7 +646,9 @@ async function addLog() {
           <button v-if="step !== 'form'" type="button" class="cbtn" aria-label="Back" @click="backStep">
             <Icon name="left" :size="18" />
           </button>
-          <h2 class="t-head grow htitle">{{ step === "search" ? "Add ingredient" : step === "amount" ? (picked?.name || "Amount") : title }}</h2>
+          <!-- The amount screen names the food in its body, as when logging one. -->
+          <span v-if="step === 'amount'" class="grow" />
+          <h2 v-else class="t-head grow htitle">{{ step === "search" ? "Add ingredient" : title }}</h2>
           <TimeChip v-if="mode === 'log' && step === 'form'" v-model="time" :date="ui.foodDate" :today="foodToday" />
           <button
             v-if="showForm"
@@ -737,36 +731,19 @@ async function addLog() {
       <p v-if="searchEmpty" class="t-label c2" role="status">{{ searchEmpty }}</p>
     </div>
 
-    <div v-else-if="step === 'amount' && picked" class="stack" @focusin="reveal">
-      <div class="preview" aria-live="polite" data-pick-preview>
-        <div v-for="item in pickFigures" :key="item.label" class="col center">
-          <span class="t-nm num">{{ item.value }}</span>
-          <span class="t-cap c2">{{ item.label }}</span>
-        </div>
-      </div>
-      <label class="field row">
-        <span class="t-label c2">Amount</span>
-        <input v-autofocus :value="pickAmount" data-replace="1" class="t-body grow num" :inputmode="keyboardEntry ? 'decimal' : 'none'" autocomplete="off" :aria-label="`Amount of ${picked.name}`" @focus="onPadFocus('pick', $event)" @beforeinput="markWholeSelection" @input="onPadInput" @keydown.enter.prevent="addPicked" />
-        <span class="t-label c2">{{ unitWord(pickUnit, unitsForFood(picked)) }}</span>
-      </label>
-      <div v-if="distinctUnits(unitsForFood(picked), pickUnit).length > 1" class="row units" role="radiogroup" :aria-label="`Unit for ${picked.name}`">
-        <button
-          v-for="choice in distinctUnits(unitsForFood(picked), pickUnit)"
-          :key="choice.unit"
-          type="button"
-          class="chip t-label"
-          role="radio"
-          :class="{ on: pickUnit === choice.unit }"
-          :aria-checked="pickUnit === choice.unit"
-          @click="setPickUnit(choice)"
-        >{{ choice.label }}</button>
-      </div>
-      <div class="row chips">
-        <button v-for="amount in pickChips" :key="amount" type="button" class="chip t-label" @click="pickAmount = String(amount)">{{ amountLabel(amount, pickUnit) }}</button>
-      </div>
-      <div v-if="!keyboardEntry" class="pad" @mousedown.prevent><Keypad @key="onPadKey" /></div>
-      <p v-if="!pickMacros && pickProblem" class="t-label err" role="status">{{ pickProblem }}</p>
-    </div>
+    <FoodAmountView v-else-if="step === 'amount' && ingredient.food.value" :amount="ingredient" macro-title="This ingredient" @submit="addPicked">
+      <template #meta>
+        <span v-if="ingredient.food.value.brand">{{ ingredient.food.value.brand }} ·</span>
+      </template>
+      <template #alerts>
+        <p v-if="pickError" class="t-label err" role="alert">{{ pickError }}</p>
+        <p v-if="pickOffline" class="t-label err" role="alert">Server unreachable. Try again in a moment.</p>
+      </template>
+      <template #hint><kbd>Enter</kbd> add to recipe · <kbd>Esc</kbd> close</template>
+      <template #actions>
+        <button type="button" class="btn primary block t-bodys grow" @click="addPicked">Add to recipe · {{ int(ingredient.preview.value.kcal) }} kcal</button>
+      </template>
+    </FoodAmountView>
 
     <div v-else class="stack" @focusin="reveal">
       <p v-if="notice" class="t-label note" role="status">{{ notice }}</p>
@@ -838,9 +815,6 @@ async function addLog() {
         {{ saving ? "Adding…" : needTime ? "Pick a time to add" : logPreview ? `Add · ${int(logPreview.kcal)} kcal` : "Add" }}
       </button>
       <p class="t-label c3 lognote">Later edits to the recipe don't change this entry.</p>
-    </template>
-    <template v-else-if="!loading && step === 'amount' && picked" #footer>
-      <button type="button" class="btn primary block t-bodys" :disabled="!pickMacros" @click="addPicked">Add to recipe</button>
     </template>
     <template v-else-if="showForm && !keyboardEntry && padTarget" #footer>
       <div class="padwrap" data-recipe-pad @mousedown.prevent>
