@@ -59,18 +59,30 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: chromium 1/2
+          - name: chromium 1/4
             browsers: chromium
-            run: npx playwright test --project=chromium --shard=1/2
-          - name: chromium 2/2
+            run: npx playwright test --project=chromium --shard=1/4
+          - name: chromium 2/4
             browsers: chromium
-            run: npx playwright test --project=chromium --shard=2/2
-          - name: webkit 1/2
+            run: npx playwright test --project=chromium --shard=2/4
+          - name: chromium 3/4
+            browsers: chromium
+            run: npx playwright test --project=chromium --shard=3/4
+          - name: chromium 4/4
+            browsers: chromium
+            run: npx playwright test --project=chromium --shard=4/4
+          - name: webkit 1/4
             browsers: webkit
-            run: npx playwright test --project=webkit --shard=1/2
-          - name: webkit 2/2
+            run: npx playwright test --project=webkit --shard=1/4
+          - name: webkit 2/4
             browsers: webkit
-            run: npx playwright test --project=webkit --shard=2/2
+            run: npx playwright test --project=webkit --shard=2/4
+          - name: webkit 3/4
+            browsers: webkit
+            run: npx playwright test --project=webkit --shard=3/4
+          - name: webkit 4/4
+            browsers: webkit
+            run: npx playwright test --project=webkit --shard=4/4
           - name: retro a11y
             browsers: chromium webkit
             run: npx playwright test --config e2e/retro.config.ts
