@@ -1,30 +1,31 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, nextTick, onMounted, ref, watch } from "vue";
 import Icon from "./Icon.vue";
 import Segmented from "./Segmented.vue";
 import ProgressChart from "./ProgressChart.vue";
 import SwipePanels from "./SwipePanels.vue";
 import { ApiError, getProgress, ServerUnreachable, type ProgressDay, type ProgressResponse } from "../api";
+import { followPage, visiblePages } from "../lib/cardPages";
 import { spanLabel } from "../lib/dates";
 import { formatDecimal, int } from "../lib/format";
 import { fatLimits, fatLimitsOf, sodiumLimitMg, sodiumLimitOf } from "../lib/nutrientCards";
 import type { IntakeDay } from "../lib/progressChart";
 import { fiberMinimum, goalKind, intakeStats, LINE_WORDS, PAGE_TITLES, PROGRESS_PAGES, type IntakePage, type ProgressPage } from "../lib/progressCard";
 import { rateStat } from "../lib/weightTrend";
+import { cardPages } from "../state/cardPages";
 import { onLogChange } from "../state/log";
 import { profile } from "../state/profile";
 import { weightUnit, wt, wtUnit } from "../state/units";
-import { openWeight, toast } from "../ui";
+import { openCardPages, openWeight, toast } from "../ui";
 
 const props = defineProps<{ selected: string }>();
 
 const rangeKey = "gymbro-home-range";
-/** The swiped page is remembered by SwipePanels under this key. */
+/** The swiped page, as its index in PROGRESS_PAGES (appended only), so hiding pages doesn't move it. */
 const pageKey = "gymbro-home-progress-page";
 const ranges = ["7d", "30d", "90d", "6m", "all"] as const;
 type Range = (typeof ranges)[number];
 const rangeLabels: Record<Range, string> = { "7d": "7d", "30d": "30d", "90d": "90d", "6m": "6m", all: "All" };
-const titles = PROGRESS_PAGES.map((page) => PAGE_TITLES[page]);
 
 function readRange(): Range {
   try {
@@ -48,8 +49,28 @@ function carryOldMetric() {
 }
 carryOldMetric();
 
+function readPage(): ProgressPage {
+  try {
+    return PROGRESS_PAGES[Number(localStorage.getItem(pageKey))] ?? "weight";
+  } catch {
+    return "weight";
+  }
+}
+function savePage(item: ProgressPage) {
+  try {
+    localStorage.setItem(pageKey, String(PROGRESS_PAGES.indexOf(item)));
+  } catch {
+    // The page still changes for this visit.
+  }
+}
+
 const range = ref<Range>(readRange());
-const page = ref<ProgressPage>("weight");
+const pages = computed(() => visiblePages(PROGRESS_PAGES, cardPages.progress));
+const titles = computed(() => pages.value.map((item) => PAGE_TITLES[item]));
+const page = ref<ProgressPage>(readPage());
+/** Where the card opens: the saved page, or Weight if that page is hidden. */
+const start = computed(() => followPage(page.value, pages.value));
+const panels = ref<InstanceType<typeof SwipePanels> | null>(null);
 const data = ref<ProgressResponse | null>(null);
 const failed = ref(false);
 const pan = ref(0);
@@ -85,8 +106,15 @@ function pickRange(value: Range) {
   void load();
 }
 function onPage(index: number) {
-  page.value = PROGRESS_PAGES[index] ?? "weight";
+  page.value = pages.value[index] ?? "weight";
+  savePage(page.value);
 }
+// Hiding or showing a page keeps the card on the same page, or sends it to Weight if that one went.
+watch(pages, async (next) => {
+  const target = followPage(page.value, next);
+  await nextTick();
+  panels.value?.go(target, "auto");
+});
 
 onMounted(() => { void load(); });
 watch(
@@ -179,16 +207,18 @@ function statsOf(item: ProgressPage): Stat[] {
     <p v-else-if="failed && !data" class="t-body c2 msg">Progress couldn't be loaded.</p>
     <SwipePanels
       v-else
-      :count="PROGRESS_PAGES.length"
+      ref="panels"
+      :count="pages.length"
       :lock-index="0"
-      remember
-      :storage-key="pageKey"
+      :start="start"
       :names="titles"
       label="Progress charts"
+      settings="Choose progress pages"
       tight
       @change="onPage"
+      @settings="openCardPages('progress')"
     >
-      <div v-for="item in PROGRESS_PAGES" :key="item" class="ppage" :data-page="item" role="group" :aria-label="PAGE_TITLES[item]" :aria-hidden="item === page ? undefined : 'true'">
+      <div v-for="item in pages" :key="item" class="ppage" :data-page="item" role="group" :aria-label="PAGE_TITLES[item]" :aria-hidden="item === page ? undefined : 'true'">
         <ProgressChart
           v-model:pan="pan"
           :page="item"

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import Icon from "./Icon.vue";
 import { wrapTurn } from "../lib/carousel";
 import type { SwipeSample } from "../lib/weekSwipe";
 
@@ -14,8 +15,12 @@ const props = withDefaults(defineProps<{
   tight?: boolean;
   /** Names for the dots ("Weight", "Calories"…), read out instead of "Panel 2 of 6". */
   names?: string[];
-}>(), { remember: false, lockIndex: -1, tight: false });
-const emit = defineEmits<{ change: [index: number] }>();
+  /** The page to open on when `remember` is off. */
+  start?: number;
+  /** Adds a cog at the end of the dot strip with this label ("Choose progress pages"). */
+  settings?: string;
+}>(), { remember: false, lockIndex: -1, tight: false, start: 0 });
+const emit = defineEmits<{ change: [index: number]; settings: [] }>();
 
 const track = ref<HTMLElement | null>(null);
 const root = ref<HTMLElement | null>(null);
@@ -26,14 +31,16 @@ const reduce = ref(false);
 /** True while a wrap scrolls across the middle pages; snapping is off and the pages it passes are not "shown". */
 const wrapping = ref(false);
 
-const visualOnly = computed(() => props.count * 44 > width.value && width.value > 0);
+/** The cog takes 44px at the right; the same at the left keeps the dots centred. */
+const dotRoom = computed(() => width.value - (props.settings ? 88 : 0));
+const visualOnly = computed(() => props.count * 44 > dotRoom.value && width.value > 0);
 const trackStyle = computed(() => {
   const height = props.height ?? locked.value;
   return height ? { height: `${height}px` } : undefined;
 });
 
 function storedIndex(): number {
-  if (!props.remember || !props.storageKey) return 0;
+  if (!props.remember || !props.storageKey) return Math.max(0, Math.min(props.count - 1, props.start));
   try {
     const raw = Number(localStorage.getItem(props.storageKey));
     return Number.isInteger(raw) && raw >= 0 && raw < props.count ? raw : 0;
@@ -258,7 +265,8 @@ defineExpose({ go, step, index });
     <div ref="track" class="track" :class="{ fixed: height != null, wrapping }" :style="trackStyle" tabindex="0" :aria-label="label" @keydown="onKey" @scroll.passive="onScroll" @touchstart.passive="onTouchStart" @touchmove.passive="onTouchMove" @touchend.passive="onTouchEnd" @touchcancel.passive="onTouchCancel">
       <slot />
     </div>
-    <div v-if="count > 1" class="strip" :class="{ halves: visualOnly }">
+    <div v-if="count > 1 || settings" class="strip" :class="{ halves: visualOnly && count > 1, cogged: settings }">
+      <template v-if="count > 1">
       <button
         v-for="dot in count"
         :key="dot"
@@ -275,6 +283,8 @@ defineExpose({ go, step, index });
         <button type="button" class="half back" aria-label="Previous panel" @click="step(-1)" />
         <button type="button" class="half forward" aria-label="Next panel" @click="step(1)" />
       </template>
+      </template>
+      <button v-if="settings" type="button" class="cog" :aria-label="settings" data-card-pages @click="emit('settings')"><Icon name="cog" :size="18" /></button>
     </div>
     <button type="button" class="edge left" aria-label="Previous panel" @click="step(-1)" />
     <button type="button" class="edge right" aria-label="Next panel" @click="step(1)" />
@@ -336,6 +346,24 @@ defineExpose({ go, step, index });
 }
 .half.back { left: 0; }
 .half.forward { right: 0; }
+.cogged { padding: 0 44px; }
+.cogged .half.back { left: 0; width: calc(50% - 22px); }
+.cogged .half.forward { right: 44px; width: calc(50% - 22px); }
+.cog {
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: 44px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--text-tertiary);
+}
+.can-hover .cog:hover, .cog:focus-visible { color: var(--text-primary); }
 .edge {
   position: absolute;
   top: 0;
@@ -350,7 +378,7 @@ defineExpose({ go, step, index });
 /* 12px of space, the 6px dots, 12px of space. The 44px hit box reaches 7px past each side. */
 .tight .strip { height: 30px; }
 .tight .dot { height: 44px; margin-top: -7px; margin-bottom: -7px; }
-.tight .half { top: -7px; height: 44px; bottom: auto; }
+.tight .half, .tight .cog { top: -7px; height: 44px; bottom: auto; }
 .tight .edge { bottom: 37px; }
 @media (prefers-reduced-motion: reduce) {
   .track { scroll-behavior: auto; }

@@ -150,9 +150,10 @@ export function dayNutrients(entries: readonly NutrientSource[]): NutrientMap {
  * Largest text shows single-column groups of four, so the fixed card height does not
  * have to grow. That never adds a page: the panel's spare keys drop instead.
  */
-export function panelsForSize(large: boolean): NutrientPanelDef[] {
+export function panelsForSize(large: boolean, hidden: readonly string[] = []): NutrientPanelDef[] {
   const shown: NutrientPanelDef[] = [];
   for (const panel of NUTRIENT_PANELS) {
+    if (hidden.includes(panel.id)) continue;
     if (!large) {
       shown.push({ ...panel });
       continue;

@@ -1,14 +1,17 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import MacroRows from "./MacroRows.vue";
 import NutrientPanelSet from "./NutrientPanelSet.vue";
 import SwipePanels from "./SwipePanels.vue";
+import { followPage } from "../lib/cardPages";
 import { int } from "../lib/format";
 import { fatLimitsOf } from "../lib/nutrientCards";
 import { dayNutrients, panelsForSize, type NutrientSource } from "../lib/nutrients";
 import { dayTotals, type DayTotals } from "../state/log";
+import { cardPages } from "../state/cardPages";
 import { loadNutrientWeek, nutrientWeek } from "../state/nutrientWeek";
 import { nutrientPerson, profile } from "../state/profile";
+import { openCardPages } from "../ui";
 import type { TargetsResponse } from "../api";
 
 const props = defineProps<{
@@ -28,7 +31,17 @@ onMounted(() => {
 onBeforeUnmount(() => window.removeEventListener("resize", readSize));
 const sources = computed(() => props.entries ?? []);
 const nutrientValues = computed(() => dayNutrients(sources.value));
-const panels = computed(() => panelsForSize(large.value));
+const panels = computed(() => panelsForSize(large.value, cardPages.macros));
+/** Page ids in swipe order. At the largest text a panel can span pages ("vitamins-0", "vitamins-1"). */
+const pageIds = computed(() => ["macros", ...panels.value.map((panel) => panel.id)]);
+const swipe = ref<InstanceType<typeof SwipePanels> | null>(null);
+const shownPage = ref("macros");
+// Hiding or showing a panel keeps the card on the same page, or sends it to Macros if that one went.
+watch(pageIds, async (next) => {
+  const target = followPage(shownPage.value, next);
+  await nextTick();
+  swipe.value?.go(target, "auto");
+});
 const kcalTarget = computed(() => target.value?.kcal ?? null);
 const person = computed(() => nutrientPerson(kcalTarget.value));
 const fatLimits = computed(() => fatLimitsOf(profile.saved?.fatLimits));
@@ -54,7 +67,16 @@ const totals = computed(() => props.totals ?? dayTotals());
     </div>
   </section>
   <section v-else class="card macros fit" data-nutrient-card :aria-label="label || 'Today\'s macros'">
-    <SwipePanels tight :count="panels.length + 1" :lock-index="-1" :label="label || 'Today\'s macros'">
+    <SwipePanels
+      ref="swipe"
+      tight
+      :count="pageIds.length"
+      :lock-index="-1"
+      :label="label || 'Today\'s macros'"
+      settings="Choose macros card pages"
+      @change="shownPage = pageIds[$event] ?? 'macros'"
+      @settings="openCardPages('macros')"
+    >
       <MacroRows title="Macros" :goal="target" :eaten="totals" />
       <NutrientPanelSet :panels="panels" :values="nutrientValues" :entries="sources" :carbs="totals.c" :person="person" :fat-limits="fatLimits" :large="large" :week="week" />
     </SwipePanels>
