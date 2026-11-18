@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fatCaption, goalSheetHint, goalStats, isExact, proteinCaption, saturatedCaption, stepWhole } from "../src/lib/goalCards";
+import { fatCaption, goalSheetHint, goalStats, isExact, proteinCaption, saturatedCaption, sodiumCaption, stepWhole } from "../src/lib/goalCards";
 import { fatLimits } from "../src/lib/nutrientCards";
 
 const kg = (value: number) => value.toFixed(1);
@@ -23,6 +23,8 @@ describe("macro rows", () => {
     expect(saturatedCaption(fatLimits("lower", 2225))).toBe("≤ 17 g, cholesterol ≤ 200 mg");
     expect(saturatedCaption(fatLimits("normal", null))).toBe("≤ 10% of calories");
     expect(saturatedCaption(fatLimits("lower", null))).toBe("≤ 7% of calories, cholesterol ≤ 200 mg");
+    expect(sodiumCaption(2300)).toBe("≤ 2,300 mg a day · 5.8 g salt");
+    expect(sodiumCaption(1500)).toBe("≤ 1,500 mg a day · 3.8 g salt");
   });
 });
 

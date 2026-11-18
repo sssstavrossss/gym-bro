@@ -1,5 +1,5 @@
 import type { GoalLine } from "./goalLine";
-import { int } from "./format";
+import { formatDecimal, int } from "./format";
 import type { FatLimits } from "./nutrientCards";
 import type { MacroSetting } from "./nutrition";
 
@@ -23,6 +23,11 @@ export function saturatedCaption(limits: FatLimits): string {
   const saturated = limits.saturatedGrams == null ? `≤ ${limits.saturatedPercent}% of calories` : `≤ ${int(limits.saturatedGrams)} g`;
   if (limits.cholesterolMg == null) return limits.saturatedGrams == null ? saturated : `${saturated} a day`;
   return `${saturated}, cholesterol ≤ ${int(limits.cholesterolMg)} mg`;
+}
+
+/** The sodium limit with the salt it adds up to: "≤ 2,300 mg a day · 5.8 g salt". */
+export function sodiumCaption(limitMg: number): string {
+  return `≤ ${int(limitMg)} mg a day · ${formatDecimal((limitMg * 2.5) / 1000, 1)} g salt`;
 }
 
 /** The three figures under Goal: what is left, how long, and roughly when. */

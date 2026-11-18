@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { barWidth, chartLayout, fiberMinimum, intakeScale, intakeStats, isMinimum, monthTicks, targetSteps, visibleSpan } from "../src/lib/progressCard";
+import { barWidth, chartLayout, fiberMinimum, goalKind, intakeScale, intakeStats, metGoal, monthTicks, PROGRESS_PAGES, targetSteps, visibleSpan } from "../src/lib/progressCard";
 
 const day = (date: string, value: number | null, target: number | null) => ({ date, logged: value != null, value, target });
 
@@ -23,12 +23,16 @@ describe("progress card", () => {
     expect(steps).toEqual([{ from: 1, to: 2, value: 100 }, { from: 3, to: 3, value: 120 }, { from: 5, to: 5, value: 120 }]);
   });
 
-  it("counts a minimum as reached and a target as within 10%", () => {
+  it("counts a minimum as reached, a target as within 10%, and a limit as at or under", () => {
     const days = [day("a", 160, 168), day("b", 170, 168), day("c", null, 168), day("d", 180, 168)];
-    expect(intakeStats(days, true)).toEqual({ average: 170, target: 168, logged: 3, total: 4, hit: 2 });
-    expect(intakeStats(days, false).hit).toBe(3);
-    expect(intakeStats([day("a", null, null)], false).average).toBeNull();
-    expect(isMinimum("protein") && isMinimum("fiber") && !isMinimum("kcal")).toBe(true);
+    expect(intakeStats(days, "minimum")).toEqual({ average: 170, target: 168, logged: 3, total: 4, hit: 2 });
+    expect(intakeStats(days, "target").hit).toBe(3);
+    expect(intakeStats(days, "limit").hit).toBe(1);
+    expect(intakeStats([day("a", null, null)], "target").average).toBeNull();
+    expect(metGoal(25, 25, "limit")).toBe(true);
+    expect(metGoal(25.1, 25, "limit")).toBe(false);
+    expect(metGoal(10, null, "limit")).toBe(false);
+    expect(PROGRESS_PAGES.map(goalKind)).toEqual(["target", "target", "minimum", "target", "target", "minimum", "limit", "limit"]);
     expect(fiberMinimum("male")).toBe(35);
     expect(fiberMinimum("female")).toBe(25);
     expect(fiberMinimum("")).toBeNull();

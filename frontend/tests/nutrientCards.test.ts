@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   carbBreakdown,
   carbLimits,
+  sodiumLimitMg,
+  sodiumLimitOf,
   coverageNote,
   daySources,
   fatBreakdown,
@@ -91,6 +93,11 @@ describe("carbs and sodium", () => {
   it("keeps the sodium limit without a sex or a kcal target", () => {
     expect(carbLimits({ sex: "", kcalTarget: null })).toEqual({ fibreGrams: null, addedSugarsGrams: null, sodiumMg: 2300 });
     expect(carbLimits({ sex: "male", kcalTarget: 0 }).addedSugarsGrams).toBeNull();
+    // Strict sodium is 1,500 mg; anything unknown reads as the standard 2,300.
+    expect(carbLimits({ sex: "male", kcalTarget: 1884, sodiumLimit: "lower" }).sodiumMg).toBe(1500);
+    expect(sodiumLimitMg(sodiumLimitOf("lower"))).toBe(1500);
+    expect(sodiumLimitMg(sodiumLimitOf("strict"))).toBe(2300);
+    expect(sodiumLimitMg(undefined)).toBe(2300);
   });
 
   it("reports how far short of a minimum a value is", () => {

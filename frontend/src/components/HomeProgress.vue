@@ -6,9 +6,10 @@ import ProgressChart from "./ProgressChart.vue";
 import SwipePanels from "./SwipePanels.vue";
 import { ApiError, getProgress, ServerUnreachable, type ProgressDay, type ProgressResponse } from "../api";
 import { spanLabel } from "../lib/dates";
-import { int } from "../lib/format";
+import { formatDecimal, int } from "../lib/format";
+import { fatLimits, fatLimitsOf, sodiumLimitMg, sodiumLimitOf } from "../lib/nutrientCards";
 import type { IntakeDay } from "../lib/progressChart";
-import { fiberMinimum, intakeStats, isMinimum, PAGE_TITLES, PROGRESS_PAGES, type ProgressPage } from "../lib/progressCard";
+import { fiberMinimum, goalKind, intakeStats, LINE_WORDS, PAGE_TITLES, PROGRESS_PAGES, type IntakePage, type ProgressPage } from "../lib/progressCard";
 import { rateStat } from "../lib/weightTrend";
 import { onLogChange } from "../state/log";
 import { profile } from "../state/profile";
@@ -102,18 +103,32 @@ const periodText = computed(() => {
   return spanLabel(data.value.from, data.value.to);
 });
 
-const fiberMin = computed(() => fiberMinimum(profile.saved?.sex));
-function intakeOf(kind: Exclude<ProgressPage, "weight">): IntakeDay[] {
-  return days.value.map((day) => {
-    const value = kind === "kcal" ? day.kcal : kind === "protein" ? day.protein : kind === "fat" ? day.fat : kind === "carbs" ? day.carbs : day.fiber;
-    const target = kind === "kcal" ? day.targetKcal : kind === "protein" ? day.targetProtein : kind === "fat" ? day.targetFat : kind === "carbs" ? day.targetCarbs : fiberMin.value;
-    return { date: day.date, logged: day.logged, value: value ?? null, target: target ?? null };
-  });
-}
-const intake = computed(() => Object.fromEntries(PROGRESS_PAGES.filter((item) => item !== "weight")
-  .map((item) => [item, intakeOf(item as Exclude<ProgressPage, "weight">)])) as Record<Exclude<ProgressPage, "weight">, IntakeDay[]>);
+type Amount = number | null | undefined;
+/** Each intake page: the day's amount and its line. Saturated fat's limit follows that day's kcal target. */
+const SOURCES: Record<IntakePage, { value: (day: ProgressDay) => Amount; line: (day: ProgressDay) => Amount }> = {
+  kcal: { value: (day) => day.kcal, line: (day) => day.targetKcal },
+  protein: { value: (day) => day.protein, line: (day) => day.targetProtein },
+  fat: { value: (day) => day.fat, line: (day) => day.targetFat },
+  carbs: { value: (day) => day.carbs, line: (day) => day.targetCarbs },
+  fiber: { value: (day) => day.fiber, line: () => fiberMinimum(profile.saved?.sex) },
+  saturatedFat: { value: (day) => day.saturatedFat, line: (day) => fatLimits(fatLimitsOf(profile.saved?.fatLimits), day.targetKcal).saturatedGrams },
+  sodium: { value: (day) => day.sodiumMg, line: () => sodiumLimitMg(sodiumLimitOf(profile.saved?.sodiumLimit)) },
+};
+const INTAKE_PAGES = PROGRESS_PAGES.filter((item): item is IntakePage => item !== "weight");
+const intake = computed(() => Object.fromEntries(INTAKE_PAGES.map((item) => [item, days.value.map((day): IntakeDay => ({
+  date: day.date,
+  logged: day.logged,
+  value: SOURCES[item].value(day) ?? null,
+  target: SOURCES[item].line(day) ?? null,
+}))])) as Record<IntakePage, IntakeDay[]>);
 function unitOf(item: ProgressPage) {
-  return item === "kcal" ? "kcal" : item === "weight" ? weightUnit() : "g";
+  if (item === "weight") return weightUnit();
+  return item === "kcal" ? "kcal" : item === "sodium" ? "mg" : "g";
+}
+const HIT_LABEL = { target: "On target", minimum: "Reached min", limit: "Under limit" } as const;
+/** Sodium in mg as salt in g (sodium × 2.5). */
+function saltText(sodiumMg: number) {
+  return `${formatDecimal((sodiumMg * 2.5) / 1000, 1)} g salt`;
 }
 
 interface Stat { label: string; value: string; sub: string }
@@ -130,15 +145,17 @@ function statsOf(item: ProgressPage): Stat[] {
       { label: "Weigh-ins", value: String(count), sub: `in ${days.value.length} days` },
     ];
   }
-  const minimum = isMinimum(item);
-  const stats = intakeStats(intake.value[item], minimum);
-  const unit = item === "kcal" ? "" : " g";
+  const kind = goalKind(item);
+  const stats = intakeStats(intake.value[item], kind);
+  const unit = item === "kcal" ? "" : ` ${unitOf(item)}`;
   const goal = stats.target == null
-    ? (minimum ? "no minimum" : "no target")
-    : item === "kcal" ? `of ${int(stats.target)}` : `${minimum ? "min" : "target"} ${int(stats.target)} g`;
+    ? `no ${kind === "minimum" ? "minimum" : kind}`
+    : item === "kcal" ? `of ${int(stats.target)}` : `${LINE_WORDS[kind]} ${int(stats.target)}${unit}`;
+  // Sodium's limit is on the chart, so the salt it adds up to goes under the average.
+  const averageSub = item === "sodium" && stats.average != null ? saltText(stats.average) : goal;
   return [
-    { label: "Average", value: stats.average == null ? "–" : `${int(stats.average)}${unit}`, sub: goal },
-    { label: minimum ? "Reached min" : "On target", value: `${stats.hit} ${stats.hit === 1 ? "day" : "days"}`, sub: minimum ? `of ${stats.logged} logged` : "within ±10%" },
+    { label: "Average", value: stats.average == null ? "–" : `${int(stats.average)}${unit}`, sub: averageSub },
+    { label: HIT_LABEL[kind], value: `${stats.hit} ${stats.hit === 1 ? "day" : "days"}`, sub: kind === "target" ? "within ±10%" : `of ${stats.logged} logged` },
     { label: "Logged", value: `${stats.logged} ${stats.logged === 1 ? "day" : "days"}`, sub: `of ${stats.total}` },
   ];
 }

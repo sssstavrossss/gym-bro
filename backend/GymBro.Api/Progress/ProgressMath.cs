@@ -11,6 +11,12 @@ public static class ProgressMath
     /// <summary>Six months is 182 days, the same inclusive day count as 7, 30, and 90.</summary>
     public const int SixMonthsDays = 182;
 
+    /// <summary>
+    /// Milligrams of sodium in a gram of salt (salt ÷ 2.5). A day's sodium takes an entry's sodium,
+    /// or its salt when only salt is known, like the Carbs &amp; sodium card. Stored values are not converted.
+    /// </summary>
+    public const decimal SodiumMgPerSaltGram = 400m;
+
     public static bool TryRange(string? range, out string normalized)
     {
         normalized = string.IsNullOrWhiteSpace(range) ? "30d" : range.Trim().ToLowerInvariant();

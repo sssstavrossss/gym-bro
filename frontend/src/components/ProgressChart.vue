@@ -8,7 +8,7 @@ import { kgTo } from "../lib/units";
 import { weightUnit } from "../state/units";
 import { evenAxisLabels, valueY, type IntakeDay } from "../lib/progressChart";
 import { trendExtent, trendShapes, type TrendSample } from "../lib/weightTrend";
-import { barWidth, chartLayout, intakeScale, isMinimum, monthTicks, targetSteps, visibleSpan, type ProgressPage } from "../lib/progressCard";
+import { barWidth, chartLayout, goalKind, intakeScale, LINE_WORDS, monthTicks, targetSteps, visibleSpan, type ProgressPage } from "../lib/progressCard";
 
 /**
  * One page of the Home Progress card. Drawn at the exact pixel width, so text and bars never stretch.
@@ -83,7 +83,7 @@ const weightTicks = computed(() => {
 });
 
 // Intake
-const minimum = computed(() => isMinimum(props.page));
+const kind = computed(() => goalKind(props.page));
 const scale = computed(() => {
   const values = props.intake.flatMap((day) => (day.logged && day.value != null ? [day.value] : []));
   const targets = props.intake.flatMap((day) => (day.target != null ? [day.target] : []));
@@ -93,11 +93,32 @@ function iy(value: number) {
   return valueY(value, 0, scale.value.top, H);
 }
 const bw = computed(() => barWidth(W.value, n.value));
-const bars = computed(() => props.intake.flatMap((day, index) => {
+/**
+ * Targets and minimums draw a missed day lighter. A limit keeps the bar solid up to the line
+ * and hatches the part above it in the over colours, like the Fats card.
+ */
+interface Bar {
+  key: string;
+  x: number;
+  y: number;
+  h: number;
+  /** Missed a target or minimum: drawn lighter. */
+  off: boolean;
+  /** The hatched part above a limit. */
+  over: { y: number; h: number } | null;
+}
+const bars = computed(() => props.intake.flatMap((day, index): Bar[] => {
   if (!day.logged || day.value == null || day.value <= 0) return [];
+  const x = xAt(index) - bw.value / 2;
+  const base = iy(0);
   const y = iy(day.value);
-  const off = day.target != null && (minimum.value ? day.value < day.target : day.value > day.target * 1.1);
-  return [{ key: day.date, x: xAt(index) - bw.value / 2, y, h: Math.max(1, iy(0) - y), off }];
+  if (kind.value === "limit") {
+    if (day.target == null || day.value <= day.target) return [{ key: day.date, x, y, h: Math.max(1, base - y), off: false, over: null }];
+    const line = iy(day.target);
+    return [{ key: day.date, x, y: line, h: Math.max(1, base - line), off: false, over: { y, h: Math.max(1, line - y) } }];
+  }
+  const off = day.target != null && (kind.value === "minimum" ? day.value < day.target : day.value > day.target * 1.1);
+  return [{ key: day.date, x, y, h: Math.max(1, base - y), off, over: null }];
 }));
 const steps = computed(() => targetSteps(props.intake).map((step) => ({
   x1: step.from * slot.value,
@@ -108,7 +129,7 @@ const steps = computed(() => targetSteps(props.intake).map((step) => ({
 const stepLabel = computed(() => {
   const last = steps.value[steps.value.length - 1];
   if (!last) return null;
-  const text = `${minimum.value ? "min" : "target"} ${int(last.value)}${props.unit ? ` ${props.unit}` : ""}`;
+  const text = `${LINE_WORDS[kind.value]} ${int(last.value)}${props.unit ? ` ${props.unit}` : ""}`;
   const width = text.length * 5.6 + 8;
   return { text, x: Math.max(width, last.x2 - 2), y: last.y - 5, width };
 });
@@ -212,6 +233,12 @@ watch(() => props.pan, () => {
           <defs v-if="page === 'weight'">
             <clipPath :id="`wplot-${uid}`"><rect x="0" y="0" :width="W" :height="H" /></clipPath>
           </defs>
+          <defs v-else-if="kind === 'limit'">
+            <pattern :id="`over-${uid}`" patternUnits="userSpaceOnUse" width="6" height="6" patternTransform="rotate(45)">
+              <rect width="6" height="6" fill="var(--over-gap)" />
+              <rect width="3" height="6" fill="var(--over-mark)" />
+            </pattern>
+          </defs>
           <line v-for="y in gridLines" :key="y" x1="0" :x2="W" :y1="y" :y2="y" stroke="var(--text-primary)" stroke-opacity="0.07" />
           <template v-if="page === 'weight'">
             <!-- Possible range (±2σ) in a faint neutral, then the likely range (±1σ) in the chart colour. -->
@@ -227,7 +254,10 @@ watch(() => props.pan, () => {
             </template>
           </template>
           <template v-else>
-            <rect v-for="bar in bars" :key="bar.key" :x="bar.x" :y="bar.y" :width="bw" :height="bar.h" :rx="Math.min(2, bw / 2)" fill="var(--chart-line)" :fill-opacity="bar.off ? 0.45 : 0.95" data-bar />
+            <template v-for="bar in bars" :key="bar.key">
+              <rect :x="bar.x" :y="bar.y" :width="bw" :height="bar.h" :rx="Math.min(2, bw / 2)" fill="var(--chart-line)" :fill-opacity="bar.off ? 0.45 : 0.95" data-bar />
+              <rect v-if="bar.over" :x="bar.x" :y="bar.over.y" :width="bw" :height="bar.over.h" :rx="Math.min(2, bw / 2)" :fill="`url(#over-${uid})`" data-over />
+            </template>
             <line v-for="step in steps" :key="`${step.x1}-${step.value}`" :x1="step.x1" :x2="step.x2" :y1="step.y" :y2="step.y" stroke="var(--text-primary)" stroke-opacity="0.55" stroke-width="1.4" stroke-dasharray="4 3" />
             <template v-if="stepLabel">
               <rect :x="stepLabel.x - stepLabel.width" :y="stepLabel.y - 10" :width="stepLabel.width" height="13" rx="4" fill="var(--color-surface)" fill-opacity="0.85" />

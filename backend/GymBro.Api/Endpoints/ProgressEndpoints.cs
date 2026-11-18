@@ -50,8 +50,10 @@ public static class ProgressEndpoints
                 Protein = group.Sum(row => row.Protein),
                 Fat = group.Sum(row => row.Fat),
                 Carbs = group.Sum(row => row.Carbs),
-                // A food without a fibre figure counts as 0, like the day totals on Home.
+                // A food without a fibre, saturated fat or sodium figure counts as 0, like the day totals on Home.
                 Fiber = group.Sum(row => row.Fiber ?? 0m),
+                SaturatedFat = group.Sum(row => row.SaturatedFat ?? 0m),
+                SodiumMg = group.Sum(row => row.Sodium ?? (row.Salt ?? 0m) * ProgressMath.SodiumMgPerSaltGram),
             })
             .ToListAsync(cancellationToken);
 
@@ -94,7 +96,7 @@ public static class ProgressEndpoints
             loggedDays++;
             kcalSum += intake.Kcal;
             proteinSum += intake.Protein;
-            days.Add(new ProgressDay(date, true, intake.Kcal, intake.Protein, target?.Kcal, target?.Protein, trendKg, intake.Fat, intake.Carbs, target?.Fat, target?.Carbs, intake.Fiber, shown?.BandKg, shown?.Measured ?? false));
+            days.Add(new ProgressDay(date, true, intake.Kcal, intake.Protein, target?.Kcal, target?.Protein, trendKg, intake.Fat, intake.Carbs, target?.Fat, target?.Carbs, intake.Fiber, shown?.BandKg, shown?.Measured ?? false, intake.SaturatedFat, intake.SodiumMg));
         }
 
         var inRange = weighIns.Where(row => row.LocalDate >= from && row.LocalDate <= today).ToList();
@@ -178,4 +180,6 @@ public sealed record ProgressDay(
     int? TargetCarbs,
     decimal? Fiber = null,
     decimal? TrendBandKg = null,
-    bool TrendMeasured = false);
+    bool TrendMeasured = false,
+    decimal? SaturatedFat = null,
+    decimal? SodiumMg = null);

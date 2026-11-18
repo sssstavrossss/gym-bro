@@ -38,7 +38,7 @@ import {
 } from "../lib/nutrition";
 import { atMostOneDecimal, formatMeasure, parseDecimal, sameNumber } from "../lib/numbers";
 import { foodUnitOf, type FoodUnit } from "../lib/foodUnits";
-import { fatLimitsOf, type FatLimitsSetting, type NutrientPerson } from "../lib/nutrientCards";
+import { fatLimitsOf, sodiumLimitOf, type FatLimitsSetting, type NutrientPerson, type SodiumLimitSetting } from "../lib/nutrientCards";
 import { osloYear } from "../lib/nutrients";
 import {
   cmToFtIn,
@@ -455,6 +455,7 @@ export function applySettings(settings: SettingsResponse): void {
       heightUnit,
       foodUnit: foodUnitOf(settings.foodUnit),
       fatLimits: fatLimitsOf(settings.fatLimits),
+      sodiumLimit: sodiumLimitOf(settings.sodiumLimit),
     };
   }
   profile.form.timeZone = settings.timeZone;
@@ -498,20 +499,30 @@ export async function setFoodUnit(foodUnit: FoodUnit): Promise<string> {
 /** Sex and age behind the nutrient references, with the kcal target of the day shown. Age 0 when unknown. */
 export function nutrientPerson(kcalTarget: number | null): NutrientPerson {
   const year = profile.saved?.birthYear;
-  return { sex: profile.saved?.sex ?? "", age: typeof year === "number" ? osloYear() - year : 0, kcalTarget };
+  return { sex: profile.saved?.sex ?? "", age: typeof year === "number" ? osloYear() - year : 0, kcalTarget, sodiumLimit: sodiumLimitOf(profile.saved?.sodiumLimit) };
 }
 
-/** Saves the Fats card limits. The card switches at once and switches back if the save fails. Returns an error, or "". */
-export async function setFatLimits(fatLimits: FatLimitsSetting): Promise<string> {
+/** Saves the Fats card limits. Returns an error, or "". */
+export function setFatLimits(fatLimits: FatLimitsSetting): Promise<string> {
+  return saveLimit("fatLimits", fatLimits);
+}
+
+/** Saves the sodium limit (Carbs card and Progress). Returns an error, or "". */
+export function setSodiumLimit(sodiumLimit: SodiumLimitSetting): Promise<string> {
+  return saveLimit("sodiumLimit", sodiumLimit);
+}
+
+/** A display-only limit: the cards switch at once and switch back if the save fails. */
+async function saveLimit<K extends "fatLimits" | "sodiumLimit">(key: K, value: NonNullable<ProfileResponse[K]>): Promise<string> {
   const saved = profile.saved;
   if (!saved) return "";
-  const before = fatLimitsOf(saved.fatLimits);
-  profile.saved = { ...saved, fatLimits };
+  const before = saved[key];
+  profile.saved = { ...saved, [key]: value };
   try {
-    applySettings(await putSettings({ fatLimits }));
+    applySettings(await putSettings({ [key]: value }));
     return "";
   } catch (error) {
-    if (profile.saved) profile.saved = { ...profile.saved, fatLimits: before };
+    if (profile.saved) profile.saved = { ...profile.saved, [key]: before };
     if (error instanceof ServerUnreachable) return "Server unreachable, so the limits weren't changed.";
     return error instanceof ApiError ? error.message : "Couldn't save the limits.";
   }

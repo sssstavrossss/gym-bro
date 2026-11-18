@@ -107,6 +107,33 @@ public sealed class NutrientEndpointTests(ApiFactory factory)
         Assert.Equal("lower", state.GetProperty("profile").GetProperty("fatLimits").GetString());
     }
 
+    [Fact]
+    public async Task The_sodium_limit_is_a_setting_on_its_own_without_a_target_change()
+    {
+        factory.Clock.UtcNow = new DateTimeOffset(2026, 11, 16, 8, 0, 0, TimeSpan.Zero);
+        var user = TestData.NewUser("sodium-limit");
+        using var client = factory.AsUser(user);
+        await TestData.PutWeighIn(client, "2026-11-16", """{"kg":83.6,"timeZone":"UTC"}""");
+        var saved = await TestData.PutProfile(client, TestData.Profile());
+        Assert.Equal("normal", saved.GetProperty("profile").GetProperty("sodiumLimit").GetString());
+
+        var lower = await client.PutAsJsonAsync("/api/profile/settings", new { sodiumLimit = "lower" });
+        Assert.Equal(HttpStatusCode.OK, lower.StatusCode);
+        var settings = await lower.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("lower", settings.GetProperty("sodiumLimit").GetString());
+        // The fat limits are a separate choice and stay as they were.
+        Assert.Equal("normal", settings.GetProperty("fatLimits").GetString());
+        var state = await client.GetFromJsonAsync<JsonElement>("/api/profile");
+        Assert.Equal("lower", state.GetProperty("profile").GetProperty("sodiumLimit").GetString());
+
+        Assert.Equal(1, await HistoryCount(user));
+
+        var bad = await client.PutAsJsonAsync("/api/profile/settings", new { sodiumLimit = "strict" });
+        Assert.Equal(HttpStatusCode.BadRequest, bad.StatusCode);
+        state = await client.GetFromJsonAsync<JsonElement>("/api/profile");
+        Assert.Equal("lower", state.GetProperty("profile").GetProperty("sodiumLimit").GetString());
+    }
+
     private async Task<int> HistoryCount(string userId)
     {
         await using var scope = factory.Services.CreateAsyncScope();

@@ -5,8 +5,9 @@ import type { IntakeDay } from "./progressChart";
  * Pure helpers for the chart sizes, the target steps, and each page's numbers.
  */
 
-export const PROGRESS_PAGES = ["weight", "kcal", "protein", "fat", "carbs", "fiber"] as const;
+export const PROGRESS_PAGES = ["weight", "kcal", "protein", "fat", "carbs", "fiber", "saturatedFat", "sodium"] as const;
 export type ProgressPage = (typeof PROGRESS_PAGES)[number];
+export type IntakePage = Exclude<ProgressPage, "weight">;
 
 export const PAGE_TITLES: Record<ProgressPage, string> = {
   weight: "Weight",
@@ -15,11 +16,31 @@ export const PAGE_TITLES: Record<ProgressPage, string> = {
   fat: "Fat",
   carbs: "Carbs",
   fiber: "Fibre",
+  saturatedFat: "Saturated fat",
+  sodium: "Sodium",
 };
 
-/** Protein and fibre are minimums: reaching the line is the goal. The rest are targets to land near. */
-export function isMinimum(page: ProgressPage): boolean {
-  return page === "protein" || page === "fiber";
+/**
+ * What a page's line means. A target is to land near (within 10%), a minimum to reach,
+ * and a limit to stay at or under.
+ */
+export type GoalKind = "target" | "minimum" | "limit";
+
+/** The word before the line's number: "target 2,200", "min 35 g", "limit 25 g". */
+export const LINE_WORDS: Record<GoalKind, string> = { target: "target", minimum: "min", limit: "limit" };
+
+export function goalKind(page: ProgressPage): GoalKind {
+  if (page === "protein" || page === "fiber") return "minimum";
+  if (page === "saturatedFat" || page === "sodium") return "limit";
+  return "target";
+}
+
+/** Whether a logged day met its line. A day without a line or a value never counts. */
+export function metGoal(value: number | null, line: number | null, kind: GoalKind): boolean {
+  if (line == null || value == null) return false;
+  if (kind === "minimum") return value >= line;
+  if (kind === "limit") return value <= line;
+  return Math.abs(value - line) <= line * 0.1;
 }
 
 /** How many days fit the card's width before the chart scrolls. "All" uses the 6-month scale. */
@@ -67,19 +88,16 @@ export interface IntakeStats {
   target: number | null;
   logged: number;
   total: number;
-  /** Days that reached a minimum, or landed within 10% of a target. */
+  /** Days that met the line: see {@link metGoal}. */
   hit: number;
 }
 
-export function intakeStats(days: readonly IntakeDay[], minimum: boolean): IntakeStats {
+export function intakeStats(days: readonly IntakeDay[], kind: GoalKind): IntakeStats {
   const logged = days.filter((day) => day.logged && day.value != null);
   const sum = logged.reduce((total, day) => total + (day.value ?? 0), 0);
   let target: number | null = null;
   for (const day of days) if (day.target != null) target = day.target;
-  const hit = logged.filter((day) => {
-    if (day.target == null || day.value == null) return false;
-    return minimum ? day.value >= day.target : Math.abs(day.value - day.target) <= day.target * 0.1;
-  }).length;
+  const hit = logged.filter((day) => metGoal(day.value, day.target, kind)).length;
   return {
     average: logged.length ? sum / logged.length : null,
     target,

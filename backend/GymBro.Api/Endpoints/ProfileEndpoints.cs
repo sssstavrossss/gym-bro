@@ -333,9 +333,19 @@ public static class ProfileEndpoints
             profile.FatLimits = fatLimits;
         }
 
+        if (request.SodiumLimit is { } sodiumLimit)
+        {
+            if (!SodiumLimits.IsValid(sodiumLimit))
+            {
+                return ApiResults.Error("The sodium limit is normal or lower.");
+            }
+
+            profile.SodiumLimit = sodiumLimit;
+        }
+
         profile.UpdatedAt = clock.GetUtcNow();
         await db.SaveChangesAsync(cancellationToken);
-        return Results.Ok(new SettingsResponse(profile.TimeZone, profile.TimeZoneFollowsDevice, profile.WeightUnit, profile.HeightUnit, profile.FoodUnit, profile.FatLimits));
+        return Results.Ok(new SettingsResponse(profile.TimeZone, profile.TimeZoneFollowsDevice, profile.WeightUnit, profile.HeightUnit, profile.FoodUnit, profile.FatLimits, profile.SodiumLimit));
     }
 
     /// <summary>
@@ -441,7 +451,8 @@ public static class ProfileEndpoints
             profile.WeightUnit,
             profile.HeightUnit,
             profile.FoodUnit,
-            profile.FatLimits);
+            profile.FatLimits,
+            profile.SodiumLimit);
 
     public static WeightResponse ToWeight(WeightSnapshot weight) => new(
         weight.AsOf,
@@ -501,12 +512,13 @@ public sealed record ProfileResponse(
     string WeightUnit,
     string HeightUnit,
     string FoodUnit,
-    string FatLimits);
+    string FatLimits,
+    string SodiumLimit);
 
 /// <summary>Display preferences. None of them changes the targets, so saving one writes no target history.</summary>
-public sealed record SettingsRequest(string? TimeZone, bool? TimeZoneFollowsDevice, string? WeightUnit = null, string? HeightUnit = null, string? FatLimits = null, string? FoodUnit = null);
+public sealed record SettingsRequest(string? TimeZone, bool? TimeZoneFollowsDevice, string? WeightUnit = null, string? HeightUnit = null, string? FatLimits = null, string? FoodUnit = null, string? SodiumLimit = null);
 
-public sealed record SettingsResponse(string TimeZone, bool TimeZoneFollowsDevice, string WeightUnit, string HeightUnit, string FoodUnit, string FatLimits);
+public sealed record SettingsResponse(string TimeZone, bool TimeZoneFollowsDevice, string WeightUnit, string HeightUnit, string FoodUnit, string FatLimits, string SodiumLimit);
 
 public sealed record WeightResponse(
     DateOnly AsOf,
