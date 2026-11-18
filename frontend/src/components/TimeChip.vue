@@ -15,30 +15,34 @@ const label = computed(() => {
   return otherDay.value ? `${dayMonth(props.date)} · ${time}` : time;
 });
 
-// The input covers the chip, so the tap focuses it in the same gesture.
-// A later focus() would not raise the iOS keyboard. Font size stays at 16px.
+// The input covers the chip, so the tap lands on the native control and opens it.
+// Font size stays at 16px so iOS doesn't zoom.
 function prime() {
   const input = el.value;
   if (input && !input.value && !otherDay.value) input.value = props.modelValue ?? nowHM();
 }
+const isTouch = (type: string) => type === "touch" || type === "pen";
 /** How the last press began: "mouse", "touch" or "pen". Empty for a keyboard click. */
 let pointer = "";
 function arm(event: PointerEvent) {
   pointer = event.pointerType;
   prime();
-  // The tap lands on this input. Focusing it here, still inside pointerdown,
-  // is what raises the keyboard on iOS Safari. showPicker on click is too late.
-  el.value?.focus({ preventScroll: true });
+  // On a phone the tap opens the picker when the finger lifts. Focusing on touch-down opened
+  // it under the finger, and iOS 26 then took the lift as a tap outside and closed it again.
+  if (!isTouch(pointer)) el.value?.focus({ preventScroll: true });
 }
 function pick() {
-  const touched = pointer === "touch" || pointer === "pen";
+  const touched = isTouch(pointer);
   pointer = "";
   prime();
   const input = el.value;
   if (!input) return;
-  // On a touch screen the press already opened the picker. Asking again with showPicker,
-  // which iOS 26 honours, closes the picker it just opened.
-  if (touched && document.activeElement === input) return;
+  // The tap already opened the picker. Asking again with showPicker, which iOS 26 honours,
+  // closes it. If the tap didn't focus the field, focusing it here (still in the tap) opens it.
+  if (touched) {
+    if (document.activeElement !== input) input.focus({ preventScroll: true });
+    return;
+  }
   input.focus({ preventScroll: true });
   try { input.showPicker(); } catch { /* focus already opened the control */ }
   if (document.activeElement !== input) input.focus({ preventScroll: true });
