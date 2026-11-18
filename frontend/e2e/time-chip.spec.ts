@@ -63,8 +63,12 @@ test.describe("phone", () => {
 
   test("a tap opens the time picker once and doesn't ask again", async ({ page }) => {
     const time = await setup(page);
+    // Touching down alone opens nothing. Opened under the finger, the iOS 26 picker took the
+    // lift as a tap outside and closed. A long press, which never lifts as a tap, kept it open.
+    await time.dispatchEvent("pointerdown", { pointerType: "touch", isPrimary: true });
+    await expect(time).not.toBeFocused();
     await time.tap();
-    // The press focused the input, which opens the picker on a phone. A second ask
+    // The tap focused the input, which opens the picker on a phone. A second ask
     // (showPicker) closed it again on iOS 26.
     expect(await pickerCalls(page)).toBe(0);
     expect(await time.inputValue()).toMatch(/^\d{2}:\d{2}$/);
