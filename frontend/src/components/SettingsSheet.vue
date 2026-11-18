@@ -4,9 +4,10 @@ import Bar from "./Bar.vue";
 import BottomSheet from "./BottomSheet.vue";
 import Segmented from "./Segmented.vue";
 import Icon from "./Icon.vue";
-import { putSettings } from "../api";
+import { ApiError, getExport, putSettings } from "../api";
 import { signOut } from "../auth/session";
 import { buildLabel } from "../lib/buildInfo";
+import { saveBlob } from "../lib/download";
 import { accents, applyAccent, applyTheme, readAccent, readTheme, themes, type AccentId, type ThemeId } from "../lib/theme";
 import { allZones, searchZones, suggestedZones, zoneLabel, zoneOffset, zoneTime } from "../lib/timeZones";
 import { boot } from "../state/boot";
@@ -41,6 +42,7 @@ watch(open, (value) => {
   query.value = "";
   error.value = "";
   unitsError.value = "";
+  exportError.value = "";
   theme.value = readTheme();
   accent.value = readAccent();
 });
@@ -86,6 +88,22 @@ async function chooseHeight(unit: HeightUnit) {
 }
 async function chooseFood(unit: FoodUnit) {
   unitsError.value = await setFoodUnit(unit);
+}
+
+const exporting = ref(false);
+const exportError = ref("");
+async function onExport() {
+  if (exporting.value) return;
+  exporting.value = true;
+  exportError.value = "";
+  try {
+    const file = await getExport();
+    saveBlob(file.blob, file.name);
+  } catch (failure) {
+    exportError.value = failure instanceof ApiError ? failure.message : "Couldn't export. Check your connection and try again.";
+  } finally {
+    exporting.value = false;
+  }
 }
 
 async function onSignOut() {
@@ -161,6 +179,20 @@ async function onSignOut() {
           <span class="t-body c2 zval">{{ zoneLabel(zone) }}</span>
           <Icon name="right" :size="16" class="fchev" />
         </button>
+      </section>
+
+      <section class="col group" aria-labelledby="set-data" data-export>
+        <h3 id="set-data" class="t-bodys gtitle"><Icon name="download" :size="16" /> Your data</h3>
+        <div class="frow">
+          <span class="col grow">
+            <span class="t-body">Export your data</span>
+            <span class="t-capn c2">Log, weigh-ins, targets, foods and recipes</span>
+          </span>
+          <button type="button" class="btn sm secondary t-label" :disabled="exporting" @click="onExport">
+            <Icon name="download" :size="14" /> {{ exporting ? "Exporting…" : "Export" }}
+          </button>
+        </div>
+        <p v-if="exportError" class="t-body m0" role="alert">{{ exportError }}</p>
       </section>
 
       <section class="col group" aria-labelledby="set-account">
