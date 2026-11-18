@@ -33,16 +33,8 @@ async function setup(page: Page) {
   await page.addInitScript((id) => {
     sessionStorage.setItem("gymbro-e2e", "1");
     sessionStorage.setItem("gymbro-e2e-oid", id);
-    const counter = window as unknown as { pickerCalls: number; pickerLog: string[] };
+    const counter = window as unknown as { pickerCalls: number };
     counter.pickerCalls = 0;
-    counter.pickerLog = [`load ${location.pathname}`];
-    for (const type of ["pointerdown", "mousedown", "click"]) {
-      document.addEventListener(type, (event) => {
-        const target = event.target as Element;
-        const pointer = event instanceof PointerEvent ? ` ${event.pointerType}` : "";
-        counter.pickerLog.push(`${type}${pointer} ${target.tagName.toLowerCase()}.${String(target.className)}`);
-      }, true);
-    }
     Object.defineProperty(HTMLInputElement.prototype, "showPicker", {
       configurable: true,
       writable: true,
@@ -87,9 +79,11 @@ test.describe("desktop", () => {
     // Desktop Safari has no time picker: the click goes into its hour and minute fields.
     test.skip(test.info().project.name === "webkit", "no picker in desktop WebKit");
     const time = await setup(page);
-    await time.click();
-    const log = await page.evaluate(() => (window as unknown as { pickerLog: string[] }).pickerLog.join(" | "));
-    expect(await pickerCalls(page), log).toBe(1);
+    // Press on the hour field. Chrome's own (hidden) picker button sits at the input's right end;
+    // a press there opens Chrome's picker on mousedown and no click follows.
+    const box = (await time.boundingBox())!;
+    await time.click({ position: { x: 6, y: box.height / 2 } });
+    expect(await pickerCalls(page)).toBe(1);
     expect(await time.inputValue()).toMatch(/^\d{2}:\d{2}$/);
   });
 });
