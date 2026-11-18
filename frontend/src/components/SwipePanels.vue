@@ -346,12 +346,14 @@ defineExpose({ go, step, index });
 }
 .half.back { left: 0; }
 .half.forward { right: 0; }
-.cogged { padding: 0 44px; }
+/* --cog-out: how far the cog's 44px box reaches past the strip, so the 18px gear's right edge
+   meets the card's content edge, in line with the bars and buttons above it. */
+.cogged { padding: 0 44px; --cog-out: 13px; }
 .cogged .half.back { left: 0; width: calc(50% - 22px); }
-.cogged .half.forward { right: 44px; width: calc(50% - 22px); }
+.cogged .half.forward { right: calc(44px - var(--cog-out)); width: calc(50% - 22px + var(--cog-out)); }
 .cog {
   position: absolute;
-  right: 0;
+  right: calc(-1 * var(--cog-out));
   top: 0;
   width: 44px;
   height: 44px;

@@ -1309,7 +1309,8 @@ async function deleteEdited() {
 .session { display: flex; flex-direction: column; align-items: stretch; gap: var(--space-s); flex: none; min-width: 0; max-width: 100%; box-sizing: border-box; }
 .stext { min-width: 0; }
 .sbtns { display: flex; flex-wrap: wrap; align-items: stretch; gap: var(--space-s); margin: 0; min-width: 0; max-width: 100%; }
-.sbtns .btn { flex: 1 1 0; min-width: 0; }
+/* A label that wraps keeps 8px above and below it inside the pill. */
+.sbtns .btn { flex: 1 1 0; min-width: 0; padding-block: calc(var(--inset) + var(--space-s)); }
 .sbtns .btn span { min-width: 0; }
 html.dt-xl .sbtns .btn { flex-basis: 100%; }
 /* The header stays near the default size so the largest text cannot cover it.

@@ -96,6 +96,13 @@ test("the Macros card cog hides nutrient panels, and Macros always stays", async
   const card = page.locator("[data-nutrient-card]");
   const dots = card.locator(".dot");
   await expect(dots).toHaveCount(5);
+  // The gear's right edge meets the card's content edge, where the bars end.
+  const edges = await card.evaluate((el) => {
+    const gear = el.querySelector(".cog svg")!.getBoundingClientRect();
+    const box = el.getBoundingClientRect();
+    return { gear: gear.right, content: box.right - parseFloat(getComputedStyle(el).paddingRight) };
+  });
+  expect(Math.abs(edges.gear - edges.content)).toBeLessThan(1);
 
   await card.getByRole("button", { name: "Choose macros card pages" }).click();
   const sheet = page.getByRole("dialog", { name: "Macros card pages" });

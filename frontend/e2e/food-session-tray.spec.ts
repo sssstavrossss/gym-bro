@@ -60,4 +60,21 @@ test("the added tray steps aside while the search has the keyboard", async ({ pa
   await search.blur();
   await expect(tray).toBeVisible();
   await expect(tray.getByRole("button", { name: "Done" })).toBeVisible();
+
+  // Two added: Save as group and Save as recipe join Done. Their labels wrap on a phone, and
+  // each keeps 8px above and below it inside the pill.
+  await foodSheet(page).getByRole("button", { name: /^Fictional tray butter/ }).click();
+  await foodSheet(page).getByRole("button", { name: /^Add · \d+ kcal/ }).click();
+  await expect(tray).toContainText("2 added");
+  const buttons = tray.locator(".btn");
+  await expect(buttons).toHaveCount(3);
+  const gaps = await buttons.evaluateAll((list) => list.map((button) => {
+    const inset = parseFloat(getComputedStyle(button).getPropertyValue("--inset")) || 0;
+    const box = button.getBoundingClientRect();
+    const range = document.createRange();
+    range.selectNodeContents(button);
+    const text = range.getBoundingClientRect();
+    return Math.min(text.top - (box.top + inset), box.bottom - inset - text.bottom);
+  }));
+  for (const gap of gaps) expect(gap).toBeGreaterThanOrEqual(7.5);
 });
