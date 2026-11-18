@@ -33,8 +33,16 @@ async function setup(page: Page) {
   await page.addInitScript((id) => {
     sessionStorage.setItem("gymbro-e2e", "1");
     sessionStorage.setItem("gymbro-e2e-oid", id);
-    const counter = window as unknown as { pickerCalls: number };
+    const counter = window as unknown as { pickerCalls: number; pickerLog: string[] };
     counter.pickerCalls = 0;
+    counter.pickerLog = [`load ${location.pathname}`];
+    for (const type of ["pointerdown", "mousedown", "click"]) {
+      document.addEventListener(type, (event) => {
+        const target = event.target as Element;
+        const pointer = event instanceof PointerEvent ? ` ${event.pointerType}` : "";
+        counter.pickerLog.push(`${type}${pointer} ${target.tagName.toLowerCase()}.${String(target.className)}`);
+      }, true);
+    }
     Object.defineProperty(HTMLInputElement.prototype, "showPicker", {
       configurable: true,
       writable: true,
@@ -80,7 +88,8 @@ test.describe("desktop", () => {
     test.skip(test.info().project.name === "webkit", "no picker in desktop WebKit");
     const time = await setup(page);
     await time.click();
-    expect(await pickerCalls(page)).toBe(1);
+    const log = await page.evaluate(() => (window as unknown as { pickerLog: string[] }).pickerLog.join(" | "));
+    expect(await pickerCalls(page), log).toBe(1);
     expect(await time.inputValue()).toMatch(/^\d{2}:\d{2}$/);
   });
 });
