@@ -2,6 +2,7 @@ import { reactive } from "vue";
 import { todayInZone, todayIso } from "./lib/dates";
 import { lastPlanDate } from "./lib/dayLog";
 import { primeKeyboard, rememberOpener } from "./lib/focusField";
+import type { PageCard } from "./lib/cardPages";
 import type { SheetName } from "./lib/layout";
 import { deviceTimeZone } from "./state/profile";
 
@@ -44,6 +45,8 @@ export const ui = reactive({
   recipeReturn: null as null | "food" | "select",
   /** Nutrient open in the nutrient sheet, for the day the Home card shows, with that day's kcal target. */
   nutrient: null as null | { key: string; kcalTarget: number | null },
+  /** The Home card whose pages the card pages sheet picks. */
+  cardPages: "progress" as PageCard,
 });
 
 let toastTimer = 0;
@@ -70,6 +73,12 @@ export function openSettings(): void {
 
 export function openNotifications(): void {
   ui.sheet = "notifications";
+}
+
+/** Picks which pages a Home swipe card shows. */
+export function openCardPages(card: PageCard): void {
+  ui.cardPages = card;
+  ui.sheet = "card-pages";
 }
 
 /** Detail for one ring on the Home nutrient card. */

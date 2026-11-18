@@ -66,6 +66,11 @@ describe("NNR percents", () => {
     expect(vitamins[2].keys).toEqual(["folate", "vitaminB12"]);
   });
 
+  it("leaves out hidden panels, with every page of a split one", () => {
+    expect(panelsForSize(false, ["vitamins"]).map((panel) => panel.id)).toEqual(["fats", "carbs", "minerals"]);
+    expect(panelsForSize(true, ["vitamins", "fats"]).map((panel) => panel.id)).toEqual(["carbs", "minerals-0", "minerals-1"]);
+  });
+
   it("adds copper, starch and EPA + DHA where they fit and never adds a page", () => {
     const home = panelsForSize(false);
     expect(home.find((panel) => panel.id === "minerals")!.keys).toContain("copper");

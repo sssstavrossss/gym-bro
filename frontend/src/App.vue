@@ -15,6 +15,7 @@ import SettingsSheet from "./components/SettingsSheet.vue";
 import NotificationsSheet from "./components/NotificationsSheet.vue";
 import NutrientSheet from "./components/NutrientSheet.vue";
 import AccuracySheet from "./components/AccuracySheet.vue";
+import CardPagesSheet from "./components/CardPagesSheet.vue";
 import RecalculateSheet from "./components/RecalculateSheet.vue";
 import WeightSheet from "./components/WeightSheet.vue";
 import { e2eSession } from "./auth/e2e";
@@ -146,6 +147,7 @@ function onKey(event: KeyboardEvent) {
     <SettingsSheet />
     <NotificationsSheet />
     <NutrientSheet />
+    <CardPagesSheet />
     <AddChooser />
     <FoodSheet />
     <Toast />
