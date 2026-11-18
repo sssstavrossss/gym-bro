@@ -9,6 +9,7 @@ import Keypad from "./Keypad.vue";
 import Segmented from "./Segmented.vue";
 import TimeChip from "./TimeChip.vue";
 import FoodAmountView from "./FoodAmountView.vue";
+import BarcodeScanner from "./BarcodeScanner.vue";
 import { dayMonth, todayInZone } from "../lib/dates";
 import { focusField, primeKeyboard } from "../lib/focusField";
 import { int } from "../lib/format";
@@ -64,7 +65,7 @@ import { canSaveRecipe, matchingRecipes, recipeFoodEntries } from "../lib/recipe
 import { deleteSavedGroup, loadGroups, readdSavedGroup, savedGroups } from "../state/groups";
 import { loadRecipes, savedRecipes } from "../state/recipes";
 import { foodAmount, foodUnit } from "../state/units";
-import { closeFoodLayer, closeSheet, openCopy, openGroupSheet, openRecipeCreate, openRecipeEdit, openRecipeFromEntries, openRecipeLog, toast, ui } from "../ui";
+import { closeFoodLayer, closeSheet, openCopy, openFoodScan, openGroupSheet, openRecipeCreate, openRecipeEdit, openRecipeFromEntries, openRecipeLog, toast, ui } from "../ui";
 
 const open = computed(() => ui.sheet === "food");
 const editing = computed(() => findEntry(ui.editEntryId));
@@ -74,9 +75,11 @@ const otherDay = computed(() => ui.foodDate !== foodToday.value);
 const needTime = computed(() => addNeedsTime(ui.foodDate, foodToday.value, time.value, Boolean(editing.value)));
 const editingFood = computed(() => (editing.value && editing.value.source !== "quick" ? editing.value : null));
 const showEditor = computed(() => ui.foodEditor != null);
+const showScan = computed(() => ui.foodScan && !showEditor.value && !ui.detailFoodId);
 const showDetail = computed(() => Boolean(ui.detailFoodId || editingFood.value));
 const sheetLabel = computed(() => {
   if (ui.foodEditor) return ui.foodEditor.id ? "Edit my food" : "New food";
+  if (showScan.value) return "Scan barcode";
   return editing.value ? "Edit food" : "Add food";
 });
 
@@ -318,6 +321,10 @@ function back() {
     closeSheet();
     return;
   }
+  if (showScan.value) {
+    ui.foodScan = false;
+    return;
+  }
   ui.detailFoodId = null;
   detailFood.value = null;
   formError.value = "";
@@ -327,6 +334,19 @@ function back() {
 function openNewFood(seedName?: string) {
   primeKeyboard();
   ui.foodEditor = { seed: seedName ? { name: seedName } : undefined, ret: "list" };
+}
+function startScan() {
+  closeSearchKeyboard();
+  openFoodScan();
+}
+function onScanFound(food: FoodSearchRow) {
+  ui.foodScan = false;
+  void openFoodRow(food);
+}
+function onScanCreate(code: string) {
+  ui.foodScan = false;
+  primeKeyboard();
+  ui.foodEditor = { seed: { barcode: code }, ret: "list" };
 }
 function openMissingEditor() {
   primeKeyboard();
@@ -1000,25 +1020,30 @@ async function deleteEdited() {
     <template #header>
       <div class="toast-pad">
       <div class="row hdr">
-        <button v-if="showDetail || showEditor" type="button" class="cbtn"  aria-label="Back" @click="back">
+        <button v-if="showDetail || showEditor || showScan" type="button" class="cbtn"  aria-label="Back" @click="back">
           <Icon name="left" :size="18" />
         </button>
-        <h2 v-else-if="!searchView" class="t-head">{{ editing ? "Edit food" : "Add food" }}</h2>
+        <h2 v-if="showScan" class="t-head">Scan barcode</h2>
+        <h2 v-else-if="!showDetail && !showEditor && !searchView" class="t-head">{{ editing ? "Edit food" : "Add food" }}</h2>
         <span class="grow" />
-        <TimeChip v-if="!showEditor && (showDetail || !searchView)" v-model="time" :date="ui.foodDate" :today="foodToday" :allow-now="!otherDay && !editing" />
+        <TimeChip v-if="!showEditor && !showScan && (showDetail || !searchView)" v-model="time" :date="ui.foodDate" :today="foodToday" :allow-now="!otherDay && !editing" />
         <button type="button" class="cbtn"  aria-label="Close" @click="closeSheet">
           <Icon name="x" :size="18" />
         </button>
       </div>
-      <p v-if="needTime && !showEditor" class="needt t-label" role="status">
+      <p v-if="needTime && !showEditor && !showScan" class="needt t-label" role="status">
         <Icon name="clock" :size="14" :sw="2.2" /> Logging to {{ dayMonth(ui.foodDate) }} — pick the time you ate it.
       </p>
-      <Segmented v-if="!showDetail && !editing && !showEditor && !searchView" v-model="ui.foodTab" label="Add food" :options="[{ value: 'search', label: 'Search' }, { value: 'quick', label: 'Quick Add' }]" @pointerdown="onAddTabPointer" />
+      <Segmented v-if="!showDetail && !editing && !showEditor && !showScan && !searchView" v-model="ui.foodTab" label="Add food" :options="[{ value: 'search', label: 'Search' }, { value: 'quick', label: 'Quick Add' }]" @pointerdown="onAddTabPointer" />
       </div>
     </template>
 
     <div v-if="showEditor && ui.foodEditor" class="list">
       <FoodEditor :key="ui.foodEditor.id ?? 'new'" :edit-id="ui.foodEditor.id" :seed="ui.foodEditor.seed" :namesakes="mine" @saved="onFoodSaved" @deleted="onFoodDeleted" @cancel="back" />
+    </div>
+
+    <div v-else-if="showScan" class="list">
+      <BarcodeScanner @found="onScanFound" @create="onScanCreate" />
     </div>
 
     <FoodAmountView v-else-if="showDetail" ref="amountView" :amount="amount" :macro-title="macroTitle" :goal="sheetGoal" :before="dayBefore" @submit="addDetail">
@@ -1062,6 +1087,7 @@ async function deleteEdited() {
         <Icon name="search" :size="18" class="c2" />
         <input ref="searchEl" v-model="q" data-no-autofocus class="t-body grow" type="search" :placeholder="filter === 'mine' ? 'Search my foods' : filter === 'recipes' ? 'Search recipes' : 'Search foods'" :aria-label="filter === 'recipes' ? 'Search recipes' : 'Search foods'" autocomplete="off" enterkeyhint="search" @focus="onSearchFocus" @blur="queueSearchBlur" @keydown="searchKey" />
         <button v-if="q" type="button" class="clr c2" aria-label="Clear search" @click="q = ''"><Icon name="x" :size="16" /></button>
+        <button v-else-if="filter !== 'recipes'" type="button" class="clr scanb" aria-label="Scan a barcode" @click="startScan"><Icon name="scan" :size="20" /></button>
       </label>
       <div v-show="!searchView" class="row fchips" role="group" aria-label="Show">
         <button type="button" class="chip t-label" :class="{ on: filter === 'all' }" :aria-pressed="filter === 'all'" @click="filter = 'all'">All foods</button>
@@ -1285,6 +1311,7 @@ async function deleteEdited() {
 .rrow.hl { background: var(--color-surface-2); border-radius: var(--radius-m); }
 .rtext { gap: var(--space-2xs); min-width: 0; align-items: flex-start; }
 .ell { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+.scanb { color: var(--text-primary); }
 .clr { width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center; flex: none; }
 .qgrid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-s); flex: none; min-width: 0; }
 .qf { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-2xs); padding: var(--space-m) var(--space-l); min-height: 72px; border-radius: var(--radius-m); background: var(--color-surface-2); text-align: left; min-width: 0; }

@@ -55,7 +55,9 @@ for (const layout of widths) {
     expect(csp).toContain("frame-src 'self' https://*.ciamlogin.com");
     expect(csp).toContain("frame-ancestors 'self'");
     expect(csp).toContain("https://*.ciamlogin.com");
-    expect(csp).not.toContain("unsafe-eval");
+    // WebAssembly may compile (the barcode decoder); JavaScript eval may not.
+    expect(csp).not.toContain("'unsafe-eval'");
+    expect(csp).toContain("script-src 'self' 'wasm-unsafe-eval';");
     await expect(page.getByText("Matvaretabellen 2026. Mattilsynet. www.matvaretabellen.no")).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Sign out" })).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Settings" })).toBeVisible();

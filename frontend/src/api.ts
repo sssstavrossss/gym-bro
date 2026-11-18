@@ -2,6 +2,7 @@ import { accessToken } from "./auth/session";
 import type { CatalogFood, OwnServing } from "./lib/foodAmount";
 import { kg as formatKg } from "./lib/format";
 import { dispositionName } from "./lib/download";
+import type { LookupStatus } from "./lib/barcode";
 import type { FatLimitsSetting, SodiumLimitSetting } from "./lib/nutrientCards";
 import type { FoodUnit } from "./lib/foodUnits";
 import { e2eSession } from "./auth/e2e";
@@ -626,6 +627,17 @@ export async function searchOpenFoodFacts(query: string): Promise<OffSearchRespo
 
 export async function getFood(id: string): Promise<FoodSearchRow> {
   return jsonOrThrow(await request(`/api/foods/${id}`));
+}
+
+export interface BarcodeLookup {
+  code: string;
+  status: LookupStatus;
+  food: FoodSearchRow | null;
+}
+
+/** The food for a barcode: own foods, then the catalogue, then Open Food Facts. A miss is not an error. */
+export async function lookupBarcode(code: string): Promise<BarcodeLookup> {
+  return jsonOrThrow(await request(`/api/foods/barcode/${encodeURIComponent(code)}`));
 }
 
 export interface CustomFoodBody {

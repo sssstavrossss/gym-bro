@@ -70,6 +70,7 @@ public static class FoodEndpoints
         api.MapPut("/foods/{id:guid}", Update);
         api.MapDelete("/foods/{id:guid}", Delete);
         api.MapServings();
+        api.MapBarcode();
         api.MapGet("/about", About);
         return api;
     }
@@ -676,7 +677,7 @@ public static class FoodEndpoints
         return Results.Ok(ToResponse(food, basis, servings.GetValueOrDefault(food.Id)));
     }
 
-    private static async Task<Dictionary<Guid, string>> ConfirmedBases(
+    internal static async Task<Dictionary<Guid, string>> ConfirmedBases(
         AppDbContext db,
         string userId,
         IReadOnlyList<Food> foods,

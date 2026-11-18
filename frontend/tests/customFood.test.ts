@@ -111,6 +111,10 @@ describe("custom food editor", () => {
     const fromQuick = formFromSeed({ name: "Desk shake", kcal: 220, protein: 30, fat: 4, carbs: 8 });
     expect(fromQuick.kcal).toBe("220");
     expect(fromQuick.basis).toBe("serving");
+    const scanned = formFromSeed({ barcode: "7038010009457" });
+    expect(scanned.barcode).toBe("7038010009457");
+    expect(scanned.name).toBe("");
+    expect(scanned.basis).toBe("100g");
     const stored = formFromFood({
       name: "Bar",
       brand: "Fitbake",

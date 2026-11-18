@@ -14,9 +14,11 @@ export const ui = reactive({
   /** Custom food editor. A seed may carry a name and quick-add numbers, never invented nutrients. */
   foodEditor: null as null | {
     id?: string;
-    seed?: { name?: string; kcal?: number; protein?: number; fat?: number; carbs?: number };
+    seed?: { name?: string; kcal?: number; protein?: number; fat?: number; carbs?: number; barcode?: string };
     ret: "list" | "detail";
   },
+  /** The barcode scanner is open over the search list. */
+  foodScan: false,
   editEntryId: null as string | null,
   toast: null as null | { id: number; text: string; action?: { label: string; run: () => void } },
   weightDate: todayIso(),
@@ -126,6 +128,10 @@ export function closeFoodLayer(): boolean {
     if (ret !== "detail") ui.detailFoodId = null;
     return true;
   }
+  if (ui.foodScan) {
+    ui.foodScan = false;
+    return true;
+  }
   if (ui.sheet === "food" && ui.detailFoodId && !ui.editEntryId) {
     ui.detailFoodId = null;
     return true;
@@ -140,6 +146,7 @@ export function closeSheet(): void {
   ui.editEntryId = null;
   ui.detailFoodId = null;
   ui.foodEditor = null;
+  ui.foodScan = false;
 }
 
 export function openAdd(): void {
@@ -155,9 +162,17 @@ export function openFood(tab: "search" | "quick" = "search", date?: string): voi
   ui.editEntryId = null;
   ui.detailFoodId = null;
   ui.foodEditor = null;
+  ui.foodScan = false;
   ui.foodTab = tab;
   ui.foodDate = date && date <= lastPlanDate(today) ? date : today;
   ui.sheet = "food";
+}
+
+/** The scanner opens over the food search list. Back returns to the list. */
+export function openFoodScan(): void {
+  ui.detailFoodId = null;
+  ui.foodEditor = null;
+  ui.foodScan = true;
 }
 
 export function startSelect(id?: string): void {
