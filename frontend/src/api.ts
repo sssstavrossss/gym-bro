@@ -1,7 +1,7 @@
 import { accessToken } from "./auth/session";
 import type { CatalogFood, OwnServing } from "./lib/foodAmount";
 import { kg as formatKg } from "./lib/format";
-import type { FatLimitsSetting } from "./lib/nutrientCards";
+import type { FatLimitsSetting, SodiumLimitSetting } from "./lib/nutrientCards";
 import type { FoodUnit } from "./lib/foodUnits";
 import { e2eSession } from "./auth/e2e";
 import { loadPublicConfig, type PublicConfig } from "./auth/publicConfig";
@@ -62,6 +62,8 @@ export interface ProfileResponse {
   foodUnit?: FoodUnit;
   /** Saturated fat and cholesterol limits on the Fats card. Display only. */
   fatLimits?: FatLimitsSetting;
+  /** The sodium limit on the Carbs card and Progress. Display only. */
+  sodiumLimit?: SodiumLimitSetting;
 }
 
 export type TrendState = "normal" | "low_accuracy" | "fresh_start";
@@ -442,6 +444,7 @@ export interface SettingsBody {
   heightUnit?: "cm" | "ftin";
   foodUnit?: FoodUnit;
   fatLimits?: FatLimitsSetting;
+  sodiumLimit?: SodiumLimitSetting;
 }
 
 export interface SettingsResponse {
@@ -451,6 +454,7 @@ export interface SettingsResponse {
   heightUnit: "cm" | "ftin";
   foodUnit: FoodUnit;
   fatLimits: FatLimitsSetting;
+  sodiumLimit: SodiumLimitSetting;
 }
 
 /** Display preferences. Saving one never changes the targets or adds history. */
@@ -524,6 +528,10 @@ export interface ProgressDay {
   trendBandKg?: number | null;
   /** Between weigh-ins at most a week apart: the trend is drawn solid. */
   trendMeasured?: boolean;
+  /** Grams of saturated fat that day. Unknown counts as 0; null on a day with nothing logged. */
+  saturatedFat?: number | null;
+  /** Milligrams of sodium that day: each entry's sodium, or its salt ÷ 2.5. Unknown counts as 0; null on a day with nothing logged. */
+  sodiumMg?: number | null;
 }
 
 export interface ProgressResponse {

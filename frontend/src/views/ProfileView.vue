@@ -7,12 +7,12 @@ import TargetHistory from "../components/TargetHistory.vue";
 import { ACTIVITY, FAT_PRESETS, PROTEIN_PRESETS, RATES, type ActivityKey, type Goal, type MacroSetting, type Sex } from "../lib/nutrition";
 import { dayMonth, todayInZone } from "../lib/dates";
 import { int } from "../lib/format";
-import { fatCaption, goalStats, isExact, proteinCaption, saturatedCaption } from "../lib/goalCards";
+import { fatCaption, goalStats, isExact, proteinCaption, saturatedCaption, sodiumCaption } from "../lib/goalCards";
 import { goalLine } from "../lib/goalLine";
-import { fatLimits, fatLimitsOf, type FatLimitsSetting } from "../lib/nutrientCards";
+import { fatLimits, fatLimitsOf, sodiumLimitMg, sodiumLimitOf, type FatLimitsSetting, type SodiumLimitSetting } from "../lib/nutrientCards";
 import { parseDecimal } from "../lib/numbers";
 import { rateText, toKg } from "../lib/units";
-import { commitProfile, deviceTimeZone, profile, setFatLimits, shownTargets, weightCaption } from "../state/profile";
+import { commitProfile, deviceTimeZone, profile, setFatLimits, setSodiumLimit, shownTargets, weightCaption } from "../state/profile";
 import { inbox } from "../state/inbox";
 import { heightUnit, weightUnit, wt } from "../state/units";
 import { openGoalWeight, openNotifications, openRecalculate, openSettings, openWeight } from "../ui";
@@ -41,8 +41,10 @@ const saturatedOptions: { value: FatLimitsSetting; label: string }[] = [{ value:
 
 const saturated = computed(() => fatLimitsOf(profile.saved?.fatLimits));
 const limits = computed(() => fatLimits(saturated.value, shown.value?.kcal));
+const sodiumOptions: { value: SodiumLimitSetting; label: string }[] = [{ value: "normal", label: "Standard" }, { value: "lower", label: "Strict" }];
+const sodium = computed(() => sodiumLimitOf(profile.saved?.sodiumLimit));
 const limitsError = ref("");
-const macrosDefault = computed(() => profile.form.proteinSetting === "normal" && profile.form.fatSetting === "normal" && saturated.value === "normal");
+const macrosDefault = computed(() => profile.form.proteinSetting === "normal" && profile.form.fatSetting === "normal" && saturated.value === "normal" && sodium.value === "normal");
 
 const goalKg = computed(() => {
   const typed = parseDecimal(profile.form.goalWeight);
@@ -98,6 +100,10 @@ function setFat(key: MacroSetting) {
 async function setSaturated(value: FatLimitsSetting) {
   limitsError.value = await setFatLimits(value);
 }
+/** The same for sodium: only the Carbs card and the Progress Sodium page change. */
+async function setSodium(value: SodiumLimitSetting) {
+  limitsError.value = await setSodiumLimit(value);
+}
 function onExactProtein() {
   const parsed = parseDecimal(profile.form.proteinGramsPerKg);
   if (parsed == null) return;
@@ -119,6 +125,7 @@ function resetMacros() {
   profile.form.fatPercent = "25";
   void commitProfile();
   if (saturated.value !== "normal") void setSaturated("normal");
+  if (sodium.value !== "normal") void setSodium("normal");
 }
 function onTextCommit() {
   void commitProfile();
@@ -216,12 +223,19 @@ function onTextCommit() {
               </span>
               <span v-if="shown" class="t-body t-ns mval">{{ int(shown.carbs) }} g</span>
             </div>
-            <div class="frow mrow" :class="{ last: !exactOpen }" data-saturated-setting>
+            <div class="frow mrow" data-saturated-setting>
               <span class="col mlab">
                 <span class="t-body">Saturated fat</span>
                 <span class="t-capn c2" data-saturated-caption>{{ saturatedCaption(limits) }}</span>
               </span>
               <Segmented size="compact" label="Saturated fat" :model-value="saturated" :options="saturatedOptions" @update:model-value="setSaturated" />
+            </div>
+            <div class="frow mrow" :class="{ last: !exactOpen }" data-sodium-setting>
+              <span class="col mlab">
+                <span class="t-body">Sodium</span>
+                <span class="t-capn c2" data-sodium-caption>{{ sodiumCaption(sodiumLimitMg(sodium)) }}</span>
+              </span>
+              <Segmented size="compact" label="Sodium" :model-value="sodium" :options="sodiumOptions" @update:model-value="setSodium" />
             </div>
             <template v-if="exactOpen">
               <label class="frow">

@@ -273,12 +273,14 @@ test("the home nutrient card is 358 by 214 on every panel", async ({ page }) => 
 
 /**
  * 12px, the dots, 12px: the strip ends at the card's bottom edge. The 44px tap box reaches 7px
- * below the card, so a clipped card must not cut it off.
+ * below the card, so a clipped card must not cut it off. When the dots are too many for 44px each
+ * (Progress on a phone), the strip's back and forward halves take that tap instead.
  */
 async function expectDotBand(page: Page, root: string) {
   await page.locator(root).first().evaluate((card) => card.scrollIntoView({ block: "center" }));
   const band = await page.locator(root).first().evaluate((card) => {
-    const strip = card.querySelector(".strip")!.getBoundingClientRect();
+    const stripNode = card.querySelector(".strip")!;
+    const strip = stripNode.getBoundingClientRect();
     const dot = card.querySelector("button.dot:not(.on)") as HTMLElement;
     const pip = dot.querySelector(".pip")!.getBoundingClientRect();
     const edge = card.getBoundingClientRect().bottom;
@@ -288,7 +290,7 @@ async function expectDotBand(page: Page, root: string) {
       above: Math.round(pip.top - strip.top),
       below: Math.round(strip.bottom - pip.bottom),
       edge: Math.round(edge - strip.bottom),
-      tap: below === dot || dot.contains(below),
+      tap: stripNode.classList.contains("halves") ? !!below?.closest(".half") : below === dot || dot.contains(below),
     };
   });
   expect(band).toEqual({ above: 12, below: 12, edge: 0, tap: true });

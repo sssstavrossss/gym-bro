@@ -102,6 +102,48 @@ public sealed class ProgressEndpointTests(ApiFactory factory)
     }
 
     [Fact]
+    public async Task Days_carry_saturated_fat_and_sodium_with_salt_as_the_fallback()
+    {
+        using var client = factory.AsUser(TestData.NewUser("progress-satfat"));
+        factory.Clock.UtcNow = new DateTimeOffset(2026, 11, 7, 9, 0, 0, TimeSpan.Zero);
+        await Setup(client, "2026-11-07");
+        factory.Clock.UtcNow = new DateTimeOffset(2026, 11, 10, 9, 0, 0, TimeSpan.Zero);
+        Assert.Equal(HttpStatusCode.Created, (await client.PostAsync("/api/log-entries", Json(Quick("s-quick", "2026-11-09", "300", "10")))).StatusCode);
+
+        // Salt only: 2 g salt per 100 g is 800 mg sodium. Sodium given: 500 mg per 100 g, and its salt is ignored.
+        var salted = await Food(client, """{"name":"Fictional crisps","kcalPer100":500,"proteinPer100":6,"fatPer100":30,"carbsPer100":50,"saturatedFatPer100":8,"saltPer100":2}""");
+        var soup = await Food(client, """{"name":"Fictional soup","kcalPer100":50,"proteinPer100":2,"fatPer100":1,"carbsPer100":8,"saltPer100":9,"nutrients":{"sodium":500}}""");
+        await Log(client, "s-crisps", salted, 50);
+        await Log(client, "s-soup", soup, 200);
+
+        var body = await client.GetFromJsonAsync<JsonElement>("/api/progress?range=7d");
+        var day = Day(body.GetProperty("days"), "2026-11-10");
+        Assert.Equal(4m, day.GetProperty("saturatedFat").GetDecimal());
+        Assert.Equal(400m + 1000m, day.GetProperty("sodiumMg").GetDecimal());
+
+        // A quick add has neither, so a logged day counts 0. A day with nothing logged stays null.
+        var quick = Day(body.GetProperty("days"), "2026-11-09");
+        Assert.Equal(0m, quick.GetProperty("saturatedFat").GetDecimal());
+        Assert.Equal(0m, quick.GetProperty("sodiumMg").GetDecimal());
+        var empty = Day(body.GetProperty("days"), "2026-11-08");
+        Assert.Equal(JsonValueKind.Null, empty.GetProperty("saturatedFat").ValueKind);
+        Assert.Equal(JsonValueKind.Null, empty.GetProperty("sodiumMg").ValueKind);
+
+        static async Task<Guid> Food(HttpClient client, string json)
+        {
+            var response = await client.PostAsync("/api/foods", Json(json));
+            Assert.True(response.IsSuccessStatusCode, await response.Content.ReadAsStringAsync());
+            return (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+        }
+
+        static async Task Log(HttpClient client, string key, Guid foodId, int grams)
+        {
+            var response = await client.PostAsync("/api/log-entries", Json($$"""{"idempotencyKey":"{{key}}","localDate":"2026-11-10","timeZone":"UTC","time":"09:00","foodId":"{{foodId}}","amount":{{grams}},"unit":"g"}"""));
+            Assert.True(response.IsSuccessStatusCode, await response.Content.ReadAsStringAsync());
+        }
+    }
+
+    [Fact]
     public async Task Another_persons_logs_and_weigh_ins_are_not_included()
     {
         factory.Clock.UtcNow = new DateTimeOffset(2026, 11, 10, 9, 0, 0, TimeSpan.Zero);

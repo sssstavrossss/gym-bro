@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 
 function headers(oid: string) {
   return { "X-Test-Oid": oid, "X-Test-Name": "Test User", "Content-Type": "application/json" };
@@ -21,6 +21,31 @@ async function clock(page: Page) {
 }
 
 test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+
+const PAGES = ["Weight", "Calories", "Protein", "Fat", "Carbs", "Fibre", "Saturated fat", "Sodium"];
+
+/** Eight pages are too many for 44px dots on a phone, so the dot strip only shows where you are. Step with Next panel. */
+async function showPage(progress: Locator, title: string) {
+  const heading = progress.locator("[data-progress-title]");
+  let at = PAGES.indexOf(await heading.innerText());
+  while (PAGES[at] !== title) {
+    at = (at + 1) % PAGES.length;
+    await progress.getByRole("button", { name: "Next panel" }).last().click();
+    await expect(heading).toHaveText(PAGES[at]);
+    // A tap during the snap is lost, so wait for the track to stop.
+    await progress.locator(".track").evaluate((track) => new Promise<void>((done) => {
+      let last = -1;
+      let still = 0;
+      const tick = () => {
+        still = track.scrollLeft === last ? still + 1 : 0;
+        last = track.scrollLeft;
+        if (still >= 6) done();
+        else requestAnimationFrame(tick);
+      };
+      tick();
+    }));
+  }
+}
 
 async function showInView(page: Page, locator: ReturnType<Page["locator"]>, edge: "start" | "end" = "start") {
   await locator.evaluate((el, which) => {
@@ -111,7 +136,6 @@ test("home title, progress pickers, and remembered metric", async ({ page }) => 
   await expect(main.getByText(/fasting/i)).toHaveCount(0);
   const progress = page.getByRole("region", { name: "Progress", exact: true });
   await expect(progress.locator("[data-progress-title]")).toHaveText("Weight");
-  await expect(progress.getByRole("button", { name: "Weight", exact: true })).toHaveAttribute("aria-current", "true");
   await expect(page.getByRole("radio", { name: "30d", exact: true })).toBeChecked();
   const chart = page.getByRole("img", { name: "Weight chart" });
   await expect(chart).toBeVisible();
@@ -139,10 +163,10 @@ test("home title, progress pickers, and remembered metric", async ({ page }) => 
     await showInView(page, progress);
     await page.screenshot({ path: "/opt/cursor/artifacts/iphone41-progress-weight-30d.png" });
     await page.screenshot({ path: "/opt/cursor/artifacts/iphone41-progress-section.png" });
-    await progress.getByRole("button", { name: "Protein", exact: true }).click();
+    await showPage(progress, "Protein");
     await showInView(page, progress);
     await page.screenshot({ path: "/opt/cursor/artifacts/iphone41-progress-protein-30d.png" });
-    await progress.getByRole("button", { name: "Weight", exact: true }).click();
+    await showPage(progress, "Weight");
     await showInView(page, page.locator("[data-home-summary]"), "end");
     await page.screenshot({ path: "/opt/cursor/artifacts/iphone41-summary.png" });
     await page.evaluate(() => document.querySelector(".scroller")?.scrollTo(0, 0));
@@ -178,8 +202,7 @@ test("home title, progress pickers, and remembered metric", async ({ page }) => 
 
   const chartNode = page.locator(".home-progress [data-page='weight'] svg.fig");
   await expect(chartNode).toBeVisible();
-  await progress.getByRole("button", { name: "Protein", exact: true }).click();
-  await expect(progress.locator("[data-progress-title]")).toHaveText("Protein");
+  await showPage(progress, "Protein");
   await expect(page.getByRole("img", { name: "Protein chart" })).toBeVisible();
   await expect(page.getByText("Loading progress…")).toHaveCount(0);
   const period = page.locator(".home-progress .period");
@@ -197,6 +220,5 @@ test("home title, progress pickers, and remembered metric", async ({ page }) => 
 
   await page.reload();
   await expect(progress.locator("[data-progress-title]")).toHaveText("Protein");
-  await expect(progress.getByRole("button", { name: "Protein", exact: true })).toHaveAttribute("aria-current", "true");
   await expect(page.getByRole("radio", { name: "7d", exact: true })).toBeChecked();
 });

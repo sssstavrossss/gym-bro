@@ -35,6 +35,7 @@ const legend = computed(() => {
 });
 const note = computed(() => coverageNote(panelCoverage(props.entries, KEYS)));
 const limits = computed(() => carbLimits(props.person));
+const strictSodium = computed(() => props.person.sodiumLimit === "lower");
 
 interface LimitRow {
   key: string;
@@ -86,6 +87,7 @@ function barLabel(row: LimitRow): string {
     <div class="head">
       <span class="section-title panel-title">Carbs</span>
       <span class="t-label num" data-carb-total>{{ grams(breakdown.total) }}</span>
+      <span v-if="strictSodium" class="tag t-capn" data-sodium-limit="lower">Strict sodium</span>
       <span v-if="note" class="t-capn c3 note">{{ note }}</span>
     </div>
     <div class="cstack" role="img" :aria-label="stackLabel">
@@ -117,6 +119,7 @@ function barLabel(row: LimitRow): string {
 .panel { display: flex; flex-direction: column; gap: var(--space-xs); min-width: 0; height: 100%; box-sizing: border-box; }
 .head { display: flex; align-items: baseline; gap: var(--space-s); min-width: 0; white-space: nowrap; }
 /* On a narrow phone the note gives way first, then a rule or a name: numbers never clip. */
+.head .tag { align-self: center; padding-block: 0; }
 .note { margin-left: auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .line > .t-label:not(.end), .rule { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .num { font-weight: 700; font-variant-numeric: tabular-nums; }

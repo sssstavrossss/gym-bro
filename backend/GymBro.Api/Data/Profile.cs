@@ -49,6 +49,9 @@ public sealed class Profile
     /// <summary>Saturated fat and cholesterol limits on the Fats card: <c>normal</c> or <c>lower</c>. Display only.</summary>
     public string FatLimits { get; set; } = global::GymBro.Api.Data.FatLimits.Normal;
 
+    /// <summary>The sodium limit on the Carbs card and Progress: <c>normal</c> or <c>lower</c>. Display only.</summary>
+    public string SodiumLimit { get; set; } = SodiumLimits.Normal;
+
     /// <summary>Monday morning push asking the person to recalculate. Off until they turn it on.</summary>
     public bool RemindersEnabled { get; set; }
 
@@ -86,6 +89,19 @@ public static class Units
 /// The numbers live in the client; the server only stores the choice.
 /// </summary>
 public static class FatLimits
+{
+    public const string Normal = "normal";
+    public const string Lower = "lower";
+
+    public static bool IsValid(string value) => value is Normal or Lower;
+}
+
+/// <summary>
+/// How strict the sodium limit is. Normal: 2,300 mg a day (NNR 2023). Lower: 1,500 mg a day
+/// (the American Heart Association's ideal, for raised blood pressure).
+/// The numbers live in the client; the server only stores the choice.
+/// </summary>
+public static class SodiumLimits
 {
     public const string Normal = "normal";
     public const string Lower = "lower";

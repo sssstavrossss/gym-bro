@@ -6,6 +6,8 @@ export interface NutrientPerson {
   sex: string;
   age: number;
   kcalTarget: number | null;
+  /** The sodium limit setting. Missing reads as normal. */
+  sodiumLimit?: SodiumLimitSetting;
 }
 
 /* ---------------------------------------------------------------- Fats */
@@ -111,8 +113,22 @@ export function carbBreakdown(total: number, values: NutrientMap): { total: numb
   };
 }
 
-/** NNR 2023 limits sodium to 2.3 g a day. 1.5 g is the adequate intake, not a limit. */
+/** NNR 2023 limits sodium to 2.3 g a day. */
 export const SODIUM_LIMIT_MG = 2300;
+/** The stricter limit: the American Heart Association's ideal of 1.5 g a day, for raised blood pressure. */
+export const SODIUM_LOWER_LIMIT_MG = 1500;
+
+export type SodiumLimitSetting = "normal" | "lower";
+
+/** A saved setting, or normal when it is missing or unknown. */
+export function sodiumLimitOf(value: unknown): SodiumLimitSetting {
+  return value === "lower" ? "lower" : "normal";
+}
+
+/** The daily sodium limit in mg for a setting, used by the Carbs card and the Progress Sodium page. */
+export function sodiumLimitMg(setting: SodiumLimitSetting | null | undefined): number {
+  return setting === "lower" ? SODIUM_LOWER_LIMIT_MG : SODIUM_LIMIT_MG;
+}
 
 export interface CarbLimits {
   /** Fibre to reach, the Progress card's minimum: 25 g for women, 35 g for men. Null without a sex. */
@@ -122,12 +138,12 @@ export interface CarbLimits {
   sodiumMg: number;
 }
 
-export function carbLimits(person: Pick<NutrientPerson, "sex" | "kcalTarget">): CarbLimits {
+export function carbLimits(person: Pick<NutrientPerson, "sex" | "kcalTarget" | "sodiumLimit">): CarbLimits {
   const kcal = person.kcalTarget != null && Number.isFinite(person.kcalTarget) && person.kcalTarget > 0 ? person.kcalTarget : null;
   return {
     fibreGrams: fiberMinimum(person.sex),
     addedSugarsGrams: kcal == null ? null : oneDecimal((kcal * 0.1) / 4),
-    sodiumMg: SODIUM_LIMIT_MG,
+    sodiumMg: sodiumLimitMg(person.sodiumLimit),
   };
 }
 
