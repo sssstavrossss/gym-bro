@@ -324,7 +324,8 @@ public sealed class WeightEdgeCaseTests(ApiFactory factory)
         var series = chart.GetProperty("series").EnumerateArray().ToList();
         var start = series.First(point => point.GetProperty("realWeighIn").GetBoolean());
         Assert.Equal(Iso(before), start.GetProperty("date").GetString());
-        Assert.Equal(70.00m, start.GetProperty("trendKg").GetDecimal());
+        // With hindsight the first day is pulled towards the later weigh-in.
+        Assert.InRange(start.GetProperty("trendKg").GetDecimal(), 70.01m, 79.99m);
         Assert.NotEqual(80.00m, chart.GetProperty("trendKg").GetDecimal());
     }
 
@@ -473,7 +474,7 @@ public sealed class WeightEdgeCaseTests(ApiFactory factory)
         var user = TestData.NewUser("round-80-05");
         using var client = factory.AsUser(user);
         await PutOn(client, today.AddDays(-2), 80.0m);
-        await PutOn(client, today.AddDays(-1), 80.5m);
+        await PutOn(client, today.AddDays(-1), 80.1m);
         On(today);
 
         var held = await TrendOn(client, today.AddDays(-1));

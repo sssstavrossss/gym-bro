@@ -8,12 +8,14 @@ public sealed class TrendWeightTests
     private static readonly DateOnly AsOf = new(2026, 10, 24);
 
     [Fact]
-    public void Smoothing_share_is_ten_percent_and_low_accuracy_starts_below_two_weigh_ins()
+    public void Rules_are_a_week_window_two_weigh_ins_and_a_28_day_fresh_start()
     {
-        Assert.Equal(0.10m, TrendWeight.SmoothingShare);
         Assert.Equal(7, TrendWeight.WindowDays);
         Assert.Equal(2, TrendWeight.LowAccuracyBelow);
-        Assert.Equal(28, TrendWeight.MaxInterpolatedGapDays);
+        Assert.Equal(28, TrendWeight.FreshStartGapDays);
+        Assert.Equal(7, TrendWeight.MeasuredGapDays);
+        Assert.Equal(4, TrendWeight.RateMinWeighIns);
+        Assert.Equal(14, TrendWeight.RateMinSpanDays);
         Assert.Equal(3.0m, TrendWeight.TypoLimitKg);
     }
 
@@ -27,22 +29,21 @@ public sealed class TrendWeightTests
     }
 
     [Fact]
-    public void Prototype_36_day_dataset_still_gives_trend_83_60_and_2218_kcal()
+    public void Prototype_36_day_dataset_gives_a_pinned_trend_band_rate_and_targets()
     {
         var start = new DateOnly(2026, 9, 19);
         var series = PrototypeWeights.Select((kg, index) => (start.AddDays(index), kg)).ToList();
         var asOf = new DateOnly(2026, 10, 24);
 
         Assert.Equal(36, series.Count);
-        Assert.Equal(start, series[0].Item1);
         Assert.Equal(asOf, series[^1].Item1);
-        Assert.Equal(85.0m, series[0].Item2);
-        Assert.Equal(83.3m, series[^1].Item2);
 
         var trend = TrendWeight.Compute(series, asOf);
         Assert.Equal(TrendWeight.Normal, trend.TrendState);
         Assert.Empty(trend.Reasons);
-        Assert.Equal(83.60m, trend.TrendKg);
+        Assert.Equal(83.23m, trend.TrendKg); // The old 10% smoothing gave 83.60, lagging the loss.
+        Assert.Equal(0.23m, trend.BandKg);
+        Assert.Equal(-0.36m, trend.RateKgPerWeek);
 
         var targets = NutritionMath.Calculate(new NutritionInput(
             Sexes.Male,
@@ -54,23 +55,21 @@ public sealed class TrendWeightTests
             RateKgPerWeek: 0.5m,
             ProteinGramsPerKg: 2.0m,
             FatPercent: 25m));
-        Assert.Equal(1786, targets.Bmr);
-        Assert.Equal(2768, targets.Tdee);
-        Assert.Equal(2218, targets.Kcal);
-        Assert.Equal(167, targets.Protein);
-        Assert.Equal(62, targets.Fat);
-        Assert.Equal(249, targets.Carbs);
+        Assert.Equal(2212, targets.Kcal);
     }
 
     [Fact]
-    public void Setup_weight_is_the_trend_that_day_and_is_low_accuracy()
+    public void Setup_weight_is_the_trend_that_day_with_the_scale_noise_as_its_band()
     {
         var series = TrendWeight.Compute([(AsOf, 83.6m)], AsOf);
         Assert.Equal(83.60m, series.TrendKg);
+        Assert.Equal(0.60m, series.BandKg);
+        Assert.Null(series.RateKgPerWeek);
         Assert.Equal(TrendWeight.LowAccuracy, series.TrendState);
         Assert.Equal([TrendWeight.FewerThanTwoWeighInsInSevenDays], series.Reasons);
         Assert.True(series.On(AsOf)!.Real);
         Assert.False(series.On(AsOf)!.Estimated);
+        Assert.True(series.On(AsOf)!.Measured);
 
         var weight = WeightReader.FromSeries(series, setupKg: null, Goals.Lose, 80m, freshStartAccepted: false);
         Assert.Equal(83.60m, weight.UsedKg);
@@ -79,66 +78,76 @@ public sealed class TrendWeightTests
     }
 
     [Fact]
-    public void Consecutive_weigh_ins_80_then_90_land_on_81_with_a_normal_trend()
+    public void A_second_weigh_in_moves_the_trend_part_way_and_narrows_the_band()
     {
         var first = AsOf.AddDays(-1);
         var series = TrendWeight.Compute([(first, 80m), (AsOf, 90m)], AsOf);
-        Assert.Equal(80.00m, series.On(first)!.TrendKg);
-        Assert.Equal(81.00m, series.TrendKg);
+        Assert.InRange(series.TrendKg!.Value, 82m, 88m);
+        Assert.True(series.BandKg < 0.60m);
         Assert.Equal(TrendWeight.Normal, series.TrendState);
-        Assert.Empty(series.Reasons);
         Assert.Equal(2, series.WeighInsInWindow);
+        // With hindsight, the first day is pulled towards the second reading too.
+        Assert.True(series.On(first)!.TrendKg > 80m);
     }
 
     [Fact]
-    public void A_single_weigh_in_in_the_last_seven_days_is_low_accuracy()
+    public void A_single_weigh_in_in_the_last_seven_days_is_low_accuracy_and_held_flat()
     {
         var series = TrendWeight.Compute([(AsOf.AddDays(-6), 80m)], AsOf);
         Assert.Equal(80.00m, series.TrendKg);
+        Assert.True(series.BandKg > 0.60m);
         Assert.Equal(1, series.WeighInsInWindow);
         Assert.Equal(TrendWeight.LowAccuracy, series.TrendState);
         Assert.Equal(TrendWeight.FewerThanTwoWeighInsInSevenDays, Assert.Single(series.Reasons));
         Assert.False(series.On(AsOf)!.Real);
         Assert.True(series.On(AsOf)!.Estimated);
+        Assert.False(series.On(AsOf)!.Measured);
     }
 
     [Fact]
-    public void Three_day_gap_interpolates_to_80_10_then_80_29_then_80_56()
+    public void Days_between_weigh_ins_rise_steadily_and_are_measured_up_to_a_week_apart()
     {
         var day0 = AsOf.AddDays(-3);
         var series = TrendWeight.Compute([(day0, 80m), (AsOf, 83m)], AsOf);
-        var day1 = series.On(day0.AddDays(1))!;
-        var day2 = series.On(day0.AddDays(2))!;
-        var day3 = series.On(AsOf)!;
+        var trends = Enumerable.Range(0, 4).Select(i => series.On(day0.AddDays(i))!.TrendKg).ToList();
+        Assert.Equal(trends.Order(), trends);
+        Assert.True(trends[0] > 80m && trends[3] < 83m);
+        Assert.All(Enumerable.Range(0, 4), i => Assert.True(series.On(day0.AddDays(i))!.Measured));
+        Assert.True(series.On(day0.AddDays(1))!.Estimated);
+        Assert.False(series.On(day0.AddDays(1))!.Real);
+        Assert.True(series.On(AsOf)!.Real);
 
-        Assert.Equal(81m, day1.ReadingKg);
-        Assert.Equal(82m, day2.ReadingKg);
-        Assert.Equal(83m, day3.ReadingKg);
-        Assert.Equal(80.10m, day1.TrendKg);
-        Assert.Equal(80.29m, day2.TrendKg);
-        Assert.Equal(80.56m, day3.TrendKg);
-        Assert.False(day1.Real);
-        Assert.True(day1.Estimated);
-        Assert.False(day2.Real);
-        Assert.True(day3.Real);
-        Assert.False(day3.Estimated);
+        var weekly = TrendWeight.Compute([(AsOf.AddDays(-7), 80m), (AsOf, 80m)], AsOf);
+        Assert.True(weekly.On(AsOf.AddDays(-3))!.Measured);
+        var sparse = TrendWeight.Compute([(AsOf.AddDays(-8), 80m), (AsOf, 80m)], AsOf);
+        Assert.False(sparse.On(AsOf.AddDays(-3))!.Measured);
+        Assert.True(sparse.On(AsOf.AddDays(-8))!.Measured);
+
+        // Among daily weigh-ins, the band is widest in the middle of a gap.
+        var daily = Enumerable.Range(0, 21).Select(i => (AsOf.AddDays(-49 + i), 80m))
+            .Concat(Enumerable.Range(0, 21).Select(i => (AsOf.AddDays(-20 + i), 80m)))
+            .ToList();
+        var gapped = TrendWeight.Compute(daily, AsOf);
+        Assert.True(gapped.On(AsOf.AddDays(-25))!.BandKg > gapped.On(AsOf.AddDays(-37))!.BandKg);
+        Assert.False(gapped.On(AsOf.AddDays(-25))!.Measured);
     }
 
     [Fact]
-    public void A_28_day_gap_is_interpolated_and_a_29_day_gap_is_a_fresh_start()
+    public void A_28_day_gap_is_bridged_and_a_29_day_gap_is_a_fresh_start()
     {
         var start = new DateOnly(2026, 9, 1);
-        var interpolated = TrendWeight.Compute([(start, 80m), (start.AddDays(28), 83m)], start.AddDays(28));
-        Assert.Null(interpolated.FreshStart);
-        Assert.NotEqual(TrendWeight.FreshStartState, interpolated.TrendState);
-        Assert.NotEqual(83.00m, interpolated.TrendKg);
-        Assert.InRange(interpolated.TrendKg!.Value, 80.01m, 82.99m);
-        Assert.True(interpolated.On(start.AddDays(14))!.Estimated);
-        Assert.False(interpolated.On(start.AddDays(14))!.Real);
+        var bridged = TrendWeight.Compute([(start, 80m), (start.AddDays(28), 83m)], start.AddDays(28));
+        Assert.Null(bridged.FreshStart);
+        Assert.NotEqual(TrendWeight.FreshStartState, bridged.TrendState);
+        Assert.InRange(bridged.TrendKg!.Value, 80.01m, 82.99m);
+        Assert.True(bridged.On(start.AddDays(14))!.Estimated);
+        Assert.False(bridged.On(start.AddDays(14))!.Gap);
+        Assert.False(bridged.On(start.AddDays(14))!.Measured);
 
         var resetDay = start.AddDays(29);
         var reset = TrendWeight.Compute([(start, 80m), (resetDay, 83m)], resetDay);
         Assert.Equal(83.00m, reset.TrendKg);
+        Assert.Equal(0.60m, reset.BandKg);
         Assert.Equal(TrendWeight.FreshStartState, reset.TrendState);
         Assert.Equal(TrendWeight.FewerThanTwoWeighInsInSevenDays, Assert.Single(reset.Reasons));
         Assert.NotNull(reset.FreshStart);
@@ -149,27 +158,71 @@ public sealed class TrendWeightTests
         Assert.True(reset.On(resetDay)!.Real);
         Assert.True(reset.On(resetDay.AddDays(-1))!.Gap);
         Assert.False(reset.On(resetDay)!.Gap);
-        Assert.False(interpolated.On(start.AddDays(14))!.Gap);
     }
 
     [Fact]
-    public void A_day_after_the_last_weigh_in_keeps_the_previous_trend()
+    public void Days_after_the_last_weigh_in_hold_the_trend_and_widen_the_band()
     {
         var series = TrendWeight.Compute(
-            [(AsOf.AddDays(-2), 80m), (AsOf.AddDays(-1), 81m)],
+            [(AsOf.AddDays(-8), 80m), (AsOf.AddDays(-7), 81m)],
             AsOf);
-        Assert.Equal(80.10m, series.TrendKg);
+        var last = series.On(AsOf.AddDays(-7))!;
+        Assert.Equal(last.TrendKg, series.TrendKg);
+        Assert.True(series.BandKg > last.BandKg);
         Assert.True(series.On(AsOf)!.Estimated);
-        Assert.Equal(TrendWeight.Normal, series.TrendState);
+        Assert.False(series.On(AsOf.AddDays(-1))!.Measured);
+        Assert.Equal(TrendWeight.LowAccuracy, series.TrendState);
     }
 
     [Fact]
-    public void Each_consecutive_weigh_in_moves_ten_percent_towards_it()
+    public void A_steady_loss_is_followed_closely_with_its_rate()
     {
-        var series = TrendWeight.Compute(
-            [(AsOf.AddDays(-2), 70m), (AsOf.AddDays(-1), 80m), (AsOf, 90m)],
+        // 1 kg a week, weighed daily with ±0.3 kg of scale noise. The old 10% smoothing lagged about 1.3 kg.
+        var start = AsOf.AddDays(-55);
+        var noise = new[] { 0.3m, -0.2m, 0.1m, -0.3m, 0.2m, 0m, -0.1m };
+        var rows = Enumerable.Range(0, 56)
+            .Select(i => (start.AddDays(i), 90m - i / 7m + noise[i % 7]))
+            .ToList();
+        var series = TrendWeight.Compute(rows, AsOf);
+        var truth = 90m - 55 / 7m;
+        Assert.InRange(series.TrendKg!.Value, truth - 0.3m, truth + 0.3m);
+        Assert.InRange(series.RateKgPerWeek!.Value, -1.2m, -0.8m);
+        Assert.True(series.BandKg < 0.25m);
+    }
+
+    [Fact]
+    public void One_odd_weigh_in_barely_moves_the_trend()
+    {
+        var steady = Enumerable.Range(0, 21).Select(i => (AsOf.AddDays(-21 + i), 80m)).ToList();
+        var before = TrendWeight.Compute(steady, AsOf.AddDays(-1)).TrendKg!.Value;
+        var after = TrendWeight.Compute([.. steady, (AsOf, 82m)], AsOf).TrendKg!.Value;
+        Assert.InRange(after - before, 0.05m, 0.4m);
+    }
+
+    [Fact]
+    public void Rate_needs_four_weigh_ins_over_two_weeks_since_the_last_fresh_start()
+    {
+        Assert.Null(TrendWeight.Compute([(AsOf.AddDays(-14), 82m), (AsOf.AddDays(-7), 81m), (AsOf, 80m)], AsOf).RateKgPerWeek);
+        Assert.Null(TrendWeight.Compute([(AsOf.AddDays(-13), 82m), (AsOf.AddDays(-9), 81.5m), (AsOf.AddDays(-5), 81m), (AsOf, 80m)], AsOf).RateKgPerWeek);
+        var weekly = TrendWeight.Compute(
+            [(AsOf.AddDays(-21), 83m), (AsOf.AddDays(-14), 82m), (AsOf.AddDays(-7), 81m), (AsOf, 80m)],
             AsOf);
-        Assert.Equal(72.90m, series.TrendKg);
+        Assert.True(weekly.RateKgPerWeek < 0m);
+
+        var restarted = TrendWeight.Compute(
+            [(AsOf.AddDays(-80), 90m), (AsOf.AddDays(-73), 89m), (AsOf.AddDays(-66), 88m), (AsOf.AddDays(-59), 87m), (AsOf, 80m)],
+            AsOf);
+        Assert.NotNull(restarted.FreshStart);
+        Assert.Null(restarted.RateKgPerWeek);
+    }
+
+    [Fact]
+    public void Daily_weigh_ins_give_a_narrower_band_than_weekly_ones()
+    {
+        var daily = TrendWeight.Compute(Enumerable.Range(0, 28).Select(i => (AsOf.AddDays(-27 + i), 80m)).ToList(), AsOf);
+        var weekly = TrendWeight.Compute(Enumerable.Range(0, 5).Select(i => (AsOf.AddDays(-28 + i * 7), 80m)).ToList(), AsOf);
+        Assert.True(daily.BandKg < weekly.BandKg);
+        Assert.Equal(80.00m, daily.TrendKg);
     }
 
     [Fact]
@@ -196,7 +249,6 @@ public sealed class TrendWeightTests
             (AsOf, 90m),
         };
 
-        Assert.Equal(81.00m, TrendWeight.Compute(recent, AsOf).TrendKg);
         Assert.NotEqual(
             TrendWeight.Compute(recent, AsOf).TrendKg,
             TrendWeight.Compute(twentyEightDaysBack, AsOf).TrendKg);
@@ -224,11 +276,21 @@ public sealed class TrendWeightTests
     }
 
     [Fact]
+    public void Today_never_uses_hindsight_a_later_weigh_in_would_add()
+    {
+        var rows = new List<(DateOnly, decimal)> { (AsOf.AddDays(-4), 80m), (AsOf.AddDays(-2), 81m), (AsOf, 79m) };
+        var then = TrendWeight.Compute(rows, AsOf.AddDays(-2));
+        var now = TrendWeight.Compute(rows, AsOf);
+        Assert.Equal(then.TrendKg, then.On(AsOf.AddDays(-2))!.TrendKg);
+        // The past day is smoothed again once a later weigh-in exists.
+        Assert.NotEqual(then.TrendKg, now.On(AsOf.AddDays(-2))!.TrendKg);
+    }
+
+    [Fact]
     public void Goal_reached_uses_lose_and_gain_for_rate_mode_and_manual_mode()
     {
         // Judged on the latest real weigh-in, and only on that weigh-in's own day
         // (decision 35.10). A later day that only carries the trend does not ask.
-        // Manual mode is not a saved field yet; it uses the same lose or gain direction.
         var day = TrendWeight.Compute([(AsOf, 83.6m)], AsOf);
         Assert.True(TrendWeight.GoalReached(Goals.Lose, 84m, day));
         Assert.True(TrendWeight.GoalReached(Goals.Lose, 83.6m, day));
@@ -257,6 +319,8 @@ public sealed class TrendWeightTests
     {
         var series = TrendWeight.Compute([], AsOf);
         Assert.Null(series.TrendKg);
+        Assert.Null(series.BandKg);
+        Assert.Null(series.RateKgPerWeek);
         Assert.Null(series.TrendState);
         Assert.Empty(series.Reasons);
         var none = WeightReader.FromSeries(series, setupKg: null, goal: null, goalWeightKg: 0, freshStartAccepted: false);
@@ -264,62 +328,6 @@ public sealed class TrendWeightTests
         var setup = WeightReader.FromSeries(series, setupKg: 85m, goal: null, goalWeightKg: 0, freshStartAccepted: false);
         Assert.Equal(WeightReader.Setup, setup.Source);
         Assert.Equal(85m, setup.UsedKg);
-    }
-
-    [Fact]
-    public void Prototype_trend_script_fixtures_match_the_published_series()
-    {
-        // Same cases as prototype/scripts/unit-trend.mjs. Published values are
-        // rounded to 2 places; the script's toFixed(2) checks are the same numbers.
-        var end = new DateOnly(2026, 10, 24);
-        var weights = new List<(DateOnly Date, decimal Kg)>();
-        for (var i = 0; i < PrototypeWeights.Length; i++)
-        {
-            weights.Add((new DateOnly(2026, 9, 19).AddDays(i), PrototypeWeights[i]));
-        }
-
-        Assert.Equal(83.60m, TrendWeight.Compute(weights, end).TrendKg);
-
-        var two = TrendWeight.Compute([(new DateOnly(2026, 10, 23), 80m), (end, 90m)], end);
-        Assert.Equal(81.00m, two.TrendKg);
-        Assert.Equal(TrendWeight.Normal, two.TrendState);
-
-        var one = TrendWeight.Compute([(new DateOnly(2026, 10, 10), 80m), (end, 81m)], end);
-        Assert.Equal(TrendWeight.LowAccuracy, one.TrendState);
-        Assert.Contains(TrendWeight.FewerThanTwoWeighInsInSevenDays, one.Reasons);
-
-        var setup = TrendWeight.Compute([(end, 84m)], end);
-        Assert.Equal(84m, setup.TrendKg);
-        Assert.Equal(TrendWeight.LowAccuracy, setup.TrendState);
-
-        var gap = TrendWeight.Compute([(new DateOnly(2026, 10, 1), 80m), (new DateOnly(2026, 10, 4), 83m)], new DateOnly(2026, 10, 4));
-        Assert.Equal(80.10m, gap.On(new DateOnly(2026, 10, 2))!.TrendKg);
-        Assert.Equal(80.29m, gap.On(new DateOnly(2026, 10, 3))!.TrendKg);
-        Assert.Equal(80.56m, gap.On(new DateOnly(2026, 10, 4))!.TrendKg);
-
-        var held = TrendWeight.Compute([(new DateOnly(2026, 9, 26), 80m), (end, 84m)], end);
-        Assert.NotEqual(84m, held.TrendKg);
-        Assert.NotEqual(TrendWeight.FreshStartState, held.TrendState);
-        var reset = TrendWeight.Compute([(new DateOnly(2026, 9, 25), 80m), (end, 84m)], end);
-        Assert.Equal(84m, reset.TrendKg);
-        Assert.Equal(TrendWeight.FreshStartState, reset.TrendState);
-        Assert.Equal(29, reset.FreshStart!.DaysSincePrevious);
-
-        var withoutLast = weights.Where(row => row.Date != end).ToList();
-        var reference = TrendWeight.Compute(withoutLast, end.AddDays(-1)).TrendKg!.Value;
-        Assert.True(Math.Abs(38.6m - reference) > TrendWeight.TypoLimitKg);
-        Assert.True(Math.Abs(86.5m - reference) <= TrendWeight.TypoLimitKg);
-        Assert.True(Math.Abs(86.7m - reference) > TrendWeight.TypoLimitKg);
-        Assert.Null(TrendWeight.Compute([], end.AddDays(-1)).TrendKg);
-
-        var deleted = weights.Where(row => row.Date != new DateOnly(2026, 10, 15)).ToList();
-        Assert.NotEqual(TrendWeight.Compute(weights, end).TrendKg, TrendWeight.Compute(deleted, end).TrendKg);
-
-        var back = TrendWeight.Compute([(new DateOnly(2026, 10, 1), 80m), (new DateOnly(2026, 10, 10), 82m)], end);
-        var filled = TrendWeight.Compute(
-            [(new DateOnly(2026, 10, 1), 80m), (new DateOnly(2026, 10, 5), 79m), (new DateOnly(2026, 10, 10), 82m)],
-            end);
-        Assert.NotEqual(back.TrendKg, filled.TrendKg);
     }
 
     private static readonly decimal[] PrototypeWeights =

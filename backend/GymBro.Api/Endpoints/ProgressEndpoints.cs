@@ -83,17 +83,18 @@ public static class ProgressEndpoints
         for (var date = from; date <= today; date = date.AddDays(1))
         {
             var target = ProgressMath.TargetMacrosAt(targetRows, date);
-            decimal? trendKg = trendByDate.TryGetValue(date, out var trendDay) && !trendDay.Gap ? trendDay.TrendKg : null;
+            var shown = trendByDate.TryGetValue(date, out var trendDay) && !trendDay.Gap ? trendDay : null;
+            decimal? trendKg = shown?.TrendKg;
             if (!byLog.TryGetValue(date, out var intake))
             {
-                days.Add(new ProgressDay(date, false, null, null, target?.Kcal, target?.Protein, trendKg, null, null, target?.Fat, target?.Carbs));
+                days.Add(new ProgressDay(date, false, null, null, target?.Kcal, target?.Protein, trendKg, null, null, target?.Fat, target?.Carbs, null, shown?.BandKg, shown?.Measured ?? false));
                 continue;
             }
 
             loggedDays++;
             kcalSum += intake.Kcal;
             proteinSum += intake.Protein;
-            days.Add(new ProgressDay(date, true, intake.Kcal, intake.Protein, target?.Kcal, target?.Protein, trendKg, intake.Fat, intake.Carbs, target?.Fat, target?.Carbs, intake.Fiber));
+            days.Add(new ProgressDay(date, true, intake.Kcal, intake.Protein, target?.Kcal, target?.Protein, trendKg, intake.Fat, intake.Carbs, target?.Fat, target?.Carbs, intake.Fiber, shown?.BandKg, shown?.Measured ?? false));
         }
 
         var inRange = weighIns.Where(row => row.LocalDate >= from && row.LocalDate <= today).ToList();
@@ -109,7 +110,10 @@ public static class ProgressEndpoints
                 ProgressMath.Change(inRange.Select(row => row.Kg).ToList()),
                 inRange.Count,
                 inRange.Select(row => new ProgressWeighIn(row.LocalDate, row.Kg)).ToList(),
-                ProgressMath.TrendChange(days.Select(day => day.TrendKg).ToList())),
+                ProgressMath.TrendChange(days.Select(day => day.TrendKg).ToList()),
+                trend.TrendKg,
+                trend.BandKg,
+                trend.RateKgPerWeek),
             new ProgressIntake(
                 loggedDays,
                 ProgressMath.Average(kcalSum, loggedDays, 0),
@@ -151,7 +155,10 @@ public sealed record ProgressWeight(
     decimal? ChangeKg,
     int Count,
     IReadOnlyList<ProgressWeighIn> WeighIns,
-    decimal? TrendChangeKg);
+    decimal? TrendChangeKg,
+    decimal? TrendKg,
+    decimal? BandKg,
+    decimal? RateKgPerWeek);
 
 public sealed record ProgressWeighIn(DateOnly Date, decimal Kg);
 
@@ -169,4 +176,6 @@ public sealed record ProgressDay(
     decimal? Carbs,
     int? TargetFat,
     int? TargetCarbs,
-    decimal? Fiber = null);
+    decimal? Fiber = null,
+    decimal? TrendBandKg = null,
+    bool TrendMeasured = false);

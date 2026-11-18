@@ -249,7 +249,7 @@ public static class WeighInEndpoints
         {
             if (!byDate.TryGetValue(cursor, out var day))
             {
-                series.Add(new WeightChartPoint(cursor, null, null, null, false, false, false));
+                series.Add(new WeightChartPoint(cursor, null, null, null, false, false, false, false));
                 continue;
             }
 
@@ -257,10 +257,11 @@ public static class WeighInEndpoints
                 cursor,
                 day.Gap ? null : day.TrendKg,
                 day.WeighInKg,
-                day.ReadingKg,
+                day.Gap ? null : day.BandKg,
                 day.Real,
                 day.Estimated,
-                day.Gap));
+                day.Gap,
+                day.Measured && !day.Gap));
         }
 
         return Results.Ok(new WeightChartResponse(

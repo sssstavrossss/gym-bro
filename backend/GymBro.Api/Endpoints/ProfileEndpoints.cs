@@ -452,7 +452,8 @@ public static class ProfileEndpoints
         weight.LatestDate,
         weight.WeighInsInWindow,
         TrendWeight.WindowDays,
-        TrendWeight.SmoothingShare,
+        weight.Series.BandKg,
+        weight.Series.RateKgPerWeek,
         weight.UsedKg,
         weight.Source,
         weight.GoalReached,
@@ -516,7 +517,8 @@ public sealed record WeightResponse(
     DateOnly? LatestDate,
     int WeighInsInWindow,
     int WindowDays,
-    decimal SmoothingShare,
+    decimal? BandKg,
+    decimal? RateKgPerWeek,
     decimal? UsedKg,
     string Source,
     bool GoalReached,
@@ -543,10 +545,11 @@ public sealed record WeightChartPoint(
     DateOnly Date,
     decimal? TrendKg,
     decimal? WeighInKg,
-    decimal? ReadingKg,
+    decimal? BandKg,
     bool RealWeighIn,
     bool Estimated,
-    bool Gap);
+    bool Gap,
+    bool Measured);
 
 public sealed record WeighInWriteResponse(
     DateOnly LocalDate,

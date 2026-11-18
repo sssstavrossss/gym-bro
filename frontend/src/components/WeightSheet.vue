@@ -184,7 +184,7 @@ const week = computed(() => trendChange(profile.chart?.series, 7, fresh.value));
 
 /** The same chart as Home's Progress → Weight, fed from the sheet's 30-day series. */
 const chartDays = computed<ProgressDay[]>(() => (profile.chart?.series ?? []).map((point) => ({
-  date: point.date, trendKg: point.trendKg, logged: false, kcal: null, protein: null, targetKcal: null, targetProtein: null,
+  date: point.date, trendKg: point.trendKg, trendBandKg: point.bandKg, trendMeasured: point.measured, logged: false, kcal: null, protein: null, targetKcal: null, targetProtein: null,
 })));
 const chartWeighIns = computed(() => (profile.chart?.series ?? []).flatMap((point) => (
   point.realWeighIn && point.weighInKg != null ? [{ date: point.date, kg: point.weighInKg }] : []
