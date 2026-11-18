@@ -14,6 +14,13 @@ async function boxOf(locator: Locator): Promise<Box> {
   return box!;
 }
 
+/** Waits for the sheet's slide-in (and any other finite animation in it) to end before measuring or clicking. */
+async function settled(dialog: Locator) {
+  await dialog.evaluate((el) => Promise.all(el.getAnimations({ subtree: true })
+    .filter((animation) => animation.effect?.getTiming().iterations !== Infinity)
+    .map((animation) => animation.finished.catch(() => undefined))));
+}
+
 async function clock(page: Page) {
   return page.evaluate(() => {
     const zone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
@@ -127,6 +134,7 @@ test("controls keep a compact face, a 44px hit, and clear gaps", async ({ page }
   const food = page.getByRole("dialog", { name: "Add food" });
   await food.getByRole("searchbox", { name: "Search foods" }).blur();
   await expect(food.getByRole("heading", { name: "Add food" })).toBeVisible();
+  await settled(food);
   const close = food.getByRole("button", { name: "Close", exact: true });
   const closeBox = await boxOf(close);
   const closeFace = await close.evaluate((el) => Number.parseFloat(getComputedStyle(el, "::before").width));
