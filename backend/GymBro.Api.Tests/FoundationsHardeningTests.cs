@@ -28,7 +28,10 @@ public sealed class FoundationsHardeningTests(ApiFactory factory)
             Assert.Contains("frame-src 'self' https://*.ciamlogin.com", policy, StringComparison.Ordinal);
             Assert.Contains("frame-ancestors 'self'", policy, StringComparison.Ordinal);
             Assert.Contains("https://*.ciamlogin.com", policy, StringComparison.Ordinal);
-            Assert.DoesNotContain("unsafe-eval", policy, StringComparison.Ordinal);
+            // WebAssembly may compile (the barcode decoder); JavaScript eval stays blocked.
+            Assert.DoesNotContain("'unsafe-eval'", policy, StringComparison.Ordinal);
+            Assert.Contains("script-src 'self' 'wasm-unsafe-eval';", policy, StringComparison.Ordinal);
+            Assert.Equal("camera=(self), microphone=(), geolocation=()", response.Headers.GetValues("Permissions-Policy").Single());
             Assert.DoesNotContain("script-src 'self' 'unsafe-inline'", policy, StringComparison.Ordinal);
         }
     }

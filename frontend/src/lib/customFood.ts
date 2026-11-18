@@ -32,6 +32,8 @@ export interface CustomFoodForm {
 
 export interface CustomFoodSeed {
   name?: string;
+  /** A scanned or typed code. A seed with only a code opens on per 100 g, the way packs print it. */
+  barcode?: string;
   kcal?: number;
   protein?: number;
   fat?: number;
@@ -122,7 +124,8 @@ export function emptyForm(): CustomFoodForm {
 export function formFromSeed(seed?: CustomFoodSeed | null): CustomFoodForm {
   const form = emptyForm();
   if (!seed) return form;
-  form.basis = "serving";
+  form.barcode = seed.barcode ?? "";
+  form.basis = seed.barcode && !seed.name && !seed.kcal ? "100g" : "serving";
   form.name = seed.name ?? "";
   form.kcal = seed.kcal ? String(seed.kcal) : "";
   form.protein = seed.protein ? String(seed.protein) : "";
