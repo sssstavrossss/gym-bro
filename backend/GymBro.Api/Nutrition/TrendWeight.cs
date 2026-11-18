@@ -3,24 +3,34 @@ using System.Globalization;
 namespace GymBro.Api.Nutrition;
 
 /// <summary>
-/// One daily trend series, from the first real weigh-in through today.
-/// Alpha is <see cref="SmoothingShare"/> (0.10) once per reading. Part A has
-/// no intake step, so a day with no reading keeps the previous trend.
-/// A gap of 2 to <see cref="MaxInterpolatedGapDays"/> days is filled with
-/// straight-line readings. A longer gap is a fresh start: that day's trend
-/// equals the new weigh-in. The same series is what profile, targets, BMR,
-/// the weekly job, and the API publish (two decimal places, half away from zero).
+/// One daily trend series, from the first real weigh-in through today, from
+/// <see cref="TrendFilter"/> (a damped Kalman filter, smoothed backwards for past days).
+/// Each day has a trend and a band (one standard deviation, kg). The last day's trend
+/// is the forward filter alone, so today's number never uses hindsight it could not have.
+/// A gap over <see cref="FreshStartGapDays"/> days is a fresh start: the filter restarts at
+/// the new weigh-in. The same series is what profile, targets, BMR, recalculate, and the
+/// API publish (two decimal places, half away from zero).
 /// </summary>
 public static class TrendWeight
 {
-    public const decimal SmoothingShare = 0.10m;
-
     public const int WindowDays = 7;
 
     /// <summary>Fewer real weigh-ins than this in the last <see cref="WindowDays"/> days is low accuracy.</summary>
     public const int LowAccuracyBelow = 2;
 
-    public const int MaxInterpolatedGapDays = 28;
+    public const int FreshStartGapDays = 28;
+
+    /// <summary>A day is measured when real weigh-ins at most this many days apart sit on both sides of it.</summary>
+    public const int MeasuredGapDays = 7;
+
+    /// <summary>The rate needs this many weigh-ins since the last fresh start...</summary>
+    public const int RateMinWeighIns = 4;
+
+    /// <summary>
+    /// ...spread over at least this many days. The rate is how far the trend moved over
+    /// the last this-many days up to the latest weigh-in, per week.
+    /// </summary>
+    public const int RateMinSpanDays = 14;
 
     /// <summary>No-gap typo guard. A gap adds <see cref="TypoKgPerFullWeek"/> per full week, capped at <see cref="TypoCapKg"/>.</summary>
     public const decimal TypoLimitKg = 3.0m;
@@ -53,55 +63,44 @@ public static class TrendWeight
             return TrendSeries.Empty(asOf);
         }
 
-        var gapReadings = new Dictionary<DateOnly, decimal>();
-        var freshStartDates = new HashSet<DateOnly>();
-        var freshGaps = new HashSet<DateOnly>();
+        // A fresh start splits the weigh-ins into runs; each run gets its own filter.
+        var runs = new List<List<(DateOnly Date, decimal Kg)>> { new() { real[0] } };
         for (var i = 1; i < real.Count; i++)
         {
-            var previous = real[i - 1];
-            var current = real[i];
-            var gap = current.Date.DayNumber - previous.Date.DayNumber;
-            if (gap > MaxInterpolatedGapDays)
+            if (real[i].Date.DayNumber - real[i - 1].Date.DayNumber > FreshStartGapDays)
             {
-                freshStartDates.Add(current.Date);
-                for (var dayNumber = previous.Date.DayNumber + 1; dayNumber < current.Date.DayNumber; dayNumber++)
-                {
-                    freshGaps.Add(DateOnly.FromDayNumber(dayNumber));
-                }
-
-                continue;
+                runs.Add([]);
             }
 
-            if (gap <= 1)
-            {
-                continue;
-            }
-
-            for (var dayNumber = previous.Date.DayNumber + 1; dayNumber <= current.Date.DayNumber; dayNumber++)
-            {
-                var offset = dayNumber - previous.Date.DayNumber;
-                gapReadings[DateOnly.FromDayNumber(dayNumber)] =
-                    previous.Kg + (current.Kg - previous.Kg) * offset / gap;
-            }
+            runs[^1].Add(real[i]);
         }
 
-        var realKg = real.ToDictionary(row => row.Date, row => row.Kg);
         var days = new List<TrendDay>(asOf.DayNumber - real[0].Date.DayNumber + 1);
-        var trend = real[0].Kg;
-        days.Add(Day(real[0].Date, trend, realKg, gapReadings, freshGaps));
-
-        for (var date = real[0].Date.AddDays(1); date <= asOf; date = date.AddDays(1))
+        for (var r = 0; r < runs.Count; r++)
         {
-            if (freshStartDates.Contains(date))
+            var run = runs[r];
+            var first = run[0].Date;
+            var last = run[^1].Date;
+            var through = r == runs.Count - 1 ? asOf : runs[r + 1][0].Date.AddDays(-1);
+            var path = TrendFilter.Run(
+                run.Select(row => (row.Date.DayNumber - first.DayNumber, (double)row.Kg)).ToList(),
+                through.DayNumber - first.DayNumber + 1);
+            var kg = run.ToDictionary(row => row.Date, row => row.Kg);
+            var measured = Measured(run);
+            for (var date = first; date <= through; date = date.AddDays(1))
             {
-                trend = realKg[date];
+                var index = date.DayNumber - first.DayNumber;
+                decimal? weighIn = kg.TryGetValue(date, out var value) ? value : null;
+                days.Add(new TrendDay(
+                    date,
+                    Publish((decimal)path.Levels[index]),
+                    Publish((decimal)path.Bands[index]),
+                    weighIn,
+                    weighIn is not null,
+                    weighIn is null,
+                    Gap: r < runs.Count - 1 && date > last,
+                    measured.Contains(date)));
             }
-            else if (Reading(date, realKg, gapReadings) is decimal reading)
-            {
-                trend += SmoothingShare * (reading - trend);
-            }
-
-            days.Add(Day(date, trend, realKg, gapReadings, freshGaps));
         }
 
         var windowStart = asOf.AddDays(-(WindowDays - 1));
@@ -118,7 +117,7 @@ public static class TrendWeight
             var latest = real[^1];
             var previous = real[^2];
             var gap = latest.Date.DayNumber - previous.Date.DayNumber;
-            if (gap > MaxInterpolatedGapDays)
+            if (gap > FreshStartGapDays)
             {
                 freshStart = new FreshStartFacts(latest.Date, previous.Date, gap, gap / 7);
             }
@@ -127,8 +126,7 @@ public static class TrendWeight
         var state = freshStart is not null
             ? FreshStartState
             : reasons.Count > 0 ? LowAccuracy : Normal;
-        var published = days[^1].TrendKg;
-        return new TrendSeries(asOf, days, published, state, reasons, inWindow, freshStart);
+        return new TrendSeries(asOf, days, days[^1].TrendKg, state, reasons, inWindow, freshStart, days[^1].BandKg, Rate(runs[^1], days));
     }
 
     /// <summary>
@@ -179,46 +177,57 @@ public static class TrendWeight
     public static string FormatOneDecimal(decimal value) =>
         decimal.Round(value, 1, MidpointRounding.AwayFromZero).ToString("0.0", CultureInfo.InvariantCulture);
 
-    private static decimal? Reading(
-        DateOnly date,
-        Dictionary<DateOnly, decimal> realKg,
-        Dictionary<DateOnly, decimal> gapReadings)
+    /// <summary>Trend change over the last <see cref="RateMinSpanDays"/> days up to the latest weigh-in, per week.</summary>
+    private static decimal? Rate(IReadOnlyList<(DateOnly Date, decimal Kg)> run, IReadOnlyList<TrendDay> days)
     {
-        if (realKg.TryGetValue(date, out var real))
+        var last = run[^1].Date;
+        var from = last.AddDays(-RateMinSpanDays);
+        if (run.Count < RateMinWeighIns || from < run[0].Date)
         {
-            return real;
+            return null;
         }
 
-        if (gapReadings.TryGetValue(date, out var gap))
-        {
-            return gap;
-        }
-
-        return null;
+        var end = days.First(day => day.Date == last).TrendKg;
+        var start = days.First(day => day.Date == from).TrendKg;
+        return Publish((end - start) * 7 / RateMinSpanDays);
     }
 
-    private static TrendDay Day(
-        DateOnly date,
-        decimal trend,
-        Dictionary<DateOnly, decimal> realKg,
-        Dictionary<DateOnly, decimal> gapReadings,
-        HashSet<DateOnly> freshGaps)
+    /// <summary>Days covered by weigh-ins at most <see cref="MeasuredGapDays"/> apart, the weigh-in days included.</summary>
+    private static HashSet<DateOnly> Measured(IReadOnlyList<(DateOnly Date, decimal Kg)> run)
     {
-        decimal? weighIn = realKg.TryGetValue(date, out var kg) ? kg : null;
-        decimal? reading = weighIn ?? (gapReadings.TryGetValue(date, out var gap) ? gap : null);
-        var real = weighIn is not null;
-        return new TrendDay(date, Publish(trend), weighIn, reading, real, !real, freshGaps.Contains(date));
+        var days = new HashSet<DateOnly> { run[0].Date };
+        for (var i = 1; i < run.Count; i++)
+        {
+            days.Add(run[i].Date);
+            if (run[i].Date.DayNumber - run[i - 1].Date.DayNumber > MeasuredGapDays)
+            {
+                continue;
+            }
+
+            for (var date = run[i - 1].Date; date < run[i].Date; date = date.AddDays(1))
+            {
+                days.Add(date);
+            }
+        }
+
+        return days;
     }
 }
 
+/// <summary>
+/// One day of the trend. <see cref="BandKg"/> is one standard deviation around it.
+/// <see cref="Gap"/> is a day inside a fresh-start gap (the chart breaks the line).
+/// <see cref="Measured"/> is a day between weigh-ins at most a week apart (drawn solid).
+/// </summary>
 public sealed record TrendDay(
     DateOnly Date,
     decimal TrendKg,
+    decimal BandKg,
     decimal? WeighInKg,
-    decimal? ReadingKg,
     bool Real,
     bool Estimated,
-    bool Gap);
+    bool Gap,
+    bool Measured);
 
 public sealed record FreshStartFacts(
     DateOnly Date,
@@ -233,10 +242,12 @@ public sealed record TrendSeries(
     string? TrendState,
     IReadOnlyList<string> Reasons,
     int WeighInsInWindow,
-    FreshStartFacts? FreshStart)
+    FreshStartFacts? FreshStart,
+    decimal? BandKg,
+    decimal? RateKgPerWeek)
 {
     public static TrendSeries Empty(DateOnly asOf) =>
-        new(asOf, [], null, null, [], 0, null);
+        new(asOf, [], null, null, [], 0, null, null, null);
 
     public TrendDay? On(DateOnly date)
     {

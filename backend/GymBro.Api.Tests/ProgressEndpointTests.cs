@@ -71,13 +71,21 @@ public sealed class ProgressEndpointTests(ApiFactory factory)
         Assert.Equal(400m, logged.GetProperty("kcal").GetDecimal());
         Assert.Equal(40m, logged.GetProperty("protein").GetDecimal());
         Assert.True(logged.GetProperty("targetKcal").GetInt32() > 0);
-        Assert.Equal(84.00m, logged.GetProperty("trendKg").GetDecimal());
-        Assert.Equal(83.94m, Day(days, "2026-11-10").GetProperty("trendKg").GetDecimal());
+        // Two weigh-ins 2 days apart: the smoothed line sits between them, drawn solid, with a band.
+        Assert.InRange(logged.GetProperty("trendKg").GetDecimal(), 83.61m, 83.99m);
+        Assert.True(gap.GetProperty("trendMeasured").GetBoolean());
+        Assert.True(gap.GetProperty("trendBandKg").GetDecimal() > 0m);
+        Assert.False(Day(days, "2026-11-07").GetProperty("trendMeasured").GetBoolean());
+        Assert.Equal(JsonValueKind.Null, Day(days, "2026-11-07").GetProperty("trendBandKg").ValueKind);
+        var weight = body.GetProperty("weight");
+        Assert.Equal(Day(days, "2026-11-10").GetProperty("trendKg").GetDecimal(), weight.GetProperty("trendKg").GetDecimal());
+        Assert.True(weight.GetProperty("bandKg").GetDecimal() > 0m);
+        Assert.Equal(JsonValueKind.Null, weight.GetProperty("rateKgPerWeek").ValueKind);
         Assert.Equal(1m, logged.GetProperty("fat").GetDecimal());
         Assert.Equal(1m, logged.GetProperty("carbs").GetDecimal());
         Assert.True(logged.GetProperty("targetFat").GetInt32() > 0);
         Assert.True(logged.GetProperty("targetCarbs").GetInt32() > 0);
-        Assert.Equal(-0.06m, body.GetProperty("weight").GetProperty("trendChangeKg").GetDecimal());
+        Assert.InRange(body.GetProperty("weight").GetProperty("trendChangeKg").GetDecimal(), -0.39m, 0m);
         Assert.Equal(JsonValueKind.Null, gap.GetProperty("fat").ValueKind);
         Assert.Equal(JsonValueKind.Null, gap.GetProperty("carbs").ValueKind);
         // A quick add has no fibre figure, so a logged day counts it as 0. A day with nothing logged stays null.

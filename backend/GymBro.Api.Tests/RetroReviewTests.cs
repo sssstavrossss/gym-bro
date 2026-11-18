@@ -102,8 +102,8 @@ public sealed class RetroMathTests
         Assert.Equal(2, outsideSeries.WeighInsInWindow);
         Assert.Equal(TrendWeight.Normal, outsideSeries.TrendState);
 
-        var midpoint = TrendWeight.Compute([(asOf.AddDays(-1), 80.00m), (asOf, 80.05m)], asOf);
-        Assert.Equal(80.01m, midpoint.TrendKg);
+        Assert.Equal(80.01m, TrendWeight.Publish(80.005m));
+        Assert.Equal(-80.01m, TrendWeight.Publish(-80.005m));
     }
 }
 

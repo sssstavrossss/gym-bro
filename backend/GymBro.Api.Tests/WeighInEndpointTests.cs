@@ -73,19 +73,21 @@ public sealed class WeighInEndpointTests(ApiFactory factory)
         var early = await client.GetFromJsonAsync<JsonElement>("/api/weight/trend?date=2026-10-24");
         Assert.Equal(2, early.GetProperty("weighInsInWindow").GetInt32());
         Assert.Equal("normal", early.GetProperty("trendState").GetString());
-        Assert.Equal(71.0m, early.GetProperty("trendKg").GetDecimal());
-        Assert.Equal(71.0m, early.GetProperty("usedKg").GetDecimal());
+        Assert.Equal(75.02m, early.GetProperty("trendKg").GetDecimal());
+        Assert.Equal(75.02m, early.GetProperty("usedKg").GetDecimal());
         Assert.Equal("trend", early.GetProperty("source").GetString());
 
         await TestData.PutWeighIn(client, "2026-10-24", """{"kg":90,"timeZone":"UTC","confirm":true}""");
         var ready = await client.GetFromJsonAsync<JsonElement>("/api/weight/trend?date=2026-10-24");
         Assert.Equal("normal", ready.GetProperty("trendState").GetString());
-        Assert.Equal(72.9m, ready.GetProperty("trendKg").GetDecimal());
-        Assert.Equal(72.9m, ready.GetProperty("usedKg").GetDecimal());
-        Assert.Equal(0.10m, ready.GetProperty("smoothingShare").GetDecimal());
+        var readyKg = ready.GetProperty("trendKg").GetDecimal();
+        Assert.InRange(readyKg, 75.03m, 89.99m);
+        Assert.Equal(readyKg, ready.GetProperty("usedKg").GetDecimal());
+        Assert.True(ready.GetProperty("bandKg").GetDecimal() < early.GetProperty("bandKg").GetDecimal());
+        Assert.Equal(JsonValueKind.Null, ready.GetProperty("rateKgPerWeek").ValueKind);
 
         var profile = await client.GetFromJsonAsync<JsonElement>("/api/profile");
-        Assert.Equal(72.9m, profile.GetProperty("weight").GetProperty("trendKg").GetDecimal());
+        Assert.Equal(readyKg, profile.GetProperty("weight").GetProperty("trendKg").GetDecimal());
         Assert.Equal("normal", profile.GetProperty("weight").GetProperty("trendState").GetString());
         Assert.Equal("trend", profile.GetProperty("weight").GetProperty("source").GetString());
     }

@@ -51,7 +51,7 @@ public sealed record RecalculatePeriod(
         var dates = weighIns.Select(row => row.Date).Where(date => date <= asOf).Distinct().OrderBy(date => date).ToList();
         for (var i = dates.Count - 1; i >= 1; i--)
         {
-            if (dates[i].DayNumber - dates[i - 1].DayNumber > TrendWeight.MaxInterpolatedGapDays)
+            if (dates[i].DayNumber - dates[i - 1].DayNumber > TrendWeight.FreshStartGapDays)
             {
                 return dates[i];
             }

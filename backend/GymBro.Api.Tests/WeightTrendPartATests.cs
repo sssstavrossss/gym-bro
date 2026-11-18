@@ -22,7 +22,7 @@ public sealed class WeightTrendPartATests(ApiFactory factory)
     ];
 
     [Fact]
-    public async Task Prototype_36_day_dataset_returns_trend_83_60_and_worked_example_targets()
+    public async Task Prototype_36_day_dataset_returns_trend_83_23_and_worked_example_targets()
     {
         factory.Clock.UtcNow = new DateTimeOffset(2026, 10, 24, 8, 0, 0, TimeSpan.Zero);
         var user = TestData.NewUser("prototype");
@@ -38,28 +38,32 @@ public sealed class WeightTrendPartATests(ApiFactory factory)
         }
 
         var trend = await client.GetFromJsonAsync<JsonElement>("/api/weight/trend?date=2026-10-24");
-        Assert.Equal(83.60m, trend.GetProperty("trendKg").GetDecimal());
+        Assert.Equal(83.23m, trend.GetProperty("trendKg").GetDecimal());
+        Assert.Equal(0.23m, trend.GetProperty("bandKg").GetDecimal());
+        Assert.Equal(-0.36m, trend.GetProperty("rateKgPerWeek").GetDecimal());
         Assert.Equal(TrendWeight.Normal, trend.GetProperty("trendState").GetString());
         Assert.Equal(0, trend.GetProperty("reasons").GetArrayLength());
         Assert.Equal(83.3m, trend.GetProperty("latestKg").GetDecimal());
         Assert.False(trend.GetProperty("goalReached").GetBoolean());
 
         var saved = await TestData.PutProfile(client, TestData.Profile());
-        Assert.Equal(83.60m, saved.GetProperty("weight").GetProperty("trendKg").GetDecimal());
-        Assert.Equal(83.60m, saved.GetProperty("weight").GetProperty("usedKg").GetDecimal());
-        Assert.Equal(83.60m, saved.GetProperty("targets").GetProperty("weightKg").GetDecimal());
+        Assert.Equal(83.23m, saved.GetProperty("weight").GetProperty("trendKg").GetDecimal());
+        Assert.Equal(83.23m, saved.GetProperty("weight").GetProperty("usedKg").GetDecimal());
+        Assert.Equal(83.23m, saved.GetProperty("targets").GetProperty("weightKg").GetDecimal());
         var targets = saved.GetProperty("targets");
-        Assert.Equal(1786, targets.GetProperty("bmr").GetInt32());
-        Assert.Equal(2768, targets.GetProperty("tdee").GetInt32());
-        Assert.Equal(2218, targets.GetProperty("kcal").GetInt32());
-        Assert.Equal(167, targets.GetProperty("protein").GetInt32());
-        Assert.Equal(62, targets.GetProperty("fat").GetInt32());
-        Assert.Equal(249, targets.GetProperty("carbs").GetInt32());
+        Assert.Equal(1782, targets.GetProperty("bmr").GetInt32());
+        Assert.Equal(2762, targets.GetProperty("tdee").GetInt32());
+        Assert.Equal(2212, targets.GetProperty("kcal").GetInt32());
+        Assert.Equal(166, targets.GetProperty("protein").GetInt32());
+        Assert.Equal(61, targets.GetProperty("fat").GetInt32());
+        Assert.Equal(248, targets.GetProperty("carbs").GetInt32());
 
         var chart = await client.GetFromJsonAsync<JsonElement>("/api/weight/chart?date=2026-10-24&days=30");
         Assert.Equal(30, chart.GetProperty("series").GetArrayLength());
-        Assert.Equal(83.60m, chart.GetProperty("trendKg").GetDecimal());
+        Assert.Equal(83.23m, chart.GetProperty("trendKg").GetDecimal());
         var last = chart.GetProperty("series")[29];
+        Assert.Equal(0.23m, last.GetProperty("bandKg").GetDecimal());
+        Assert.True(last.GetProperty("measured").GetBoolean());
         Assert.Equal("2026-10-24", last.GetProperty("date").GetString());
         Assert.True(last.GetProperty("realWeighIn").GetBoolean());
         Assert.False(last.GetProperty("estimated").GetBoolean());
@@ -102,14 +106,15 @@ public sealed class WeightTrendPartATests(ApiFactory factory)
 
         await TestData.PutWeighIn(client, "2026-10-24", WeighIn(90m, confirm: true));
         var trend = await client.GetFromJsonAsync<JsonElement>("/api/weight/trend?date=2026-10-24");
-        Assert.Equal(81.00m, trend.GetProperty("trendKg").GetDecimal());
+        Assert.Equal(85.02m, trend.GetProperty("trendKg").GetDecimal());
         Assert.Equal(TrendWeight.Normal, trend.GetProperty("trendState").GetString());
         Assert.Equal(0, trend.GetProperty("reasons").GetArrayLength());
         Assert.Equal(2, trend.GetProperty("weighInsInWindow").GetInt32());
 
         factory.Clock.UtcNow = new DateTimeOffset(2026, 10, 30, 8, 0, 0, TimeSpan.Zero);
         var later = await client.GetFromJsonAsync<JsonElement>("/api/weight/trend");
-        Assert.Equal(81.00m, later.GetProperty("trendKg").GetDecimal());
+        Assert.Equal(85.02m, later.GetProperty("trendKg").GetDecimal());
+        Assert.True(later.GetProperty("bandKg").GetDecimal() > trend.GetProperty("bandKg").GetDecimal());
         Assert.Equal(1, later.GetProperty("weighInsInWindow").GetInt32());
         Assert.Equal(TrendWeight.LowAccuracy, later.GetProperty("trendState").GetString());
         Assert.Equal(TrendWeight.FewerThanTwoWeighInsInSevenDays, later.GetProperty("reasons")[0].GetString());
@@ -127,10 +132,15 @@ public sealed class WeightTrendPartATests(ApiFactory factory)
         var chart = await client.GetFromJsonAsync<JsonElement>("/api/weight/chart?date=2026-10-24&days=4");
         var series = chart.GetProperty("series");
         Assert.Equal(4, series.GetArrayLength());
-        AssertPoint(series[0], "2026-10-21", 80.00m, real: true, weighIn: 80m);
-        AssertPoint(series[1], "2026-10-22", 80.10m, real: false, reading: 81m);
-        AssertPoint(series[2], "2026-10-23", 80.29m, real: false, reading: 82m);
-        AssertPoint(series[3], "2026-10-24", 80.56m, real: true, weighIn: 83m);
+        AssertPoint(series[0], "2026-10-21", real: true, weighIn: 80m);
+        AssertPoint(series[1], "2026-10-22", real: false);
+        AssertPoint(series[2], "2026-10-23", real: false);
+        AssertPoint(series[3], "2026-10-24", real: true, weighIn: 83m);
+        // With hindsight the line runs between the two weigh-ins, rising, and drawn solid.
+        var trends = Enumerable.Range(0, 4).Select(i => series[i].GetProperty("trendKg").GetDecimal()).ToList();
+        Assert.Equal(trends.Order(), trends);
+        Assert.True(trends[0] > 80m && trends[3] < 83m);
+        Assert.Equal(chart.GetProperty("trendKg").GetDecimal(), trends[3]);
     }
 
     [Fact]
@@ -332,7 +342,7 @@ public sealed class WeightTrendPartATests(ApiFactory factory)
         Assert.Equal(before.GetProperty("trendKg").GetDecimal(), after.GetProperty("trendKg").GetDecimal());
         Assert.Equal(before.GetProperty("series").ToString(), after.GetProperty("series").ToString());
         Assert.Equal(other.GetProperty("series").ToString(), after.GetProperty("series").ToString());
-        Assert.Equal(80.56m, after.GetProperty("trendKg").GetDecimal());
+        Assert.Equal(81.52m, after.GetProperty("trendKg").GetDecimal());
     }
 
     [Fact]
@@ -385,19 +395,19 @@ public sealed class WeightTrendPartATests(ApiFactory factory)
         await TestData.PutWeighIn(clientA, "2026-10-24", WeighIn(90m, confirm: true));
         await TestData.PutProfile(clientA, TestData.Profile());
         var trendA = await clientA.GetFromJsonAsync<JsonElement>("/api/weight/trend");
-        Assert.Equal(81.00m, trendA.GetProperty("trendKg").GetDecimal());
+        Assert.Equal(85.02m, trendA.GetProperty("trendKg").GetDecimal());
 
         await TestData.PutWeighIn(clientB, "2026-10-24", WeighIn(70m));
         var trendB = await clientB.GetFromJsonAsync<JsonElement>("/api/weight/trend");
         Assert.Equal(70.00m, trendB.GetProperty("trendKg").GetDecimal());
         Assert.Equal(TrendWeight.LowAccuracy, trendB.GetProperty("trendState").GetString());
         var chartB = await clientB.GetFromJsonAsync<JsonElement>("/api/weight/chart?days=7");
-        Assert.DoesNotContain("81", chartB.GetProperty("series").ToString(), StringComparison.Ordinal);
+        Assert.DoesNotContain("85.02", chartB.GetProperty("series").ToString(), StringComparison.Ordinal);
         Assert.DoesNotContain("90", chartB.GetProperty("series").ToString(), StringComparison.Ordinal);
 
         Assert.Equal(HttpStatusCode.NotFound, (await clientB.DeleteAsync("/api/weigh-ins/2026-10-23")).StatusCode);
         var stillA = await clientA.GetFromJsonAsync<JsonElement>("/api/weight/trend");
-        Assert.Equal(81.00m, stillA.GetProperty("trendKg").GetDecimal());
+        Assert.Equal(85.02m, stillA.GetProperty("trendKg").GetDecimal());
         var targetsB = await clientB.GetFromJsonAsync<JsonElement>("/api/targets");
         Assert.Equal(JsonValueKind.Null, targetsB.GetProperty("targets").ValueKind);
 
@@ -469,10 +479,11 @@ public sealed class WeightTrendPartATests(ApiFactory factory)
         }
     }
 
-    private static void AssertPoint(JsonElement point, string date, decimal trend, bool real, decimal? weighIn = null, decimal? reading = null)
+    private static void AssertPoint(JsonElement point, string date, bool real, decimal? weighIn = null)
     {
         Assert.Equal(date, point.GetProperty("date").GetString());
-        Assert.Equal(trend, point.GetProperty("trendKg").GetDecimal());
+        Assert.True(point.GetProperty("bandKg").GetDecimal() > 0m);
+        Assert.True(point.GetProperty("measured").GetBoolean());
         Assert.Equal(real, point.GetProperty("realWeighIn").GetBoolean());
         Assert.Equal(!real, point.GetProperty("estimated").GetBoolean());
         if (weighIn is decimal kg)
@@ -482,11 +493,6 @@ public sealed class WeightTrendPartATests(ApiFactory factory)
         else
         {
             Assert.Equal(JsonValueKind.Null, point.GetProperty("weighInKg").ValueKind);
-        }
-
-        if (reading is decimal line)
-        {
-            Assert.Equal(line, point.GetProperty("readingKg").GetDecimal());
         }
     }
 
