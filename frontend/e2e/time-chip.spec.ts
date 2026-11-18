@@ -1,7 +1,14 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 
 function headers(oid: string) {
   return { "X-Test-Oid": oid, "X-Test-Name": "Test User", "Content-Type": "application/json" };
+}
+
+/** Waits for the sheet's slide-in (and any other finite animation in it) to end before measuring or clicking. */
+async function settled(dialog: Locator) {
+  await dialog.evaluate((el) => Promise.all(el.getAnimations({ subtree: true })
+    .filter((animation) => animation.effect?.getTiming().iterations !== Infinity)
+    .map((animation) => animation.finished.catch(() => undefined))));
 }
 
 /** A profiled user on Today, with showPicker counted instead of opening a picker. */
@@ -44,6 +51,8 @@ async function setup(page: Page) {
   }
   const food = page.getByRole("dialog", { name: "Add food" });
   await expect(food).toBeVisible();
+  // A press that starts while the sheet still slides in can end off the input, and no click reaches it.
+  await settled(food);
   return food.getByLabel(/Change time/);
 }
 
