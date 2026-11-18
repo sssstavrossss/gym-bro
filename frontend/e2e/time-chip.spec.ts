@@ -1,0 +1,77 @@
+import { expect, test, type Page } from "@playwright/test";
+
+function headers(oid: string) {
+  return { "X-Test-Oid": oid, "X-Test-Name": "Test User", "Content-Type": "application/json" };
+}
+
+/** A profiled user on Today, with showPicker counted instead of opening a picker. */
+async function setup(page: Page) {
+  const oid = `e2e-time-chip-${Date.now()}-${test.info().project.name}`;
+  await page.goto("/");
+  const when = await page.evaluate(() => {
+    const zone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+    const today = new Intl.DateTimeFormat("en-CA", { timeZone: zone, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+    return { zone, today };
+  });
+  expect((await page.request.put(`/api/weigh-ins/${when.today}`, { headers: headers(oid), data: { kg: 83.6, timeZone: when.zone } })).ok()).toBeTruthy();
+  const profile = await page.request.put("/api/profile", {
+    headers: headers(oid),
+    data: {
+      sex: "male", birthYear: 1990, heightCm: 180, activity: "moderate", goal: "lose",
+      rateKgPerWeek: 0.5, goalWeightKg: 80, proteinSetting: "normal", proteinGramsPerKg: 2,
+      fatSetting: "normal", fatPercent: 25, timeZone: when.zone,
+    },
+  });
+  expect(profile.ok(), await profile.text()).toBeTruthy();
+  await page.addInitScript((id) => {
+    sessionStorage.setItem("gymbro-e2e", "1");
+    sessionStorage.setItem("gymbro-e2e-oid", id);
+    const counter = window as unknown as { pickerCalls: number };
+    counter.pickerCalls = 0;
+    Object.defineProperty(HTMLInputElement.prototype, "showPicker", {
+      configurable: true,
+      writable: true,
+      value() { counter.pickerCalls += 1; },
+    });
+  }, oid);
+  await page.goto("/today");
+  if (page.viewportSize()!.width < 500) {
+    // Phone: the tab bar's Add, then Search or quick add.
+    await page.getByRole("button", { name: "Add", exact: true }).click();
+    await page.getByRole("dialog", { name: "Add" }).getByRole("button", { name: /Search or quick add/ }).click();
+  } else {
+    await page.getByRole("button", { name: "Add food" }).first().click();
+  }
+  const food = page.getByRole("dialog", { name: "Add food" });
+  await expect(food).toBeVisible();
+  return food.getByLabel(/Change time/);
+}
+
+const pickerCalls = (page: Page) => page.evaluate(() => (window as unknown as { pickerCalls: number }).pickerCalls);
+
+test.describe("phone", () => {
+  test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+
+  test("a tap opens the time picker once and doesn't ask again", async ({ page }) => {
+    const time = await setup(page);
+    await time.tap();
+    // The press focused the input, which opens the picker on a phone. A second ask
+    // (showPicker) closed it again on iOS 26.
+    expect(await pickerCalls(page)).toBe(0);
+    expect(await time.inputValue()).toMatch(/^\d{2}:\d{2}$/);
+    if (test.info().project.name === "chromium") await expect(time).toBeFocused();
+  });
+});
+
+test.describe("desktop", () => {
+  test.use({ viewport: { width: 1280, height: 800 } });
+
+  test("a mouse click opens the time picker", async ({ page }) => {
+    // Desktop Safari has no time picker: the click goes into its hour and minute fields.
+    test.skip(test.info().project.name === "webkit", "no picker in desktop WebKit");
+    const time = await setup(page);
+    await time.click();
+    expect(await pickerCalls(page)).toBe(1);
+    expect(await time.inputValue()).toMatch(/^\d{2}:\d{2}$/);
+  });
+});

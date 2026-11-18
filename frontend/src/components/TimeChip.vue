@@ -21,16 +21,24 @@ function prime() {
   const input = el.value;
   if (input && !input.value && !otherDay.value) input.value = props.modelValue ?? nowHM();
 }
-function arm() {
+/** How the last press began: "mouse", "touch" or "pen". Empty for a keyboard click. */
+let pointer = "";
+function arm(event: PointerEvent) {
+  pointer = event.pointerType;
   prime();
   // The tap lands on this input. Focusing it here, still inside pointerdown,
   // is what raises the keyboard on iOS Safari. showPicker on click is too late.
   el.value?.focus({ preventScroll: true });
 }
 function pick() {
+  const touched = pointer === "touch" || pointer === "pen";
+  pointer = "";
   prime();
   const input = el.value;
   if (!input) return;
+  // On a touch screen the press already opened the picker. Asking again with showPicker,
+  // which iOS 26 honours, closes the picker it just opened.
+  if (touched && document.activeElement === input) return;
   input.focus({ preventScroll: true });
   try { input.showPicker(); } catch { /* focus already opened the control */ }
   if (document.activeElement !== input) input.focus({ preventScroll: true });
