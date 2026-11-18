@@ -1,6 +1,7 @@
 import { accessToken } from "./auth/session";
 import type { CatalogFood, OwnServing } from "./lib/foodAmount";
 import { kg as formatKg } from "./lib/format";
+import { dispositionName } from "./lib/download";
 import type { FatLimitsSetting, SodiumLimitSetting } from "./lib/nutrientCards";
 import type { FoodUnit } from "./lib/foodUnits";
 import { e2eSession } from "./auth/e2e";
@@ -1069,6 +1070,14 @@ export async function markAllNotificationsRead(): Promise<void> {
   const response = await request("/api/notifications/inbox/read", { method: "POST" });
   if (response.status === 204) return;
   await jsonOrThrow(response);
+}
+
+/** Everything the caller has entered: a zip of CSV files and one JSON file, with the name the server gave it. */
+export async function getExport(): Promise<{ blob: Blob; name: string }> {
+  const response = await request("/api/export");
+  if (response.status === 502 || response.status === 503 || response.status === 504) throw new ServerUnreachable();
+  if (!response.ok) throw new ApiError(await readError(response), response.status);
+  return { blob: await response.blob(), name: dispositionName(response.headers.get("Content-Disposition")) ?? "gym-bro-export.zip" };
 }
 
 export async function getNotifications(): Promise<NotificationSettings> {

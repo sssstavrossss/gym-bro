@@ -39,6 +39,7 @@ public static class GymBroEndpoints
         api.MapNutrients();
         api.MapRecalculate();
         api.MapNotifications();
+        api.MapExport();
         api.MapFallback(() => Results.Json(new { error = "Not found" }, statusCode: StatusCodes.Status404NotFound));
 
         app.MapFallbackToFile("index.html");
