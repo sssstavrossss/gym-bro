@@ -5,13 +5,14 @@ import Segmented from "./Segmented.vue";
 import ProgressChart from "./ProgressChart.vue";
 import SwipePanels from "./SwipePanels.vue";
 import { ApiError, getProgress, ServerUnreachable, type ProgressDay, type ProgressResponse } from "../api";
-import { dayMonth, spanLabel } from "../lib/dates";
+import { spanLabel } from "../lib/dates";
 import { int } from "../lib/format";
 import type { IntakeDay } from "../lib/progressChart";
 import { fiberMinimum, intakeStats, isMinimum, PAGE_TITLES, PROGRESS_PAGES, type ProgressPage } from "../lib/progressCard";
+import { rateStat } from "../lib/weightTrend";
 import { onLogChange } from "../state/log";
 import { profile } from "../state/profile";
-import { weightUnit, wt, wtSigned, wtUnit } from "../state/units";
+import { weightUnit, wt, wtUnit } from "../state/units";
 import { openWeight, toast } from "../ui";
 
 const props = defineProps<{ selected: string }>();
@@ -116,21 +117,16 @@ function unitOf(item: ProgressPage) {
 }
 
 interface Stat { label: string; value: string; sub: string }
-const lastTrend = computed(() => {
-  for (let index = days.value.length - 1; index >= 0; index -= 1) {
-    const value = days.value[index].trendKg;
-    if (value != null) return value;
-  }
-  return null;
-});
 function statsOf(item: ProgressPage): Stat[] {
   if (item === "weight") {
-    const latest = data.value?.weight.currentKg;
-    const change = data.value?.weight.trendChangeKg;
-    const count = data.value?.weight.weighIns.length ?? 0;
+    const weight = data.value?.weight;
+    const trend = weight?.trendKg;
+    const latest = weight?.currentKg;
+    const count = weight?.weighIns.length ?? 0;
+    const band = weight?.bandKg != null ? `±${wt(weight.bandKg)} · ` : "";
     return [
-      { label: "Trend", value: lastTrend.value == null ? "–" : wtUnit(lastTrend.value), sub: latest == null ? "no weigh-in" : `latest ${wt(latest)}` },
-      { label: "Change", value: change == null ? "–" : `${wtSigned(change)} ${weightUnit()}`, sub: data.value ? `since ${dayMonth(data.value.from)}` : "" },
+      { label: "Trend", value: trend == null ? "–" : wtUnit(trend), sub: latest == null ? "no weigh-in" : `${band}latest ${wt(latest)}` },
+      { label: "Rate", ...rateStat(weight?.rateKgPerWeek, weightUnit()) },
       { label: "Weigh-ins", value: String(count), sub: `in ${days.value.length} days` },
     ];
   }

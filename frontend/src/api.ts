@@ -83,7 +83,10 @@ export interface WeightResponse {
   latestDate: string | null;
   weighInsInWindow: number;
   windowDays: number;
-  smoothingShare: number;
+  /** One standard deviation around today's trend, kg. */
+  bandKg: number | null;
+  /** Trend change over the last 2 weeks up to the latest weigh-in, kg a week. Null until 4 weigh-ins over 14 days. */
+  rateKgPerWeek: number | null;
   usedKg: number | null;
   source: "trend" | "setup" | "none";
   goalReached: boolean;
@@ -165,10 +168,13 @@ export interface WeightChartPoint {
   date: string;
   trendKg: number | null;
   weighInKg: number | null;
-  readingKg: number | null;
+  /** One standard deviation around the trend, kg. */
+  bandKg: number | null;
   realWeighIn: boolean;
   estimated: boolean;
   gap: boolean;
+  /** Between weigh-ins at most a week apart: the trend is drawn solid. */
+  measured: boolean;
 }
 
 export interface WeightChartResponse {
@@ -514,6 +520,10 @@ export interface ProgressDay {
   targetCarbs?: number | null;
   /** Grams of fibre that day. A food without a fibre figure counts as 0. Null on a day with nothing logged. */
   fiber?: number | null;
+  /** One standard deviation around the trend, kg. */
+  trendBandKg?: number | null;
+  /** Between weigh-ins at most a week apart: the trend is drawn solid. */
+  trendMeasured?: boolean;
 }
 
 export interface ProgressResponse {
@@ -526,6 +536,10 @@ export interface ProgressResponse {
     currentDate: string | null;
     changeKg: number | null;
     trendChangeKg: number | null;
+    /** Today's trend, its band, and the rate (see WeightResponse). */
+    trendKg: number | null;
+    bandKg: number | null;
+    rateKgPerWeek: number | null;
     count: number;
     weighIns: { date: string; kg: number }[];
   };

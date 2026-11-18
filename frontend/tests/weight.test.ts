@@ -3,7 +3,7 @@ import type { WeightChartPoint, WeightResponse } from "../src/api";
 import { accuracyCopy, earliestNewWeighInDate, gapLabel, isLowAccuracy, newWeighInDates, profileTrendLabel, trendChange, weightSubtitle } from "../src/lib/weightDisplay";
 
 function point(date: string, trendKg: number | null, gap = false): WeightChartPoint {
-  return { date, trendKg, weighInKg: null, readingKg: null, realWeighIn: false, estimated: trendKg == null, gap };
+  return { date, trendKg, weighInKg: null, bandKg: null, realWeighIn: false, estimated: trendKg == null, gap, measured: false };
 }
 
 function weight(patch: Partial<WeightResponse>): WeightResponse {
@@ -16,7 +16,8 @@ function weight(patch: Partial<WeightResponse>): WeightResponse {
     latestDate: "2026-10-24",
     weighInsInWindow: 1,
     windowDays: 7,
-    smoothingShare: 0.1,
+    bandKg: null,
+    rateKgPerWeek: null,
     usedKg: 83.6,
     source: "trend",
     goalReached: false,

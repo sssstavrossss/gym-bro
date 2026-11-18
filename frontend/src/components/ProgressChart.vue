@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, useId, watch } from "vue";
 import type { ProgressDay } from "../api";
 import { axisBounds } from "../lib/chartScale";
 import { dayMonth } from "../lib/dates";
@@ -7,6 +7,7 @@ import { formatDecimal, int } from "../lib/format";
 import { kgTo } from "../lib/units";
 import { weightUnit } from "../state/units";
 import { evenAxisLabels, valueY, type IntakeDay } from "../lib/progressChart";
+import { trendExtent, trendShapes, type TrendSample } from "../lib/weightTrend";
 import { barWidth, chartLayout, intakeScale, isMinimum, monthTicks, targetSteps, visibleSpan, type ProgressPage } from "../lib/progressCard";
 
 /**
@@ -32,6 +33,7 @@ const emit = defineEmits<{ "update:pan": [value: number]; span: [value: { from: 
 
 const H = 140;
 const LABELS = 20;
+const uid = useId();
 const view = ref<HTMLElement | null>(null);
 const viewWidth = ref(0);
 const scrollLeft = ref(0);
@@ -46,37 +48,20 @@ function xAt(index: number) {
 
 // Weight, in the shown unit, so the axis steps work in pounds the way they do in kilograms.
 const shownWeighIns = computed(() => props.weighIns.map((row) => ({ date: row.date, value: kgTo(row.kg, weightUnit()) })));
-const shownTrend = computed(() => props.days.map((day) => (day.trendKg == null ? null : kgTo(day.trendKg, weightUnit()))));
+const trendSamples = computed<TrendSample[]>(() => props.days.map((day) => ({
+  trend: day.trendKg == null ? null : kgTo(day.trendKg, weightUnit()),
+  band: day.trendBandKg == null ? null : kgTo(day.trendBandKg, weightUnit()),
+  measured: day.trendMeasured ?? false,
+})));
 const weightScale = computed(() => {
-  const values = [
-    ...shownWeighIns.value.map((row) => row.value),
-    ...shownTrend.value.flatMap((value) => (value != null ? [value] : [])),
-  ];
+  const values = [...shownWeighIns.value.map((row) => row.value), ...trendExtent(trendSamples.value)];
   return values.length ? axisBounds(values) : null;
 });
 function wy(value: number) {
   const scale = weightScale.value;
   return scale ? valueY(value, scale.lo, scale.hi, H) : H;
 }
-const trendRuns = computed(() => {
-  const runs: { x: number; y: number }[][] = [];
-  let run: { x: number; y: number }[] = [];
-  shownTrend.value.forEach((value, index) => {
-    if (value == null) {
-      if (run.length) runs.push(run);
-      run = [];
-      return;
-    }
-    run.push({ x: xAt(index), y: wy(value) });
-  });
-  if (run.length) runs.push(run);
-  return runs;
-});
-const trendLine = computed(() => trendRuns.value.map((run) => run.map((p, i) => `${i ? "L" : "M"}${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(" ")).join(" "));
-const trendArea = computed(() => trendRuns.value.filter((run) => run.length > 1).map((run) => {
-  const top = run.map((p, i) => `${i ? "L" : "M"}${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(" ");
-  return `${top} L${run[run.length - 1].x.toFixed(1)} ${H} L${run[0].x.toFixed(1)} ${H} Z`;
-}).join(" "));
+const shapes = computed(() => trendShapes(trendSamples.value, xAt, wy));
 const weightDots = computed(() => {
   const index = new Map(props.days.map((day, i) => [day.date, i]));
   return shownWeighIns.value.flatMap((row) => {
@@ -86,8 +71,8 @@ const weightDots = computed(() => {
 });
 const dotRadius = computed(() => (slot.value < 2.5 ? 1.6 : slot.value < 8 ? 2.2 : 2.8));
 const lastTrend = computed(() => {
-  for (let i = shownTrend.value.length - 1; i >= 0; i -= 1) {
-    const value = shownTrend.value[i];
+  for (let i = trendSamples.value.length - 1; i >= 0; i -= 1) {
+    const value = trendSamples.value[i].trend;
     if (value != null) return { x: xAt(i), y: wy(value), text: formatDecimal(value) };
   }
   return null;
@@ -225,16 +210,16 @@ watch(() => props.pan, () => {
       <div ref="view" class="view" :class="{ scroll: layout.scrollable }" data-chart-view @scroll.passive="onScroll">
         <svg v-if="W > 0 && !empty" :width="W" :height="H + LABELS" :viewBox="`0 0 ${W} ${H + LABELS}`" class="fig" role="img" :aria-label="`${title} chart`">
           <defs v-if="page === 'weight'">
-            <linearGradient :id="`wfill-${page}`" x1="0" x2="0" y1="0" y2="1">
-              <stop offset="0" stop-color="var(--chart-line)" stop-opacity="0.2" />
-              <stop offset="1" stop-color="var(--chart-line)" stop-opacity="0" />
-            </linearGradient>
+            <clipPath :id="`wplot-${uid}`"><rect x="0" y="0" :width="W" :height="H" /></clipPath>
           </defs>
           <line v-for="y in gridLines" :key="y" x1="0" :x2="W" :y1="y" :y2="y" stroke="var(--text-primary)" stroke-opacity="0.07" />
           <template v-if="page === 'weight'">
-            <path v-if="trendArea" :d="trendArea" :fill="`url(#wfill-${page})`" />
+            <!-- Possible range (±2σ) in a faint neutral, then the likely range (±1σ) in the chart colour. -->
+            <path v-if="shapes.outer" :d="shapes.outer" :clip-path="`url(#wplot-${uid})`" fill="var(--text-primary)" fill-opacity="0.06" data-band-outer />
+            <path v-if="shapes.inner" :d="shapes.inner" :clip-path="`url(#wplot-${uid})`" fill="var(--chart-line)" fill-opacity="0.18" data-band />
             <circle v-for="dot in weightDots" :key="dot.key" :cx="dot.x" :cy="dot.y" :r="dotRadius" fill="var(--chart-line)" fill-opacity="0.4" />
-            <path :d="trendLine" fill="none" stroke="var(--chart-line)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+            <path v-if="shapes.dashed" :d="shapes.dashed" fill="none" stroke="var(--chart-line)" stroke-opacity="0.75" stroke-width="2" stroke-linecap="round" stroke-dasharray="1 5" data-trend-dashed />
+            <path v-if="shapes.solid" :d="shapes.solid" fill="none" stroke="var(--chart-line)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" data-trend-solid />
             <template v-if="lastTrend">
               <circle :cx="lastTrend.x" :cy="lastTrend.y" r="4" fill="var(--color-surface)" stroke="var(--chart-line)" stroke-width="2.2" />
               <rect :x="lastTrend.x - 48" :y="Math.max(0, lastTrend.y - 27)" width="42" height="18" rx="9" fill="var(--color-surface-2)" />
