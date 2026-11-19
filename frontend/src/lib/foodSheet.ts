@@ -91,6 +91,11 @@ export function recentAddBody(input: RecentAddInput): RecentAddResult {
 
 /** Last logged unit when the food still offers it, including a serving this person added. Otherwise the food's usual amount. */
 export function amountForRecent(food: CatalogFood, amount: number, unit: string): { amount: string; unit: string } {
+  return lastAmountFor(food, amount, unit) ?? defaultAmount(food);
+}
+
+/** The amount last logged, when the food still offers that unit (a serving this person added counts). */
+export function lastAmountFor(food: CatalogFood, amount: number, unit: string): { amount: string; unit: string } | null {
   const kind = normalizeUnit(unit);
   const name = kind ? null : servingName(unit);
   const match = kind
@@ -98,8 +103,7 @@ export function amountForRecent(food: CatalogFood, amount: number, unit: string)
     : name
       ? unitsForFood(food).find((choice) => choice.named && choice.unit.localeCompare(name, undefined, { sensitivity: "accent" }) === 0)
       : undefined;
-  if (match && amount > 0) return { amount: String(amount), unit: match.unit };
-  return defaultAmount(food);
+  return match && amount > 0 ? { amount: String(amount), unit: match.unit } : null;
 }
 
 /** "180 g · 297 kcal · P56 F6 C0" (or "6.3 oz · …") for the amount a one-tap add will log. */

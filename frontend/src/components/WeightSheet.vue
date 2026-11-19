@@ -433,7 +433,8 @@ const diffText = computed(() => (
 .dt-xl .dayopt { flex-wrap: wrap; align-items: flex-start; row-gap: 0; padding: var(--space-s) var(--space-m); }
 .dt-xl .dayopt .grow { flex: 1 1 100%; overflow-wrap: break-word; }
 /* − and + sit at the edges, the number in the middle. */
-.wfield { gap: var(--space-s); align-items: center; justify-content: space-between; }
+/* The same box as the amount screens, around the number and its − and + buttons. */
+.wfield { gap: var(--space-s); align-items: center; justify-content: space-between; padding: 10px var(--space-m); border-radius: var(--radius-l); background: var(--color-surface-2); }
 .wlabel { display: inline-flex; align-items: baseline; justify-content: center; gap: var(--space-s); min-width: 0; flex: 0 1 auto; }
 .autosize { display: inline-grid; min-height: 44px; }
 .autosize > * { grid-area: 1 / 1; }

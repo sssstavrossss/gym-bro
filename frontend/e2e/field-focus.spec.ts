@@ -169,7 +169,7 @@ for (const width of [375, 390]) {
       await expectReplace(page, amount, "55", "caret");
       await fieldsAtLeast16(food);
 
-      await food.getByRole("button", { name: "Serving" }).click();
+      await food.getByRole("button", { name: "Add a serving" }).click();
       await expectReplace(page, food.getByRole("textbox", { name: "Serving name" }), "cup");
 
       const time = food.getByLabel(/Change time/);

@@ -17,20 +17,20 @@ import {
   type OwnServing,
   type UnitChoice,
 } from "./foodAmount";
-import { amountForRecent } from "./foodSheet";
+import { amountForRecent, lastAmountFor } from "./foodSheet";
 import {
   foodAmountLabel,
   isConverted,
-  quickAmountsFor,
+  quickChips,
   readField,
   servingErrorIn,
   servingLabelIn,
-  shownAmountLabel,
   shownChoices,
   shownField,
   shownWeightWord,
   sizeLabel,
   typingLimits,
+  type QuickChip,
   type ShownAmount,
 } from "./foodUnits";
 import { int } from "./format";
@@ -51,6 +51,8 @@ export interface FoodAmountOptions {
   saveError: Ref<boolean>;
   /** A serving was saved or removed: lists that hold this food can update their copy. */
   onServings?: (foodId: string, servings: OwnServing[]) => void;
+  /** The amount this person last logged of a food, for the "last time" chip. */
+  lastLogged?: (foodId: string) => { amount: number; unit: string } | null;
 }
 
 /**
@@ -94,12 +96,17 @@ export function useFoodAmount(options: FoodAmountOptions) {
   const adding = computed<MacroAmounts>(() => ({ kcal: preview.value.kcal, p: preview.value.protein, f: preview.value.fat, c: preview.value.carbs }));
   const isCount = computed(() => unit.value !== "g" && unit.value !== "ml");
   const unitWord = computed(() => foodAmountLabel(amountNumber.value || 0, unit.value, setting.value).replace(/^[\d.]+ /, ""));
-  const unitWord1 = computed(() => foodAmountLabel(1, unit.value, setting.value).replace(/^[\d.]+ /, ""));
   const gramsEach = computed(() => units.value.find((item) => item.unit === unit.value)?.gramsEach ?? null);
   /** Under an amount typed in ounces, what is saved: "= 113 g". */
   const metricLine = computed(() => (isConverted(unit.value, setting.value) ? `= ${int(amountNumber.value)} ${normalizeUnit(unit.value)}` : ""));
-  /** Quick chips, in the unit typed. */
-  const quickAmounts = computed(() => quickAmountsFor(unit.value, setting.value).map((value) => ({ value, label: shownAmountLabel(value, unit.value, setting.value) })));
+  /** The amount last logged of this food, when it still has that unit. Not while editing an entry. */
+  const lastAmount = computed(() => {
+    const shown = food.value;
+    const logged = shown && !entry.value ? options.lastLogged?.(shown.id) : null;
+    return shown && logged ? lastAmountFor(shown, logged.amount, logged.unit) : null;
+  });
+  /** Quick chips in the unit typed, led by the amount last logged. */
+  const quickAmounts = computed(() => quickChips(unit.value, setting.value, lastAmount.value));
   /** The unit the amount field is typed in, for its label: "g", "oz", "fl oz", "serving". */
   const fieldUnit = computed(() => (isConverted(unit.value, setting.value) ? shownWeightWord(unit.value, setting.value) : unit.value));
   /** The word for the serving form's weight: g or oz. */
@@ -192,6 +199,17 @@ export function useFoodAmount(options: FoodAmountOptions) {
 
   function setAmount(value: number) {
     amountText.value = String(value);
+    fresh.value = false;
+    formError.value = "";
+  }
+
+  /** A quick chip: its amount, and for the last-logged one its unit as well. */
+  function pickChip(chip: QuickChip) {
+    if (chip.stored == null) {
+      setAmount(chip.shown);
+      return;
+    }
+    place(chip.stored, chip.unit);
     fresh.value = false;
     formError.value = "";
   }
@@ -355,7 +373,6 @@ export function useFoodAmount(options: FoodAmountOptions) {
     adding,
     isCount,
     unitWord,
-    unitWord1,
     gramsEach,
     metricLine,
     fieldUnit,
@@ -371,6 +388,7 @@ export function useFoodAmount(options: FoodAmountOptions) {
     showStored,
     setUnit,
     setAmount,
+    pickChip,
     key,
     input,
     canAddServing,

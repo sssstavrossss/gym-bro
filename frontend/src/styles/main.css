@@ -529,4 +529,7 @@ input, select { font-size: 1rem; }
   input.winput:not(.t-dxl):not(.t-dl):not(.t-nm) {
     font-size: min(3rem, 64px);
   }
+  input.ginput:not(.t-dxl):not(.t-dl):not(.t-nm) {
+    font-size: min(2.6rem, 46px);
+  }
 }
