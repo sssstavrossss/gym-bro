@@ -96,7 +96,13 @@ const searching = ref(false);
 /** Adding an ingredient: the same amount screen as logging a food. */
 const pickError = ref("");
 const pickOffline = ref(false);
-const ingredient = useFoodAmount({ formError: pickError, saveError: pickOffline, onServings: applyServings });
+// Its first quick amount is what this person logged last time, as in Add food.
+const ingredient = useFoodAmount({
+  formError: pickError,
+  saveError: pickOffline,
+  onServings: applyServings,
+  lastLogged: (foodId) => recents.value.find((row) => row.id === foodId) ?? null,
+});
 const logAmount = ref("1");
 const logUnit = ref<"portion" | "g">("portion");
 const logOrigin = ref<ShownAmount | null>(null);
