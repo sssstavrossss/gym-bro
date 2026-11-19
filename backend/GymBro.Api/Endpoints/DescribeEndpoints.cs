@@ -23,7 +23,7 @@ public static class DescribeEndpoints
 
     public const string NothingFound = "No foods in that. Try naming what you ate, like “2 eggs and toast”.";
 
-    public const string DailyLimitReached = "That's today's limit for Describe. Search still works, and Describe is back tomorrow.";
+    public const string DailyLimitReached = "That's the limit for Describe for now. Search still works.";
 
     public const string Missing = "No description with that id.";
 
@@ -46,6 +46,8 @@ public static class DescribeEndpoints
         ClaimsPrincipal principal,
         AppDbContext db,
         DescribeSwitch describe,
+        IOptions<DescribeOptions> options,
+        TimeProvider clock,
         CancellationToken cancellationToken)
     {
         if (Caller.MissingOid(principal) is { } denied)
@@ -55,12 +57,13 @@ public static class DescribeEndpoints
 
         if (!describe.On)
         {
-            return Results.Ok(new { available = false, recent = Array.Empty<object>() });
+            return Results.Ok(new { available = false, limit = 0, left = 0, nextAt = (DateTimeOffset?)null, recent = Array.Empty<object>() });
         }
 
         var userId = Caller.Id(principal);
+        var quota = await DescribeQuota.ReadAsync(db, userId, options.Value.DailyLimit, clock.GetUtcNow(), cancellationToken);
         var logged = await db.MealDescriptions.AsNoTracking()
-            .Where(row => row.UserId == userId && row.LoggedAt != null)
+            .Where(row => row.UserId == userId && row.LoggedAt != null && row.Outcome == MealOutcomes.Found)
             .OrderByDescending(row => row.LoggedAt)
             .Take(RecentLimit * 4)
             .ToListAsync(cancellationToken);
@@ -69,7 +72,7 @@ public static class DescribeEndpoints
             .Take(RecentLimit)
             .Select(row => new { id = row.Id, text = row.Text, foods = row.FoodCount, kcal = row.Kcal, loggedAt = row.LoggedAt })
             .ToList();
-        return Results.Ok(new { available = true, recent });
+        return Results.Ok(new { available = true, limit = quota.Limit, left = quota.Left, nextAt = quota.NextAt, recent });
     }
 
     private static async Task<IResult> Describe(
@@ -79,8 +82,10 @@ public static class DescribeEndpoints
         UserDirectory users,
         DescribeSwitch describe,
         IOptions<DescribeOptions> options,
+        IMealModel model,
         MealDescriber describer,
         TimeProvider clock,
+        ILogger<MealDescriber> logger,
         CancellationToken cancellationToken)
     {
         if (Caller.MissingOid(principal) is { } denied)
@@ -100,45 +105,69 @@ public static class DescribeEndpoints
 
         var userId = Caller.Id(principal);
         var now = clock.GetUtcNow();
-        var since = now.AddDays(-1);
-        var used = await db.MealDescriptions.CountAsync(row => row.UserId == userId && row.CreatedAt > since, cancellationToken);
-        if (used >= options.Value.DailyLimit)
+        var quota = await DescribeQuota.ReadAsync(db, userId, options.Value.DailyLimit, now, cancellationToken);
+        if (quota.Left == 0)
         {
+            logger.LogInformation("Describe for {UserId}: over the limit ({Used} of {Limit})", userId, quota.Used, quota.Limit);
             return ApiResults.Error(DailyLimitReached, StatusCodes.Status429TooManyRequests);
         }
 
         await users.UpsertAsync(principal, cancellationToken);
         var text = request.Text!.Trim();
-        IReadOnlyList<DescribedItem> items;
+        var retryOf = request.RetryOf is { } earlier
+            && await db.MealDescriptions.AnyAsync(row => row.Id == earlier && row.UserId == userId, cancellationToken)
+                ? earlier
+                : (Guid?)null;
+        var usage = new MealUsage();
+        var started = clock.GetTimestamp();
+        IReadOnlyList<DescribedItem> items = [];
+        string outcome;
         try
         {
-            items = await describer.DescribeAsync(userId, text, cancellationToken);
+            items = await describer.DescribeAsync(userId, text, usage, cancellationToken);
+            outcome = items.Count == 0 ? MealOutcomes.Nothing : MealOutcomes.Found;
         }
         catch (MealModelException ex)
         {
-            return ex.Refused
-                ? ApiResults.Error(Declined, StatusCodes.Status422UnprocessableEntity)
-                : ApiResults.Error(ModelDown, StatusCodes.Status503ServiceUnavailable);
+            outcome = ex.Refused ? MealOutcomes.Declined : MealOutcomes.Failed;
         }
 
-        if (items.Count == 0)
-        {
-            return ApiResults.Error(NothingFound, StatusCodes.Status422UnprocessableEntity);
-        }
-
-        var stored = items.Select(item => new StoredItem(item.Phrase, item.Name, item.Guessed, item.Food?.Id, item.Amount, item.Unit)).ToList();
-        var servings = await ServingEndpoints.ForFoods(db, userId, items.Where(item => item.Food is not null).Select(item => item.Food!.Id), cancellationToken);
         var row = new MealDescription
         {
             Id = Guid.NewGuid(),
             UserId = userId,
             Text = text,
             CreatedAt = now,
+            Outcome = outcome,
+            Model = Clip(model.Name, 64),
+            Calls = usage.Calls,
+            InputTokens = usage.InputTokens,
+            OutputTokens = usage.OutputTokens,
+            DurationMs = (int)Math.Min(int.MaxValue, clock.GetElapsedTime(started).TotalMilliseconds),
+            RetryOf = retryOf,
         };
-        Summarize(row, stored, items.Where(item => item.Food is not null).Select(item => item.Food!).DistinctBy(food => food.Id).ToDictionary(food => food.Id), servings);
+        if (outcome == MealOutcomes.Found)
+        {
+            var stored = items.Select(item => new StoredItem(item.Phrase, item.Name, item.Guessed, item.Food?.Id, item.Amount, item.Unit)).ToList();
+            var matched = items.Where(item => item.Food is not null).Select(item => item.Food!).DistinctBy(food => food.Id).ToList();
+            var servings = await ServingEndpoints.ForFoods(db, userId, matched.Select(food => food.Id), cancellationToken);
+            Summarize(row, stored, matched.ToDictionary(food => food.Id), servings);
+        }
+
         db.MealDescriptions.Add(row);
         await db.SaveChangesAsync(cancellationToken);
-        return Results.Ok(await ResponseAsync(db, userId, row, items, cancellationToken));
+        var left = outcome == MealOutcomes.Failed ? quota.Left : quota.Left - 1;
+        logger.LogInformation(
+            "Describe for {UserId}: {Outcome}, {Found} of {Foods} foods matched, {Calls} calls, {InputTokens} input and {OutputTokens} output tokens, {DurationMs} ms, {Left} of {Limit} left, retry of {RetryOf}",
+            userId, outcome, items.Count(item => item.Food is not null), items.Count, row.Calls, row.InputTokens, row.OutputTokens, row.DurationMs, left, quota.Limit, retryOf);
+
+        return outcome switch
+        {
+            MealOutcomes.Found => Results.Ok(await ResponseAsync(db, userId, row, items, left, cancellationToken)),
+            MealOutcomes.Nothing => ApiResults.Error(NothingFound, StatusCodes.Status422UnprocessableEntity),
+            MealOutcomes.Declined => ApiResults.Error(Declined, StatusCodes.Status422UnprocessableEntity),
+            _ => ApiResults.Error(ModelDown, StatusCodes.Status503ServiceUnavailable),
+        };
     }
 
     private static async Task<IResult> Get(
@@ -153,7 +182,8 @@ public static class DescribeEndpoints
         }
 
         var userId = Caller.Id(principal);
-        var row = await db.MealDescriptions.AsNoTracking().FirstOrDefaultAsync(found => found.Id == id && found.UserId == userId, cancellationToken);
+        var row = await db.MealDescriptions.AsNoTracking()
+            .FirstOrDefaultAsync(found => found.Id == id && found.UserId == userId && found.Outcome == MealOutcomes.Found, cancellationToken);
         if (row is null)
         {
             return ApiResults.Error(Missing, StatusCodes.Status404NotFound);
@@ -166,7 +196,7 @@ public static class DescribeEndpoints
                 ? new DescribedItem(item.Phrase, item.Name, item.Guessed, food, item.Amount, item.Unit)
                 : new DescribedItem(item.Phrase, item.Name, item.Guessed, null, 0, ""))
             .ToList();
-        return Results.Ok(await ResponseAsync(db, userId, row, items, cancellationToken));
+        return Results.Ok(await ResponseAsync(db, userId, row, items, null, cancellationToken));
     }
 
     /// <summary>The foods as they were added, so using this description again gives the same amounts.</summary>
@@ -184,7 +214,8 @@ public static class DescribeEndpoints
         }
 
         var userId = Caller.Id(principal);
-        var row = await db.MealDescriptions.FirstOrDefaultAsync(found => found.Id == id && found.UserId == userId, cancellationToken);
+        var row = await db.MealDescriptions
+            .FirstOrDefaultAsync(found => found.Id == id && found.UserId == userId && found.Outcome == MealOutcomes.Found, cancellationToken);
         if (row is null)
         {
             return ApiResults.Error(Missing, StatusCodes.Status404NotFound);
@@ -246,6 +277,7 @@ public static class DescribeEndpoints
         string userId,
         MealDescription row,
         IReadOnlyList<DescribedItem> items,
+        int? left,
         CancellationToken cancellationToken)
     {
         var foods = items.Where(item => item.Food is not null).Select(item => item.Food!).DistinctBy(food => food.Id).ToList();
@@ -255,6 +287,7 @@ public static class DescribeEndpoints
         {
             id = row.Id,
             text = row.Text,
+            left,
             items = items.Select(item => new
             {
                 phrase = item.Phrase,
@@ -307,7 +340,7 @@ public static class DescribeEndpoints
     private sealed record StoredItem(string Phrase, string Name, bool Guessed, Guid? FoodId, decimal Amount, string Unit);
 }
 
-public sealed record DescribeRequest(string? Text);
+public sealed record DescribeRequest(string? Text, Guid? RetryOf = null);
 
 public sealed record LoggedRequest(List<LoggedItem>? Items);
 

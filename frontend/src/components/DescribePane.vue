@@ -8,13 +8,15 @@ import {
   describeNote,
   describeOfflineNote,
   describePlaceholder,
+  describeRetryPrompt,
+  leftLine,
   recentLine,
   reviewTitle,
   searchSeed,
 } from "../lib/describe";
 import { recentSubtitle } from "../lib/foodSheet";
 import { connection } from "../state/connection";
-import { describe, editDescription, findFoods, toggleRow, useRecent } from "../state/describe";
+import { cancelRevise, describe, findAgain, findFoods, startRevise, toggleRow, useRecent } from "../state/describe";
 import { deviceTimeZone } from "../state/profile";
 import { foodUnit } from "../state/units";
 
@@ -34,15 +36,31 @@ const emit = defineEmits<{
   add: [];
 }>();
 
-const canFind = computed(() => describe.text.trim().length > 0 && !connection.offline);
+const finding = computed(() => describe.phase === "finding");
+const spent = computed(() => describe.limit > 0 && describe.left === 0);
+const canSend = computed(() => !connection.offline && !finding.value && !spent.value);
+const canFind = computed(() => canSend.value && describe.text.trim().length > 0);
+const canFindAgain = computed(() => canSend.value && describe.draft.trim().length > 0);
 const addText = computed(() => (props.needTime ? "Pick a time to add" : addLabel(describe.rows)));
-const canAdd = computed(() => !props.needTime && !describe.adding && describe.rows.some((row) => row.on && row.food));
+const canAdd = computed(() => !props.needTime && !describe.adding && !describe.revising && describe.rows.some((row) => row.on && row.food));
+const left = computed(() => leftLine(describe, deviceTimeZone()));
 
-function onKey(event: KeyboardEvent) {
-  // Enter finds, like a search. Shift+Enter is a new line.
-  if (event.key !== "Enter" || event.shiftKey || event.isComposing) return;
+// Enter finds, like a search. Shift+Enter is a new line.
+function entered(event: KeyboardEvent): boolean {
+  if (event.key !== "Enter" || event.shiftKey || event.isComposing) return false;
   event.preventDefault();
-  if (canFind.value) void findFoods();
+  return true;
+}
+function onKey(event: KeyboardEvent) {
+  if (entered(event) && canFind.value) void findFoods();
+}
+function onDraftKey(event: KeyboardEvent) {
+  if (event.key === "Escape") {
+    event.stopPropagation();
+    cancelRevise();
+    return;
+  }
+  if (entered(event) && canFindAgain.value) void findAgain();
 }
 </script>
 
@@ -88,12 +106,27 @@ function onKey(event: KeyboardEvent) {
       </template>
 
       <template v-else>
-        <button type="button" class="well dtext" aria-label="Edit what you ate" :disabled="describe.adding" @click="editDescription">
+        <label v-if="describe.revising" class="field dbox draft" data-describe-draft>
+          <textarea
+            v-model="describe.draft"
+            v-autofocus
+            class="t-body"
+            rows="2"
+            :maxlength="DESCRIBE_TEXT_MAX"
+            :disabled="finding"
+            aria-label="What you ate"
+            enterkeyhint="go"
+            autocomplete="off"
+            @keydown="onDraftKey"
+          />
+        </label>
+        <button v-else type="button" class="well dtext" aria-label="Edit what you ate" :disabled="describe.adding || finding" @click="startRevise">
           <span class="t-body grow">{{ describe.text }}</span>
           <Icon name="edit" :size="16" class="c2" />
         </button>
+        <p v-if="describe.revising && describe.error" class="err t-label" role="alert">{{ describe.error }}</p>
 
-        <template v-if="describe.phase === 'finding'">
+        <template v-if="finding">
           <div class="lhead" role="status"><h3 class="t-cap c2 section-title">Finding foods…</h3></div>
           <ul class="rows" aria-hidden="true">
             <li v-for="width in [70, 80, 55, 65]" :key="width" class="drow">
@@ -106,7 +139,7 @@ function onKey(event: KeyboardEvent) {
           </ul>
         </template>
 
-        <template v-else>
+        <div v-else class="review" :class="{ dim: describe.revising }" :inert="describe.revising || undefined">
           <div class="lhead">
             <h3 class="t-cap c2 section-title">{{ reviewTitle(describe.rows) }}</h3>
             <span class="grow" />
@@ -145,19 +178,30 @@ function onKey(event: KeyboardEvent) {
               </template>
             </li>
           </ul>
-          <p v-if="describe.error" class="err t-label" role="alert">{{ describe.error }}</p>
-        </template>
+          <p v-if="!describe.revising && describe.error" class="err t-label" role="alert">{{ describe.error }}</p>
+          <div v-if="!describe.revising" class="retry" data-describe-retry>
+            <span class="t-label c2">{{ describeRetryPrompt }}</span>
+            <button type="button" class="btn sm secondary t-label" :disabled="describe.adding" @click="startRevise">Edit and try again</button>
+          </div>
+        </div>
       </template>
       <p class="t-capn c3 note">{{ describeNote }}</p>
     </div>
 
     <div class="dtray">
       <button v-if="describe.phase === 'write'" type="button" class="btn primary block t-bodys" :disabled="!canFind" @click="findFoods">
-        <Icon name="sparkle" :size="18" /><span>Find foods</span>
+        <Icon name="sparkle" :size="18" /><span>{{ describe.retryable ? "Try again" : "Find foods" }}</span>
       </button>
+      <div v-else-if="describe.revising" class="row pair">
+        <button type="button" class="btn secondary t-bodys" @click="cancelRevise">Cancel</button>
+        <button type="button" class="btn primary t-bodys grow" :disabled="!canFindAgain" @click="findAgain">
+          <Icon name="sparkle" :size="18" /><span>{{ describe.retryable ? "Try again" : "Find again" }}</span>
+        </button>
+      </div>
       <button v-else type="button" class="btn primary block t-bodys" :disabled="!canAdd" @click="emit('add')">
-        {{ describe.phase === "finding" ? "Add" : addText }}
+        {{ finding ? "Add" : addText }}
       </button>
+      <p v-if="left && (describe.phase === 'write' || describe.revising)" class="t-capn c3 left" role="status">{{ left }}</p>
     </div>
   </div>
 </template>
@@ -167,6 +211,7 @@ function onKey(event: KeyboardEvent) {
 .dscroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: var(--space-m); }
 .dbox { align-items: flex-start; padding: var(--space-m); flex: none; }
 .dbox textarea { border: 0; outline: 0; background: transparent; color: inherit; width: 100%; min-height: 104px; resize: none; font: inherit; padding: 0; }
+.dbox.draft textarea { min-height: 64px; }
 .dbox textarea::placeholder { color: var(--text-tertiary); }
 .hint, .note { margin: 0; }
 .err { margin: 0; padding: var(--space-m); border-radius: var(--radius-l); border: 1px dashed var(--text-tertiary); }
@@ -197,4 +242,11 @@ span.chkhit { cursor: default; }
 .dtext { display: flex; align-items: flex-start; gap: var(--space-s); text-align: left; border: 0; color: inherit; cursor: pointer; flex: none; }
 .dtray { flex: none; padding-top: var(--space-m); margin-top: var(--space-m); border-top: 1px solid var(--color-border); }
 .dtray .btn :deep(svg) { flex: none; }
+.pair { gap: var(--space-s); }
+.pair > .btn.secondary { flex: none; padding-inline: var(--space-l); }
+.pair > .btn.primary { flex: 1 1 auto; }
+.left { margin: var(--space-s) 0 0; text-align: center; }
+.review { display: flex; flex-direction: column; gap: var(--space-m); }
+.review.dim { opacity: .4; }
+.retry { display: flex; align-items: center; justify-content: space-between; gap: var(--space-m); flex-wrap: wrap; }
 </style>

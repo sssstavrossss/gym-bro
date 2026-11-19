@@ -18,6 +18,8 @@ public sealed class ClaudeMealModel(IOptions<DescribeOptions> options, ILogger<C
     // Made on first use, so a server without a key never builds a client.
     private readonly Lazy<AnthropicClient> client = new(() => new AnthropicClient { ApiKey = options.Value.ApiKey });
 
+    public string Name => options.Value.Model;
+
     private const string SplitSystem = """
         You read a short note of what someone ate or drank and list each food in it.
         The foods are looked up in Matvaretabellen, the Norwegian food composition table, which has Norwegian
@@ -52,9 +54,9 @@ public sealed class ClaudeMealModel(IOptions<DescribeOptions> options, ILogger<C
         Return one entry per food from the note, in the same order.
         """;
 
-    public async Task<IReadOnlyList<MealPart>> SplitAsync(string text, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<MealPart>> SplitAsync(string text, MealUsage usage, CancellationToken cancellationToken)
     {
-        var json = await AskAsync(SplitSystem, text, SplitSchema, 2048, cancellationToken);
+        var json = await AskAsync(SplitSystem, text, SplitSchema, 2048, usage, cancellationToken);
         var parts = new List<MealPart>();
         foreach (var food in json.GetProperty("foods").EnumerateArray())
         {
@@ -75,9 +77,10 @@ public sealed class ClaudeMealModel(IOptions<DescribeOptions> options, ILogger<C
     public async Task<IReadOnlyList<MealPick>> PickAsync(
         string text,
         IReadOnlyList<MealChoice> choices,
+        MealUsage usage,
         CancellationToken cancellationToken)
     {
-        var json = await AskAsync(PickSystem, PickPrompt(text, choices), PickSchema, 2048, cancellationToken);
+        var json = await AskAsync(PickSystem, PickPrompt(text, choices), PickSchema, 2048, usage, cancellationToken);
         var picks = new List<MealPick>();
         foreach (var (pick, index) in json.GetProperty("picks").EnumerateArray().Select((pick, index) => (pick, index)))
         {
@@ -137,6 +140,7 @@ public sealed class ClaudeMealModel(IOptions<DescribeOptions> options, ILogger<C
         string user,
         Dictionary<string, JsonElement> schema,
         int maxTokens,
+        MealUsage usage,
         CancellationToken cancellationToken)
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -169,6 +173,7 @@ public sealed class ClaudeMealModel(IOptions<DescribeOptions> options, ILogger<C
             throw new MealModelException("Claude didn't answer.", inner: ex);
         }
 
+        usage.Add(response.Usage.InputTokens, response.Usage.OutputTokens);
         if (response.StopReason == "refusal")
         {
             throw new MealModelException("Claude declined.", refused: true);

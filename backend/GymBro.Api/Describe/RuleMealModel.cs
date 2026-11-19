@@ -9,8 +9,11 @@ namespace GymBro.Api.Describe;
 /// </summary>
 public sealed partial class RuleMealModel : IMealModel
 {
-    public Task<IReadOnlyList<MealPart>> SplitAsync(string text, CancellationToken cancellationToken)
+    public string Name => "rule";
+
+    public Task<IReadOnlyList<MealPart>> SplitAsync(string text, MealUsage usage, CancellationToken cancellationToken)
     {
+        usage.Add(0, 0);
         var parts = new List<MealPart>();
         foreach (var raw in Separator().Split(text))
         {
@@ -38,8 +41,10 @@ public sealed partial class RuleMealModel : IMealModel
     public Task<IReadOnlyList<MealPick>> PickAsync(
         string text,
         IReadOnlyList<MealChoice> choices,
+        MealUsage usage,
         CancellationToken cancellationToken)
     {
+        usage.Add(0, 0);
         var picks = new List<MealPick>();
         foreach (var (choice, index) in choices.Select((choice, index) => (choice, index)))
         {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { DescribeItem, FoodSearchRow } from "../src/api";
-import { addLabel, chosenRows, loggedItems, recentLine, reviewTitle, rowsFrom, searchSeed, whenLabel } from "../src/lib/describe";
+import { addLabel, chosenRows, leftLine, loggedItems, recentLine, reviewTitle, rowsFrom, searchSeed, whenLabel } from "../src/lib/describe";
 
 const egg: FoodSearchRow = {
   id: "egg",
@@ -78,5 +78,17 @@ describe("describe a meal", () => {
   it("searches by Claude's name for a food, or the words typed", () => {
     expect(searchSeed({ name: "lasagne", phrase: "mum's lasagne" })).toBe("lasagne");
     expect(searchSeed({ name: " ", phrase: "mum's lasagne" })).toBe("mum's lasagne");
+  });
+
+  it("shows how many are left only from five down, then when one frees up", () => {
+    const now = new Date("2026-11-20T10:00:00Z"); // 11:00 in Oslo
+    expect(leftLine({ limit: 20, left: 6, nextAt: null }, "Europe/Oslo", now)).toBe("");
+    expect(leftLine({ limit: 20, left: 5, nextAt: null }, "Europe/Oslo", now)).toBe("5 of 20 left today");
+    expect(leftLine({ limit: 20, left: 1, nextAt: null }, "Europe/Oslo", now)).toBe("1 of 20 left today");
+    expect(leftLine({ limit: 20, left: 0, nextAt: "2026-11-20T13:30:00Z" }, "Europe/Oslo", now)).toBe("That's all 20 for now. Describe is back at 14:30.");
+    expect(leftLine({ limit: 20, left: 0, nextAt: "2026-11-21T08:10:00Z" }, "Europe/Oslo", now)).toBe("That's all 20 for now. Describe is back tomorrow at 09:10.");
+    expect(leftLine({ limit: 20, left: 0, nextAt: null }, "Europe/Oslo", now)).toBe("That's all 20 for now. Search still works.");
+    // Before the server has answered there is no limit to show.
+    expect(leftLine({ limit: 0, left: 0, nextAt: null }, "Europe/Oslo", now)).toBe("");
   });
 });

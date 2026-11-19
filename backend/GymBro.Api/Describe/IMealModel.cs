@@ -9,12 +9,34 @@ namespace GymBro.Api.Describe;
 /// </summary>
 public interface IMealModel
 {
-    Task<IReadOnlyList<MealPart>> SplitAsync(string text, CancellationToken cancellationToken);
+    /// <summary>Kept on each description so cost can be read back per model.</summary>
+    string Name { get; }
+
+    /// <remarks>Each call adds what it cost to <paramref name="usage"/>, even when it then fails.</remarks>
+    Task<IReadOnlyList<MealPart>> SplitAsync(string text, MealUsage usage, CancellationToken cancellationToken);
 
     Task<IReadOnlyList<MealPick>> PickAsync(
         string text,
         IReadOnlyList<MealChoice> choices,
+        MealUsage usage,
         CancellationToken cancellationToken);
+}
+
+/// <summary>What one description cost: model calls and tokens. Kept on its row and written to the log.</summary>
+public sealed class MealUsage
+{
+    public int Calls { get; private set; }
+
+    public int InputTokens { get; private set; }
+
+    public int OutputTokens { get; private set; }
+
+    public void Add(long inputTokens, long outputTokens)
+    {
+        Calls++;
+        InputTokens += (int)Math.Min(inputTokens, int.MaxValue - InputTokens);
+        OutputTokens += (int)Math.Min(outputTokens, int.MaxValue - OutputTokens);
+    }
 }
 
 /// <summary>One food named in the text.</summary>

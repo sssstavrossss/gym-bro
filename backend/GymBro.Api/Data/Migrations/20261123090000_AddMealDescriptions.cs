@@ -7,7 +7,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace GymBro.Api.Data.Migrations
 {
     /// <summary>
-    /// "Describe a meal": each answer, so a day's requests can be counted and a logged meal used again.
+    /// "Describe a meal": every attempt, so a person's use can be counted and read back, and a logged meal used again.
     /// </summary>
     [DbContext(typeof(AppDbContext))]
     [Migration("20261123090000_AddMealDescriptions")]
@@ -28,6 +28,13 @@ namespace GymBro.Api.Data.Migrations
                     kcal = table.Column<decimal>(type: "numeric(8,1)", precision: 8, scale: 1, nullable: false),
                     created_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
                     logged_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
+                    outcome = table.Column<string>(type: "character varying(16)", maxLength: 16, nullable: false),
+                    model = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false),
+                    calls = table.Column<int>(type: "integer", nullable: false),
+                    input_tokens = table.Column<int>(type: "integer", nullable: false),
+                    output_tokens = table.Column<int>(type: "integer", nullable: false),
+                    duration_ms = table.Column<int>(type: "integer", nullable: false),
+                    retry_of = table.Column<Guid>(type: "uuid", nullable: true),
                 },
                 constraints: table =>
                 {

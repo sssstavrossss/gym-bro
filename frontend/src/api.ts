@@ -709,6 +709,8 @@ export interface DescribeResult {
   id: string;
   text: string;
   items: DescribeItem[];
+  /** Descriptions left in the last 24 hours after this one. Null when read back without asking Claude. */
+  left: number | null;
 }
 
 export interface DescribeRecent {
@@ -721,6 +723,11 @@ export interface DescribeRecent {
 
 export interface DescribeOverview {
   available: boolean;
+  /** Descriptions a person can send in 24 hours, and how many are left. */
+  limit: number;
+  left: number;
+  /** When one frees up, set only when none are left. */
+  nextAt: string | null;
   recent: DescribeRecent[];
 }
 
@@ -729,12 +736,12 @@ export async function getDescribe(): Promise<DescribeOverview> {
   return cachedJson("/api/describe");
 }
 
-/** Claude splits the text and picks foods from the catalogue. Nothing is logged. */
-export async function describeMeal(text: string): Promise<DescribeResult> {
+/** Claude splits the text and picks foods from the catalogue. Nothing is logged. retryOf links an edited retry to the attempt before it. */
+export async function describeMeal(text: string, retryOf: string | null = null): Promise<DescribeResult> {
   return jsonOrThrow(await request("/api/describe", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ text }),
+    body: JSON.stringify(retryOf ? { text, retryOf } : { text }),
   }));
 }
 

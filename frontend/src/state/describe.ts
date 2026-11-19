@@ -13,9 +13,18 @@ export const describe = reactive({
   /** The server has a key (or a test model). Until the first answer, Describe stays hidden. */
   available: false,
   recent: [] as DescribeRecent[],
+  /** Descriptions allowed in 24 hours, how many are left, and when one frees up once none are. */
+  limit: 0,
+  left: 0,
+  nextAt: null as string | null,
   text: "",
   phase: "write" as DescribePhase,
   error: "",
+  /** The last find failed for a reason that may pass (Claude or the server unreachable): its button says Try again. */
+  retryable: false,
+  /** Changing the words over the review list. draft is the text box; the list stays until the new one comes. */
+  revising: false,
+  draft: "",
   /** The saved description the review list came from. */
   id: null as string | null,
   rows: [] as DescribeRow[],
@@ -31,6 +40,9 @@ export async function loadDescribe(): Promise<void> {
     const overview = await getDescribe();
     describe.available = overview.available;
     describe.recent = overview.recent;
+    describe.limit = overview.limit ?? 0;
+    describe.left = overview.left ?? 0;
+    describe.nextAt = overview.nextAt ?? null;
   } catch {
     // Offline with nothing kept, or the server is older: keep what was known.
   }
@@ -42,18 +54,31 @@ export function resetDescribe(): void {
   describe.text = "";
   describe.phase = "write";
   describe.error = "";
+  describe.retryable = false;
+  describe.revising = false;
+  describe.draft = "";
   describe.id = null;
   describe.rows = [];
   describe.editing = null;
   describe.adding = false;
 }
 
-/** Back to the text box with the words kept. */
-export function editDescription(): void {
-  gen++;
-  describe.phase = "write";
+/** The words become a text box over the list. The list stays, dimmed, until Find again brings a new one. */
+export function startRevise(): void {
+  if (describe.phase !== "review" || describe.adding) return;
+  describe.draft = describe.text;
+  describe.revising = true;
   describe.error = "";
-  describe.editing = null;
+  describe.retryable = false;
+}
+
+/** Back to the list as it was. */
+export function cancelRevise(): void {
+  gen++;
+  if (describe.phase === "finding") describe.phase = "review";
+  describe.revising = false;
+  describe.error = "";
+  describe.retryable = false;
 }
 
 function messageFor(error: unknown): string {
@@ -62,23 +87,52 @@ function messageFor(error: unknown): string {
   return "Couldn't describe that. Try again, or use Search.";
 }
 
-export async function findFoods(): Promise<void> {
-  const text = describe.text.trim();
-  if (!text || describe.phase === "finding") return;
+/** Worth sending the same words again: Claude or the server couldn't be reached. */
+function passing(error: unknown): boolean {
+  return error instanceof ServerUnreachable || (error instanceof ApiError && error.status === 503);
+}
+
+async function ask(text: string, retryOf: string | null, onFail: () => void): Promise<void> {
   const mine = ++gen;
   describe.phase = "finding";
   describe.error = "";
+  describe.retryable = false;
   try {
-    const result = await describeMeal(text);
+    const result = await describeMeal(text, retryOf);
     if (mine !== gen) return;
+    describe.text = result.text;
     describe.id = result.id;
     describe.rows = rowsFrom(result.items, () => crypto.randomUUID());
+    describe.revising = false;
     describe.phase = "review";
+    if (result.left != null) describe.left = result.left;
+    // That was the last one: the overview says when the next one frees up.
+    if (result.left === 0) void loadDescribe();
   } catch (error) {
     if (mine !== gen) return;
-    describe.phase = "write";
+    onFail();
     describe.error = messageFor(error);
+    describe.retryable = passing(error);
+    // A refused or answered attempt still counted; the limit's own answer needs the time it frees up.
+    void loadDescribe();
   }
+}
+
+export async function findFoods(): Promise<void> {
+  const text = describe.text.trim();
+  if (!text || describe.phase === "finding") return;
+  await ask(text, null, () => {
+    describe.phase = "write";
+  });
+}
+
+/** The edited words, sent again. The new attempt points at the one it replaces. */
+export async function findAgain(): Promise<void> {
+  const text = describe.draft.trim();
+  if (!text || describe.phase === "finding") return;
+  await ask(text, describe.id, () => {
+    describe.phase = "review";
+  });
 }
 
 /** A recent description, with the foods and amounts it was logged with. */
@@ -87,6 +141,8 @@ export async function useRecent(recent: DescribeRecent): Promise<void> {
   describe.text = recent.text;
   describe.phase = "finding";
   describe.error = "";
+  describe.retryable = false;
+  describe.revising = false;
   try {
     const result = await getDescription(recent.id);
     if (mine !== gen) return;

@@ -1090,13 +1090,25 @@ namespace GymBro.Api.Data.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
+                    b.Property<int>("Calls")
+                        .HasColumnType("integer")
+                        .HasColumnName("calls");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
 
+                    b.Property<int>("DurationMs")
+                        .HasColumnType("integer")
+                        .HasColumnName("duration_ms");
+
                     b.Property<int>("FoodCount")
                         .HasColumnType("integer")
                         .HasColumnName("food_count");
+
+                    b.Property<int>("InputTokens")
+                        .HasColumnType("integer")
+                        .HasColumnName("input_tokens");
 
                     b.Property<string>("Items")
                         .IsRequired()
@@ -1111,6 +1123,26 @@ namespace GymBro.Api.Data.Migrations
                     b.Property<DateTimeOffset?>("LoggedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("logged_at");
+
+                    b.Property<string>("Model")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("model");
+
+                    b.Property<string>("Outcome")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("outcome");
+
+                    b.Property<int>("OutputTokens")
+                        .HasColumnType("integer")
+                        .HasColumnName("output_tokens");
+
+                    b.Property<Guid?>("RetryOf")
+                        .HasColumnType("uuid")
+                        .HasColumnName("retry_of");
 
                     b.Property<string>("Text")
                         .IsRequired()

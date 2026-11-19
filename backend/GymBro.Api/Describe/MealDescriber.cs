@@ -40,9 +40,9 @@ public sealed class MealDescriber(AppDbContext db, IMealModel model)
         return trimmed.Length > TextMax ? TextTooLong : null;
     }
 
-    public async Task<IReadOnlyList<DescribedItem>> DescribeAsync(string userId, string text, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<DescribedItem>> DescribeAsync(string userId, string text, MealUsage usage, CancellationToken cancellationToken)
     {
-        var parts = (await model.SplitAsync(text, cancellationToken))
+        var parts = (await model.SplitAsync(text, usage, cancellationToken))
             .Where(part => !string.IsNullOrWhiteSpace(part.Name))
             .Take(PartsMax)
             .ToList();
@@ -64,7 +64,7 @@ public sealed class MealDescriber(AppDbContext db, IMealModel model)
                 found[index].Select(food => new MealCandidate(food, food.UserId == userId, Units(food, servings.GetValueOrDefault(food.Id)))).ToList()))
             .ToList();
         var picks = choices.Any(choice => choice.Candidates.Count > 0)
-            ? await model.PickAsync(text, choices, cancellationToken)
+            ? await model.PickAsync(text, choices, usage, cancellationToken)
             : [];
         var byPart = picks
             .Where(pick => pick.Part >= 0 && pick.Part < choices.Count)

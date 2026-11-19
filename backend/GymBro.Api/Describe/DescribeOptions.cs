@@ -14,8 +14,8 @@ public sealed class DescribeOptions
 
     public string Model { get; set; } = DefaultModel;
 
-    /// <summary>Descriptions one person can send in 24 hours. Each one costs two model calls.</summary>
-    public int DailyLimit { get; set; } = 40;
+    /// <summary>Descriptions one person can send in 24 hours (<see cref="DescribeQuota"/>). Each one costs up to two model calls.</summary>
+    public int DailyLimit { get; set; } = 20;
 
     public bool IsConfigured => !string.IsNullOrWhiteSpace(ApiKey);
 }

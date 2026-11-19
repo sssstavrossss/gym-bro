@@ -140,15 +140,69 @@ test.describe("phone", () => {
     await expect(sheet(page).getByRole("radio", { name: "Quick Add" })).toBeChecked();
     await expect(sheet(page).getByRole("textbox", { name: "Name (optional)" })).toHaveValue("mum's quibble");
 
-    // The words can be changed and found again.
+    // Not what you meant: the words open over the dimmed list, and Cancel brings the same list back.
     await sheet(page).getByRole("radio", { name: "Describe" }).click();
-    await sheet(page).getByRole("button", { name: "Edit what you ate" }).click();
+    await expect(sheet(page).getByText("Not what you meant?")).toBeVisible();
+    await sheet(page).getByRole("button", { name: "Edit and try again" }).click();
     const box = sheet(page).getByRole("textbox", { name: "What you ate" });
+    await expect(box).toBeFocused();
+    await expect(box).toHaveValue(meal);
+    await expect(sheet(page).getByRole("heading", { name: "2 of 3 found" })).toBeVisible();
+    await expect(sheet(page).getByRole("button", { name: "Add 2 foods · 380 kcal" })).toBeHidden();
+    await box.fill("something else");
+    await sheet(page).getByRole("button", { name: "Cancel" }).click();
+    await expect(box).toBeHidden();
+    await expect(sheet(page).getByRole("button", { name: "Add 2 foods · 380 kcal" })).toBeVisible();
+
+    // The pencil on the words does the same. Find again replaces the list, and the attempt points at the old one.
+    await sheet(page).getByRole("button", { name: "Edit what you ate" }).click();
     await expect(box).toHaveValue(meal);
     await box.fill("80 g wumpus bread");
-    await box.press("Enter");
+    await sheet(page).getByRole("button", { name: "Find again" }).click();
     await expect(sheet(page).getByRole("heading", { name: "1 food" })).toBeVisible();
     await expect(sheet(page).getByRole("button", { name: "Add 1 food · 200 kcal" })).toBeVisible();
+
+    // Enter in the box finds again too.
+    await sheet(page).getByRole("button", { name: "Edit and try again" }).click();
+    await box.fill("2 zibble eggs");
+    await box.press("Enter");
+    await expect(sheet(page).getByRole("button", { name: "Add 1 food · 180 kcal" })).toBeVisible();
+  });
+
+  test("the count shows from five left, and at none Describe says when it is back", async ({ page }) => {
+    const oid = `e2e-describe-limit-${Date.now()}-${test.info().project.name}`;
+    const when = await clock(page);
+    await setUp(page.request, oid, when);
+    // 15 of the 20 used: the count shows from here.
+    for (let i = 0; i < 15; i++) {
+      const response = await page.request.post("/api/describe", { headers: headers(oid), data: { text: "80 g wumpus bread" } });
+      expect(response.ok(), await response.text()).toBeTruthy();
+    }
+    await sign(page, oid);
+    await page.goto("/today");
+
+    await page.locator("main.today [data-food-prompt]").getByRole("button", { name: "Describe a meal", exact: true }).click();
+    await expect(sheet(page).getByText("5 of 20 left today")).toBeVisible();
+    await sheet(page).getByRole("textbox", { name: "What you ate" }).fill("2 zibble eggs");
+    await sheet(page).getByRole("button", { name: "Find foods" }).click();
+    await expect(sheet(page).getByRole("heading", { name: "1 food" })).toBeVisible();
+    await sheet(page).getByRole("button", { name: "Edit and try again" }).click();
+    await expect(sheet(page).getByText("4 of 20 left today")).toBeVisible();
+
+    // Use the rest; the last one is the edited words.
+    for (let i = 0; i < 3; i++) {
+      expect((await page.request.post("/api/describe", { headers: headers(oid), data: { text: "80 g wumpus bread" } })).ok()).toBeTruthy();
+    }
+    await sheet(page).getByRole("textbox", { name: "What you ate" }).fill("80 g wumpus bread");
+    await sheet(page).getByRole("button", { name: "Find again" }).click();
+    await expect(sheet(page).getByRole("heading", { name: "1 food" })).toBeVisible();
+    await sheet(page).getByRole("button", { name: "Edit and try again" }).click();
+    await expect(sheet(page).getByText(/^That's all 20 for now\. Describe is back (tomorrow )?at \d\d:\d\d\.$/)).toBeVisible();
+    await expect(sheet(page).getByRole("button", { name: "Find again" })).toBeDisabled();
+
+    // The server agrees.
+    const over = await page.request.post("/api/describe", { headers: headers(oid), data: { text: "80 g wumpus bread" } });
+    expect(over.status()).toBe(429);
   });
 });
 

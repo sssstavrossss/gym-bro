@@ -1,5 +1,5 @@
 import type { DescribeItem, DescribeLoggedItem, FoodSearchRow } from "../api";
-import { addDays, dayMonth, todayInZone, weekdayShort } from "./dates";
+import { addDays, dayMonth, timeInZone, todayInZone, weekdayShort } from "./dates";
 import { macrosForFood } from "./foodAmount";
 import { int } from "./format";
 
@@ -10,6 +10,8 @@ export const DESCRIBE_TEXT_MAX = 500;
 export const describePlaceholder = "What did you eat? For example: 2 eggs, toast with butter, coffee with milk";
 export const describeHint = "Write it the way you'd say it. Amounts help: \"200 g\", \"2 slices\", \"a big bowl\". Anything without one gets a usual portion.";
 export const describeNote = "Claude picks the foods and guesses amounts. Calories come from Matvaretabellen and your own foods.";
+export const describeRetryPrompt = "Not what you meant?";
+export const describeLeftShownAt = 5;
 export const describeOfflineNote = "Describing a meal needs a connection. Your recent foods, My foods and Quick add work offline.";
 
 /** A row on the review list. on is the check circle: a row that is off isn't added. */
@@ -83,4 +85,17 @@ export function loggedItems(rows: readonly (DescribeRow & { food: FoodSearchRow 
 export function searchSeed(row: Pick<DescribeItem, "name" | "phrase">): string {
   const name = row.name.trim();
   return (name.length >= 2 ? name : row.phrase.trim()).slice(0, 80);
+}
+
+/**
+ * The count under the button: nothing while plenty are left, "4 of 20 left today" from five down,
+ * and when none are left, when the next one frees up ("back at 14:30", or "back tomorrow at 09:10").
+ */
+export function leftLine(quota: { limit: number; left: number; nextAt: string | null }, timeZone: string, now = new Date()): string {
+  if (quota.limit <= 0 || quota.left > describeLeftShownAt) return "";
+  if (quota.left > 0) return `${quota.left} of ${quota.limit} left today`;
+  const next = quota.nextAt ? new Date(quota.nextAt) : null;
+  if (!next || Number.isNaN(next.getTime())) return `That's all ${quota.limit} for now. Search still works.`;
+  const sameDay = todayInZone(timeZone, next) === todayInZone(timeZone, now);
+  return `That's all ${quota.limit} for now. Describe is back ${sameDay ? "" : "tomorrow "}at ${timeInZone(timeZone, next)}.`;
 }

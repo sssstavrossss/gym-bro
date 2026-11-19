@@ -142,41 +142,91 @@ public sealed class DescribeMealTests(ApiFactory factory)
     }
 
     [Fact]
-    public async Task A_day_has_a_limit()
+    public async Task Twenty_a_day_then_the_oldest_ages_out_and_failures_do_not_count()
     {
         factory.Clock.UtcNow = new DateTimeOffset(2026, 11, 20, 12, 0, 0, TimeSpan.Zero);
         var user = TestData.NewUser("describe-limit");
         using var client = factory.AsUser(user);
         await client.GetAsync("/api/me");
+        Assert.Equal(20, new DescribeOptions().DailyLimit);
         await using (var scope = factory.Services.CreateAsyncScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-            for (var i = 0; i < new DescribeOptions().DailyLimit; i++)
+            for (var i = 0; i < 19; i++)
             {
-                db.MealDescriptions.Add(new MealDescription
-                {
-                    Id = Guid.NewGuid(),
-                    UserId = user,
-                    Text = "seed " + i,
-                    CreatedAt = factory.Clock.GetUtcNow().AddHours(-23),
-                });
+                db.MealDescriptions.Add(Seed(user, "seed " + i, factory.Clock.GetUtcNow().AddHours(-23 + i * 0.1)));
             }
 
+            // Claude was down for these: they cost nothing and don't count.
+            db.MealDescriptions.Add(Seed(user, "down", factory.Clock.GetUtcNow().AddHours(-1), MealOutcomes.Failed));
+            db.MealDescriptions.Add(Seed(user, "down again", factory.Clock.GetUtcNow().AddHours(-1), MealOutcomes.Failed));
             await db.SaveChangesAsync();
         }
 
+        var overview = await client.GetFromJsonAsync<JsonElement>("/api/describe");
+        Assert.Equal(20, overview.GetProperty("limit").GetInt32());
+        Assert.Equal(1, overview.GetProperty("left").GetInt32());
+        Assert.Equal(JsonValueKind.Null, overview.GetProperty("nextAt").ValueKind);
+
+        var last = await client.PostAsJsonAsync("/api/describe", new { text = "an apple" });
+        Assert.NotEqual((HttpStatusCode)429, last.StatusCode);
+
         var limited = await client.PostAsJsonAsync("/api/describe", new { text = "an apple" });
         Assert.Equal((HttpStatusCode)429, limited.StatusCode);
+        overview = await client.GetFromJsonAsync<JsonElement>("/api/describe");
+        Assert.Equal(0, overview.GetProperty("left").GetInt32());
+        // The oldest of the twenty, 23 hours ago, frees a place in an hour.
+        Assert.Equal(factory.Clock.GetUtcNow().AddHours(1), overview.GetProperty("nextAt").GetDateTimeOffset());
 
-        factory.Clock.UtcNow = factory.Clock.GetUtcNow().AddHours(2);
-        var tomorrow = await client.PostAsJsonAsync("/api/describe", new { text = "an apple" });
-        Assert.NotEqual((HttpStatusCode)429, tomorrow.StatusCode);
+        factory.Clock.UtcNow = factory.Clock.GetUtcNow().AddHours(1).AddMinutes(1);
+        var later = await client.PostAsJsonAsync("/api/describe", new { text = "an apple" });
+        Assert.NotEqual((HttpStatusCode)429, later.StatusCode);
+    }
+
+    [Fact]
+    public async Task Every_attempt_is_kept_with_its_outcome_and_a_retry_points_at_the_one_before()
+    {
+        factory.Clock.UtcNow = new DateTimeOffset(2026, 11, 20, 12, 0, 0, TimeSpan.Zero);
+        var user = TestData.NewUser("describe-attempts");
+        using var client = factory.AsUser(user);
+        await Food("Quorbretry egg", 150, piece: 60);
+
+        var first = await client.PostAsJsonAsync("/api/describe", new { text = ", ." });
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, first.StatusCode);
+        var found = await client.PostAsJsonAsync("/api/describe", new { text = "2 quorbretry eggs" });
+        found.EnsureSuccessStatusCode();
+        var body = await found.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(18, body.GetProperty("left").GetInt32());
+        var foundId = body.GetProperty("id").GetGuid();
+
+        var retry = await client.PostAsJsonAsync("/api/describe", new { text = "3 quorbretry eggs", retryOf = foundId });
+        retry.EnsureSuccessStatusCode();
+        var retryId = (await retry.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+
+        // Another person's id is not linked.
+        using var other = factory.AsUser(TestData.NewUser("describe-attempts-other"));
+        var stranger = await other.PostAsJsonAsync("/api/describe", new { text = "an apple", retryOf = foundId });
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var rows = await db.MealDescriptions.Where(row => row.UserId == user).OrderBy(row => row.Text).ToListAsync();
+        Assert.Equal([MealOutcomes.Found, MealOutcomes.Found, MealOutcomes.Nothing], rows.OrderBy(row => row.Outcome).Select(row => row.Outcome));
+        Assert.All(rows, row => Assert.Equal("rule", row.Model));
+        Assert.All(rows, row => Assert.True(row.Calls >= 1));
+        Assert.Equal(foundId, rows.Single(row => row.Id == retryId).RetryOf);
+        Assert.Equal("[]", rows.Single(row => row.Outcome == MealOutcomes.Nothing).Items);
+        Assert.Null((await db.MealDescriptions.SingleAsync(row => row.Text == "an apple" && row.UserId != user)).RetryOf);
+        Assert.NotEqual(HttpStatusCode.InternalServerError, stranger.StatusCode);
+
+        // Only found descriptions can be read back or marked logged.
+        var nothingId = rows.Single(row => row.Outcome == MealOutcomes.Nothing).Id;
+        Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync($"/api/describe/{nothingId}")).StatusCode);
     }
 
     [Theory]
-    [InlineData(true, HttpStatusCode.UnprocessableEntity)]
-    [InlineData(false, HttpStatusCode.ServiceUnavailable)]
-    public async Task A_model_that_fails_says_so_and_saves_nothing(bool refused, HttpStatusCode expected)
+    [InlineData(true, HttpStatusCode.UnprocessableEntity, "declined")]
+    [InlineData(false, HttpStatusCode.ServiceUnavailable, "failed")]
+    public async Task A_model_that_fails_says_so_and_keeps_the_attempt(bool refused, HttpStatusCode expected, string outcome)
     {
         using var failing = factory.WithWebHostBuilder(builder => builder.ConfigureTestServices(services =>
         {
@@ -193,7 +243,11 @@ public sealed class DescribeMealTests(ApiFactory factory)
 
         await using var scope = factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        Assert.False(await db.MealDescriptions.AnyAsync(row => row.UserId == user));
+        var row = await db.MealDescriptions.SingleAsync(row => row.UserId == user);
+        Assert.Equal(outcome, row.Outcome);
+        Assert.Equal("failing", row.Model);
+        Assert.Equal(1, row.Calls);
+        Assert.Equal(0, row.FoodCount);
     }
 
     [Fact]
@@ -283,12 +337,28 @@ public sealed class DescribeMealTests(ApiFactory factory)
         return id;
     }
 
+    private static MealDescription Seed(string user, string text, DateTimeOffset createdAt, string outcome = MealOutcomes.Found) => new()
+    {
+        Id = Guid.NewGuid(),
+        UserId = user,
+        Text = text,
+        CreatedAt = createdAt,
+        Outcome = outcome,
+        Model = "rule",
+    };
+
     private sealed class FailingModel(bool refused) : IMealModel
     {
-        public Task<IReadOnlyList<MealPart>> SplitAsync(string text, CancellationToken cancellationToken) =>
-            throw new MealModelException("no", refused);
+        public string Name => "failing";
 
-        public Task<IReadOnlyList<MealPick>> PickAsync(string text, IReadOnlyList<MealChoice> choices, CancellationToken cancellationToken) =>
+        public Task<IReadOnlyList<MealPart>> SplitAsync(string text, MealUsage usage, CancellationToken cancellationToken)
+        {
+            // A refusal is an answer, so it is paid for; a call that never got through costs nothing.
+            usage.Add(refused ? 120 : 0, refused ? 5 : 0);
+            throw new MealModelException("no", refused);
+        }
+
+        public Task<IReadOnlyList<MealPick>> PickAsync(string text, IReadOnlyList<MealChoice> choices, MealUsage usage, CancellationToken cancellationToken) =>
             throw new MealModelException("no", refused);
     }
 }

@@ -631,6 +631,13 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         described.Property(d => d.Kcal).HasColumnName("kcal").HasPrecision(8, 1);
         described.Property(d => d.CreatedAt).HasColumnName("created_at");
         described.Property(d => d.LoggedAt).HasColumnName("logged_at");
+        described.Property(d => d.Outcome).HasColumnName("outcome").HasMaxLength(16);
+        described.Property(d => d.Model).HasColumnName("model").HasMaxLength(64);
+        described.Property(d => d.Calls).HasColumnName("calls");
+        described.Property(d => d.InputTokens).HasColumnName("input_tokens");
+        described.Property(d => d.OutputTokens).HasColumnName("output_tokens");
+        described.Property(d => d.DurationMs).HasColumnName("duration_ms");
+        described.Property(d => d.RetryOf).HasColumnName("retry_of");
         described.HasIndex(d => new { d.UserId, d.CreatedAt });
         described.HasOne<AppUser>().WithMany().HasForeignKey(d => d.UserId).OnDelete(DeleteBehavior.Cascade);
     }
