@@ -1,5 +1,9 @@
 import { reactive } from "vue";
 
+/**
+ * "Keep my goal" is saved on the account (`keepGoal`). This session copy hides the card at once,
+ * and offline, until the server's answer arrives.
+ */
 export const promptState = reactive({ goal: 0 });
 
 function goalKey(accountId: string, latestDate: string, goalKg: string): string {

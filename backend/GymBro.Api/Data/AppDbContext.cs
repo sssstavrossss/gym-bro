@@ -79,6 +79,11 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         profile.Property(p => p.FatLimits).HasColumnName("fat_limits").HasMaxLength(8).HasDefaultValue(FatLimits.Normal);
         profile.Property(p => p.SodiumLimit).HasColumnName("sodium_limit").HasMaxLength(8).HasDefaultValue(SodiumLimits.Normal);
         profile.Property(p => p.FreshStartDeclinedOn).HasColumnName("fresh_start_declined_on");
+        profile.Property(p => p.GoalKeptOn).HasColumnName("goal_kept_on");
+        profile.Property(p => p.GoalKeptKg).HasColumnName("goal_kept_kg").HasPrecision(5, 2);
+        profile.Property(p => p.HomeHidden).HasColumnName("home_hidden").HasColumnType("text[]");
+        profile.Property(p => p.MacrosHidden).HasColumnName("macros_hidden").HasColumnType("text[]");
+        profile.Property(p => p.ProgressHidden).HasColumnName("progress_hidden").HasColumnType("text[]");
         profile.Property(p => p.CreatedAt).HasColumnName("created_at");
         profile.Property(p => p.UpdatedAt).HasColumnName("updated_at");
         profile.HasOne<AppUser>().WithMany().HasForeignKey(p => p.UserId).OnDelete(DeleteBehavior.Cascade);

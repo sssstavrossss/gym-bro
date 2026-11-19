@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import Icon from "./Icon.vue";
+import { keepGoal } from "../api";
 import { dismissGoal } from "../lib/prompts";
 import { boot } from "../state/boot";
 import { commitProfile, profile } from "../state/profile";
@@ -10,10 +11,16 @@ import { toast } from "../ui";
 const goal = computed(() => profile.saved?.goalWeightKg ?? null);
 const trend = computed(() => profile.weight?.trendKg ?? null);
 
+/** Hidden at once for this visit, and saved on the account so other devices hide it too. */
 function keep() {
   const latest = profile.weight?.latestDate;
   if (latest && goal.value != null) dismissGoal(boot.accountId, latest, String(goal.value));
   toast("Keeping your current goal");
+  void keepGoal().then(() => {
+    if (profile.weight) profile.weight = { ...profile.weight, goalReached: false };
+  }, () => {
+    // Offline: it stays hidden for this visit and comes back on the next one.
+  });
 }
 
 async function maintain() {

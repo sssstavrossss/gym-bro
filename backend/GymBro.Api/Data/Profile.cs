@@ -61,6 +61,21 @@ public sealed class Profile
     /// <summary>The fresh-start day the person said "Not now" to. The prompt stays hidden for that fresh start.</summary>
     public DateOnly? FreshStartDeclinedOn { get; set; }
 
+    /// <summary>"Keep my goal" on goal reached: the weigh-in day it was said on. The card stays hidden for that day and goal.</summary>
+    public DateOnly? GoalKeptOn { get; set; }
+
+    /// <summary>The goal weight that was kept. A new goal brings the card back.</summary>
+    public decimal? GoalKeptKg { get; set; }
+
+    /// <summary>Home cards switched off, as the app's ids. Null until the app first saves a choice.</summary>
+    public string[]? HomeHidden { get; set; }
+
+    /// <summary>Macros card pages switched off, on every macros card. Null until the app first saves a choice.</summary>
+    public string[]? MacrosHidden { get; set; }
+
+    /// <summary>Progress card pages switched off. Null until the app first saves a choice.</summary>
+    public string[]? ProgressHidden { get; set; }
+
     public DateTimeOffset CreatedAt { get; set; }
 
     public DateTimeOffset UpdatedAt { get; set; }

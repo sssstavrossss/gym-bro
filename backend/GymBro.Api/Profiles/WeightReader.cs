@@ -41,7 +41,7 @@ public static class WeightReader
         var series = rows.Select(row => (row.LocalDate, row.Kg)).ToList();
         var profile = await db.Profiles.AsNoTracking()
             .Where(row => row.UserId == userId)
-            .Select(row => new { row.Goal, row.GoalWeightKg, row.FreshStartDeclinedOn })
+            .Select(row => new { row.Goal, row.GoalWeightKg, row.FreshStartDeclinedOn, row.GoalKeptOn, row.GoalKeptKg })
             .FirstOrDefaultAsync(cancellationToken);
         var computed = TrendWeight.Compute(series, asOf);
         var promptSettled = false;
@@ -61,12 +61,18 @@ public static class WeightReader
             }
         }
 
-        return FromSeries(
+        var snapshot = FromSeries(
             computed,
             setupKg: null,
             profile?.Goal,
             profile?.GoalWeightKg ?? 0,
             freshStartAccepted: promptSettled);
+
+        // "Keep my goal" on that weigh-in day, for that goal, answers the card on every device.
+        var kept = snapshot.GoalReached
+            && profile?.GoalKeptOn is { } keptOn && keptOn == snapshot.LatestDate
+            && profile.GoalKeptKg == profile.GoalWeightKg;
+        return kept ? snapshot with { GoalReached = false } : snapshot;
     }
 
     /// <summary>

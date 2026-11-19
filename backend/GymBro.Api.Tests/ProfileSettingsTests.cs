@@ -118,6 +118,86 @@ public sealed class ProfileSettingsTests(ApiFactory factory)
         Assert.Equal(HttpStatusCode.BadRequest, goal.StatusCode);
     }
 
+    [Fact]
+    public async Task Hidden_cards_follow_the_account_and_stay_null_until_first_saved()
+    {
+        factory.Clock.UtcNow = new DateTimeOffset(2026, 11, 16, 8, 0, 0, TimeSpan.Zero);
+        var user = TestData.NewUser("settings-hidden");
+        using var client = factory.AsUser(user);
+        await TestData.PutWeighIn(client, "2026-11-16", """{"kg":83.6,"timeZone":"UTC"}""");
+        var saved = await TestData.PutProfile(client, TestData.Profile());
+        // Null, not empty: the app adopts what a device already had.
+        Assert.Equal(JsonValueKind.Null, saved.GetProperty("profile").GetProperty("homeHidden").ValueKind);
+        Assert.Equal(JsonValueKind.Null, saved.GetProperty("profile").GetProperty("macrosHidden").ValueKind);
+
+        var picked = await client.PutAsJsonAsync("/api/profile/settings", new { homeHidden = new[] { "foods", "progress", "foods" }, macrosHidden = Array.Empty<string>() });
+        Assert.Equal(HttpStatusCode.OK, picked.StatusCode);
+        var body = await picked.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("""["foods","progress"]""", body.GetProperty("homeHidden").GetRawText());
+        Assert.Equal("[]", body.GetProperty("macrosHidden").GetRawText());
+        Assert.Equal(JsonValueKind.Null, body.GetProperty("progressHidden").ValueKind);
+
+        // Another device reads the same lists; leaving a list out keeps it.
+        using var other = factory.AsUser(user);
+        await other.PutAsJsonAsync("/api/profile/settings", new { progressHidden = new[] { "sodium" } });
+        var state = await other.GetFromJsonAsync<JsonElement>("/api/profile");
+        Assert.Equal("""["foods","progress"]""", state.GetProperty("profile").GetProperty("homeHidden").GetRawText());
+        Assert.Equal("""["sodium"]""", state.GetProperty("profile").GetProperty("progressHidden").GetRawText());
+        Assert.Equal(1, await HistoryCount(user));
+
+        foreach (var bad in new object[]
+        {
+            new { homeHidden = new[] { "has space" } },
+            new { homeHidden = new[] { new string('a', 33) } },
+            new { macrosHidden = Enumerable.Range(0, 33).Select(i => $"p{i}").ToArray() },
+            new { progressHidden = new string?[] { null } },
+        })
+        {
+            var rejected = await client.PutAsJsonAsync("/api/profile/settings", bad);
+            Assert.Equal(HttpStatusCode.BadRequest, rejected.StatusCode);
+        }
+
+        state = await client.GetFromJsonAsync<JsonElement>("/api/profile");
+        Assert.Equal("""["foods","progress"]""", state.GetProperty("profile").GetProperty("homeHidden").GetRawText());
+    }
+
+    [Fact]
+    public async Task Keeping_the_goal_hides_goal_reached_everywhere_until_the_goal_changes()
+    {
+        factory.Clock.UtcNow = new DateTimeOffset(2026, 10, 24, 8, 0, 0, TimeSpan.Zero);
+        var user = TestData.NewUser("keep-goal");
+        using var client = factory.AsUser(user);
+        await TestData.PutWeighIn(client, "2026-10-24", """{"kg":83.6,"timeZone":"UTC"}""");
+        await TestData.PutProfile(client, TestData.Profile(goal: "lose", goalWeightKg: 84));
+        var before = await client.GetFromJsonAsync<JsonElement>("/api/profile");
+        Assert.True(before.GetProperty("weight").GetProperty("goalReached").GetBoolean());
+
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsync("/api/weight/keep-goal", null)).StatusCode);
+        using var other = factory.AsUser(user);
+        var kept = await other.GetFromJsonAsync<JsonElement>("/api/profile");
+        Assert.False(kept.GetProperty("weight").GetProperty("goalReached").GetBoolean());
+        Assert.Equal("lose", kept.GetProperty("profile").GetProperty("goal").GetString());
+
+        // A new goal that's also reached brings the card back.
+        await TestData.PutProfile(client, TestData.Profile(goal: "lose", goalWeightKg: 83.8m));
+        var newGoal = await client.GetFromJsonAsync<JsonElement>("/api/profile");
+        Assert.True(newGoal.GetProperty("weight").GetProperty("goalReached").GetBoolean());
+
+        // So does the next weigh-in that reaches it.
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsync("/api/weight/keep-goal", null)).StatusCode);
+        factory.Clock.UtcNow = new DateTimeOffset(2026, 10, 25, 8, 0, 0, TimeSpan.Zero);
+        await TestData.PutWeighIn(client, "2026-10-25", """{"kg":83.4,"timeZone":"UTC"}""");
+        var nextDay = await client.GetFromJsonAsync<JsonElement>("/api/profile");
+        Assert.True(nextDay.GetProperty("weight").GetProperty("goalReached").GetBoolean());
+    }
+
+    [Fact]
+    public async Task Keeping_the_goal_needs_a_profile()
+    {
+        using var client = factory.AsUser(TestData.NewUser("keep-goal-none"));
+        Assert.Equal(HttpStatusCode.BadRequest, (await client.PostAsync("/api/weight/keep-goal", null)).StatusCode);
+    }
+
     private async Task<int> HistoryCount(string userId)
     {
         await using var scope = factory.Services.CreateAsyncScope();

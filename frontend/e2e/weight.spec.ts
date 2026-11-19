@@ -255,9 +255,14 @@ test("goal reached asks on the latest weigh-in and changes nothing until chosen"
   }
   await page.getByRole("button", { name: "Keep my goal" }).click();
   await expect(page.getByRole("heading", { name: "You've reached your goal weight" })).toHaveCount(0);
+  // Kept on the account: the goal stays, and the card is gone on every device for this weigh-in.
+  await expect.poll(async () => (await (await page.request.get("/api/profile", { headers: headers(oid) })).json()).weight.goalReached).toBe(false);
   const after = await (await page.request.get("/api/profile", { headers: headers(oid) })).json();
   expect(after.profile.goal).toBe("lose");
-  expect(after.weight.goalReached).toBe(true);
+  await page.evaluate(() => sessionStorage.clear());
+  await openApp(page, oid, 390);
+  await expect(page.getByRole("region", { name: "Today's macros" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "You've reached your goal weight" })).toHaveCount(0);
 });
 
 test("35.2a the only weigh-in explains why delete is blocked and offers Edit", async ({ page }) => {

@@ -1,11 +1,11 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Browser, type Page } from "@playwright/test";
 
 function headers(oid: string) {
   return { "X-Test-Oid": oid, "X-Test-Name": "Test User", "Content-Type": "application/json" };
 }
 
 /** A profiled user with a weigh-in and nothing logged, so Home shows the Add food prompt. */
-async function setup(page: Page) {
+async function setup(page: Page): Promise<string> {
   const oid = `e2e-home-sections-${Date.now()}-${test.info().project.name}`;
   const when = await page.evaluate(() => {
     const zone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
@@ -22,10 +22,27 @@ async function setup(page: Page) {
     },
   });
   expect(profile.ok(), await profile.text()).toBeTruthy();
+  await signIn(page, oid);
+  return oid;
+}
+
+async function signIn(page: Page, oid: string) {
   await page.addInitScript((id) => {
     sessionStorage.setItem("gymbro-e2e", "1");
     sessionStorage.setItem("gymbro-e2e-oid", id);
   }, oid);
+}
+
+async function putSettings(page: Page, oid: string, data: Record<string, string[]>) {
+  expect((await page.request.put("/api/profile/settings", { headers: headers(oid), data })).ok()).toBeTruthy();
+}
+
+/** Another phone signed in to the same account, with nothing stored on it. */
+async function otherDevice(browser: Browser, oid: string) {
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+  const page = await context.newPage();
+  await signIn(page, oid);
+  return { context, page };
 }
 
 async function openHomeSections(page: Page) {
@@ -39,9 +56,9 @@ async function openHomeSections(page: Page) {
 test.describe("phone", () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
 
-  test("Settings switches Home's cards off, keeps the week, and remembers the choice", async ({ page }) => {
+  test("Settings switches Home's cards off, keeps the week, and the account remembers it", async ({ page, browser }) => {
     await page.goto("/");
-    await setup(page);
+    const oid = await setup(page);
 
     const settings = await openHomeSections(page);
     const row = settings.locator("[data-home-row]");
@@ -65,8 +82,16 @@ test.describe("phone", () => {
     await expect(page.getByRole("button", { name: /Log your first food today/ })).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Next week" })).toBeVisible();
 
-    // Everything off: Home says so and links back to the page.
-    await page.evaluate(() => localStorage.setItem("gymbro-home-hidden", JSON.stringify(["suggestions", "macros", "foods", "progress"])));
+    // Another device gets the same Home.
+    const other = await otherDevice(browser, oid);
+    await other.page.goto("/today");
+    await expect(other.page.getByRole("region", { name: "Today's macros" })).toBeVisible();
+    await expect(other.page.getByRole("region", { name: "Progress", exact: true })).toBeVisible();
+    await expect(other.page.getByRole("button", { name: /Log your first food today/ })).toHaveCount(0);
+    await other.context.close();
+
+    // Everything off (saved from elsewhere): Home says so and links back to the page.
+    await putSettings(page, oid, { homeHidden: ["suggestions", "macros", "foods", "progress"] });
     await page.reload();
     await expect(page.getByText("Home shows only the week.")).toBeVisible();
     await expect(page.getByRole("region", { name: "Today's macros" })).toHaveCount(0);
@@ -80,7 +105,44 @@ test.describe("phone", () => {
     await again.getByRole("button", { name: "Close" }).click();
     await expect(page.getByText("Home shows only the week.")).toHaveCount(0);
     await expect(page.getByRole("region", { name: "Today's macros" })).toBeVisible();
+    await expect.poll(async () => {
+      const state = await (await page.request.get("/api/profile", { headers: headers(oid) })).json();
+      return state.profile.homeHidden;
+    }).toEqual(["suggestions", "foods", "progress"]);
     expect(await page.evaluate(() => localStorage.getItem("gymbro-home-hidden"))).toBe('["suggestions","foods","progress"]');
+  });
+
+  test("a device's earlier choice moves to the account, and card pages follow it", async ({ page, browser }) => {
+    await page.goto("/");
+    const oid = await setup(page);
+    // Chosen on this phone before the account kept it.
+    await page.evaluate(() => {
+      localStorage.setItem("gymbro-home-hidden", JSON.stringify(["foods"]));
+      localStorage.setItem("gymbro-home-progress-hidden", JSON.stringify(["sodium"]));
+    });
+    await page.goto("/today");
+    await expect(page.getByRole("button", { name: /Log your first food today/ })).toHaveCount(0);
+    await expect.poll(async () => {
+      const state = await (await page.request.get("/api/profile", { headers: headers(oid) })).json();
+      return [state.profile.homeHidden, state.profile.progressHidden, state.profile.macrosHidden];
+    }).toEqual([["foods"], ["sodium"], null]);
+
+    // The cog's pages on this phone show up on the other one.
+    await page.getByRole("region", { name: "Today's macros" }).getByRole("button", { name: "Choose macros card pages" }).click();
+    await page.getByRole("dialog", { name: "Macros card pages" }).getByRole("switch", { name: /^Vitamins/ }).click();
+    await expect.poll(async () => {
+      const state = await (await page.request.get("/api/profile", { headers: headers(oid) })).json();
+      return state.profile.macrosHidden;
+    }).toEqual(["vitamins"]);
+
+    const other = await otherDevice(browser, oid);
+    await other.page.goto("/today");
+    await expect(other.page.getByRole("button", { name: /Log your first food today/ })).toHaveCount(0);
+    await other.page.getByRole("region", { name: "Today's macros" }).getByRole("button", { name: "Choose macros card pages" }).click();
+    const sheet = other.page.getByRole("dialog", { name: "Macros card pages" });
+    await expect(sheet.getByRole("switch", { name: /^Vitamins/ })).toHaveAttribute("aria-checked", "false");
+    await expect(sheet.getByRole("switch", { name: /^Minerals/ })).toHaveAttribute("aria-checked", "true");
+    await other.context.close();
   });
 });
 
@@ -89,8 +151,8 @@ test.describe("desktop", () => {
 
   test("Progress covers the weight card and This week, and the other columns share the width", async ({ page }) => {
     await page.goto("/");
-    await setup(page);
-    await page.evaluate(() => localStorage.setItem("gymbro-home-hidden", JSON.stringify(["progress"])));
+    const oid = await setup(page);
+    await putSettings(page, oid, { homeHidden: ["progress"] });
     await page.goto("/today");
 
     await expect(page.getByRole("heading", { name: "Foods today" })).toBeVisible();

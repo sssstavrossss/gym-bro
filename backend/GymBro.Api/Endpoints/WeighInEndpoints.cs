@@ -41,6 +41,7 @@ public static class WeighInEndpoints
         api.MapGet("/weight/trend", Trend);
         api.MapGet("/weight/chart", Chart);
         api.MapPost("/weight/fresh-start", FreshStart);
+        api.MapPost("/weight/keep-goal", KeepGoal);
         return api;
     }
 
@@ -273,6 +274,39 @@ public static class WeighInEndpoints
             weight.GoalReached,
             ProfileEndpoints.ToFreshStart(weight),
             series));
+    }
+
+    /// <summary>
+    /// "Keep my goal" on the goal reached card. Saved for the latest weigh-in and the current goal, so the
+    /// card stays away on every device until a new weigh-in reaches the goal or the goal changes.
+    /// </summary>
+    private static async Task<IResult> KeepGoal(
+        ClaimsPrincipal principal,
+        AppDbContext db,
+        TimeProvider clock,
+        CancellationToken cancellationToken)
+    {
+        if (Caller.MissingOid(principal) is { } denied)
+        {
+            return denied;
+        }
+
+        var userId = Caller.Id(principal);
+        var profile = await db.Profiles.FirstOrDefaultAsync(row => row.UserId == userId, cancellationToken);
+        if (profile is null || !LocalDates.TryToday(profile.TimeZone, clock, out var today))
+        {
+            return ApiResults.Error(RecalculateEndpoints.NeedProfile);
+        }
+
+        var weight = await WeightReader.ReadAsync(db, userId, today, cancellationToken);
+        if (weight.LatestDate is { } latest)
+        {
+            profile.GoalKeptOn = latest;
+            profile.GoalKeptKg = profile.GoalWeightKg;
+            await db.SaveChangesAsync(cancellationToken);
+        }
+
+        return Results.NoContent();
     }
 
     private static async Task<IResult> FreshStart(
