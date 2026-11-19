@@ -121,4 +121,23 @@ test("the first quick amount is the one logged last time", async ({ page }) => {
   await page.locator("button.frow").filter({ hasText: name }).click();
   await expect(page.getByRole("dialog", { name: "Edit food" })).toBeVisible();
   await expect(foodSheet(page).getByRole("button", { name: /last time/ })).toHaveCount(0);
+
+  // Picking it as a recipe ingredient: the same chip leads, found by search rather than recents.
+  await page.goto("/today");
+  await page.getByRole("button", { name: "Add", exact: true }).click();
+  await page.getByRole("dialog", { name: "Add" }).getByRole("button", { name: /Search or quick add/ }).click();
+  await foodSheet(page).getByRole("searchbox", { name: "Search foods" }).blur();
+  await expect(foodSheet(page).getByRole("heading", { name: "Add food" })).toBeVisible();
+  await foodSheet(page).getByRole("button", { name: /Recipes/ }).click();
+  await foodSheet(page).getByRole("button", { name: "New recipe" }).first().click();
+  const recipe = page.getByRole("dialog", { name: "New recipe" });
+  await recipe.getByRole("button", { name: "Add ingredient" }).click();
+  await recipe.getByLabel("Search foods").fill(name);
+  await recipe.getByRole("button", { name: new RegExp(`^${name}`) }).click();
+  await expect(recipe.getByRole("heading", { name })).toBeVisible();
+  const picked = recipe.locator("[data-amount-tray]").getByRole("group", { name: "Quick amounts" });
+  await expect(picked.getByRole("button").first()).toHaveText("170 g · last time");
+  await picked.getByRole("button").first().click();
+  await expect(recipe.getByRole("textbox", { name: "Amount in g" })).toHaveValue("170");
+  await expect(recipe.getByRole("button", { name: /^Add to recipe · 170 kcal/ })).toBeVisible();
 });
