@@ -57,6 +57,8 @@ import {
 } from "../lib/units";
 import { isFreshStart, isLowAccuracy, profileTrendLabel } from "../lib/weightDisplay";
 import { boot } from "./boot";
+import { adoptCardPages } from "./cardPages";
+import { adoptHomeSections } from "./homeSections";
 
 export interface ProfileForm {
   sex: Sex | "";
@@ -407,6 +409,7 @@ export async function loadProfile(): Promise<void> {
     const state = await getProfile();
     profile.offline = false;
     profile.saved = state.profile;
+    if (state.profile) adoptDisplay(state.profile);
     profile.weight = state.weight;
     profile.targets = state.targets;
     profile.citation = state.citation;
@@ -440,6 +443,12 @@ export async function loadProfile(): Promise<void> {
   } finally {
     hydrating = false;
   }
+}
+
+/** Home sections and card pages follow the account; this device's copy catches up. */
+function adoptDisplay(saved: ProfileResponse): void {
+  adoptHomeSections(saved);
+  adoptCardPages(saved);
 }
 
 /** Settings saved on their own (time zone, units). The form follows, so the profile never looks unsaved. */

@@ -343,9 +343,31 @@ public static class ProfileEndpoints
             profile.SodiumLimit = sodiumLimit;
         }
 
+        foreach (var (ids, apply) in new (string?[]?, Action<string[]>)[]
+        {
+            (request.HomeHidden, clean => profile.HomeHidden = clean),
+            (request.MacrosHidden, clean => profile.MacrosHidden = clean),
+            (request.ProgressHidden, clean => profile.ProgressHidden = clean),
+        })
+        {
+            if (ids is null)
+            {
+                continue;
+            }
+
+            if (HiddenIds.Clean(ids) is not { } clean)
+            {
+                return ApiResults.Error(HiddenIds.Invalid);
+            }
+
+            apply(clean);
+        }
+
         profile.UpdatedAt = clock.GetUtcNow();
         await db.SaveChangesAsync(cancellationToken);
-        return Results.Ok(new SettingsResponse(profile.TimeZone, profile.TimeZoneFollowsDevice, profile.WeightUnit, profile.HeightUnit, profile.FoodUnit, profile.FatLimits, profile.SodiumLimit));
+        return Results.Ok(new SettingsResponse(
+            profile.TimeZone, profile.TimeZoneFollowsDevice, profile.WeightUnit, profile.HeightUnit, profile.FoodUnit, profile.FatLimits, profile.SodiumLimit,
+            profile.HomeHidden, profile.MacrosHidden, profile.ProgressHidden));
     }
 
     /// <summary>
@@ -452,7 +474,10 @@ public static class ProfileEndpoints
             profile.HeightUnit,
             profile.FoodUnit,
             profile.FatLimits,
-            profile.SodiumLimit);
+            profile.SodiumLimit,
+            profile.HomeHidden,
+            profile.MacrosHidden,
+            profile.ProgressHidden);
 
     public static WeightResponse ToWeight(WeightSnapshot weight) => new(
         weight.AsOf,
@@ -513,12 +538,19 @@ public sealed record ProfileResponse(
     string HeightUnit,
     string FoodUnit,
     string FatLimits,
-    string SodiumLimit);
+    string SodiumLimit,
+    string[]? HomeHidden,
+    string[]? MacrosHidden,
+    string[]? ProgressHidden);
 
 /// <summary>Display preferences. None of them changes the targets, so saving one writes no target history.</summary>
-public sealed record SettingsRequest(string? TimeZone, bool? TimeZoneFollowsDevice, string? WeightUnit = null, string? HeightUnit = null, string? FatLimits = null, string? FoodUnit = null, string? SodiumLimit = null);
+public sealed record SettingsRequest(string? TimeZone, bool? TimeZoneFollowsDevice, string? WeightUnit = null, string? HeightUnit = null, string? FatLimits = null, string? FoodUnit = null, string? SodiumLimit = null,
+    string?[]? HomeHidden = null, string?[]? MacrosHidden = null, string?[]? ProgressHidden = null);
 
-public sealed record SettingsResponse(string TimeZone, bool TimeZoneFollowsDevice, string WeightUnit, string HeightUnit, string FoodUnit, string FatLimits, string SodiumLimit);
+/// <summary>The hidden lists are null until the app first saves them.</summary>
+public sealed record SettingsResponse(
+    string TimeZone, bool TimeZoneFollowsDevice, string WeightUnit, string HeightUnit, string FoodUnit, string FatLimits, string SodiumLimit,
+    string[]? HomeHidden, string[]? MacrosHidden, string[]? ProgressHidden);
 
 public sealed record WeightResponse(
     DateOnly AsOf,

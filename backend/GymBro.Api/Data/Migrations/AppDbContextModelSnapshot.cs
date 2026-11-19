@@ -1141,6 +1141,15 @@ namespace GymBro.Api.Data.Migrations
                         .HasColumnType("character varying(16)")
                         .HasColumnName("goal");
 
+                    b.Property<decimal?>("GoalKeptKg")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("numeric(5,2)")
+                        .HasColumnName("goal_kept_kg");
+
+                    b.Property<DateOnly?>("GoalKeptOn")
+                        .HasColumnType("date")
+                        .HasColumnName("goal_kept_on");
+
                     b.Property<decimal>("GoalWeightKg")
                         .HasPrecision(5, 2)
                         .HasColumnType("numeric(5,2)")
@@ -1159,11 +1168,23 @@ namespace GymBro.Api.Data.Migrations
                         .HasDefaultValue("cm")
                         .HasColumnName("height_unit");
 
+                    b.PrimitiveCollection<string[]>("HomeHidden")
+                        .HasColumnType("text[]")
+                        .HasColumnName("home_hidden");
+
+                    b.PrimitiveCollection<string[]>("MacrosHidden")
+                        .HasColumnType("text[]")
+                        .HasColumnName("macros_hidden");
+
                     b.Property<bool>("NotifyRecalculate")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")
                         .HasDefaultValue(true)
                         .HasColumnName("notify_recalculate");
+
+                    b.PrimitiveCollection<string[]>("ProgressHidden")
+                        .HasColumnType("text[]")
+                        .HasColumnName("progress_hidden");
 
                     b.Property<decimal>("ProteinGramsPerKg")
                         .HasPrecision(3, 1)

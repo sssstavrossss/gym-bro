@@ -68,6 +68,10 @@ export interface ProfileResponse {
   fatLimits?: FatLimitsSetting;
   /** The sodium limit on the Carbs card and Progress. Display only. */
   sodiumLimit?: SodiumLimitSetting;
+  /** Home cards and card pages switched off, on every device. Null until the app first saves them. */
+  homeHidden?: string[] | null;
+  macrosHidden?: string[] | null;
+  progressHidden?: string[] | null;
 }
 
 export type TrendState = "normal" | "low_accuracy" | "fresh_start";
@@ -485,6 +489,9 @@ export interface SettingsBody {
   foodUnit?: FoodUnit;
   fatLimits?: FatLimitsSetting;
   sodiumLimit?: SodiumLimitSetting;
+  homeHidden?: string[];
+  macrosHidden?: string[];
+  progressHidden?: string[];
 }
 
 export interface SettingsResponse {
@@ -495,6 +502,9 @@ export interface SettingsResponse {
   foodUnit: FoodUnit;
   fatLimits: FatLimitsSetting;
   sodiumLimit: SodiumLimitSetting;
+  homeHidden: string[] | null;
+  macrosHidden: string[] | null;
+  progressHidden: string[] | null;
 }
 
 /** Display preferences. Saving one never changes the targets or adds history. */
@@ -645,6 +655,13 @@ export async function decideFreshStart(accept: boolean): Promise<FreshStartDecis
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ accept }),
   }));
+}
+
+/** "Keep my goal" on goal reached, saved for the latest weigh-in and goal on every device. */
+export async function keepGoal(): Promise<void> {
+  const response = await request("/api/weight/keep-goal", { method: "POST" });
+  if (response.status === 204) return;
+  await jsonOrThrow(response);
 }
 
 export async function searchFoods(query: string): Promise<FoodSearchResponse> {
