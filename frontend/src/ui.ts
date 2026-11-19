@@ -43,12 +43,14 @@ export const ui = reactive({
   recipeMode: null as null | "create" | "edit" | "log",
   recipeId: null as string | null,
   recipeEntryIds: [] as string[],
-  /** Food sheet or select mode to restore when the recipe sheet closes. */
-  recipeReturn: null as null | "food" | "select",
+  /** Food sheet, select mode, or logging the recipe again (Edit on Log recipe) when the recipe sheet closes. */
+  recipeReturn: null as null | "food" | "select" | "log",
   /** Nutrient open in the nutrient sheet, for the day the Home card shows, with that day's kcal target. */
   nutrient: null as null | { key: string; kcalTarget: number | null },
-  /** The Home card whose pages the card pages sheet picks. */
+  /** The swipe card whose pages the card pages sheet picks. */
   cardPages: "progress" as PageCard,
+  /** The card pages sheet is open over another sheet (a cog on Add food or a recipe), which stays open under it. */
+  cardPagesOver: false,
 });
 
 let toastTimer = 0;
@@ -77,10 +79,23 @@ export function openNotifications(): void {
   ui.sheet = "notifications";
 }
 
-/** Picks which pages a Home swipe card shows. */
+/**
+ * Picks which pages a swipe card shows. From Home it is a sheet of its own. From a cog inside
+ * another sheet it opens over that sheet, so what was typed there stays.
+ */
 export function openCardPages(card: PageCard): void {
   ui.cardPages = card;
+  if (ui.sheet && ui.sheet !== "card-pages") {
+    ui.cardPagesOver = true;
+    return;
+  }
+  ui.cardPagesOver = false;
   ui.sheet = "card-pages";
+}
+
+export function closeCardPages(): void {
+  if (ui.cardPagesOver) ui.cardPagesOver = false;
+  else closeSheet();
 }
 
 /** What works offline, what is waiting to send, and how old the numbers are. */
@@ -223,12 +238,13 @@ export function openRecipeCreate(returnTo: "food" | null): void {
   ui.sheet = "recipe";
 }
 
-export function openRecipeEdit(id: string): void {
+/** From the recipe list, or from Edit on Log recipe, which it goes back to when closed or saved. */
+export function openRecipeEdit(id: string, returnTo: "food" | "log" = "food"): void {
   // No primeKeyboard: the recipe form opens with the keyboard down. Its fields opt out of autofocus.
   ui.recipeMode = "edit";
   ui.recipeId = id;
   ui.recipeEntryIds = [];
-  ui.recipeReturn = "food";
+  ui.recipeReturn = returnTo;
   ui.sheet = "recipe";
 }
 
@@ -252,6 +268,10 @@ export function openRecipeFromEntries(ids: string[], returnTo: "food" | "select"
 
 export function closeRecipeSheet(): void {
   const back = ui.recipeReturn;
+  if (back === "log" && ui.recipeId) {
+    openRecipeLog(ui.recipeId);
+    return;
+  }
   clearRecipe();
   if (back === "food") {
     ui.resumeFood = true;

@@ -823,6 +823,12 @@ export interface RecipeIngredient {
   protein: number;
   fat: number;
   carbs: number;
+  saturatedFat?: number | null;
+  sugars?: number | null;
+  fiber?: number | null;
+  salt?: number | null;
+  /** The rest of the panel for this amount; null where the food doesn't say. */
+  nutrients?: Record<string, number | null> | null;
   available: boolean;
 }
 
@@ -842,6 +848,12 @@ export interface Recipe {
   protein: number;
   fat: number;
   carbs: number;
+  saturatedFat?: number | null;
+  sugars?: number | null;
+  fiber?: number | null;
+  salt?: number | null;
+  /** The whole recipe's panel past the label basics. */
+  nutrients?: Record<string, number | null> | null;
   perPortion: RecipeMacros;
   perGram: RecipeMacros | null;
   notice: string;

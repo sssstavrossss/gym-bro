@@ -80,6 +80,13 @@ describe("shortcuts", () => {
     expect(shortcutEffect({ ...base, key: "Escape" })).toEqual({ effect: "none" });
     expect(shortcutEffect({ ...base, key: "Escape", typing: true })).toEqual({ effect: "none" });
   });
+
+  it("closes the card pages sheet first when it is open over another sheet", () => {
+    expect(shortcutEffect({ ...base, key: "Escape", sheet: "food", cardPagesOver: true })).toEqual({ effect: "prevent", action: "close-card-pages" });
+    expect(shortcutEffect({ ...base, key: "Escape", sheet: "recipe", cardPagesOver: true })).toEqual({ effect: "prevent", action: "close-card-pages" });
+    // From Home it is its own sheet, which Esc closes the usual way.
+    expect(shortcutEffect({ ...base, key: "Escape", sheet: "card-pages" })).toEqual({ effect: "prevent", action: "close-sheet" });
+  });
 });
 
 describe("focus cycle", () => {

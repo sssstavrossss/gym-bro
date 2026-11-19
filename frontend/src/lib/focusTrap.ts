@@ -32,17 +32,34 @@ function cycle(dialog: HTMLElement): HTMLElement[] {
   return [...focusableElements(dialog), ...extra];
 }
 
+/** Open dialogs, oldest first. A dialog opened over another one (the card pages sheet) is last. */
+const stack: HTMLElement[] = [];
+
+/** Dialogs on screen that are not on their way out. */
+function shownDialogs(): Element[] {
+  return [...document.querySelectorAll("[role='dialog']")].filter((el) => (
+    !el.classList.contains("sheet-leave-active")
+    && !el.classList.contains("sheet-leave-to")
+    && !el.classList.contains("fade-leave-active")
+    && !el.classList.contains("fade-leave-to")
+  ));
+}
+
 /**
  * While `open` is true, Tab stays in the dialog (and a toast action, so Undo remains reachable).
- * Focus returns to whatever opened it, unless another dialog is still on screen.
+ * Only the top dialog keeps Tab, so one opened over another doesn't fight it.
+ * Focus returns to whatever opened it: a button on the page once no dialog is left,
+ * or a button inside a dialog that is still open under this one.
  */
 export function useDialogFocus(open: () => boolean, root: Ref<HTMLElement | null>): () => void {
   let previous: HTMLElement | null = null;
+  /** This dialog's element while it is on the stack. */
+  let stacked: HTMLElement | null = null;
 
   function onKey(event: KeyboardEvent) {
     if (event.key !== "Tab" || !open()) return;
     const dialog = root.value;
-    if (!dialog) return;
+    if (!dialog || stack[stack.length - 1] !== dialog) return;
     const items = cycle(dialog);
     const active = document.activeElement;
     const index = active instanceof HTMLElement ? items.indexOf(active) : -1;
@@ -63,7 +80,6 @@ export function useDialogFocus(open: () => boolean, root: Ref<HTMLElement | null
     const active = document.activeElement;
     if (!(active instanceof HTMLElement)) return;
     if (active === document.body || active === document.documentElement || active === focusProxy()) return;
-    if (active.closest("[role='dialog']")) return;
     previous = active;
   }, { flush: "sync" });
 
@@ -72,6 +88,9 @@ export function useDialogFocus(open: () => boolean, root: Ref<HTMLElement | null
       await nextTick();
       const dialog = root.value;
       if (!dialog) return;
+      unstack();
+      stacked = dialog;
+      stack.push(dialog);
       const active = document.activeElement;
       const alreadyInside = active instanceof Node && dialog.contains(active) && active !== dialog;
       if (!alreadyInside) {
@@ -85,21 +104,29 @@ export function useDialogFocus(open: () => boolean, root: Ref<HTMLElement | null
       return;
     }
     window.removeEventListener("keydown", onKey, true);
+    unstack();
     await nextTick();
     restore();
   }, { flush: "post" });
 
-  function restore() {
-    const openDialog = [...document.querySelectorAll("[role='dialog']")].some((el) => (
-      !el.classList.contains("sheet-leave-active")
-      && !el.classList.contains("sheet-leave-to")
-      && !el.classList.contains("fade-leave-active")
-      && !el.classList.contains("fade-leave-to")
-    ));
-    if (openDialog) return;
-    if (previous && document.contains(previous)) previous.focus({ preventScroll: true });
+  function unstack() {
+    const index = stacked ? stack.indexOf(stacked) : -1;
+    if (index >= 0) stack.splice(index, 1);
+    stacked = null;
   }
 
-  onBeforeUnmount(() => window.removeEventListener("keydown", onKey, true));
+  function restore() {
+    const target = previous;
+    if (!target || !document.contains(target)) return;
+    const shown = shownDialogs();
+    const under = target.closest("[role='dialog']");
+    // Back to a cog inside the sheet this one covered; otherwise only once no dialog is left.
+    if (under ? shown.includes(under) : shown.length === 0) target.focus({ preventScroll: true });
+  }
+
+  onBeforeUnmount(() => {
+    window.removeEventListener("keydown", onKey, true);
+    unstack();
+  });
   return restore;
 }

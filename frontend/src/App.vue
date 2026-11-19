@@ -30,7 +30,7 @@ import { followDeviceZone, loadProfile, profile, retryLoad } from "./state/profi
 import { refreshInbox } from "./state/inbox";
 import { loadToday, sendQueue, viewed } from "./state/log";
 import { startSync } from "./state/sync";
-import { closeCopy, closeFoodLayer, closeGroupSheet, closeRecipeSheet, closeSheet, endSelect, openFood, openWeight, ui } from "./ui";
+import { closeCardPages, closeCopy, closeFoodLayer, closeGroupSheet, closeRecipeSheet, closeSheet, endSelect, openFood, openWeight, ui } from "./ui";
 import SignInView from "./views/SignInView.vue";
 
 const route = useRoute();
@@ -110,6 +110,7 @@ function onKey(event: KeyboardEvent) {
     composing: event.isComposing,
     typing: isTypingTarget(event.target),
     sheet: ui.sheet,
+    cardPagesOver: ui.cardPagesOver,
     selecting: ui.selecting,
     nav: showNav.value,
   });
@@ -123,6 +124,7 @@ function onKey(event: KeyboardEvent) {
   else if (effect.action === "close-copy") closeCopy();
   else if (effect.action === "close-group") closeGroupSheet();
   else if (effect.action === "close-recipe") closeRecipeSheet();
+  else if (effect.action === "close-card-pages") closeCardPages();
   else if (effect.action === "end-select") endSelect();
   else if (ui.sheet === "food" && closeFoodLayer()) return;
   else closeSheet();
@@ -152,10 +154,11 @@ function onKey(event: KeyboardEvent) {
     <SettingsSheet />
     <NotificationsSheet />
     <NutrientSheet />
-    <CardPagesSheet />
     <OfflineSheet />
     <AddChooser />
     <FoodSheet />
+    <!-- After every sheet: a cog inside one opens it on top. -->
+    <CardPagesSheet />
     <Toast />
     <!--
       iOS Safari raises the keyboard only when focus() runs in the same turn as the tap.

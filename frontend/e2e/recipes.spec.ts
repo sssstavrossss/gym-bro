@@ -115,8 +115,8 @@ test("create a recipe, see per-portion protein update, log it, and retire it", a
   await food.getByRole("button", { name: "New recipe" }).first().click();
 
   const sheet = page.getByRole("dialog", { name: "New recipe" });
-  await expect(sheet.getByLabel("Calories")).toHaveCount(0);
-  await expect(sheet.getByLabel("Protein")).toHaveCount(0);
+  await expect(sheet.getByRole("textbox", { name: "Calories" })).toHaveCount(0);
+  await expect(sheet.getByRole("textbox", { name: "Protein" })).toHaveCount(0);
   await sheet.getByRole("button", { name: "Add ingredient" }).click();
   await sheet.getByLabel("Search foods").fill("Fictional recipe chicken");
   await sheet.getByRole("button", { name: /Fictional recipe chicken/ }).click();
@@ -130,19 +130,21 @@ test("create a recipe, see per-portion protein update, log it, and retire it", a
   await expect(card.locator("[data-macro] .bar")).toHaveCount(0);
   await expect(card.locator("button.dot")).toHaveCount(5);
   await sheet.getByRole("button", { name: "Add to recipe · 1,000 kcal" }).click();
-  await expect(sheet.getByText("1,000 kcal · P 250")).toBeVisible();
+  await expect(sheet.getByText("1,000 kcal · P 250", { exact: true })).toBeVisible();
+  // The one-line total by the Ingredients heading.
+  await expect(sheet.locator("[data-recipe-total]")).toHaveText("1,000 kcal · P 250 · F 25 · C 0");
   await sheet.getByLabel("Portions").fill("5");
-  await expect(sheet.locator("[data-recipe-portion]")).toHaveText("P 50 · F 5 · C 0");
+  await expect(sheet.locator("[data-recipe-portion]")).toContainText("50 g protein per portion · 5 g fat · 0 g carbs");
   await sheet.getByLabel("Portions").fill("10");
-  await expect(sheet.locator("[data-recipe-portion]")).toHaveText("P 25 · F 2.5 · C 0");
+  await expect(sheet.locator("[data-recipe-portion]")).toContainText("25 g protein per portion · 2.5 g fat · 0 g carbs");
   await sheet.getByLabel("Portions").fill("5");
-  await expect(sheet.locator("[data-recipe-portion]")).toHaveText("P 50 · F 5 · C 0");
+  await expect(sheet.locator("[data-recipe-portion]")).toContainText("50 g protein per portion · 5 g fat · 0 g carbs");
   await sheet.getByLabel("Recipe name").fill("Chicken pot");
   await sheet.getByLabel("Finished weight in grams, optional").fill("500");
 
   for (const width of [390, 768, 1280]) {
     await page.setViewportSize({ width, height: width >= 1024 ? 900 : 844 });
-    await expect(sheet.locator("[data-recipe-portion]")).toHaveText("P 50 · F 5 · C 0");
+    await expect(sheet.locator("[data-recipe-portion]")).toContainText("50 g protein per portion · 5 g fat · 0 g carbs");
     const save = sheet.getByRole("button", { name: "Save recipe" });
     const box = await save.boundingBox();
     expect(box && box.height >= 44 && box.width >= 44).toBeTruthy();
@@ -155,7 +157,7 @@ test("create a recipe, see per-portion protein update, log it, and retire it", a
   const again = page.getByRole("dialog", { name: "Add food" });
   await again.getByRole("button", { name: "Log recipe Chicken pot" }).click();
   const logging = page.getByRole("dialog", { name: "Log Chicken pot" });
-  await expect(logging.locator("[data-log-preview]")).toContainText("50");
+  await expect(logging.locator("[data-macro='p'] [data-adding]")).toHaveText("+50");
   await expect(logging.getByRole("radio", { name: "grams" })).toBeVisible();
   await logging.getByRole("button", { name: /Add · 200 kcal/ }).click();
   await expect(page.getByText(/Added 1 portion Chicken pot · 50 g protein/)).toBeVisible();
@@ -164,7 +166,7 @@ test("create a recipe, see per-portion protein update, log it, and retire it", a
   const grams = page.getByRole("dialog", { name: "Log Chicken pot" });
   await grams.getByRole("radio", { name: "grams" }).click();
   await grams.getByLabel("Amount to log").fill("100");
-  await expect(grams.locator("[data-log-preview]")).toContainText("50");
+  await expect(grams.locator("[data-macro='p'] [data-adding]")).toHaveText("+50");
   await grams.getByRole("button", { name: /Add · 200 kcal/ }).click();
   await expect(page.getByText(/Added 100 g Chicken pot · 50 g protein/)).toBeVisible();
 
@@ -229,7 +231,7 @@ test("save as recipe from a selection of foods", async ({ page }) => {
   await expect(sheet.getByText("Fictional quick side")).toHaveCount(0);
   await sheet.getByLabel("Recipe name").fill("Plate");
   await sheet.getByLabel("Portions").fill("3");
-  await expect(sheet.locator("[data-recipe-portion]")).toHaveText("P 50 · F 6.7 · C 0");
+  await expect(sheet.locator("[data-recipe-portion]")).toContainText("50 g protein per portion · 6.7 g fat · 0 g carbs");
   await expectClean(page);
   await sheet.getByRole("button", { name: "Save recipe" }).click();
   await expect(page.getByText(/Saved “Plate” · 50 g protein per portion/)).toBeVisible();

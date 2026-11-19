@@ -4,17 +4,23 @@ import {
   canSaveRecipe,
   finishedError,
   ingredientMacros,
+  ingredientSource,
   matchingRecipes,
   perPortion,
   perPortionSentence,
   portionGrams,
+  portionNutrients,
+  recipeLogFactor,
   recipeLogProblem,
+  recipeServingLine,
+  recipeTotalLine,
   recipeMacro,
   presetFromLogged,
   recipeFoodEntries,
   recipeNameError,
   scaleRecipeLog,
   scaleStoredLine,
+  scaleStoredSource,
   selectionSkipNote,
   sumTotals,
 } from "../src/lib/recipes";
@@ -131,4 +137,43 @@ it("words the finished weight limit in the shown food unit", () => {
   expect(finishedError(900)).toBeNull();
   expect(finishedError(0)).toBe("Enter a finished weight above 0 and at most 100,000 g.");
   expect(finishedError(200_000, "oz")).toBe("Enter a finished weight above 0 and at most 3,527 oz.");
+});
+
+it("scales an ingredient's whole panel the same way as its macros", () => {
+  const greens: CatalogFood = { ...chicken, id: "greens", saturatedFatPer100: 2, saltPer100: 0.5, nutrients: { vitaminC: 40, iron: null } };
+  const source = ingredientSource(greens, 250, "g");
+  expect(source).toEqual({ fat: 25, saturatedFat: 5, sugars: null, fiber: null, salt: 1.25, nutrients: { vitaminC: 100, iron: null } });
+  // A named serving finds the food's own, whatever its case.
+  const bread: CatalogFood = { ...greens, servings: [{ id: "s", name: "slice", grams: 40 }] };
+  expect(ingredientSource(bread, 2, "Slice")?.nutrients).toEqual({ vitaminC: 32, iron: null });
+  expect(ingredientSource(greens, 0, "g")).toBeNull();
+  expect(ingredientSource(greens, 1, "cup")).toBeNull();
+});
+
+it("scales a saved ingredient's panel with its amount", () => {
+  const stored = { amount: 200, fat: 20, salt: 1, nutrients: { sodium: 400 } };
+  expect(scaleStoredSource(stored, 200)).toMatchObject({ fat: 20, salt: 1, nutrients: { sodium: 400 } });
+  expect(scaleStoredSource(stored, 50)).toMatchObject({ fat: 5, salt: 0.25, nutrients: { sodium: 100 } });
+  expect(scaleStoredSource(stored, 0)).toBeNull();
+});
+
+it("splits the ingredients' panel into portions, unknown counted as 0", () => {
+  const per = portionNutrients([{ nutrients: { vitaminC: 60 } }, { nutrients: { vitaminC: null } }, { nutrients: { vitaminC: 30 } }], 3);
+  expect(per.vitaminC).toBe(30);
+  expect(portionNutrients([{ nutrients: { vitaminC: 60 } }], 0)).toEqual({});
+});
+
+it("writes the ingredients' total and the serving line in whole numbers", () => {
+  expect(recipeTotalLine({ kcal: 1755.6, protein: 157.2, fat: 30.4, carbs: 206.5 })).toBe("1,756 kcal · P 157 · F 30 · C 207");
+  expect(recipeServingLine({ portions: 3, kcal: 1755 })).toBe("3 portions · 585 kcal each");
+  expect(recipeServingLine({ portions: 1, kcal: 600 })).toBe("1 portion · 600 kcal each");
+  expect(recipeServingLine({ portions: 0, kcal: 600 })).toBe("");
+});
+
+it("gives the share of the recipe one log is, inside the same limits as the totals", () => {
+  const recipe = { portions: 4, finishedGrams: 800, kcal: 2000, protein: 100, fat: 40, carbs: 200 };
+  expect(recipeLogFactor(recipe, 1, "portion")).toBe(0.25);
+  expect(recipeLogFactor(recipe, 200, "g")).toBe(0.25);
+  expect(recipeLogFactor({ ...recipe, finishedGrams: null }, 200, "g")).toBeNull();
+  expect(recipeLogFactor(recipe, 51, "portion")).toBeNull();
 });

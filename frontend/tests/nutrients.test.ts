@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dayNutrients, knownSum, formatNutrient, nutrientPercent, panelsForSize, referenceAmount, sodiumMg } from "../src/lib/nutrients";
+import { dayNutrients, foodSource, knownSum, scaleSource, formatNutrient, nutrientPercent, panelsForSize, referenceAmount, sodiumMg } from "../src/lib/nutrients";
 
 describe("sodium", () => {
   it("uses the source sodium, otherwise salt divided by 2.5", () => {
@@ -92,5 +92,14 @@ describe("NNR percents", () => {
     expect(formatNutrient(0.04, "mg")).toBe("0 mg");
     expect(referenceAmount("copper", "female", 30)).toBe(0.9);
     expect(nutrientPercent("copper", 0.9, "male", 40, 2500)).toBe(100);
+  });
+});
+
+describe("sources", () => {
+  it("reads a food's per-100 panel and scales it, keeping unknowns unknown", () => {
+    const source = foodSource({ fatPer100: 10, saturatedFatPer100: 3, sugarsPer100: null, saltPer100: 1, nutrients: { iron: 2, zinc: null } });
+    expect(source).toEqual({ fat: 10, saturatedFat: 3, sugars: null, fiber: undefined, salt: 1, nutrients: { iron: 2, zinc: null } });
+    expect(scaleSource(source, 1.5)).toEqual({ fat: 15, saturatedFat: 4.5, sugars: null, fiber: null, salt: 1.5, nutrients: { iron: 3, zinc: null } });
+    expect(scaleSource({}, 2)).toEqual({ fat: null, saturatedFat: null, sugars: null, fiber: null, salt: null, nutrients: null });
   });
 });

@@ -265,33 +265,26 @@ export function unitsForEntry(entry: StoredEntry): UnitChoice[] {
   return [{ unit: "g", label: "g", gramsEach: 1 }];
 }
 
-export function macrosForFood(food: CatalogFood, amount: number, unit: string): MacroPreview {
-  const empty: MacroPreview = { kcal: 0, protein: 0, fat: 0, carbs: 0, grams: null };
-  if (amount <= 0) return empty;
+/**
+ * How many of the food's basis units an amount is: grams ÷ 100 for a per-100 food (ml ÷ 100 by
+ * volume), or the count itself for a per-serving food or a unit with no known weight. Grams are
+ * set when the amount has a weight. Null when the amount or unit can't be used.
+ */
+export function foodFactor(food: CatalogFood, amount: number, unit: string): { factor: number; grams: number | null } | null {
+  if (amount <= 0) return null;
   const choice = choiceFor(food, unit);
-  if (!choice) return empty;
+  if (!choice) return null;
   const kind = normalizeUnit(unit);
-  if (kind === "ml" || food.basis === "ml") {
-    const factor = amount / 100;
-    return {
-      kcal: round2(food.kcalPer100 * factor),
-      protein: round2(food.proteinPer100 * factor),
-      fat: round2(food.fatPer100 * factor),
-      carbs: round2(food.carbsPer100 * factor),
-      grams: null,
-    };
-  }
-  if (food.nutrientBasis === "per_serving" || choice.gramsEach == null) {
-    return {
-      kcal: round2(food.kcalPer100 * amount),
-      protein: round2(food.proteinPer100 * amount),
-      fat: round2(food.fatPer100 * amount),
-      carbs: round2(food.carbsPer100 * amount),
-      grams: null,
-    };
-  }
+  if (kind === "ml" || food.basis === "ml") return { factor: amount / 100, grams: null };
+  if (food.nutrientBasis === "per_serving" || choice.gramsEach == null) return { factor: amount, grams: null };
   const grams = round2(amount * choice.gramsEach);
-  const factor = grams / 100;
+  return { factor: grams / 100, grams };
+}
+
+export function macrosForFood(food: CatalogFood, amount: number, unit: string): MacroPreview {
+  const scaled = foodFactor(food, amount, unit);
+  if (!scaled) return { kcal: 0, protein: 0, fat: 0, carbs: 0, grams: null };
+  const { factor, grams } = scaled;
   return {
     kcal: round2(food.kcalPer100 * factor),
     protein: round2(food.proteinPer100 * factor),

@@ -1,6 +1,6 @@
 namespace GymBro.Api.Data;
 
-public sealed partial class LogEntry
+public sealed partial class LogEntry : IPanelAmounts
 {
     public decimal? MonoFat { get; set; }
     public decimal? PolyFat { get; set; }

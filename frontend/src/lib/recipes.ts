@@ -1,5 +1,7 @@
 import {
   amountError,
+  amountLabel,
+  foodFactor,
   hasGramBasis,
   macroFigure,
   macrosForFood,
@@ -9,7 +11,9 @@ import {
   unitsForFood,
   type CatalogFood,
 } from "./foodAmount";
+import { int } from "./format";
 import { G_PER_OZ, type FoodUnit } from "./foodUnits";
+import { dayNutrients, foodSource, scaleMap, scaleSource, type NutrientMap, type NutrientSource } from "./nutrients";
 
 export const recipeNameMax = 120;
 export const recipePortionsMax = 1000;
@@ -92,18 +96,32 @@ export function perPortionSentence(per: RecipeTotals): string {
   return `${recipeMacro(per.protein)} g protein per portion`;
 }
 
-/** Nutrition for one ingredient from the food's own basis. Null when the amount or unit cannot be used. */
-export function ingredientMacros(food: CatalogFood, amount: number, unit: string): RecipeTotals | null {
-  if (amountError(amount, unit)) return null;
+/** The food's unit an ingredient's unit names ("Slice" finds the saved "slice"). Null when the food has none. */
+function ingredientUnit(food: CatalogFood, unit: string): string | null {
   const standard = normalizeUnit(unit);
   const named = standard ? null : servingName(unit);
   const key = standard ?? named;
   if (!key) return null;
   const choice = unitsForFood(food).find((item) =>
     item.unit === key || (item.named === true && item.unit.localeCompare(key, undefined, { sensitivity: "accent" }) === 0));
-  if (!choice) return null;
-  const macros = macrosForFood(food, amount, choice.unit);
+  return choice?.unit ?? null;
+}
+
+/** Nutrition for one ingredient from the food's own basis. Null when the amount or unit cannot be used. */
+export function ingredientMacros(food: CatalogFood, amount: number, unit: string): RecipeTotals | null {
+  if (amountError(amount, unit)) return null;
+  const key = ingredientUnit(food, unit);
+  if (!key) return null;
+  const macros = macrosForFood(food, amount, key);
   return { kcal: macros.kcal, protein: macros.protein, fat: macros.fat, carbs: macros.carbs };
+}
+
+/** The rest of one ingredient's panel (fats, vitamins, minerals), scaled the same way as its macros. */
+export function ingredientSource(food: CatalogFood, amount: number, unit: string): NutrientSource | null {
+  if (amountError(amount, unit)) return null;
+  const key = ingredientUnit(food, unit);
+  const scaled = key ? foodFactor(food, amount, key) : null;
+  return scaled ? scaleSource(foodSource(food), scaled.factor) : null;
 }
 
 /** Scale a retired ingredient's saved nutrients with the amount. The unit does not change. */
@@ -115,29 +133,60 @@ export function scaleStoredLine(stored: RecipeTotals & { amount: number }, amoun
   return shareTotals(stored, amount / stored.amount);
 }
 
+/** The same for the saved panel. */
+export function scaleStoredSource(stored: NutrientSource & { amount: number }, amount: number): NutrientSource | null {
+  if (!(amount > 0) || !(stored.amount > 0)) return null;
+  return scaleSource(stored, round2(amount) === round2(stored.amount) ? 1 : amount / stored.amount);
+}
+
+/** One portion's panel: the ingredients' sum, unknown counted as 0 as on a day, split by portions. */
+export function portionNutrients(lines: readonly NutrientSource[], portions: number): NutrientMap {
+  if (!(portions > 0)) return {};
+  return scaleMap(dayNutrients(lines), 1 / portions);
+}
+
+/** Whole grams on one line: "1,756 kcal · P 157 · F 30 · C 207". */
+export function recipeTotalLine(total: RecipeTotals): string {
+  return `${int(total.kcal)} kcal · P ${int(total.protein)} · F ${int(total.fat)} · C ${int(total.carbs)}`;
+}
+
+/** Under a recipe's name when logging it: "3 portions · 585 kcal each". */
+export function recipeServingLine(recipe: { portions: number; kcal: number }): string {
+  if (!(recipe.portions > 0)) return "";
+  return `${amountLabel(recipe.portions, "portion")} · ${int(recipe.kcal / recipe.portions)} kcal each`;
+}
+
 export interface RecipeLogInput extends RecipeTotals {
   portions: number;
   finishedGrams: number | null;
 }
 
-/** What one log of this recipe is worth. Grams are offered only when a finished weight was saved. */
+/**
+ * The share of the whole recipe one log is: portions ÷ portions made, or grams ÷ finished weight.
+ * Grams are offered only when a finished weight was saved. Null outside the limits.
+ */
+export function recipeLogFactor(recipe: RecipeLogInput, amount: number, unit: "portion" | "g"): number | null {
+  if (unit === "g") {
+    if (!(recipe.finishedGrams != null && recipe.finishedGrams > 0)) return null;
+    if (!(amount > 0) || amount > 10000) return null;
+    return amount / recipe.finishedGrams;
+  }
+  if (!(recipe.portions > 0) || !(amount > 0) || amount > recipeLogPortionsMax) return null;
+  return amount / recipe.portions;
+}
+
+/** What one log of this recipe is worth, with its weight when the recipe has a finished weight. */
 export function scaleRecipeLog(
   recipe: RecipeLogInput,
   amount: number,
   unit: "portion" | "g",
 ): (RecipeTotals & { grams: number | null }) | null {
-  const totals = { kcal: recipe.kcal, protein: recipe.protein, fat: recipe.fat, carbs: recipe.carbs };
-  if (unit === "g") {
-    if (!(recipe.finishedGrams != null && recipe.finishedGrams > 0)) return null;
-    if (!(amount > 0) || amount > 10000) return null;
-    return { ...shareTotals(totals, amount / recipe.finishedGrams), grams: round2(amount) };
-  }
-  if (!(recipe.portions > 0) || !(amount > 0) || amount > recipeLogPortionsMax) return null;
-  const factor = amount / recipe.portions;
-  const weight = recipe.finishedGrams != null && recipe.finishedGrams > 0
-    ? round2(recipe.finishedGrams * factor)
-    : null;
-  return { ...shareTotals(totals, factor), grams: weight != null && weight > 0 ? weight : null };
+  const factor = recipeLogFactor(recipe, amount, unit);
+  if (factor == null) return null;
+  const totals = shareTotals({ kcal: recipe.kcal, protein: recipe.protein, fat: recipe.fat, carbs: recipe.carbs }, factor);
+  if (unit === "g") return { ...totals, grams: round2(amount) };
+  const weight = recipe.finishedGrams != null && recipe.finishedGrams > 0 ? round2(recipe.finishedGrams * factor) : null;
+  return { ...totals, grams: weight != null && weight > 0 ? weight : null };
 }
 
 /** Grams in one portion, when the recipe has a finished weight. */

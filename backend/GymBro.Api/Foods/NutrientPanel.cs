@@ -506,7 +506,8 @@ public static class NutrientPanel
         ["epaDha"] = Micronutrients.KnownSum(rows.Select(row => row.EpaDha)) ?? 0
     };
 
-    public static Dictionary<string, decimal?> Amount(LogEntry row) => new()
+    /// <summary>The panel of one amount: a log entry, a group item, a recipe ingredient, or a whole recipe.</summary>
+    public static Dictionary<string, decimal?> Amount(IPanelAmounts row) => new()
     {
         ["monoFat"] = row.MonoFat,
         ["polyFat"] = row.PolyFat,

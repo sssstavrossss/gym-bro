@@ -336,6 +336,31 @@ export function scaleMap(source: NutrientMap, factor: number): NutrientMap {
   return out;
 }
 
+/** A food's panel per its basis (per 100 g or ml, or per serving), as a source. */
+export function foodSource(food: {
+  fatPer100: number;
+  saturatedFatPer100?: number | null;
+  sugarsPer100?: number | null;
+  fiberPer100?: number | null;
+  saltPer100?: number | null;
+  nutrients?: NutrientMap | null;
+}): NutrientSource {
+  return { fat: food.fatPer100, saturatedFat: food.saturatedFatPer100, sugars: food.sugarsPer100, fiber: food.fiberPer100, salt: food.saltPer100, nutrients: food.nutrients };
+}
+
+/** A source scaled to another amount, rounded like `scaleMap`. Unknown values stay unknown. */
+export function scaleSource(source: NutrientSource, factor: number): NutrientSource {
+  const scale = (value: number | null | undefined) => (value == null ? null : Math.round(value * factor * 100) / 100);
+  return {
+    fat: scale(source.fat),
+    saturatedFat: scale(source.saturatedFat),
+    sugars: scale(source.sugars),
+    fiber: scale(source.fiber),
+    salt: scale(source.salt),
+    nutrients: source.nutrients ? scaleMap(source.nutrients, factor) : null,
+  };
+}
+
 /** Fat, saturated fat, sugars, and fibre: on nearly every label, so they say nothing about a food's panel. */
 const LABEL_BASICS = new Set(["fat", "saturatedFat", "sugars", "fiber"]);
 
