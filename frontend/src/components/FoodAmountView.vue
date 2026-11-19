@@ -153,7 +153,10 @@ function editServing(row: OwnServing) {
 .khint { margin: 0; text-align: center; }
 /* 12px between the keypad and the button under it, as on the weight sheet. The screen's own gap is 2px. */
 .actions { flex: none; flex-wrap: wrap; margin-top: calc(var(--space-m) - var(--space-m) / 6); }
-.actions :slotted(.btn.primary) { width: auto; flex: 1 1 160px; min-width: 0; }
+/* Copy, Delete and Save share one row: each keeps 12px either side of its label, and Save takes
+   the rest at its own text width. Only when even that doesn't fit (very narrow, large text) does Save wrap. */
+.actions :slotted(.btn) { padding-inline: var(--space-m); }
+.actions :slotted(.btn.primary) { width: auto; flex: 1 1 auto; min-width: 0; }
 /* The name, amount and unit stay near the default size so the largest text cannot cover them. */
 html.dt-xl .dname { font-size: 22px; line-height: 1.15; overflow-wrap: normal; }
 html.dt-xl .ginput { font-size: 22px; }

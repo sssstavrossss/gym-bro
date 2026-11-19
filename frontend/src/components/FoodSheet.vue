@@ -1071,7 +1071,7 @@ async function deleteEdited() {
       <template #hint><kbd>Enter</kbd> {{ editing ? "save" : "add" }} · <kbd>Esc</kbd> {{ editing ? "close" : "back to search" }}</template>
       <template #actions>
         <button v-if="editing" type="button" class="btn secondary t-bodys" aria-label="Copy to another day" :disabled="saving" @click="copyEdited">
-          <Icon name="copy" :size="16" /><span>Copy to…</span>
+          <Icon name="copy" :size="16" /><span>Copy</span>
         </button>
         <button v-if="editing" type="button" class="btn secondary t-bodys" aria-label="Delete" :disabled="saving" @click="deleteEdited">
           <Icon name="trash" :size="16" /><span>Delete</span>
@@ -1282,7 +1282,7 @@ async function deleteEdited() {
       <p v-else class="t-capn c3 khint keyhint"><kbd>Tab</kbd> next field · <kbd>Enter</kbd> {{ editing ? "save" : "add" }} · <kbd>Esc</kbd> close</p>
       <div class="row gap8 actions">
         <button v-if="editing" type="button" class="btn secondary t-bodys" aria-label="Copy to another day" :disabled="saving" @click="copyEdited">
-          <Icon name="copy" :size="16" /><span>Copy to…</span>
+          <Icon name="copy" :size="16" /><span>Copy</span>
         </button>
         <button v-if="editing" type="button" class="btn secondary t-bodys" aria-label="Delete" :disabled="saving" @click="deleteEdited">
           <Icon name="trash" :size="16" /><span>Delete</span>
@@ -1330,7 +1330,9 @@ async function deleteEdited() {
 .offask { align-self: flex-start; margin: var(--space-s) 0; }
 .skl { padding: var(--space-m) 0; }
 .actions { flex: none; flex-wrap: wrap; }
-.actions .btn.primary { width: auto; flex: 1 1 160px; min-width: 0; }
+/* As on the amount screen: Copy, Delete and Save in one row. */
+.actions .btn { padding-inline: var(--space-m); }
+.actions .btn.primary { width: auto; flex: 1 1 auto; min-width: 0; }
 .base { min-width: 0; max-width: 100%; display: flex; align-items: baseline; gap: var(--space-s); flex-wrap: wrap; }
 /* The Home nutrient card, the same size, on the sheet's grey. */
 .session { display: flex; flex-direction: column; align-items: stretch; gap: var(--space-s); flex: none; min-width: 0; max-width: 100%; box-sizing: border-box; }
