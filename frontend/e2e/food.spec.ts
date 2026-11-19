@@ -190,8 +190,11 @@ test("today empty, quick add, on target, edit, undo, and no sideways scroll", as
   const copyButton = foodSheet(page).getByRole("button", { name: "Copy to another day" });
   const saveButton = foodSheet(page).getByRole("button", { name: /Save · \d,\d{3} kcal/ });
   await expect(copyButton).toHaveText("Copy");
-  const tops = await Promise.all([copyButton, deleteButton, saveButton].map(async (button) => Math.round((await button.boundingBox())!.y)));
-  expect(new Set(tops).size, `button tops ${tops.join(", ")}`).toBe(1);
+  // One row: every button's box overlaps the others vertically. WebKit can sit them a few pixels apart.
+  const boxes = await Promise.all([copyButton, deleteButton, saveButton].map(async (button) => (await button.boundingBox())!));
+  const lowestTop = Math.max(...boxes.map((box) => box.y));
+  const highestBottom = Math.min(...boxes.map((box) => box.y + box.height));
+  expect(lowestTop, `button tops ${boxes.map((box) => Math.round(box.y)).join(", ")}`).toBeLessThan(highestBottom);
   await saveButton.click();
   await expect(page.getByRole("img", { name: /Calories.*, over/ })).toBeVisible();
   await expect(page.getByText(/over/).first()).toBeVisible();
