@@ -135,7 +135,8 @@ async function save() {
 .htitle { min-width: 0; margin: 0; overflow-wrap: anywhere; }
 .m0 { margin: 0; }
 /* The same big number as the weight sheet: − and + at the edges, the number in the middle. */
-.wfield { gap: var(--space-s); align-items: center; justify-content: space-between; }
+/* The same box as the amount screens, around the number and its − and + buttons. */
+.wfield { gap: var(--space-s); align-items: center; justify-content: space-between; padding: 10px var(--space-m); border-radius: var(--radius-l); background: var(--color-surface-2); }
 .wlabel { display: inline-flex; align-items: baseline; justify-content: center; gap: var(--space-s); min-width: 0; flex: 0 1 auto; }
 .autosize { display: inline-grid; min-height: 44px; }
 .autosize > * { grid-area: 1 / 1; }

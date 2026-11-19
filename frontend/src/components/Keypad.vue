@@ -24,7 +24,7 @@ function press(key: string) {
 <style scoped>
 .keypad { display: flex; flex-direction: column; gap: var(--space-s); flex: none; max-width: 100%; }
 .krow { display: flex; gap: var(--space-s); }
-.key { flex: 1 1 0; min-width: 44px; height: 50px; border-radius: var(--radius-m); background: var(--color-surface-2); display: flex; align-items: center; justify-content: center; }
+.key { flex: 1 1 0; min-width: 44px; height: 44px; border-radius: var(--radius-m); background: var(--color-surface-2); display: flex; align-items: center; justify-content: center; }
 .key .t-ns { font-size: min(1.2941rem, 30px); }
 .key:active { background: var(--color-hover); }
 .key.dim { opacity: .3; }

@@ -97,13 +97,13 @@ test("add a private serving, log with it, and keep the old gram snapshot", async
   await foodSheet(page).getByRole("button", { name: /My foods/ }).click();
   await foodSheet(page).getByRole("button", { name: /^Fictional serving bar/ }).click();
   await expect(foodSheet(page).getByRole("radio", { name: /^serving/ })).toBeVisible();
-  await expect(foodSheet(page).getByRole("button", { name: "Serving", exact: true })).toHaveCount(0);
+  await expect(foodSheet(page).getByRole("button", { name: "Add a serving", exact: true })).toHaveCount(0);
   await foodSheet(page).getByRole("button", { name: "Back", exact: true }).click();
 
   await foodSheet(page).getByRole("button", { name: /^Fictional rye bread/ }).click();
   await expect(foodSheet(page).getByRole("heading", { name: "Fictional rye bread" })).toBeVisible();
   await expect(foodSheet(page).getByRole("radio", { name: "g", exact: true })).toBeVisible();
-  const addServing = foodSheet(page).getByRole("button", { name: "Serving", exact: true });
+  const addServing = foodSheet(page).getByRole("button", { name: "Add a serving", exact: true });
   await expect(addServing).toBeVisible();
   await addServing.click();
   await expect(foodSheet(page).getByText("Private — only you see your servings.")).toBeVisible();
@@ -112,7 +112,7 @@ test("add a private serving, log with it, and keep the old gram snapshot", async
   await foodSheet(page).getByRole("button", { name: "Save", exact: true }).click();
   await expect(page.getByText(/Saved 1 slice = 35 g/)).toBeVisible();
 
-  const slice = foodSheet(page).getByRole("radio", { name: "1 slice = 35 g" });
+  const slice = foodSheet(page).getByRole("radio", { name: "slice · 35 g your serving" });
   await expect(slice).toBeChecked();
   await expect(foodSheet(page).getByText("= 35 g", { exact: true })).toBeVisible();
   await expect(foodSheet(page).getByRole("button", { name: /Add · 70 kcal/ })).toBeVisible();
@@ -138,8 +138,8 @@ test("add a private serving, log with it, and keep the old gram snapshot", async
 
   await logged.click();
   await expect(page.getByRole("dialog", { name: "Edit food" })).toBeVisible();
-  await expect(foodSheet(page).getByRole("radio", { name: "1 slice = 35 g" })).toBeChecked();
-  await expect(foodSheet(page).getByRole("button", { name: "Serving", exact: true })).toHaveCount(0);
+  await expect(foodSheet(page).getByRole("radio", { name: "slice · 35 g your serving" })).toBeChecked();
+  await expect(foodSheet(page).getByRole("button", { name: "Add a serving", exact: true })).toHaveCount(0);
   await foodSheet(page).getByRole("button", { name: "2 slices" }).click();
   await expect(foodSheet(page).getByRole("button", { name: /Save · 140 kcal/ })).toBeVisible();
   await foodSheet(page).getByRole("button", { name: /Save · 140 kcal/ }).click();

@@ -7,6 +7,7 @@ import {
   finishOffRequest,
   idleOff,
   isMyFood,
+  lastAmountFor,
   missingKcalEditorSeed,
   missingKcalNotice,
   myFoodsEmptyDetail,
@@ -94,6 +95,9 @@ describe("recents", () => {
     expect(amountForRecent(sliced, 1, "slice")).toEqual({ amount: "1", unit: "slice" });
     expect(recentSubtitle(sliced, 1, "slice")).toBe("1 slice (35 g) · 58 kcal · P4.6 F2.5 C4.9");
     expect(amountForRecent({ ...sliced, servings: [] }, 1, "slice")).toEqual({ amount: "100", unit: "g" });
+    expect(lastAmountFor(sliced, 2, "slice")).toEqual({ amount: "2", unit: "slice" });
+    expect(lastAmountFor({ ...sliced, servings: [] }, 1, "slice")).toBeNull();
+    expect(lastAmountFor(oats, 0, "g")).toBeNull();
     expect(recentEmptyTitle).toBe("Nothing here yet");
     expect(recentEmptyDetail).toContain("last amount");
   });

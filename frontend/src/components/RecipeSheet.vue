@@ -813,7 +813,7 @@ async function addLog() {
         <p v-if="needTime" class="t-label need" role="status">Logging to {{ dayMonth(ui.foodDate) }} — pick the time you ate it.</p>
       </template>
       <template #subline>
-        <span v-if="eachPortion" class="t-label c2" data-recipe-each>1 portion = {{ eachPortionText }}</span>
+        <span v-if="eachPortion" data-recipe-each>1 portion = {{ eachPortionText }}</span>
       </template>
       <template #card>
         <NutrientCard :title="logTitle" :goal="logGoal" :eaten="logAfter" :adding="logAdding" :values="logValues" :entries="[logSource]" :carbs="logAdding.c" portion label="Recipe nutrients" />

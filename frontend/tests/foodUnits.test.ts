@@ -6,6 +6,7 @@ import {
   fromShown,
   isConverted,
   quickAmountsFor,
+  quickChips,
   readField,
   shownAmountLabel,
   shownField,
@@ -95,5 +96,30 @@ describe("fields filled from a stored amount", () => {
     expect(readField("5.3", "serving", "oz", field)).toBe(5.3);
     expect(readField("5.3", "g", "g", field)).toBe(5.3);
     expect(readField("2", "g", "g", null)).toBe(2);
+  });
+});
+
+describe("quick amount chips", () => {
+  it("are the fixed amounts for the unit when nothing was logged before", () => {
+    expect(quickChips("g", "g").map((chip) => chip.label)).toEqual(["100 g", "150 g", "200 g"]);
+    expect(quickChips("g", "g", null).every((chip) => chip.stored == null)).toBe(true);
+  });
+
+  it("lead with the amount last logged, which replaces a fixed chip of the same amount", () => {
+    const chips = quickChips("g", "g", { amount: "150", unit: "g" });
+    expect(chips.map((chip) => chip.label)).toEqual(["150 g · last time", "100 g", "200 g"]);
+    expect(chips[0]).toMatchObject({ unit: "g", shown: 150, stored: "150" });
+  });
+
+  it("keep the last amount in its own unit, so tapping it switches unit", () => {
+    const chips = quickChips("g", "g", { amount: "2", unit: "slice" });
+    expect(chips.map((chip) => chip.label)).toEqual(["2 slices · last time", "100 g", "150 g", "200 g"]);
+    expect(chips[0]).toMatchObject({ unit: "slice", stored: "2" });
+  });
+
+  it("show the last amount in ounces and keep the grams it was stored in", () => {
+    const chips = quickChips("g", "oz", { amount: "113.4", unit: "g" });
+    expect(chips.map((chip) => chip.label)).toEqual(["4 oz · last time", "2 oz", "8 oz"]);
+    expect(chips[0].stored).toBe("113.4");
   });
 });

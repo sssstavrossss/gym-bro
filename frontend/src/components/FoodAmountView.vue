@@ -36,22 +36,23 @@ const after = computed<MacroAmounts>(() => ({
   c: props.before.c + a.adding.c,
 }));
 
+// A serving this person added reads like a piece: "slice · 35 g", not "1 slice = 35 g".
 const units = computed<AmountUnit[]>(() => a.units.map((choice) => ({
   id: choice.unit,
-  label: choice.label,
-  detail: choice.gramsEach && choice.unit !== "g" && choice.unit !== "ml" && !choice.named ? ` · ${a.size(choice.gramsEach)}` : undefined,
+  label: choice.named ? choice.unit : choice.label,
+  detail: choice.gramsEach && choice.unit !== "g" && choice.unit !== "ml" ? ` · ${a.size(choice.gramsEach)}` : undefined,
   spoken: choice.named ? " your serving" : undefined,
   on: choice.unit === a.unit,
 })));
-const chips = computed<AmountChip[]>(() => a.quickAmounts.map((chip) => ({ id: String(chip.value), label: chip.label })));
+const chips = computed<AmountChip[]>(() => a.quickAmounts.map((chip) => ({ id: chip.id, label: chip.label })));
 
 function setUnit(id: string) {
   const choice = a.units.find((item) => item.unit === id);
   if (choice) a.setUnit(choice);
 }
 function setChip(id: string) {
-  const chip = a.quickAmounts.find((item) => String(item.value) === id);
-  if (chip) a.setAmount(chip.value);
+  const chip = a.quickAmounts.find((item) => item.id === id);
+  if (chip) a.pickChip(chip);
 }
 function toggleServing() {
   if (!a.servingOpen) primeKeyboard();
@@ -87,11 +88,12 @@ function editServing(row: OwnServing) {
     </template>
     <template #notice><slot name="notice" /></template>
     <template #subline>
-      <span v-if="a.isCount && a.preview.grams != null && a.gramsEach" class="t-label c2" aria-live="polite">= {{ a.size(a.preview.grams, true) }}<template v-if="a.amountNumber !== 1"> · 1 {{ a.unitWord1 }} = {{ a.size(a.gramsEach) }}</template></span>
-      <span v-else-if="a.metricLine" class="t-label c2" aria-live="polite" data-metric-line>{{ a.metricLine }}</span>
+      <!-- One piece's size is on its unit chip, so this is only the total. -->
+      <span v-if="a.isCount && a.preview.grams != null && a.gramsEach" aria-live="polite">= {{ a.size(a.preview.grams, true) }}</span>
+      <span v-else-if="a.metricLine" aria-live="polite" data-metric-line>{{ a.metricLine }}</span>
     </template>
     <template #units-end>
-      <button v-if="a.canAddServing" type="button" class="btn sm secondary t-label" :aria-expanded="a.servingOpen" @click="toggleServing"><Icon name="plus" :size="14" :sw="2.4" /> Serving</button>
+      <button v-if="a.canAddServing" type="button" class="btn sm secondary t-label addsv" aria-label="Add a serving" :aria-expanded="a.servingOpen" @click="toggleServing"><Icon name="plus" :size="16" :sw="2.4" /></button>
     </template>
     <template #extra>
       <div v-if="a.servingOpen" class="well svform col">
@@ -123,6 +125,7 @@ function editServing(row: OwnServing) {
 
 <style scoped>
 .per100 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.addsv { padding-inline: var(--space-s); min-width: 36px; justify-content: center; }
 .gap8 { gap: var(--space-s); }
 .wrapc { flex-wrap: wrap; justify-content: center; }
 .svform { gap: var(--space-s); align-items: center; width: 100%; }

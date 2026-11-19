@@ -238,7 +238,14 @@ function fill(entry: LogEntry | null) {
 }
 
 /** The amount screen. A serving saved there also updates this sheet's lists. */
-const amount = useFoodAmount({ entry: () => editingFood.value, formError, saveError, onServings: applyServings });
+// The first quick amount is what this person logged last time, from the recents list.
+const amount = useFoodAmount({
+  entry: () => editingFood.value,
+  formError,
+  saveError,
+  onServings: applyServings,
+  lastLogged: (foodId) => recents.value.find((row) => row.id === foodId) ?? null,
+});
 const { food: detailFood, unit, amountNumber, preview } = amount;
 /** The preview is the Home card for the day the food goes to, with this food in it. */
 const sheetGoal = computed(() => targetOn(ui.foodDate, foodToday.value));

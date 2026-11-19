@@ -76,6 +76,29 @@ export function sizeLabel(gramsOrMl: number, base: "g" | "ml", setting: FoodUnit
   return foodAmountLabel(gramsOrMl, base, setting);
 }
 
+/** A quick amount chip. `shown` is in the unit typed; the last-logged chip also keeps its stored amount. */
+export interface QuickChip {
+  id: string;
+  label: string;
+  shown: number;
+  unit: string;
+  /** Set on the chip for the amount last logged: grams or a count, as stored. */
+  stored?: string;
+}
+
+/**
+ * The quick chips for the unit typed, led by the amount last logged ("170 g · last time"), which
+ * may be in another unit: tapping it switches to that unit. A fixed chip with the same amount
+ * becomes that chip, so the same amount never shows twice.
+ */
+export function quickChips(unit: string, setting: FoodUnit, last?: { amount: string; unit: string } | null): QuickChip[] {
+  const fixed = quickAmountsFor(unit, setting).map((shown) => ({ id: `${unit}:${shown}`, label: shownAmountLabel(shown, unit, setting), shown, unit }));
+  if (!last) return fixed;
+  const shown = parseAmount(shownField(last.amount, last.unit, setting).text);
+  const lead = { id: `last:${last.unit}:${last.amount}`, label: `${foodAmountLabel(Number(last.amount), last.unit, setting)} · last time`, shown, unit: last.unit, stored: last.amount };
+  return [lead, ...fixed.filter((chip) => chip.unit !== last.unit || chip.shown !== shown)];
+}
+
 /** Quick amount chips, in the shown unit. */
 export function quickAmountsFor(unit: string, setting: FoodUnit): number[] {
   const kind = normalizeUnit(unit);
