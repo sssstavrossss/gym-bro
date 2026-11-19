@@ -44,6 +44,8 @@ export interface ShortcutContext {
   /** True while the event target is an editable field. */
   typing: boolean;
   sheet: SheetName | null;
+  /** The card pages sheet is open over `sheet`. Esc closes it first. */
+  cardPagesOver?: boolean;
   selecting: boolean;
   /** False on setup, before the app shell is available. */
   nav: boolean;
@@ -51,7 +53,7 @@ export interface ShortcutContext {
 
 export type ShortcutEffect =
   | { effect: "none" }
-  | { effect: "prevent"; action: "add" | "quick" | "weight" | "close-copy" | "close-group" | "close-recipe" | "end-select" | "close-sheet" };
+  | { effect: "prevent"; action: "add" | "quick" | "weight" | "close-copy" | "close-group" | "close-recipe" | "close-card-pages" | "end-select" | "close-sheet" };
 
 /**
  * N or / opens Add food, Q opens quick add, W logs weight, Esc closes.
@@ -61,6 +63,7 @@ export type ShortcutEffect =
 export function shortcutEffect(ctx: ShortcutContext): ShortcutEffect {
   if (ctx.composing || ctx.meta || ctx.ctrl || ctx.alt) return { effect: "none" };
   if (ctx.key === "Escape") {
+    if (ctx.sheet && ctx.cardPagesOver) return { effect: "prevent", action: "close-card-pages" };
     if (ctx.sheet === "copy") return { effect: "prevent", action: "close-copy" };
     if (ctx.sheet === "group") return { effect: "prevent", action: "close-group" };
     if (ctx.sheet === "recipe") return { effect: "prevent", action: "close-recipe" };

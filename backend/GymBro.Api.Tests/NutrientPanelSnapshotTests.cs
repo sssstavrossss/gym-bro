@@ -122,6 +122,34 @@ public sealed class NutrientPanelSnapshotTests(ApiFactory factory)
         Assert.Equal(0, day.GetProperty("totals").GetProperty("nutrients").GetProperty("iron").GetDecimal());
     }
 
+    [Fact]
+    public async Task A_recipe_sends_its_panel_and_each_ingredients_panel()
+    {
+        factory.Clock.UtcNow = new DateTimeOffset(2026, 11, 14, 8, 0, 0, TimeSpan.Zero);
+        using var client = factory.AsUser(TestData.NewUser("panel-read"));
+        await Setup(client);
+        var stock = await PanelFood(client, "Fictional read stock", kcalPer100: 20, sodiumPer100: 300, vitaminCPer100: 4);
+        var greens = await PanelFood(client, "Fictional read greens", kcalPer100: 30, sodiumPer100: 10, vitaminCPer100: 50);
+
+        var created = await client.PostAsync("/api/recipes", Json(
+            $$"""{"name":"Fictional green soup","portions":2,"ingredients":[{"foodId":"{{stock}}","amount":400,"unit":"g"},{"foodId":"{{greens}}","amount":100,"unit":"g"}]}"""));
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        var recipeId = (await created.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+
+        var recipe = await client.GetFromJsonAsync<JsonElement>("/api/recipes/" + recipeId);
+        var panel = recipe.GetProperty("nutrients");
+        Assert.Equal(1210m, panel.GetProperty("sodium").GetDecimal());
+        Assert.Equal(66m, panel.GetProperty("vitaminC").GetDecimal());
+        Assert.Equal(JsonValueKind.Null, panel.GetProperty("iron").ValueKind);
+        var lines = recipe.GetProperty("ingredients").EnumerateArray().ToList();
+        Assert.Equal(1200m, lines[0].GetProperty("nutrients").GetProperty("sodium").GetDecimal());
+        Assert.Equal(50m, lines[1].GetProperty("nutrients").GetProperty("vitaminC").GetDecimal());
+
+        var list = await client.GetFromJsonAsync<JsonElement>("/api/recipes");
+        var listed = list.GetProperty("recipes").EnumerateArray().Single(row => row.GetProperty("id").GetGuid() == recipeId);
+        Assert.Equal(66m, listed.GetProperty("nutrients").GetProperty("vitaminC").GetDecimal());
+    }
+
     private static async Task Setup(HttpClient client)
     {
         await TestData.PutWeighIn(client, "2026-11-14", """{"kg":80,"timeZone":"UTC"}""");

@@ -230,20 +230,14 @@ for (const width of [375, 390]) {
       await expect(recipe.getByRole("textbox", { name: "Recipe name" })).not.toBeFocused();
       await expect(recipe.getByRole("textbox", { name: "Recipe name" })).toHaveValue("Soup");
       await fieldsAtLeast16(recipe);
-      const summaryAlign = await recipe.locator(".metric").evaluateAll((nodes) => nodes.map((node) => {
-        const figure = node.querySelector(".fig");
-        const label = node.querySelector(".t-label");
-        return {
-          figure: figure ? getComputedStyle(figure).textAlign : "",
-          label: label ? getComputedStyle(label).textAlign : "",
-        };
-      }));
-      expect(summaryAlign.every((item) => item.figure === "left" && item.label === "left")).toBe(true);
-      await expect(recipe.locator(".metric").nth(1).locator(".fig")).toHaveText("– kcal");
+      // A new recipe starts at one portion, so the Per portion card already counts this food.
+      await expect(recipe.getByRole("textbox", { name: "Portions" })).toHaveValue("1");
+      await expect(recipe.locator("[data-recipe-card]")).toContainText("Per portion");
+      await expect(recipe.locator("[data-recipe-total]")).toContainText("kcal · P");
       if (width === 390 && test.info().project.name === "chromium") {
         await recipe.locator("[data-ingredient-index='0']").scrollIntoViewIfNeeded();
         await page.screenshot({ path: "/opt/cursor/artifacts/recipe-sheet-phone.png" });
-        await recipe.locator(".sum").screenshot({ path: "/opt/cursor/artifacts/recipe-summary-phone.png" });
+        await recipe.locator("[data-recipe-card]").screenshot({ path: "/opt/cursor/artifacts/recipe-summary-phone.png" });
       }
       await recipe.getByRole("button", { name: "Close" }).click();
 

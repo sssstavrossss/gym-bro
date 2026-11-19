@@ -551,7 +551,8 @@ public static class RecipeEndpoints
                 item.SaturatedFat,
                 item.Sugars,
                 item.Fiber,
-                item.Salt);
+                item.Salt,
+                NutrientPanel.Amount(item));
         }).ToList();
         var totals = new RecipeRules.Totals(recipe.Kcal, recipe.Protein, recipe.Fat, recipe.Carbs, recipe.SaturatedFat, recipe.Sugars, recipe.Fiber, recipe.Salt);
         var perPortion = RecipeRules.PerPortion(totals, recipe.Portions);
@@ -574,7 +575,8 @@ public static class RecipeEndpoints
             recipe.SaturatedFat,
             recipe.Sugars,
             recipe.Fiber,
-            recipe.Salt);
+            recipe.Salt,
+            NutrientPanel.Amount(recipe));
     }
 
     private static MacroResponse Macro(RecipeRules.Totals totals) =>
@@ -628,7 +630,8 @@ public static class RecipeEndpoints
         decimal? SaturatedFat = null,
         decimal? Sugars = null,
         decimal? Fiber = null,
-        decimal? Salt = null);
+        decimal? Salt = null,
+        Dictionary<string, decimal?>? Nutrients = null);
 
     private sealed record IngredientResponse(
         Guid Id,
@@ -645,7 +648,8 @@ public static class RecipeEndpoints
         decimal? SaturatedFat = null,
         decimal? Sugars = null,
         decimal? Fiber = null,
-        decimal? Salt = null);
+        decimal? Salt = null,
+        Dictionary<string, decimal?>? Nutrients = null);
 
     private sealed record MacroResponse(
         decimal Kcal,

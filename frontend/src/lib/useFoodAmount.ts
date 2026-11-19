@@ -35,7 +35,7 @@ import {
 } from "./foodUnits";
 import { int } from "./format";
 import type { MacroAmounts } from "./macros";
-import { scaleMap, valuesOf, type NutrientMap, type NutrientSource } from "./nutrients";
+import { foodSource, scaleMap, valuesOf, type NutrientMap, type NutrientSource } from "./nutrients";
 import { typeInto } from "./numbers";
 import { afterInsertion, nextQuickInput, tookWholeSelection } from "./quickEntry";
 import { toast } from "../ui";
@@ -131,7 +131,7 @@ export function useFoodAmount(options: FoodAmountOptions) {
   const source = computed<NutrientSource | null>(() => {
     const shown = food.value;
     if (shown && !entry.value) {
-      return { fat: shown.fatPer100, saturatedFat: shown.saturatedFatPer100, sugars: shown.sugarsPer100, fiber: shown.fiberPer100, salt: shown.saltPer100, nutrients: shown.nutrients };
+      return foodSource(shown);
     }
     return entry.value;
   });

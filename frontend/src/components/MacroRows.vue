@@ -6,7 +6,7 @@ import OverTag from "./OverTag.vue";
 import { int } from "../lib/format";
 import { macroRows, type MacroAmounts, type MacroGoal } from "../lib/macros";
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   title: string;
   /** The day's targets. Without one the rows show the amounts only. */
   goal: MacroGoal | null;
@@ -14,9 +14,16 @@ const props = defineProps<{
   eaten: MacroAmounts;
   /** Food sheet: the food about to be added. Its part of each bar is brighter, and its amount sits beside the total. */
   adding?: MacroAmounts | null;
-}>();
+  /**
+   * The "left", "to go" and "over" tags. Off for a recipe portion, which is not the day:
+   * its bars show what one portion is of the day's targets.
+   */
+  tags?: boolean;
+}>(), { adding: null, tags: true });
 
-const rows = computed(() => (props.goal ? macroRows(props.goal, props.eaten, props.adding) : []));
+// Without tags nothing is judged: no tick, and the bar keeps its plain colour.
+const rows = computed(() => (props.goal ? macroRows(props.goal, props.eaten, props.adding) : [])
+  .map((row) => (props.tags ? row : { ...row, status: "under" as const })));
 const amounts = computed(() => {
   const shown = props.adding ?? props.eaten;
   return [
@@ -28,6 +35,7 @@ const amounts = computed(() => {
 });
 
 function barLabel(row: (typeof rows.value)[number]): string {
+  if (!props.tags) return `${row.label} ${int(row.current)} of ${int(row.target)} ${row.unit}`;
   const state = row.status === "hit" ? ", on target" : row.status === "over" ? `, over by ${int(row.current - row.target)}` : `, ${row.tag}`;
   const added = props.adding ? `, this food ${int(row.adding)}` : "";
   return `${row.label} ${int(row.current)} of ${int(row.target)} ${row.unit}${added}${state}`;
@@ -42,8 +50,10 @@ function barLabel(row: (typeof rows.value)[number]): string {
         <div class="mrow">
           <span class="left">
             <span class="t-label" :class="row.status === 'under' ? 'c2' : ''">{{ row.label }}<span v-if="row.min" class="c3 t-capn"> · min</span></span>
-            <OverTag v-if="row.status === 'over'" :text="row.tag" />
-            <span v-else-if="row.tag" class="tag t-capn lefttag" data-left>{{ row.tag }}</span>
+            <template v-if="tags">
+              <OverTag v-if="row.status === 'over'" :text="row.tag" />
+              <span v-else-if="row.tag" class="tag t-capn lefttag" data-left>{{ row.tag }}</span>
+            </template>
           </span>
           <span class="vals">
             <span v-if="adding" class="t-capn c2" data-adding>+{{ int(row.adding) }}</span>

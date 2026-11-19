@@ -58,8 +58,9 @@ import { bindPick, clickPick } from "../lib/cleanTap";
 import { afterInsertion, markWholeSelection, nextQuickInput, nextQuickNumber, tookWholeSelection } from "../lib/quickEntry";
 import { keyboardEntry } from "../lib/viewport";
 import { connection } from "../state/connection";
-import { deviceTimeZone, profile } from "../state/profile";
-import { findEntry, log, removeEntries, removeEntry, saveQuickAdd, totalsOf, updateFoodAmount, updateQuickAdd, viewed, type LogEntry } from "../state/log";
+import { deviceTimeZone } from "../state/profile";
+import { afterTitle, entriesOn, targetOn } from "../state/foodDay";
+import { findEntry, removeEntries, removeEntry, saveQuickAdd, totalsOf, updateFoodAmount, updateQuickAdd, viewed, type LogEntry } from "../state/log";
 import SavedGroups from "./SavedGroups.vue";
 import RecipeList from "./RecipeList.vue";
 import { canSaveGroup, groupTimeNote, matchingGroups, readdToast } from "../lib/groups";
@@ -147,13 +148,8 @@ const visibleGroups = computed(() => matchingGroups(savedGroups.list, q.value));
 const visibleRecipes = computed(() => matchingRecipes(savedRecipes.list, q.value));
 const sessionRecipeCount = computed(() => recipeFoodEntries(session.value.map((row) => findEntry(row.id)).filter((entry) => entry !== null)).length);
 const groupNote = computed(() => groupTimeNote(needTime.value, otherDay.value, time.value));
-const foodEntries = computed(() => {
-  if (viewed.date === ui.foodDate) return viewed.entries;
-  if (ui.foodDate === foodToday.value) return log.entries;
-  return [];
-});
+const foodEntries = computed(() => entriesOn(ui.foodDate, foodToday.value));
 const foodTotals = computed(() => totalsOf(foodEntries.value));
-const foodTarget = computed(() => (viewed.date === ui.foodDate ? viewed.target : null));
 const addVerb = computed(() => {
   if (editing.value) return "Save";
   if (needTime.value) return "Pick a time to add";
@@ -245,17 +241,14 @@ function fill(entry: LogEntry | null) {
 const amount = useFoodAmount({ entry: () => editingFood.value, formError, saveError, onServings: applyServings });
 const { food: detailFood, unit, amountNumber, preview } = amount;
 /** The preview is the Home card for the day the food goes to, with this food in it. */
-const sheetGoal = computed(() => foodTarget.value ?? (ui.foodDate === foodToday.value ? profile.targets : null));
+const sheetGoal = computed(() => targetOn(ui.foodDate, foodToday.value));
 /** The day's totals before this food: an edited entry's old amounts come out first. */
 const dayBefore = computed<MacroAmounts>(() => {
   const totals = foodTotals.value;
   const old = editing.value ?? { kcal: 0, protein: 0, fat: 0, carbs: 0 };
   return { kcal: totals.kcal - old.kcal, p: totals.p - old.protein, f: totals.f - old.fat, c: totals.c - old.carbs };
 });
-const macroTitle = computed(() => {
-  if (!sheetGoal.value) return "Macros";
-  return `${ui.foodDate === foodToday.value ? "Today" : "That day"} after ${editing.value ? "saving" : "adding"}`;
-});
+const macroTitle = computed(() => afterTitle(ui.foodDate, foodToday.value, editing.value ? "saving" : "adding", Boolean(sheetGoal.value)));
 
 function rowSub(food: FoodSearchRow): string {
   const english = food.nameEn && food.nameEn.localeCompare(food.name, undefined, { sensitivity: "accent" }) !== 0

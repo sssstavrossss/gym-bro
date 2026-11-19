@@ -4,6 +4,7 @@ import {
   amountLabel,
   convertAmount,
   distinctUnits,
+  foodFactor,
   hasGramBasis,
   macroFigure,
   macrosForFood,
@@ -189,4 +190,15 @@ it("keeps the same amount of food when the unit changes", () => {
   expect(convertAmount(3.33, portion, gram, true)).toBe("500");
   expect(convertAmount(4, portion, gram)).toBe("600");
   expect(convertAmount(2, portion, { unit: "serving", label: "bar", gramsEach: null })).toBe("1");
+});
+
+it("gives one factor for macros and the rest of the panel", () => {
+  // Per 100 g: a serving is its grams over 100.
+  expect(foodFactor(chicken, 150, "g")).toEqual({ factor: 1.5, grams: 150 });
+  expect(foodFactor(chicken, 2, "serving")).toEqual({ factor: 0.8, grams: 80 });
+  // Per serving: the count itself, with no weight.
+  expect(foodFactor(bar, 2, "serving")).toEqual({ factor: 2, grams: null });
+  expect(foodFactor(chicken, 0, "g")).toBeNull();
+  expect(foodFactor(chicken, 1, "cup")).toBeNull();
+  expect(macrosForFood(chicken, 2, "serving")).toEqual({ kcal: 160, protein: 24, fat: 3.2, carbs: 0, grams: 80 });
 });

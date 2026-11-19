@@ -1,6 +1,6 @@
 namespace GymBro.Api.Data;
 
-public sealed partial class EntryGroupItem
+public sealed partial class EntryGroupItem : IPanelAmounts
 {
     public decimal? MonoFat { get; set; }
     public decimal? PolyFat { get; set; }
