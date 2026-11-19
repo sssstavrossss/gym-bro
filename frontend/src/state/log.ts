@@ -12,15 +12,33 @@ import {
   putDayStatus,
   restoreLogEntry,
   ServerUnreachable,
+  type LogCreateBody,
+  type LogDaysResponse,
   type LogEntryResponse,
+  type LogPatchBody,
   type TargetsResponse,
-  whenReachable,
 } from "../api";
 import { byTime, lastPlanDate } from "../lib/dayLog";
-import { addDays, todayInZone, todayIso, weekStart } from "../lib/dates";
-import { boot } from "./boot";
+import { addDays, timeInZone, todayInZone, todayIso, weekStart } from "../lib/dates";
+import { sentToast } from "../lib/offline";
+import {
+  asQuickAdd,
+  copyOp,
+  isLocalId,
+  localId,
+  overlay,
+  queueCreate,
+  queueDelete,
+  queuePatch,
+  queueRestore,
+  settle,
+  type QueueMark,
+  type QueuedRow,
+} from "../lib/outbox";
+import { connection } from "./connection";
+import { hasSendable, outbox, sendQueued, setOps, type QueuedOp } from "./outbox";
 import { deviceTimeZone } from "./profile";
-import { toast } from "../ui";
+import { toast, ui } from "../ui";
 
 export interface LogEntry {
   id: string;
@@ -44,9 +62,13 @@ export interface LogEntry {
   foodId: string | null;
   groupId: string | null;
   idempotencyKey: string;
+  /** Not on the server yet ("waiting"), or refused by it ("failed", with the reason in queuedNote). */
+  queued?: QueueMark;
+  queuedNote?: string;
 }
 
-export interface PendingAdd {
+/** A new entry: a quick add, or a food with its amount (the numbers are the phone's estimate). */
+export interface NewEntry {
   idempotencyKey: string;
   localDate: string;
   time: string | null;
@@ -73,10 +95,8 @@ export interface QuickValues {
 export const log = reactive({
   date: "",
   entries: [] as LogEntry[],
-  pending: [] as PendingAdd[],
   loading: false,
   loaded: false,
-  unreachable: false,
   /** Goes up whenever an entry is added, edited, moved, copied, deleted or restored, on any
    * day. Home's charts reload on it, since their numbers come from the server. */
   revision: 0,
@@ -99,12 +119,8 @@ export const viewed = reactive({
   pendingDate: "",
   /** True only after a day switch has already been waiting ~150ms. */
   dim: false,
-});
-
-// A failed call raises the banner. The next answer from the server lowers it again,
-// unless an add is still waiting for its Retry.
-whenReachable(() => {
-  if (log.unreachable && log.pending.length === 0) log.unreachable = false;
+  /** Offline, and this day was never loaded on this phone: only what was queued here shows. */
+  missing: false,
 });
 
 export interface DayTotals {
@@ -112,32 +128,6 @@ export interface DayTotals {
   p: number;
   f: number;
   c: number;
-}
-
-function pendingStorageKey(): string {
-  return `gymbro-pending:${boot.accountId}`;
-}
-
-function rememberPending(): void {
-  log.unreachable = log.pending.length > 0;
-  if (!boot.accountId) return;
-  sessionStorage.setItem(pendingStorageKey(), JSON.stringify(log.pending));
-}
-
-function readPending(): void {
-  log.pending = [];
-  if (!boot.accountId) {
-    log.unreachable = false;
-    return;
-  }
-  try {
-    const raw = sessionStorage.getItem(pendingStorageKey());
-    const parsed = raw ? JSON.parse(raw) as PendingAdd[] : [];
-    log.pending = Array.isArray(parsed) ? parsed : [];
-  } catch {
-    log.pending = [];
-  }
-  log.unreachable = log.pending.length > 0;
 }
 
 function fromResponse(row: LogEntryResponse): LogEntry {
@@ -221,8 +211,9 @@ export function findEntry(id: string | null): LogEntry | null {
   return viewed.entries.find((row) => row.id === id) ?? log.entries.find((row) => row.id === id) ?? null;
 }
 
-export function totalsOf(entries: readonly Pick<LogEntry, "kcal" | "protein" | "fat" | "carbs">[]): DayTotals {
-  return entries.reduce((sum, row) => ({
+/** A day's macros. An entry the server refused shows "couldn't send" and counts for nothing until it is saved again. */
+export function totalsOf(entries: readonly (Pick<LogEntry, "kcal" | "protein" | "fat" | "carbs"> & Partial<Pick<LogEntry, "queued">>)[]): DayTotals {
+  return entries.filter((row) => row.queued !== "failed").reduce((sum, row) => ({
     kcal: sum.kcal + row.kcal,
     p: sum.p + row.protein,
     f: sum.f + row.fat,
@@ -230,23 +221,31 @@ export function totalsOf(entries: readonly Pick<LogEntry, "kcal" | "protein" | "
   }), { kcal: 0, p: 0, f: 0, c: 0 });
 }
 
-export function pendingFor(date: string): PendingAdd[] {
-  return log.pending.filter((row) => row.localDate === date);
+/** A day's server rows with this phone's queued changes applied, in time order. */
+function withQueue(entries: readonly LogEntry[], date: string): LogEntry[] {
+  return byTime(overlay(entries, date, outbox.ops));
 }
 
-function dropPending(key: string): void {
-  log.pending = log.pending.filter((row) => row.idempotencyKey !== key);
-  rememberPending();
+/** Adds the server already has (an answer lost on the way back) leave the queue. */
+function settleQueue(rows: readonly QueuedRow[]): void {
+  if (!outbox.ops.length) return;
+  const next = settle(outbox.ops, rows);
+  if (next.length !== outbox.ops.length) setOps(next);
 }
 
-/** A pending add whose request did reach the server is already in this list. Stop showing it twice. */
-function settlePending(entries: readonly LogEntry[]): void {
-  if (!log.pending.length) return;
-  const saved = new Set(entries.map((row) => row.idempotencyKey));
-  const left = log.pending.filter((row) => !saved.has(row.idempotencyKey));
-  if (left.length === log.pending.length) return;
-  log.pending = left;
-  rememberPending();
+/** Changes go to the queue while the server can't be reached, and behind anything already waiting, so order holds. */
+function queueing(): boolean {
+  return connection.offline || hasSendable();
+}
+
+/** The server can't take it now, but may later. */
+function notNow(error: unknown): boolean {
+  return error instanceof ServerUnreachable || (error instanceof ApiError && error.status >= 500);
+}
+
+/** After queueing while the server still answers (a 5xx, or an older change in front), try sending at once. */
+function sendSoon(): void {
+  if (!connection.offline) void sendQueue();
 }
 
 export function dayTotals(): DayTotals {
@@ -254,27 +253,28 @@ export function dayTotals(): DayTotals {
 }
 
 export function hasLog(): boolean {
-  return log.entries.length > 0 || log.pending.length > 0;
+  return log.entries.length > 0;
 }
 
 let generation = 0;
 
 export async function loadToday(): Promise<void> {
   const gen = ++generation;
-  readPending();
   const date = todayIso();
   log.loading = true;
   try {
     const body = await listLogEntries(date);
     if (gen !== generation) return;
+    settleQueue(body.entries);
     log.date = body.localDate;
-    log.entries = body.entries.map(fromResponse);
-    settlePending(log.entries);
+    log.entries = withQueue(body.entries.map(fromResponse), body.localDate);
     log.loaded = true;
-  } catch (error) {
+  } catch {
     if (gen !== generation) return;
+    // Today was never kept on this phone: show what was queued here.
+    log.entries = withQueue(log.date === date ? log.entries : [], date);
+    log.date = date;
     log.loaded = true;
-    if (error instanceof ServerUnreachable) log.unreachable = true;
   } finally {
     if (gen === generation) log.loading = false;
   }
@@ -308,7 +308,8 @@ function rememberViewed(): void {
 function showCached(snap: CachedDay): void {
   window.clearTimeout(dimTimer);
   viewed.date = snap.date;
-  viewed.entries = snap.entries;
+  viewed.entries = withQueue(snap.entries, snap.date);
+  viewed.missing = false;
   viewed.target = snap.target;
   viewed.firstTargetDate = snap.firstTargetDate;
   viewed.complete = snap.complete;
@@ -318,7 +319,7 @@ function showCached(snap: CachedDay): void {
   viewed.dim = false;
   if (snap.date === viewed.today) {
     log.date = snap.date;
-    log.entries = snap.entries.map((row) => ({ ...row }));
+    log.entries = viewed.entries.map((row) => ({ ...row }));
     log.loaded = true;
   }
 }
@@ -338,20 +339,43 @@ function clearHold(): void {
   viewed.dim = false;
 }
 
+/** Offline, a part this phone never kept falls back to `fallback`. Any other failure still throws. */
+async function orOffline<T>(job: Promise<T>, fallback: T): Promise<T> {
+  try {
+    return await job;
+  } catch (error) {
+    if (error instanceof ServerUnreachable) return fallback;
+    throw error;
+  }
+}
+
 async function fetchDay(date: string, zone: string): Promise<CachedDay> {
   const [list, targets, status] = await Promise.all([
     listLogEntries(date),
-    getTargets(date),
-    getDayStatus(date, zone),
+    orOffline(getTargets(date), { date, targets: viewed.date === date ? viewed.target : null, firstTargetDate: viewed.firstTargetDate }),
+    orOffline(getDayStatus(date, zone), { localDate: date, complete: false, fasting: viewed.date === date && viewed.fasting }),
   ]);
+  settleQueue(list.entries);
   return {
     date: list.localDate,
-    entries: list.entries.map(fromResponse),
+    entries: withQueue(list.entries.map(fromResponse), list.localDate),
     target: targets.targets,
     firstTargetDate: targets.firstTargetDate,
     complete: status.complete,
     fasting: status.fasting,
   };
+}
+
+/** Offline on a day this phone never loaded: the day shows with only its queued entries. */
+function showMissing(date: string): void {
+  if (viewed.date === date && viewed.loaded && !viewed.missing) return;
+  viewed.date = date;
+  viewed.entries = withQueue([], date);
+  viewed.target = null;
+  viewed.complete = false;
+  viewed.fasting = false;
+  viewed.missing = true;
+  viewed.loaded = true;
 }
 
 function prefetchDay(date: string, zone: string, today: string, setupDate: string | null): void {
@@ -379,24 +403,24 @@ export async function loadDay(date: string): Promise<void> {
   else if (viewed.loaded) holdPrevious(asked);
   else viewed.loading = true;
   try {
-    const days = await listLogDays(weekStart(asked), addDays(weekStart(asked), 6), zone);
+    const week: LogDaysResponse | null = await orOffline(listLogDays(weekStart(asked), addDays(weekStart(asked), 6), zone), null);
     if (gen !== viewGeneration) return;
-    const today = days.today || clientToday;
-    const day = asked > lastPlanDate(today) ? lastPlanDate(today) : days.setupDate && asked < days.setupDate ? days.setupDate : asked;
+    const setupDate = week?.setupDate ?? viewed.setupDate;
+    const today = week?.today || clientToday;
+    const day = asked > lastPlanDate(today) ? lastPlanDate(today) : setupDate && asked < setupDate ? setupDate : asked;
     const snap = await fetchDay(day, zone);
     if (gen !== viewGeneration) return;
-    viewed.setupDate = days.setupDate;
+    viewed.setupDate = setupDate;
     viewed.today = today;
-    viewed.loggedDates = days.loggedDates;
+    if (week) viewed.loggedDates = week.loggedDates;
     dayCache.set(snap.date, snap);
-    settlePending(snap.entries);
     showCached(snap);
-    prefetchDay(addDays(snap.date, -1), zone, today, days.setupDate);
-    prefetchDay(addDays(snap.date, 1), zone, today, days.setupDate);
+    prefetchDay(addDays(snap.date, -1), zone, today, setupDate);
+    prefetchDay(addDays(snap.date, 1), zone, today, setupDate);
   } catch (error) {
     if (gen !== viewGeneration) return;
     viewed.loaded = true;
-    if (error instanceof ServerUnreachable) log.unreachable = true;
+    if (error instanceof ServerUnreachable) showMissing(asked);
     else if (error instanceof ApiError) toast(error.message);
   } finally {
     if (gen === viewGeneration) {
@@ -416,85 +440,163 @@ export async function setFasting(date: string, fasting: boolean): Promise<boolea
     }
     return true;
   } catch (error) {
-    if (error instanceof ServerUnreachable) log.unreachable = true;
-    toast(error instanceof ApiError ? error.message : "Couldn't update that day.");
+    toast(error instanceof ApiError ? error.message : connection.offline ? "Marking a fasting day needs a connection." : "Couldn't update that day.");
     return false;
   }
 }
 
 export type SaveResult =
-  | { ok: true; entry: LogEntry }
-  | { ok: false; unreachable: true; message?: undefined }
-  | { ok: false; unreachable?: false; message: string };
+  | { ok: true; entry: LogEntry; queued?: true }
+  | { ok: false; message: string };
 
-function keepPending(pending: PendingAdd): void {
-  const index = log.pending.findIndex((row) => row.idempotencyKey === pending.idempotencyKey);
-  if (index >= 0) log.pending.splice(index, 1, pending);
-  else log.pending.push(pending);
-  rememberPending();
+function localEntry(input: NewEntry, time: string): LogEntry {
+  const food = Boolean(input.foodId);
+  return {
+    id: localId(input.idempotencyKey),
+    localDate: input.localDate,
+    time,
+    timeZone: input.timeZone,
+    name: input.name,
+    amount: food ? input.amount ?? 1 : 1,
+    unit: food ? input.unit ?? "" : "",
+    grams: food && input.unit === "g" ? input.amount ?? null : null,
+    kcal: input.kcal,
+    protein: input.protein,
+    fat: input.fat,
+    carbs: input.carbs,
+    source: food ? "food" : "quick",
+    foodId: input.foodId ?? null,
+    groupId: null,
+    idempotencyKey: input.idempotencyKey,
+    queued: "waiting",
+  };
 }
 
-export async function saveQuickAdd(pending: PendingAdd): Promise<SaveResult> {
+function queueAdd(input: NewEntry): SaveResult {
+  // Sent later, so "now" is stamped here, not when the server finally gets it.
+  const time = input.time ?? timeInZone(input.timeZone);
+  const entry = localEntry(input, time);
+  const body: LogCreateBody = {
+    idempotencyKey: input.idempotencyKey,
+    localDate: input.localDate,
+    timeZone: input.timeZone,
+    time,
+    name: input.name,
+    kcal: input.kcal,
+    protein: input.protein,
+    fat: input.fat,
+    carbs: input.carbs,
+    ...(input.foodId ? { foodId: input.foodId, amount: input.amount, unit: input.unit } : {}),
+  };
+  setOps(queueCreate(outbox.ops, { kind: "add", key: input.idempotencyKey, body, entry }));
+  place(entry);
+  sendSoon();
+  return { ok: true, entry, queued: true };
+}
+
+/** Adds an entry. Without a server it is kept on the phone and sent later under the same key. */
+export async function saveQuickAdd(input: NewEntry): Promise<SaveResult> {
+  if (queueing()) return queueAdd(input);
   try {
     const saved = await addLogEntry({
-      idempotencyKey: pending.idempotencyKey,
-      localDate: pending.localDate,
-      timeZone: pending.timeZone,
-      name: pending.name,
-      time: pending.time,
-      kcal: pending.kcal,
-      protein: pending.protein,
-      fat: pending.fat,
-      carbs: pending.carbs,
-      ...(pending.foodId ? { foodId: pending.foodId, amount: pending.amount, unit: pending.unit } : {}),
+      idempotencyKey: input.idempotencyKey,
+      localDate: input.localDate,
+      timeZone: input.timeZone,
+      name: input.name,
+      time: input.time,
+      kcal: input.kcal,
+      protein: input.protein,
+      fat: input.fat,
+      carbs: input.carbs,
+      ...(input.foodId ? { foodId: input.foodId, amount: input.amount, unit: input.unit } : {}),
     });
     if (saved.deletedAt) {
-      // This key was saved before and that entry has since been deleted. Retrying cannot bring it back.
-      dropPending(pending.idempotencyKey);
+      // This key was saved before and that entry has since been deleted. Sending again cannot bring it back.
       return { ok: false, message: "That entry was already deleted." };
     }
-    dropPending(pending.idempotencyKey);
     const entry = fromResponse(saved);
     place(entry);
     return { ok: true, entry };
   } catch (error) {
-    if (error instanceof ServerUnreachable || (error instanceof ApiError && error.status >= 500)) {
-      keepPending(pending);
-      return { ok: false, unreachable: true };
-    }
+    if (notNow(error)) return queueAdd(input);
     const message = error instanceof ApiError ? error.message : "Couldn't save that entry.";
     return { ok: false, message };
   }
 }
 
-export async function retryPending(key: string): Promise<SaveResult> {
-  const pending = log.pending.find((row) => row.idempotencyKey === key);
-  if (!pending) return { ok: false, message: "That entry is no longer waiting." };
-  return saveQuickAdd(pending);
+function queueChange(id: string, body: LogPatchBody, entry: LogEntry | null): SaveResult {
+  if (!entry) return { ok: false, message: "That entry isn't on this phone." };
+  const shown: LogEntry = { ...entry, queued: entry.queued === "failed" ? "failed" : "waiting" };
+  setOps(queuePatch(outbox.ops, id, body, shown));
+  place(shown);
+  sendSoon();
+  return { ok: true, entry: shown, queued: true };
 }
 
-export async function updateFoodAmount(id: string, values: { amount: number; unit: string; time: string | null }): Promise<SaveResult> {
+async function patchOrQueue(id: string, body: LogPatchBody, estimate: () => LogEntry | null): Promise<SaveResult> {
+  if (isLocalId(id) || queueing()) return queueChange(id, body, estimate());
+  try {
+    const entry = fromResponse(await patchLogEntry(id, body));
+    place(entry);
+    return { ok: true, entry };
+  } catch (error) {
+    if (notNow(error)) return queueChange(id, body, estimate());
+    const message = error instanceof ApiError ? error.message : "Couldn't save that entry.";
+    return { ok: false, message };
+  }
+}
+
+export interface AmountEstimate {
+  kcal: number;
+  protein: number;
+  fat: number;
+  carbs: number;
+}
+
+/**
+ * The entry after an amount edit, as the phone can tell without the server: the sheet's preview
+ * numbers when it has them, otherwise the old numbers scaled when the unit stayed the same.
+ */
+function amountEstimate(entry: LogEntry, values: { amount: number; unit: string; time: string | null }, estimate?: AmountEstimate): LogEntry {
+  const ratio = entry.unit === values.unit && entry.amount > 0 ? values.amount / entry.amount : null;
+  const scale = (value: number) => (ratio === null ? value : value * ratio);
+  const scaleOrKeep = (value: number | null | undefined) => (value == null || ratio === null ? value : value * ratio);
+  return {
+    ...entry,
+    amount: values.amount,
+    unit: values.unit,
+    time: values.time ?? entry.time,
+    grams: values.unit === "g" ? values.amount : entry.grams == null || ratio === null ? null : entry.grams * ratio,
+    kcal: estimate?.kcal ?? scale(entry.kcal),
+    protein: estimate?.protein ?? scale(entry.protein),
+    fat: estimate?.fat ?? scale(entry.fat),
+    carbs: estimate?.carbs ?? scale(entry.carbs),
+    saturatedFat: scaleOrKeep(entry.saturatedFat),
+    sugars: scaleOrKeep(entry.sugars),
+    fiber: scaleOrKeep(entry.fiber),
+    salt: scaleOrKeep(entry.salt),
+  };
+}
+
+export async function updateFoodAmount(
+  id: string,
+  values: { amount: number; unit: string; time: string | null },
+  estimate?: AmountEstimate,
+): Promise<SaveResult> {
   const body = {
     amount: values.amount,
     unit: values.unit,
     ...(values.time ? { time: values.time } : {}),
   };
-  try {
-    const saved = await patchLogEntry(id, body);
-    const entry = fromResponse(saved);
-    place(entry);
-    return { ok: true, entry };
-  } catch (error) {
-    if (error instanceof ServerUnreachable || (error instanceof ApiError && error.status >= 500)) {
-      log.unreachable = true;
-      return { ok: false, unreachable: true };
-    }
-    const message = error instanceof ApiError ? error.message : "Couldn't save that entry.";
-    return { ok: false, message };
-  }
+  return patchOrQueue(id, body, () => {
+    const entry = findEntry(id);
+    return entry ? amountEstimate(entry, values, estimate) : null;
+  });
 }
 
 export async function updateQuickAdd(id: string, values: QuickValues): Promise<SaveResult> {
+  const entry = findEntry(id);
+  if (entry?.queued === "failed") return resendAsQuickAdd(entry, values);
   const body = {
     name: values.name,
     kcal: values.kcal,
@@ -503,59 +605,110 @@ export async function updateQuickAdd(id: string, values: QuickValues): Promise<S
     carbs: values.carbs,
     ...(values.time ? { time: values.time } : {}),
   };
-  try {
-    const saved = await patchLogEntry(id, body);
-    const entry = fromResponse(saved);
-    place(entry);
-    return { ok: true, entry };
-  } catch (error) {
-    if (error instanceof ServerUnreachable || (error instanceof ApiError && error.status >= 500)) {
-      log.unreachable = true;
-      return { ok: false, unreachable: true };
-    }
-    const message = error instanceof ApiError ? error.message : "Couldn't save that entry.";
-    return { ok: false, message };
-  }
+  return patchOrQueue(id, body, () => (entry ? { ...entry, ...body, time: values.time ?? entry.time } : null));
+}
+
+/** "Couldn't send": Save sends it again as a quick add with the numbers on screen. */
+function resendAsQuickAdd(entry: LogEntry, values: QuickValues): SaveResult {
+  const shown: LogEntry = {
+    ...entry,
+    name: values.name,
+    kcal: values.kcal,
+    protein: values.protein,
+    fat: values.fat,
+    carbs: values.carbs,
+    time: values.time ?? entry.time,
+    amount: 1,
+    unit: "",
+    grams: null,
+    source: "quick",
+    foodId: null,
+    queued: "waiting",
+    queuedNote: undefined,
+  };
+  setOps(asQuickAdd(outbox.ops, entry.idempotencyKey, values, shown));
+  place(shown);
+  sendSoon();
+  return { ok: true, entry: shown, queued: true };
 }
 
 export async function removeEntry(entry: LogEntry): Promise<boolean> {
   return removeEntries([entry]);
 }
 
-/** Soft-deletes every row. Undo restores the same ids. A failure restores any that already went. */
+interface Removal {
+  entry: LogEntry;
+  /** Deleted in the queue, not on the server. */
+  queued: boolean;
+  /** For an entry that never reached the server: its queued ops, which undo puts back. */
+  undo: QueuedOp[];
+}
+
+function queueRemoval(entry: LogEntry): Removal {
+  const { ops, undo } = queueDelete(outbox.ops, entry);
+  setOps(ops);
+  return { entry, queued: true, undo };
+}
+
+/** Brings one removed entry back. False only when the server refused. */
+async function putBack(item: Removal): Promise<boolean> {
+  const queueRestoreOf = () => {
+    setOps(queueRestore(outbox.ops, item.entry, item.undo));
+    place({ ...item.entry, queued: item.entry.queued ?? "waiting" });
+    return true;
+  };
+  if (item.queued) {
+    setOps(queueRestore(outbox.ops, item.entry, item.undo));
+    place(item.entry);
+    return true;
+  }
+  if (queueing()) return queueRestoreOf();
+  try {
+    place(fromResponse(await restoreLogEntry(item.entry.id)));
+    return true;
+  } catch (error) {
+    if (notNow(error)) return queueRestoreOf();
+    return false;
+  }
+}
+
+/** Soft-deletes every row. Undo restores the same ids. A refusal puts back any that already went. */
 export async function removeEntries(entries: LogEntry[], options?: { announce?: boolean }): Promise<boolean> {
   if (!entries.length) return false;
   const announce = options?.announce !== false;
-  const removed: LogEntry[] = [];
+  const removed: Removal[] = [];
   try {
     for (const entry of entries) {
-      await deleteLogEntry(entry.id);
-      removed.push(entry);
-    }
-  } catch (error) {
-    for (const entry of removed) {
+      if (isLocalId(entry.id) || queueing()) {
+        removed.push(queueRemoval(entry));
+        continue;
+      }
       try {
-        place(fromResponse(await restoreLogEntry(entry.id)));
-      } catch {
-        // The next undo toast can still restore whatever the server kept.
+        await deleteLogEntry(entry.id);
+        removed.push({ entry, queued: false, undo: [] });
+      } catch (error) {
+        if (!notNow(error)) throw error;
+        removed.push(queueRemoval(entry));
       }
     }
-    if (error instanceof ServerUnreachable) log.unreachable = true;
+  } catch (error) {
+    for (const item of removed) await putBack(item);
     const fallback = entries.length > 1
       ? "Couldn't delete those entries. They're still here."
       : "Couldn't delete that entry. It's still here.";
     toast(error instanceof ApiError ? error.message : fallback);
     return false;
   }
+  if (removed.some((item) => item.queued)) sendSoon();
   log.revision += 1;
-  for (const entry of removed) {
+  for (const { entry } of removed) {
     log.entries = log.entries.filter((row) => row.id !== entry.id);
     viewed.entries = viewed.entries.filter((row) => row.id !== entry.id);
     noteIfEmpty(entry.localDate);
   }
   rememberViewed();
   if (announce) {
-    toast(removed.length === 1 ? `Deleted ${removed[0].name}` : `Deleted ${removed.length} items`, {
+    toast(removed.length === 1 ? `Deleted ${removed[0].entry.name}` : `Deleted ${removed.length} items`, {
       label: "Undo",
       run: () => { void undoDeletes(removed); },
     });
@@ -563,20 +716,35 @@ export async function removeEntries(entries: LogEntry[], options?: { announce?: 
   return true;
 }
 
-async function undoDeletes(entries: LogEntry[]): Promise<void> {
-  const pending: LogEntry[] = [];
-  for (const entry of entries) {
-    try {
-      place(fromResponse(await restoreLogEntry(entry.id)));
-    } catch {
-      pending.push(entry);
-    }
+async function undoDeletes(items: Removal[]): Promise<void> {
+  const left: Removal[] = [];
+  for (const item of items) {
+    if (!(await putBack(item))) left.push(item);
   }
-  if (!pending.length) return;
-  toast(pending.length === 1 ? `Deleted ${pending[0].name}` : `Deleted ${pending.length} items`, {
+  sendSoon();
+  if (!left.length) return;
+  toast(left.length === 1 ? `Deleted ${left[0].entry.name}` : `Deleted ${left.length} items`, {
     label: "Undo",
-    run: () => { void undoDeletes(pending); },
+    run: () => { void undoDeletes(left); },
   });
+}
+
+function queueCopies(entries: LogEntry[], localDate: string, keys: Record<string, string>): { ok: true; copies: LogEntry[] } {
+  const zone = deviceTimeZone();
+  const copies: LogEntry[] = [];
+  let ops = outbox.ops;
+  for (const entry of entries) {
+    const key = keys[entry.id] ?? crypto.randomUUID();
+    const copy: LogEntry = { ...entry, id: localId(key), idempotencyKey: key, localDate, timeZone: zone, queued: "waiting", queuedNote: undefined };
+    const op = copyOp(ops, entry.id, key, localDate, zone, copy);
+    if (!op) continue;
+    ops = queueCreate(ops, op);
+    copies.push(copy);
+  }
+  setOps(ops);
+  for (const copy of copies) place(copy);
+  sendSoon();
+  return { ok: true, copies };
 }
 
 export async function copySelected(
@@ -584,6 +752,8 @@ export async function copySelected(
   localDate: string,
   keys: Record<string, string>,
 ): Promise<{ ok: true; copies: LogEntry[] } | { ok: false; message: string }> {
+  // The server can't copy an entry it doesn't have yet.
+  if (queueing() || entries.some((entry) => isLocalId(entry.id))) return queueCopies(entries, localDate, keys);
   try {
     const saved = await copyLogEntries({
       localDate,
@@ -594,10 +764,7 @@ export async function copySelected(
     for (const entry of copies) place(entry);
     return { ok: true, copies };
   } catch (error) {
-    if (error instanceof ServerUnreachable) {
-      log.unreachable = true;
-      return { ok: false, message: "Server unreachable, try again." };
-    }
+    if (notNow(error)) return queueCopies(entries, localDate, keys);
     return { ok: false, message: error instanceof ApiError ? error.message : "Couldn't copy those entries." };
   }
 }
@@ -605,4 +772,34 @@ export async function copySelected(
 /** Undo a copy by soft-deleting the new rows. The originals stay. */
 export async function discardCopies(entries: LogEntry[]): Promise<void> {
   await removeEntries(entries, { announce: false });
+}
+
+/** A queued add got its server id: an open sheet or a selection follows it. */
+function followId(local: string, server: string): void {
+  if (ui.editEntryId === local) ui.editEntryId = server;
+  if (ui.selected.includes(local)) ui.selected = ui.selected.map((id) => (id === local ? server : id));
+  if (ui.anchor === local) ui.anchor = server;
+}
+
+/** Refreshes today and the open day from the server, with what is still queued on top. */
+async function reloadShown(): Promise<void> {
+  await Promise.all([loadToday(), viewed.date ? loadDay(viewed.date) : Promise.resolve()]);
+  log.revision += 1;
+}
+
+/** Sends what the phone queued, then shows the server's numbers. */
+export async function sendQueue(): Promise<void> {
+  const before = outbox.ops;
+  const result = await sendQueued({ created: followId });
+  // Nothing went and nothing came off the queue (an add whose entry was deleted elsewhere does).
+  if (outbox.ops === before) return;
+  await reloadShown();
+  const text = sentToast(result);
+  if (text) toast(text);
+}
+
+/** The server answers again: send the queue, or at least bring the screens up to date. */
+export async function catchUp(): Promise<void> {
+  if (hasSendable()) await sendQueue();
+  else await reloadShown();
 }

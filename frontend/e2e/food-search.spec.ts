@@ -193,6 +193,7 @@ test("search, detail, multi-add, and stored-snapshot edit", async ({ page }) => 
   await expect(sheet(page).getByText(/1 added · 300 kcal/)).toBeVisible();
   await page.screenshot({ path: "/opt/cursor/artifacts/f2-after-add.png" });
 
+  // The server doesn't take the add: it waits on the phone, counts, and goes once the server answers.
   await page.route("**/api/log-entries", (route) => {
     if (route.request().method() === "POST") return route.abort();
     return route.continue();
@@ -201,22 +202,20 @@ test("search, detail, multi-add, and stored-snapshot edit", async ({ page }) => 
   await sheet(page).getByRole("button", { name: /Fictional oat brick/ }).click();
   await sheet(page).getByLabel("Amount in g").fill("100");
   await sheet(page).getByRole("button", { name: /Add ·/ }).click();
-  await expect(page.getByText("server unreachable, try again", { exact: true })).toBeVisible();
-  await expect(sheet(page).getByText("Nothing was lost — your entry is still here.")).toBeVisible();
-  await expect(sheet(page).getByLabel("Amount in g")).toHaveValue("100");
-  await sheet(page).getByRole("button", { name: "Back", exact: true }).click();
+  await expect(page.getByText(/Added 100 g Fictional oat brick · 100 kcal/)).toBeVisible();
+  await expect(sheet(page).getByText(/Today · 400 kcal/)).toBeVisible();
   await page.unroute("**/api/log-entries");
 
   await sheet(page).getByRole("searchbox", { name: "Search foods" }).fill("broth");
   await sheet(page).getByRole("button", { name: /Fictional broth cube/ }).click();
   await sheet(page).getByLabel("Amount in g").fill("100");
   await sheet(page).getByRole("button", { name: /Add ·/ }).click();
-  await expect(sheet(page).getByText(/Today · 312 kcal/)).toBeVisible();
+  await expect(sheet(page).getByText(/Today · 412 kcal/)).toBeVisible();
   await sheet(page).getByRole("button", { name: "Done", exact: true }).click();
   await expect(sheet(page)).toBeHidden();
-  await expect(page.getByRole("button", { name: "Retry" })).toBeVisible();
-  await page.getByRole("button", { name: "Retry" }).click();
+  await page.evaluate(() => window.dispatchEvent(new Event("online")));
   await expect(page.locator("button.frow").filter({ hasText: "Fictional oat brick" })).toBeVisible();
+  await expect(page.locator("button.frow [data-queued]")).toHaveCount(0);
 
   const listed = await page.request.get(`/api/log-entries?date=${when.today}`, { headers: headers(oid) });
   const body = await listed.json();

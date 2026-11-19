@@ -2,6 +2,7 @@
 import { computed, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import Icon from "../components/Icon.vue";
+import OfflineLine from "../components/OfflineLine.vue";
 import Timeline from "../components/Timeline.vue";
 import WeekStrip from "../components/WeekStrip.vue";
 import {
@@ -16,7 +17,7 @@ import {
 import { shortDate, todayInZone } from "../lib/dates";
 import { vp } from "../lib/viewport";
 import { deviceTimeZone } from "../state/profile";
-import { loadDay, pendingFor, setFasting, totalsOf, viewed } from "../state/log";
+import { loadDay, setFasting, totalsOf, viewed } from "../state/log";
 
 const route = useRoute();
 const router = useRouter();
@@ -32,7 +33,6 @@ const date = computed(() => clampLogDate(requested.value, today.value, setup.val
 const ready = computed(() => viewed.loaded);
 const shown = computed(() => (viewed.loaded && viewed.date ? viewed.date : date.value));
 const entries = computed(() => (ready.value ? viewed.entries : []));
-const pending = computed(() => pendingFor(shown.value));
 const totals = computed(() => totalsOf(entries.value));
 const target = computed(() => (ready.value ? viewed.target : null));
 const cells = computed(() => summaryCells(totals.value, target.value));
@@ -84,6 +84,7 @@ async function onFasting(event: Event) {
         </button>
       </div>
     </header>
+    <OfflineLine />
 
     <WeekStrip :anchor="date" :selected="date" :today="today" :setup-date="setup" :logged-dates="viewed.loggedDates" @select="pick" />
 
@@ -100,7 +101,8 @@ async function onFasting(event: Event) {
           <span class="t-bodys section-title">Day total</span>
           <span class="t-body c2">&nbsp;· {{ totalLine }}</span>
         </div>
-        <Timeline :date="shown" :today="today" :entries="entries" :pending="pending" show-empty />
+        <p v-if="viewed.missing" class="t-label c2 missing" role="status">This day isn't on this phone yet. It loads when you're back online.</p>
+        <Timeline :date="shown" :today="today" :entries="entries" :show-empty="!viewed.missing" />
       </div>
       <label v-if="shown <= today" class="done row">
         <input :checked="viewed.fasting" type="checkbox" :disabled="saving" aria-describedby="fast-hint" @change="onFasting" />
@@ -130,6 +132,7 @@ async function onFasting(event: Event) {
 .summary { padding: var(--space-m) var(--space-l); border-radius: var(--radius-l); background: var(--color-surface); min-width: 0; }
 .is-tablet .summary { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-m) var(--space-l); }
 .overv { text-decoration: underline dashed var(--over-text); text-underline-offset: 4px; }
+.missing { margin: 0 0 var(--space-s); }
 .dayline { min-height: 44px; gap: 0; padding-top: var(--space-xs); }
 .done { gap: var(--space-m); padding: var(--space-m) var(--space-l); border-radius: var(--radius-l); background: var(--color-surface); cursor: pointer; align-items: flex-start; }
 .done input { width: 22px; height: 22px; margin: 1px 0 0; accent-color: var(--color-action); flex: none; }

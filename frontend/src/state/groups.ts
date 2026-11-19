@@ -8,7 +8,7 @@ import {
   ServerUnreachable,
   type SavedGroup,
 } from "../api";
-import { log, rememberEntries, type LogEntry } from "./log";
+import { rememberEntries, type LogEntry } from "./log";
 import { toast } from "../ui";
 
 export const savedGroups = reactive({
@@ -25,8 +25,8 @@ export async function loadGroups(): Promise<void> {
     if (gen !== generation) return;
     savedGroups.list = body.groups;
     savedGroups.loaded = true;
-  } catch (error) {
-    if (error instanceof ServerUnreachable) log.unreachable = true;
+  } catch {
+    // Offline with nothing kept: the list stays as it was.
   }
 }
 
@@ -40,10 +40,7 @@ export async function saveGroupFromEntries(
     savedGroups.loaded = true;
     return { ok: true, group };
   } catch (error) {
-    if (error instanceof ServerUnreachable) {
-      log.unreachable = true;
-      return { ok: false, message: "Server unreachable, try again." };
-    }
+    if (error instanceof ServerUnreachable) return { ok: false, message: "Saving a group needs a connection." };
     return { ok: false, message: error instanceof ApiError ? error.message : "Couldn't save that group." };
   }
 }
@@ -54,8 +51,7 @@ export async function deleteSavedGroup(id: string): Promise<boolean> {
     savedGroups.list = savedGroups.list.filter((group) => group.id !== id);
     return true;
   } catch (error) {
-    if (error instanceof ServerUnreachable) log.unreachable = true;
-    toast(error instanceof ApiError ? error.message : "Couldn't delete that group.");
+    toast(error instanceof ApiError ? error.message : error instanceof ServerUnreachable ? "Deleting a group needs a connection." : "Couldn't delete that group.");
     return false;
   }
 }
@@ -68,10 +64,7 @@ export async function readdSavedGroup(
     const body = await logGroup(id, input);
     return { ok: true, entries: rememberEntries(body.entries), notice: body.notice };
   } catch (error) {
-    if (error instanceof ServerUnreachable) {
-      log.unreachable = true;
-      return { ok: false, message: "Server unreachable, try again." };
-    }
+    if (error instanceof ServerUnreachable) return { ok: false, message: "Adding a group needs a connection." };
     return { ok: false, message: error instanceof ApiError ? error.message : "Couldn't add that group." };
   }
 }

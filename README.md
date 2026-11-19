@@ -65,6 +65,7 @@ Sign-in settings are not baked into the JavaScript bundle. The API reads them fr
 | `backend/GymBro.Api/Notifications` | The weekly in-app recalculate notification. |
 | `backend/GymBro.Api.Tests` | xUnit tests against Postgres (Testcontainers) and a test authentication handler. |
 | `frontend` | Vue 3 + Vite + TypeScript. MSAL lives in `src/auth`. Playwright smoke tests live in `e2e`. Follows the design prototype. |
+| `frontend/sw` | The service worker template (`worker.js`) and the Vite plugin that writes `/sw.js` with the files the app needs to open offline. |
 | `prototype` | Interactive design prototype. Not production code. Fictional data, `localStorage` only. See `prototype/README.md`. |
 | `Dockerfile` | Multi-stage build. One runtime image, Node and the SDK are not in it. |
 | `docker-compose.yml` | `app` and `postgres`. Every secret and id comes from the environment. |
@@ -430,6 +431,20 @@ Catalogue foods have no owner, so a foreign key of `(log.user_id, food_id)` cann
 ## Open Food Facts and response headers
 
 The Open Food Facts client does not follow redirects. A 3xx, a network failure, or a body over 2 MiB comes back as `unavailable`. Every response, including static files and errors, sends a Content-Security-Policy that allows the built SPA and MSAL calls to `https://*.ciamlogin.com` (no script inline or eval; `'wasm-unsafe-eval'` lets the barcode decoder compile its WebAssembly, which is served from this origin, and does not allow JavaScript eval; style attributes stay allowed for the sheet drag). Silent renewal needs `frame-src 'self' https://*.ciamlogin.com` and `frame-ancestors 'self'`, with `X-Frame-Options: SAMEORIGIN`, so the hidden iframe can load CIAM and the same-origin redirect page. Responses also send `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, and `Permissions-Policy: camera=(self), microphone=(), geolocation=()` (the camera is for the barcode scanner, on this origin only). The Playwright smoke checks those headers on `http://127.0.0.1:8100/api/health` and walks the e2e sign-in flag. It does not complete a real CIAM redirect.
+
+## Offline
+
+Gym Bro keeps working with no connection, whether the phone has no signal or the server is down. Any call that gets no answer, or a 502, 503 or 504, marks the app offline (`frontend/src/state/connection.ts`). The next answer marks it back online.
+
+**Opening offline.** The service worker (`/sw.js`, built from `frontend/sw/worker.js` by `frontend/sw/plugin.ts`) keeps every file the app needs, with a version that changes whenever one of them does. A page load tries the network for 3 seconds, then opens the kept app. Fingerprinted files come from the kept copy. The barcode scanner's files are not kept, because a scan needs a connection to look the code up. `/api` and `/config.json` never go through the worker. The dev server's worker keeps nothing and takes no pages. The sign-in config (`/config.json`) is kept in `localStorage` and used when the server doesn't answer.
+
+**Kept answers.** Every screen's GET (profile, weigh-ins, Progress, nutrients, the weight chart, recent foods, a food, My foods, targets, day status, log days, a day's entries, groups and recipes) is kept in IndexedDB per account, keyed by path (`frontend/src/offline/`). Online, the network answers and the copy is updated. Offline, the last copy shows. A day or a Progress range that was never opened says it loads when you're back online. Signing out deletes the kept answers. Anything still waiting to send stays for the next sign-in.
+
+**The offline line.** Today, Log and Progress show "Offline · updated 14:32" under the title (the weekday or date when it's older). The Home Weight card shows a cloud icon by its period instead, so the swipe track doesn't move. Either opens **You're offline**: what's waiting to send and when it was logged, anything that couldn't send, how old Weight and Progress are, and what needs a connection. The Recalculate prompt hides offline.
+
+**Logging offline.** Adds, edits, deletes, undo and Copy to all work. Each change is queued in `localStorage` per account (`frontend/src/state/outbox.ts`, rules in `frontend/src/lib/outbox.ts`) and shows on screen and in the macros at once. A queued row reads "· waiting". "Now" is stamped when you log, not when it sends. An add keeps its idempotency key, so a resend never makes a second entry. An edit of an entry that hasn't sent yet folds into the queued add, and deleting it drops the add. The edit sheet says "Offline. This saves on your phone and sends when you're back online." Add food searches your recent foods and My foods ("Search your foods") and says that the full food list needs a connection. Quick add works. Open Food Facts, barcode lookups, saving to My foods, weigh-ins, recipes, groups, fasting days and recalculating need a connection, and each says so.
+
+**Back online.** The queue sends in order when the server answers again, when the phone gets a network or comes to the front, and every 30 seconds while offline. One tab sends at a time (`navigator.locks`). Then the open days reload and a toast says "Back online. 2 foods sent." If the server refuses an add (its food was deleted elsewhere), the row reads "ⓘ couldn't send" with no macros and counts for nothing. Opening it shows why. Save sends it as a quick add, and Delete removes it. A refused edit or delete is dropped and named in the toast.
 
 ## Data Protection keys
 

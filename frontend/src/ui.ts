@@ -83,6 +83,11 @@ export function openCardPages(card: PageCard): void {
   ui.sheet = "card-pages";
 }
 
+/** What works offline, what is waiting to send, and how old the numbers are. */
+export function openOffline(): void {
+  ui.sheet = "offline";
+}
+
 /** Detail for one ring on the Home nutrient card. */
 export function openNutrient(key: string, kcalTarget: number | null): void {
   ui.nutrient = { key, kcalTarget };

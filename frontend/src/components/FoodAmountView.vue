@@ -120,6 +120,7 @@ function editServing(row: OwnServing) {
     <Keypad v-if="!keyboardEntry" @key="a.key" />
     <!-- With a keyboard instead of the keypad: what Enter and Esc do. -->
     <p v-else class="t-capn c3 khint keyhint"><slot name="hint" /></p>
+    <slot name="note" />
     <div class="row gap8 actions">
       <slot name="actions" />
     </div>

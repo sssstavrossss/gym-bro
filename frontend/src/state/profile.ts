@@ -383,8 +383,8 @@ async function loadChart(): Promise<void> {
       const built = buildBody(formFromProfile(profile.saved), profile.saved);
       if (!("error" in built)) profile.proposal = await previewTargets(built.body, true);
     }
-  } catch (error) {
-    if (error instanceof ServerUnreachable) profile.offline = true;
+  } catch {
+    // Offline the chart is the last one kept on the phone, or none; the profile itself still shows.
   }
 }
 

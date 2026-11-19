@@ -217,16 +217,19 @@ test("today empty, quick add, on target, edit, undo, and no sideways scroll", as
   }
 });
 
-test("a failed add stays pending and retry uses the same key", async ({ page }) => {
+test("an add the server can't take waits on the phone and goes under the same key", async ({ page }) => {
   const oid = `e2e-pending-${Date.now()}-${test.info().project.name}`;
   const when = await clock(page);
   await putWeighIn(page.request, oid, when.today, when.zone);
   await putProfile(page.request, oid, when.zone);
   await openToday(page, oid, 390);
   await openQuickAdd(page, 390);
+  const keys: string[] = [];
   await page.route("**/api/log-entries", (route) => {
-    if (route.request().method() === "POST") return route.abort();
-    return route.continue();
+    if (route.request().method() !== "POST") return route.continue();
+    const key = (route.request().postDataJSON() as { idempotencyKey?: string } | null)?.idempotencyKey;
+    if (key) keys.push(key);
+    return route.abort();
   });
   await macroField(page, "Name (optional)").fill("Fictional shake");
   await macroField(page, "Calories").fill("250");
@@ -234,17 +237,18 @@ test("a failed add stays pending and retry uses the same key", async ({ page }) 
   await macroField(page, "Fat").fill("8");
   await macroField(page, "Carbs").fill("12");
   await foodSheet(page).getByRole("button", { name: /Add ·/ }).click();
-  await expect(page.getByText("server unreachable, try again", { exact: true })).toBeVisible();
-  await expect(macroField(page, "Name (optional)")).toHaveValue("Fictional shake");
-  await expect(page.getByText("Nothing was lost — your entry is still here.")).toBeVisible();
+  await expect(page.getByText(/Added Fictional shake/)).toBeVisible();
   await foodSheet(page).getByRole("button", { name: "Close", exact: true }).click();
-  const retry = page.getByRole("button", { name: "Retry" });
-  await expect(retry).toBeVisible();
-  await expectTouchTarget(retry);
+  const row = page.locator("button.frow").filter({ hasText: "Fictional shake" });
+  await expect(row.locator('[data-queued="waiting"]')).toBeVisible();
+  await expect(page.locator("[data-offline-line]")).toBeVisible();
 
   await page.unroute("**/api/log-entries");
-  await retry.click();
-  await expect(page.locator("button.frow").filter({ hasText: "Fictional shake" })).toBeVisible();
+  // The phone getting a network is one of the moments the app tries again.
+  await page.evaluate(() => window.dispatchEvent(new Event("online")));
+  await expect(page.getByText("Back online. 1 food sent.")).toBeVisible();
+  await expect(row.locator("[data-queued]")).toHaveCount(0);
+  await expect(page.locator("[data-offline-line]")).toHaveCount(0);
   const listed = await page.request.get(`/api/log-entries?date=${when.today}`, { headers: headers(oid) });
   expect(listed.ok()).toBeTruthy();
   const body = await listed.json();
@@ -252,6 +256,9 @@ test("a failed add stays pending and retry uses the same key", async ({ page }) 
   expect(body.entries[0].name).toBe("Fictional shake");
   expect(body.entries[0].source).toBe("quick");
   expect(body.entries[0].grams).toBeNull();
+  expect(keys.length).toBeGreaterThan(0);
+  expect(new Set(keys).size).toBe(1);
+  expect(body.entries[0].idempotencyKey).toBe(keys[0]);
 });
 
 test("kcal and macro numbers stay whole at the largest text size", async ({ page }) => {
