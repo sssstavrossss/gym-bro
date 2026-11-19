@@ -4,7 +4,7 @@ import Icon from "./Icon.vue";
 import Segmented from "./Segmented.vue";
 import ProgressChart from "./ProgressChart.vue";
 import SwipePanels from "./SwipePanels.vue";
-import { ApiError, getProgress, ServerUnreachable, type ProgressDay, type ProgressResponse } from "../api";
+import { ApiError, getProgress, type ProgressDay, type ProgressResponse } from "../api";
 import { followPage, visiblePages } from "../lib/cardPages";
 import { spanLabel } from "../lib/dates";
 import { formatDecimal, int } from "../lib/format";
@@ -13,10 +13,11 @@ import type { IntakeDay } from "../lib/progressChart";
 import { fiberMinimum, goalKind, intakeStats, LINE_WORDS, PAGE_TITLES, PROGRESS_PAGES, type IntakePage, type ProgressPage } from "../lib/progressCard";
 import { rateStat } from "../lib/weightTrend";
 import { cardPages } from "../state/cardPages";
+import { connection } from "../state/connection";
 import { onLogChange } from "../state/log";
 import { profile } from "../state/profile";
 import { weightUnit, wt, wtUnit } from "../state/units";
-import { openCardPages, openWeight, toast } from "../ui";
+import { openCardPages, openOffline, openWeight, toast } from "../ui";
 
 const props = defineProps<{ selected: string }>();
 
@@ -88,8 +89,8 @@ async function load() {
   } catch (error) {
     if (id !== requestId) return;
     failed.value = data.value == null;
-    if (error instanceof ServerUnreachable) toast("Server unreachable, try again.");
-    else if (error instanceof ApiError) toast(error.message);
+    // Offline the card keeps what it shows, or says it has nothing yet; no toast on every swipe.
+    if (error instanceof ApiError) toast(error.message);
   }
 }
 
@@ -194,6 +195,10 @@ function statsOf(item: ProgressPage): Stat[] {
     <div class="chead head">
       <h2 class="section-title panel-title ttl" data-progress-title>{{ PAGE_TITLES[page] }}</h2>
       <span v-if="periodText" class="t-capn c3 period">{{ periodText }}</span>
+      <!-- In the head, not the swipe track, so it stays put while the pages move. -->
+      <button v-if="connection.offline" type="button" class="offc c2" aria-label="Offline: these numbers are from the last time you were online" data-offline-card @click="openOffline">
+        <Icon name="cloud-off" :size="16" />
+      </button>
       <span class="grow" />
       <button type="button" class="btn sm primary t-label weigh" @click="openWeight()">
         <Icon name="scale" :size="14" />
@@ -204,7 +209,7 @@ function statsOf(item: ProgressPage): Stat[] {
     <Segmented size="compact" label="Chart range" class="full ranges" :model-value="range" :options="ranges.map((item) => ({ value: item, label: rangeLabels[item] }))" @update:model-value="pickRange" />
 
     <p v-if="!data && !failed" class="t-body c2 msg">Loading progress…</p>
-    <p v-else-if="failed && !data" class="t-body c2 msg">Progress couldn't be loaded.</p>
+    <p v-else-if="failed && !data" class="t-body c2 msg">{{ connection.offline ? "Progress isn't on this phone yet. It loads when you're back online." : "Progress couldn't be loaded." }}</p>
     <SwipePanels
       v-else
       ref="panels"
@@ -250,6 +255,8 @@ function statsOf(item: ProgressPage): Stat[] {
 .ttl { margin: 0; flex: none; }
 .period { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
 .weigh { white-space: nowrap; }
+/* A 44px target that takes no more room in the head than the 16px icon. */
+.offc { display: inline-grid; place-items: center; width: 44px; height: 44px; margin: -14px -12px -14px -10px; border-radius: 50%; background: none; border: 0; color: var(--text-secondary); cursor: pointer; }
 /* Five equal ranges, even when a label is wider. */
 .ranges :deep(.seg-btn) { flex: 1 1 0; min-width: 0; }
 .msg { margin: 0; min-height: 200px; display: flex; align-items: center; justify-content: center; }

@@ -10,13 +10,13 @@ import { int } from "../lib/format";
 import { readdToast } from "../lib/groups";
 import { activateMark, activateRow, longPressMoved, longPressMs, type Selection } from "../lib/selection";
 import { vp } from "../lib/viewport";
-import { removeEntries, retryPending, type LogEntry, type PendingAdd } from "../state/log";
+import { removeEntries, type LogEntry } from "../state/log";
 import { loadGroups, readdSavedGroup, savedGroups } from "../state/groups";
 import { deviceTimeZone } from "../state/profile";
 import { foodAmount } from "../state/units";
 import { endSelect, openCopy, openEdit, openFood, startSelect, toast, ui } from "../ui";
 
-const props = defineProps<{ date: string; today: string; entries: LogEntry[]; pending: PendingAdd[]; compact?: boolean; showEmpty?: boolean; home?: boolean; maxRows?: number }>();
+const props = defineProps<{ date: string; today: string; entries: LogEntry[]; compact?: boolean; showEmpty?: boolean; home?: boolean; maxRows?: number }>();
 const rows = computed(() => byTime(props.entries));
 const ordered = computed(() => rows.value.map((entry) => entry.id));
 const isToday = computed(() => props.date === props.today);
@@ -64,9 +64,6 @@ function copy(entry: LogEntry) {
 }
 async function del(entry: LogEntry) {
   await removeEntries([entry]);
-}
-async function retry(pending: PendingAdd) {
-  await retryPending(pending.idempotencyKey);
 }
 const emptyTitle = computed(() => {
   if (isToday.value) return "Nothing logged yet today";
@@ -138,7 +135,7 @@ function onMenu(event: Event) {
 
 <template>
   <div class="tl" :class="{ compact, selecting: ui.selecting, limited: Boolean(maxRows) }">
-    <div v-if="showEmpty && !rows.length && !pending.length" class="empty col">
+    <div v-if="showEmpty && !rows.length" class="empty col">
       <span class="eic"><Icon name="food" :size="22" /></span>
       <span class="t-head">{{ emptyTitle }}</span>
       <span class="t-label c2">{{ emptyHint }}</span>
@@ -159,22 +156,13 @@ function onMenu(event: Event) {
         <button v-else type="button" class="btn sm secondary t-label" @click="startSelect()">Select</button>
       </div>
       <CappedList
-        v-if="pending.length || rows.length"
+        v-if="rows.length"
         :max-rows="maxRows"
-        :watch-key="`${date}:${rows.length}:${pending.length}`"
+        :watch-key="`${date}:${rows.length}`"
         class="entries"
         :class="{ oneline: home && Boolean(maxRows) }"
         data-log-entries
       >
-      <div v-for="item in pending" :key="item.idempotencyKey" class="pending">
-        <span class="time t-label c2">{{ item.time || "Now" }}</span>
-        <span class="col two">
-          <span class="t-body name">{{ item.name }}</span>
-          <span class="t-capn c2 sub">Pending · {{ macros(item) }}</span>
-        </span>
-        <button type="button" class="btn sm primary t-label" @click="retry(item)"><Icon name="refresh" :size="14" /> Retry</button>
-        <span class="t-bodys kc" data-num>{{ int(item.kcal) }}</span>
-      </div>
       <SwipeRow
         v-for="entry in rows"
         :key="entry.id"
@@ -210,12 +198,18 @@ function onMenu(event: Event) {
             <span class="time t-label num" :class="selected(entry.id) ? '' : 'c2'">{{ entry.time }}</span>
             <span class="col two">
               <span class="t-body name">{{ entry.name }}</span>
-              <span class="t-capn c2 sub">{{ amountOf(entry) ? `${amountOf(entry)} · ` : "" }}{{ macros(entry) }}</span>
+              <span class="t-capn c2 sub">
+                {{ amountOf(entry) ? `${amountOf(entry)} · ` : "" }}<!--
+                A refused add drops its macros so "couldn't send" fits on one line.
+                --><span v-if="entry.queued === 'failed'" class="qmark" data-queued="failed"><Icon name="alert" :size="13" />couldn't send</span><!--
+                --><template v-else>{{ macros(entry) }}<template v-if="entry.queued"> · <span class="qmark" data-queued="waiting"><Icon name="cloud-off" :size="13" />waiting</span></template></template>
+              </span>
             </span>
-            <span class="t-bodys kc" data-num>{{ int(entry.kcal) }}</span>
+            <!-- A refused entry counts for nothing until it is saved again, so no number. -->
+            <span class="t-bodys kc" data-num>{{ entry.queued === "failed" ? "" : int(entry.kcal) }}</span>
           </button>
           <span v-if="vp.hover && !ui.selecting" class="hacts row">
-            <button type="button" class="hbtn" :aria-label="`Copy ${entry.name} to another day`" title="Copy to…" @click.stop="copy(entry)">
+            <button v-if="entry.queued !== 'failed'" type="button" class="hbtn" :aria-label="`Copy ${entry.name} to another day`" title="Copy to…" @click.stop="copy(entry)">
               <Icon name="copy" :size="16" />
             </button>
             <button type="button" class="hbtn" :aria-label="`Delete ${entry.name}`" title="Delete" @click.stop="del(entry)">
@@ -225,7 +219,7 @@ function onMenu(event: Event) {
         </div>
       </SwipeRow>
       </CappedList>
-      <button v-if="!home && (rows.length || pending.length)" type="button" class="addrow row" :disabled="ui.selecting" @click="add">
+      <button v-if="!home && rows.length" type="button" class="addrow row" :disabled="ui.selecting" @click="add">
         <span class="cbtn fit addc" style="--s: var(--control-s-sm)" aria-hidden="true"><Icon name="plus" :size="13" :sw="2.4" /></span>
         <span class="t-body c2">{{ isToday ? "Add food" : `Add food to ${dayMonth(date)}` }}</span>
       </button>
@@ -249,7 +243,6 @@ function onMenu(event: Event) {
 .entries.oneline .name, .entries.oneline .sub { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; overflow-wrap: normal; word-break: normal; }
 .entries.oneline .two { max-width: 100%; }
 .entries.oneline .two > * { width: 100%; }
-.entries > .pending:not(:first-child),
 .tl :deep(.entries > .swipe:not(:first-child)) { border-top: 1px solid var(--color-border); }
 .line {
   position: relative; display: flex; align-items: center; gap: var(--space-s);
@@ -262,11 +255,6 @@ function onMenu(event: Event) {
   display: grid; grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center; gap: var(--space-s); background: transparent; border-radius: var(--radius-m); padding: var(--space-xs) 0;
 }
-.pending {
-  min-height: 52px; min-width: 0; max-width: 100%;
-  display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto;
-  align-items: center; gap: var(--space-s); border-radius: 0; padding: var(--space-s) 0;
-}
 .time { width: auto; min-width: 2.5rem; font-variant-numeric: tabular-nums; }
 .two { gap: 1px; min-width: 0; align-items: flex-start; }
 .name, .sub {
@@ -274,10 +262,12 @@ function onMenu(event: Event) {
   white-space: normal; overflow-wrap: anywhere; word-break: break-word;
   text-overflow: clip;
 }
-.frow .kc, .pending .kc {
+.frow .kc {
   width: auto; min-width: 2.5rem; max-width: none; overflow-wrap: normal;
   text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums;
 }
+/* "waiting" and "couldn't send" ride on the detail line, icon and word together. */
+.qmark { display: inline-flex; align-items: center; gap: 3px; vertical-align: -2px; white-space: nowrap; }
 .addrow { min-height: var(--control-hit); gap: var(--space-m); align-items: center; text-align: left; margin-top: var(--space-s); }
 .addrow:disabled { opacity: .35; cursor: default; }
 .addc { pointer-events: none; }

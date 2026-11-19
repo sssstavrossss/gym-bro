@@ -30,6 +30,17 @@ export function todayInZone(timeZone: string): string {
     return todayIso();
   }
 }
+/** The wall-clock time in an IANA zone, "HH:MM". Falls back to the browser's local time. */
+export function timeInZone(timeZone: string, now = new Date()): string {
+  const local = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+  try {
+    const time = new Intl.DateTimeFormat("en-GB", { timeZone, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(now);
+    return /^\d{2}:\d{2}$/.test(time) ? time : local;
+  } catch {
+    return local;
+  }
+}
+
 export function addDays(isoDate: string, n: number): string {
   const d = parse(isoDate);
   d.setDate(d.getDate() + n);

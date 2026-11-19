@@ -10,6 +10,7 @@ import Segmented from "./Segmented.vue";
 import TimeChip from "./TimeChip.vue";
 import FoodAmountView from "./FoodAmountView.vue";
 import BarcodeScanner from "./BarcodeScanner.vue";
+import OfflineNote from "./OfflineNote.vue";
 import { dayMonth, todayInZone } from "../lib/dates";
 import { focusField, primeKeyboard } from "../lib/focusField";
 import { int } from "../lib/format";
@@ -23,7 +24,7 @@ import {
   type OwnServing,
 } from "../lib/foodAmount";
 import { amountErrorIn } from "../lib/foodUnits";
-import { acceptSearchResult, preparedSearch, searchDebounceMs } from "../lib/foodSearch";
+import { acceptSearchResult, preparedSearch, searchDebounceMs, searchKept } from "../lib/foodSearch";
 import {
   addNeedsTime,
   amountForRecent,
@@ -56,6 +57,7 @@ import { kcalFromMacros, type MacroAmounts } from "../lib/macros";
 import { bindPick, clickPick } from "../lib/cleanTap";
 import { afterInsertion, markWholeSelection, nextQuickInput, nextQuickNumber, tookWholeSelection } from "../lib/quickEntry";
 import { keyboardEntry } from "../lib/viewport";
+import { connection } from "../state/connection";
 import { deviceTimeZone, profile } from "../state/profile";
 import { findEntry, log, removeEntries, removeEntry, saveQuickAdd, totalsOf, updateFoodAmount, updateQuickAdd, viewed, type LogEntry } from "../state/log";
 import SavedGroups from "./SavedGroups.vue";
@@ -73,7 +75,11 @@ const foodToday = computed(() => viewed.today || todayInZone(deviceTimeZone()));
 /** Any day but today, earlier or planned, needs a picked time, never now. */
 const otherDay = computed(() => ui.foodDate !== foodToday.value);
 const needTime = computed(() => addNeedsTime(ui.foodDate, foodToday.value, time.value, Boolean(editing.value)));
-const editingFood = computed(() => (editing.value && editing.value.source !== "quick" ? editing.value : null));
+/** A quick add, or an entry the server refused: both edit as plain numbers, and Save sends a quick add. */
+function editsAsQuick(entry: LogEntry): boolean {
+  return entry.source === "quick" || entry.queued === "failed";
+}
+const editingFood = computed(() => (editing.value && !editsAsQuick(editing.value) ? editing.value : null));
 const showEditor = computed(() => ui.foodEditor != null);
 const showScan = computed(() => ui.foodScan && !showEditor.value && !ui.detailFoodId);
 const showDetail = computed(() => Boolean(ui.detailFoodId || editingFood.value));
@@ -128,6 +134,8 @@ let keepSearch = false;
 const resultsMax = ref("");
 const amountView = ref<InstanceType<typeof FoodAmountView> | null>(null);
 const foodChanged = ref(false);
+/** Offline the food itself can't be fetched, so whether it changed is unknown: say nothing. */
+const foodUnseen = ref(false);
 const session = ref<{ id: string; name: string; kcal: number }[]>([]);
 const justGroup = ref<string | null>(null);
 const groupKeys = new Map<string, string>();
@@ -214,7 +222,7 @@ function fill(entry: LogEntry | null) {
   savedFoodId.value = null;
   savedFoodSig.value = "";
   replace.value = { kcal: true, p: true, f: true, c: true };
-  if (entry && entry.source === "quick") {
+  if (entry && editsAsQuick(entry)) {
     qName.value = entry.name === "Quick add" ? "" : entry.name;
     qa.value = {
       kcal: String(entry.kcal),
@@ -422,7 +430,16 @@ const showNoMatch = computed(() => Boolean(
   && !offCopy.value
   && off.value.missingKcal === 0,
 ));
-const showOffButton = computed(() => canAskOpenFoodFacts(q.value) && off.value.status === "idle" && !searchError.value);
+const showOffButton = computed(() => !connection.offline && canAskOpenFoodFacts(q.value) && off.value.status === "idle" && !searchError.value);
+const searchPlaceholder = computed(() => {
+  if (filter.value === "mine") return "Search my foods";
+  if (filter.value === "recipes") return "Search recipes";
+  return connection.offline ? "Search your foods" : "Search foods";
+});
+/** Offline, search looks through the foods kept on this phone: recents and My foods. */
+function keptResults(trimmed: string): FoodSearchRow[] {
+  return searchKept(trimmed, [recents.value, mine.value]);
+}
 
 function isRecent(food: FoodSearchRow): food is RecentFood {
   return typeof (food as RecentFood).amount === "number" && typeof (food as RecentFood).unit === "string" && !trimmedQuery.value;
@@ -588,8 +605,8 @@ async function addRecent(food: RecentFood) {
     const result = await saveQuickAdd(built.body);
     if (!result.ok) {
       lastTap = { id: "", at: 0 };
-      saveError.value = result.unreachable === true;
-      formError.value = result.unreachable ? "" : (result.message ?? "");
+      saveError.value = false;
+      formError.value = result.message;
       return;
     }
     recentKeys.delete(food.id);
@@ -610,16 +627,23 @@ async function runSearch(trimmed: string) {
   const gen = ++searchGen;
   searching.value = true;
   searchError.value = "";
+  if (connection.offline) {
+    results.value = keptResults(trimmed);
+    searching.value = false;
+    return;
+  }
   try {
     const body = await searchFoods(trimmed);
     if (!acceptSearchResult(gen, trimmed, searchGen, q.value)) return;
     results.value = body.foods;
   } catch (error) {
     if (gen !== searchGen) return;
+    if (error instanceof ServerUnreachable) {
+      results.value = keptResults(trimmed);
+      return;
+    }
     results.value = [];
-    searchError.value = error instanceof ServerUnreachable
-      ? "server unreachable, try again"
-      : error instanceof ApiError ? error.message : "Couldn't search foods.";
+    searchError.value = error instanceof ApiError ? error.message : "Couldn't search foods.";
   } finally {
     if (gen === searchGen) searching.value = false;
   }
@@ -645,6 +669,7 @@ async function prepareEdit(entry: LogEntry) {
   const kind = standard ?? (named ?? (entry.grams == null ? "serving" : "g"));
   amount.showStored(entry.amount, kind);
   foodChanged.value = false;
+  foodUnseen.value = false;
   detailFood.value = null;
   if (!entry.foodId) {
     foodChanged.value = entry.source !== "recipe";
@@ -656,8 +681,11 @@ async function prepareEdit(entry: LogEntry) {
     detailFood.value = food;
     const implied = entry.grams && entry.grams > 0 ? (entry.kcal / entry.grams) * 100 : entry.kcal / (entry.amount || 1);
     foodChanged.value = Math.abs(implied - food.kcalPer100) > 0.05;
-  } catch {
-    if (ui.editEntryId === entry.id) foodChanged.value = true;
+  } catch (error) {
+    if (ui.editEntryId !== entry.id) return;
+    // Without the food, work from the values it was logged with.
+    foodChanged.value = true;
+    foodUnseen.value = error instanceof ServerUnreachable;
   }
 }
 function pickRecipe(id: string) {
@@ -853,8 +881,8 @@ async function addQuick() {
     if (editing.value) {
       const result = await updateQuickAdd(editing.value.id, values);
       if (!result.ok) {
-        saveError.value = result.unreachable === true;
-        formError.value = result.unreachable ? "" : (result.message ?? "");
+        saveError.value = false;
+        formError.value = result.message;
         return;
       }
       toast(`Updated ${result.entry.name} · ${int(result.entry.kcal)} kcal`);
@@ -892,8 +920,8 @@ async function addQuick() {
       ...(qSave.value && savedFoodId.value ? { foodId: savedFoodId.value, amount: 1, unit: "serving" } : {}),
     });
     if (!result.ok) {
-      saveError.value = result.unreachable === true;
-      formError.value = result.unreachable ? "" : (result.message ?? "");
+      saveError.value = false;
+      formError.value = result.message;
       return;
     }
     const savedMine = qSave.value;
@@ -949,10 +977,10 @@ async function addDetail() {
         amount: amountNumber.value,
         unit: unit.value,
         time: time.value,
-      });
+      }, previewNow);
       if (!result.ok) {
-        saveError.value = result.unreachable === true;
-        formError.value = result.unreachable ? "" : (result.message ?? "");
+        saveError.value = false;
+        formError.value = result.message;
         return;
       }
       toast(`Updated ${result.entry.name} · ${int(result.entry.kcal)} kcal`);
@@ -977,8 +1005,8 @@ async function addDetail() {
       unit: unit.value,
     });
     if (!result.ok) {
-      saveError.value = result.unreachable === true;
-      formError.value = result.unreachable ? "" : (result.message ?? "");
+      saveError.value = false;
+      formError.value = result.message;
       return;
     }
     toast(`Added ${foodAmount(result.entry.amount, result.entry.unit || unit.value)} ${result.entry.name} · ${int(result.entry.kcal)} kcal`);
@@ -1055,22 +1083,23 @@ async function deleteEdited() {
         <button v-if="detailIsMine && !editing" type="button" class="btn sm secondary t-label" @click="detailFood && editMine(detailFood, 'detail')"><Icon name="edit" :size="14" /> Edit</button>
       </template>
       <template #notice>
-        <span v-if="editingFood && foodChanged" class="t-capn c2">Using the values it was logged with — this food has changed since.</span>
+        <span v-if="editingFood && foodChanged && !foodUnseen" class="t-capn c2">Using the values it was logged with — this food has changed since.</span>
       </template>
       <template #alerts>
         <p v-if="formError" class="err t-label" role="alert">{{ formError }}</p>
         <div v-if="saveError" class="err row" role="alert">
           <Icon name="alert" :size="18" class="c2" />
           <span class="col grow">
-            <span class="t-bodys">Server unreachable</span>
-            <span class="t-label c2">Nothing was lost — your entry is still here. Try again in a moment.</span>
+            <span class="t-bodys">Needs a connection</span>
+            <span class="t-label c2">Saving to your foods needs a connection. Nothing was lost. Try again once you\'re back online.</span>
           </span>
           <button type="button" class="btn sm secondary t-label" @click="saveError = false">Dismiss</button>
         </div>
       </template>
+      <template #note><OfflineNote :entry="editing" /></template>
       <template #hint><kbd>Enter</kbd> {{ editing ? "save" : "add" }} · <kbd>Esc</kbd> {{ editing ? "close" : "back to search" }}</template>
       <template #actions>
-        <button v-if="editing" type="button" class="btn secondary t-bodys" aria-label="Copy to another day" :disabled="saving" @click="copyEdited">
+        <button v-if="editing && editing.queued !== 'failed'" type="button" class="btn secondary t-bodys" aria-label="Copy to another day" :disabled="saving" @click="copyEdited">
           <Icon name="copy" :size="16" /><span>Copy</span>
         </button>
         <button v-if="editing" type="button" class="btn secondary t-bodys" aria-label="Delete" :disabled="saving" @click="deleteEdited">
@@ -1085,7 +1114,7 @@ async function deleteEdited() {
     <template v-else-if="!editing && ui.foodTab === 'search'">
       <label class="field row">
         <Icon name="search" :size="18" class="c2" />
-        <input ref="searchEl" v-model="q" data-no-autofocus class="t-body grow" type="search" :placeholder="filter === 'mine' ? 'Search my foods' : filter === 'recipes' ? 'Search recipes' : 'Search foods'" :aria-label="filter === 'recipes' ? 'Search recipes' : 'Search foods'" autocomplete="off" enterkeyhint="search" @focus="onSearchFocus" @blur="queueSearchBlur" @keydown="searchKey" />
+        <input ref="searchEl" v-model="q" data-no-autofocus class="t-body grow" type="search" :placeholder="searchPlaceholder" :aria-label="filter === 'recipes' ? 'Search recipes' : 'Search foods'" autocomplete="off" enterkeyhint="search" @focus="onSearchFocus" @blur="queueSearchBlur" @keydown="searchKey" />
         <button v-if="q" type="button" class="clr c2" aria-label="Clear search" @click="q = ''"><Icon name="x" :size="16" /></button>
         <button v-else-if="filter !== 'recipes'" type="button" class="clr scanb" aria-label="Scan a barcode" @click="startScan"><Icon name="scan" :size="20" /></button>
       </label>
@@ -1094,6 +1123,10 @@ async function deleteEdited() {
         <button type="button" class="chip t-label" :class="{ on: filter === 'mine' }" :aria-pressed="filter === 'mine'" @click="filter = 'mine'">My foods · {{ mine.length }}</button>
         <button type="button" class="chip t-label" :class="{ on: filter === 'recipes' }" :aria-pressed="filter === 'recipes'" @click="filter = 'recipes'">Recipes · {{ savedRecipes.list.length }}</button>
       </div>
+      <p v-if="connection.offline" v-show="!searchView" class="well t-label c2 offwell" role="status" data-offline-search>
+        <Icon name="cloud-off" :size="16" class="oic" />
+        <span><strong class="offk">Offline.</strong> Your recent foods, My foods and Quick add work. Searching the full food list needs a connection.</span>
+      </p>
       <div ref="listEl" class="list" :class="{ compact: searchFocused }" :style="resultsMax ? { maxHeight: resultsMax } : undefined">
         <RecipeList
           v-if="filter === 'recipes'"
@@ -1273,15 +1306,16 @@ async function deleteEdited() {
       <div v-if="saveError" class="err row" role="alert">
         <Icon name="alert" :size="18" class="c2" />
         <span class="col grow">
-          <span class="t-bodys">Server unreachable</span>
-          <span class="t-label c2">Nothing was lost — your entry is still here. Try again in a moment.</span>
+          <span class="t-bodys">Needs a connection</span>
+          <span class="t-label c2">Saving to your foods needs a connection. Nothing was lost. Try again once you\'re back online.</span>
         </span>
         <button type="button" class="btn sm secondary t-label" @click="saveError = false">Dismiss</button>
       </div>
       <Keypad v-if="!keyboardEntry" @key="qKey" />
       <p v-else class="t-capn c3 khint keyhint"><kbd>Tab</kbd> next field · <kbd>Enter</kbd> {{ editing ? "save" : "add" }} · <kbd>Esc</kbd> close</p>
+      <OfflineNote :entry="editing" />
       <div class="row gap8 actions">
-        <button v-if="editing" type="button" class="btn secondary t-bodys" aria-label="Copy to another day" :disabled="saving" @click="copyEdited">
+        <button v-if="editing && editing.queued !== 'failed'" type="button" class="btn secondary t-bodys" aria-label="Copy to another day" :disabled="saving" @click="copyEdited">
           <Icon name="copy" :size="16" /><span>Copy</span>
         </button>
         <button v-if="editing" type="button" class="btn secondary t-bodys" aria-label="Delete" :disabled="saving" @click="deleteEdited">
@@ -1349,6 +1383,9 @@ html.dt-xl .hdr :deep(.tchip.t-label),
 html.dt-xl .hdr :deep(.now) { font-size: 15px; line-height: 1.2; }
 .dt-xl .qgrid { grid-template-columns: 1fr; }
 .fchips { gap: var(--space-m); flex-wrap: wrap; flex: none; }
+.offwell { display: flex; align-items: flex-start; gap: var(--space-s); margin: var(--space-s) 0 0; flex: none; }
+.offwell .oic { flex: none; margin-top: 2px; }
+.offk { color: var(--text-primary); font-weight: 600; }
 .nm { min-width: 0; max-width: 100%; }
 .gap6 { gap: var(--space-s); }
 .wrapc { flex-wrap: wrap; justify-content: center; }

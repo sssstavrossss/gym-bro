@@ -8,6 +8,7 @@ import GoalReached from "../components/GoalReached.vue";
 import Icon from "../components/Icon.vue";
 import InfoTip from "../components/InfoTip.vue";
 import MacroBars from "../components/MacroBars.vue";
+import OfflineLine from "../components/OfflineLine.vue";
 import Sparkline from "../components/Sparkline.vue";
 import RecalcPrompt from "../components/RecalcPrompt.vue";
 import Timeline from "../components/Timeline.vue";
@@ -23,7 +24,7 @@ import { isFreshStart, isLowAccuracy, trendChange, weightSubtitle } from "../lib
 import { boot } from "../state/boot";
 import { refreshInbox } from "../state/inbox";
 import { lastPlanDate } from "../lib/dayLog";
-import { loadDay, onLogChange, pendingFor, totalsOf, viewed } from "../state/log";
+import { loadDay, onLogChange, totalsOf, viewed } from "../state/log";
 import { deviceTimeZone, profile } from "../state/profile";
 import { weightUnit, wt, wtUnit } from "../state/units";
 import { loadWeekDays, weekCache } from "../state/week";
@@ -69,9 +70,8 @@ watch(selected, (value) => { void loadDay(value); }, { immediate: true });
 const shownDay = computed(() => (viewed.loaded && viewed.date ? viewed.date : selected.value));
 const ready = computed(() => viewed.loaded);
 const entries = computed(() => (ready.value ? viewed.entries : []));
-const pending = computed(() => pendingFor(shownDay.value));
 const goal = computed(() => (ready.value ? viewed.target : null));
-const hasDay = computed(() => entries.value.length > 0 || pending.value.length > 0);
+const hasDay = computed(() => entries.value.length > 0);
 const title = computed(() => pageTitle(selected.value, today.value));
 /** The phone header names the span the week strip shows and turns it a week at a time. */
 const strip = ref<InstanceType<typeof WeekStrip> | null>(null);
@@ -100,7 +100,7 @@ const addFoodLabel = computed(() => (shownDay.value === today.value ? "Add food"
 const addFoodName = computed(() => (
   shownDay.value === today.value ? "Add food" : `Add food to ${dayMonth(shownDay.value)}`
 ));
-const foodCount = computed(() => entries.value.length + pending.value.length);
+const foodCount = computed(() => entries.value.length);
 function pick(day: string) {
   selected.value = day;
 }
@@ -126,7 +126,7 @@ const weekRows = computed(() => {
     const liveEntries = live ? viewed.entries : [];
     const liveTotals = totalsOf(liveEntries);
     const logged = live
-      ? liveEntries.length > 0 || pendingFor(date).length > 0
+      ? liveEntries.length > 0
       : Boolean(cached?.logged);
     const food = live
       ? { kcal: liveTotals.kcal, protein: liveTotals.p, fat: liveTotals.f, carbs: liveTotals.c }
@@ -174,6 +174,7 @@ const weekRows = computed(() => {
         </div>
       </template>
     </header>
+    <OfflineLine />
     <div class="topbar">
       <WeekStrip ref="strip" :anchor="today" :swipe="layout === 'phone'" :selected="selected" :today="today" :setup-date="viewed.setupDate" :logged-dates="viewed.loggedDates" @select="pick" @range="(from, to) => span = [from, to]" />
     </div>
@@ -209,7 +210,7 @@ const weekRows = computed(() => {
                 <Icon name="plus" :size="14" :sw="2.6" />{{ addFoodLabel }}
               </button>
             </div>
-            <Timeline home compact :max-rows="5" :date="shownDay" :today="today" :entries="entries" :pending="pending" />
+            <Timeline home compact :max-rows="5" :date="shownDay" :today="today" :entries="entries" />
           </section>
         </div>
 
@@ -277,7 +278,7 @@ const weekRows = computed(() => {
           </button>
           <RouterLink :to="logHref" class="t-label c2 more">Open log <Icon name="right" :size="14" /></RouterLink>
         </div>
-        <Timeline home compact show-empty :date="shownDay" :today="today" :entries="entries" :pending="pending" />
+        <Timeline home compact show-empty :date="shownDay" :today="today" :entries="entries" />
       </section>
     </div>
   </main>

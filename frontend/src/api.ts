@@ -7,6 +7,8 @@ import type { FatLimitsSetting, SodiumLimitSetting } from "./lib/nutrientCards";
 import type { FoodUnit } from "./lib/foodUnits";
 import { e2eSession } from "./auth/e2e";
 import { loadPublicConfig, type PublicConfig } from "./auth/publicConfig";
+import { recallAnswer, rememberAnswer } from "./offline/cache";
+import { noteAnswer, noteNoAnswer } from "./state/connection";
 
 export class ServerUnreachable extends Error {
   constructor() {
@@ -380,14 +382,20 @@ async function authHeaders(): Promise<Record<string, string>> {
   return { Authorization: `Bearer ${token}` };
 }
 
-let onReachable: (() => void) | null = null;
+function isGateway(status: number): boolean {
+  return status === 502 || status === 503 || status === 504;
+}
 
-/** Called whenever the API answers with anything but a gateway error, so an "unreachable" banner can clear. */
-export function whenReachable(listener: () => void): void {
-  onReachable = listener;
+function deviceOffline(): boolean {
+  return typeof navigator !== "undefined" && navigator.onLine === false;
 }
 
 async function request(path: string, init?: RequestInit): Promise<Response> {
+  // The phone knows it has no network: don't wait on a token refresh or a fetch that can't work.
+  if (deviceOffline()) {
+    noteNoAnswer();
+    throw new ServerUnreachable();
+  }
   try {
     const headers = await authHeaders();
     const response = await fetch(path, {
@@ -395,11 +403,43 @@ async function request(path: string, init?: RequestInit): Promise<Response> {
       cache: "no-store",
       headers: { ...headers, ...(init?.headers as Record<string, string> | undefined) },
     });
-    if (response.status !== 502 && response.status !== 503 && response.status !== 504) onReachable?.();
+    if (isGateway(response.status)) noteNoAnswer();
+    else noteAnswer();
     return response;
   } catch (error) {
     if (error instanceof AuthRedirect) throw error;
+    noteNoAnswer();
     throw new ServerUnreachable();
+  }
+}
+
+/** Asks the server whether it is there, without signing in. An answer brings the app back online. */
+export async function ping(): Promise<void> {
+  if (deviceOffline()) return;
+  try {
+    const response = await fetch("/api/health", { cache: "no-store" });
+    if (isGateway(response.status)) noteNoAnswer();
+    else noteAnswer();
+  } catch {
+    noteNoAnswer();
+  }
+}
+
+/**
+ * A GET the app can show offline. Online, it asks the server and keeps the answer on the phone.
+ * When the server can't be reached, it returns the last kept answer, or throws ServerUnreachable
+ * when there is none.
+ */
+async function cachedJson<T>(path: string): Promise<T> {
+  try {
+    const body = await jsonOrThrow<T>(await request(path));
+    void rememberAnswer(path, body);
+    return body;
+  } catch (error) {
+    if (!(error instanceof ServerUnreachable)) throw error;
+    const kept = await recallAnswer<T>(path);
+    if (kept === null) throw error;
+    return kept;
   }
 }
 
@@ -414,9 +454,7 @@ async function readError(response: Response): Promise<string> {
 }
 
 async function jsonOrThrow<T>(response: Response): Promise<T> {
-  if (response.status === 502 || response.status === 503 || response.status === 504) {
-    throw new ServerUnreachable();
-  }
+  if (isGateway(response.status)) throw new ServerUnreachable();
   if (!response.ok) throw new ApiError(await readError(response), response.status);
   return (await response.json()) as T;
 }
@@ -428,7 +466,7 @@ export async function getHealth(): Promise<HealthResponse> {
 }
 
 export async function getProfile(): Promise<ProfileStateResponse> {
-  return jsonOrThrow(await request("/api/profile"));
+  return cachedJson("/api/profile");
 }
 
 export async function putProfile(body: ProfileBody): Promise<ProfileStateResponse> {
@@ -509,7 +547,7 @@ export async function deleteWeighIn(date: string): Promise<void> {
 }
 
 export async function listWeighIns(): Promise<{ weighIns: WeighInRow[] }> {
-  return jsonOrThrow(await request("/api/weigh-ins"));
+  return cachedJson("/api/weigh-ins");
 }
 
 export interface ProgressDay {
@@ -562,7 +600,7 @@ export interface ProgressResponse {
 }
 
 export async function getProgress(range: string): Promise<ProgressResponse> {
-  return jsonOrThrow(await request(`/api/progress?range=${encodeURIComponent(range)}`));
+  return cachedJson(`/api/progress?range=${encodeURIComponent(range)}`);
 }
 
 export interface NutrientWeekResponse {
@@ -575,7 +613,7 @@ export interface NutrientWeekResponse {
 
 /** The seven days ending on `date`. */
 export async function getNutrientWeek(date: string): Promise<NutrientWeekResponse> {
-  return jsonOrThrow(await request(`/api/nutrients/week?date=${encodeURIComponent(date)}`));
+  return cachedJson(`/api/nutrients/week?date=${encodeURIComponent(date)}`);
 }
 
 export interface NutrientSourceFood {
@@ -598,7 +636,7 @@ export async function getNutrientSources(key: string): Promise<NutrientSourcesRe
 }
 
 export async function getWeightChart(days = 30): Promise<WeightChartResponse> {
-  return jsonOrThrow(await request(`/api/weight/chart?days=${days}`));
+  return cachedJson(`/api/weight/chart?days=${days}`);
 }
 
 export async function decideFreshStart(accept: boolean): Promise<FreshStartDecisionResponse> {
@@ -614,7 +652,7 @@ export async function searchFoods(query: string): Promise<FoodSearchResponse> {
 }
 
 export async function listRecentFoods(): Promise<RecentFoodsResponse> {
-  return jsonOrThrow(await request("/api/foods/recents"));
+  return cachedJson("/api/foods/recents");
 }
 
 export async function searchOpenFoodFacts(query: string): Promise<OffSearchResponse> {
@@ -626,7 +664,7 @@ export async function searchOpenFoodFacts(query: string): Promise<OffSearchRespo
 }
 
 export async function getFood(id: string): Promise<FoodSearchRow> {
-  return jsonOrThrow(await request(`/api/foods/${id}`));
+  return cachedJson(`/api/foods/${id}`);
 }
 
 export interface BarcodeLookup {
@@ -659,7 +697,7 @@ export interface CustomFoodBody {
 }
 
 export async function listMyFoods(): Promise<{ foods: FoodSearchRow[] }> {
-  return jsonOrThrow(await request("/api/foods/mine"));
+  return cachedJson("/api/foods/mine");
 }
 
 export async function createCustomFood(body: CustomFoodBody): Promise<FoodSearchRow> {
@@ -715,12 +753,12 @@ export async function confirmFoodBasis(id: string, basis: "g" | "ml"): Promise<F
 }
 
 export async function getTargets(date: string): Promise<TargetsDayResponse> {
-  return jsonOrThrow(await request(`/api/targets?date=${encodeURIComponent(date)}`));
+  return cachedJson(`/api/targets?date=${encodeURIComponent(date)}`);
 }
 
 export async function getDayStatus(date: string, timeZone: string): Promise<DayStatusResponse> {
   const query = new URLSearchParams({ date, timeZone });
-  return jsonOrThrow(await request(`/api/day-status?${query}`));
+  return cachedJson(`/api/day-status?${query}`);
 }
 
 export async function putDayStatus(date: string, body: { fasting: boolean; timeZone: string }): Promise<DayStatusResponse> {
@@ -733,11 +771,11 @@ export async function putDayStatus(date: string, body: { fasting: boolean; timeZ
 
 export async function listLogDays(from: string, to: string, timeZone: string): Promise<LogDaysResponse> {
   const query = new URLSearchParams({ from, to, timeZone });
-  return jsonOrThrow(await request(`/api/log-days?${query}`));
+  return cachedJson(`/api/log-days?${query}`);
 }
 
 export async function listLogEntries(date: string): Promise<LogListResponse> {
-  return jsonOrThrow(await request(`/api/log-entries?date=${encodeURIComponent(date)}`));
+  return cachedJson(`/api/log-entries?date=${encodeURIComponent(date)}`);
 }
 
 export async function addLogEntry(body: LogCreateBody): Promise<LogEntryResponse> {
@@ -757,7 +795,7 @@ export async function patchLogEntry(id: string, body: LogPatchBody): Promise<Log
 }
 
 export async function listGroups(): Promise<{ groups: SavedGroup[] }> {
-  return jsonOrThrow(await request("/api/groups"));
+  return cachedJson("/api/groups");
 }
 
 export async function createGroup(body: { name: string; entryIds: string[] }): Promise<SavedGroup> {
@@ -820,11 +858,11 @@ export interface RecipeWrite {
 }
 
 export async function listRecipes(): Promise<{ recipes: Recipe[] }> {
-  return jsonOrThrow(await request("/api/recipes"));
+  return cachedJson("/api/recipes");
 }
 
 export async function getRecipe(id: string): Promise<Recipe> {
-  return jsonOrThrow(await request(`/api/recipes/${id}`));
+  return cachedJson(`/api/recipes/${id}`);
 }
 
 export async function createRecipe(body: RecipeWrite): Promise<Recipe> {

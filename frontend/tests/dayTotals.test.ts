@@ -1,5 +1,5 @@
 import { afterEach, expect, it } from "vitest";
-import { dayTotals, log, type LogEntry, type PendingAdd } from "../src/state/log";
+import { dayTotals, log, type LogEntry } from "../src/state/log";
 
 const saved: LogEntry = {
   id: "saved-1",
@@ -20,25 +20,26 @@ const saved: LogEntry = {
   idempotencyKey: "saved-key",
 };
 
-const pending: PendingAdd = {
-  idempotencyKey: "pending-key",
-  localDate: "2026-10-30",
+const waiting: LogEntry = {
+  ...saved,
+  id: "local:waiting-key",
   time: "08:20",
-  timeZone: "UTC",
   name: "Fictional shake",
   kcal: 80,
   protein: 4,
   fat: 2,
   carbs: 8,
+  idempotencyKey: "waiting-key",
+  queued: "waiting",
 };
+
+const refused: LogEntry = { ...waiting, id: "local:refused-key", idempotencyKey: "refused-key", queued: "failed", kcal: 500 };
 
 afterEach(() => {
   log.entries = [];
-  log.pending = [];
 });
 
-it("sums saved entries and leaves pending rows out of today's numbers", () => {
-  log.entries = [saved];
-  log.pending = [pending];
-  expect(dayTotals()).toEqual({ kcal: 200, p: 10, f: 5, c: 20 });
+it("counts an entry waiting to send, and leaves out one the server refused", () => {
+  log.entries = [saved, waiting, refused];
+  expect(dayTotals()).toEqual({ kcal: 280, p: 14, f: 7, c: 28 });
 });

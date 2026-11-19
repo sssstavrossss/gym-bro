@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from "vue";
 import Icon from "../components/Icon.vue";
+import OfflineLine from "../components/OfflineLine.vue";
 import Segmented from "../components/Segmented.vue";
 import { ApiError, getProgress, ServerUnreachable, type ProgressDay, type ProgressResponse } from "../api";
 import { dayMonth, spanLabel } from "../lib/dates";
@@ -43,7 +44,7 @@ async function load() {
     if (token !== requestId) return;
     if (!data.value) {
       error.value = caught instanceof ServerUnreachable
-        ? "Server unreachable, try again."
+        ? "Progress isn't on this phone yet. It loads when you're back online."
         : caught instanceof ApiError ? caught.message : "Couldn't load progress.";
     }
   } finally {
@@ -154,6 +155,7 @@ function weighInOn(date: string): string {
       <div class="col gap2">
         <h1 class="t-title">Progress</h1>
         <span v-if="data" class="t-label c2">{{ period }}</span>
+        <OfflineLine />
       </div>
     </header>
     <div class="rangebar" data-range-bar>

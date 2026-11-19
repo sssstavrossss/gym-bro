@@ -2,6 +2,7 @@
 import { onMounted, ref, watch } from "vue";
 import Icon from "./Icon.vue";
 import { dismissRecalculateBanner, getRecalculateBanner } from "../api";
+import { connection } from "../state/connection";
 import { refreshInbox } from "../state/inbox";
 import { openRecalculate, toast, ui } from "../ui";
 
@@ -37,7 +38,7 @@ watch(() => ui.sheet, (sheet, previous) => {
 </script>
 
 <template>
-  <section v-if="show" class="card outline rp" aria-labelledby="rp-h" data-recalc-prompt>
+  <section v-if="show && !connection.offline" class="card outline rp" aria-labelledby="rp-h" data-recalc-prompt>
     <div class="grid">
     <span class="disc ic" aria-hidden="true"><Icon name="refresh" :size="16" /></span>
     <div class="col grow txt">

@@ -12,7 +12,7 @@ import {
   type Recipe,
   type RecipeWrite,
 } from "../api";
-import { log, rememberEntries, type LogEntry } from "./log";
+import { rememberEntries, type LogEntry } from "./log";
 
 export const savedRecipes = reactive({
   list: [] as Recipe[],
@@ -28,8 +28,8 @@ export async function loadRecipes(): Promise<void> {
     if (gen !== generation) return;
     savedRecipes.list = body.recipes;
     savedRecipes.loaded = true;
-  } catch (error) {
-    if (error instanceof ServerUnreachable) log.unreachable = true;
+  } catch {
+    // Offline with nothing kept: the list stays as it was.
   }
 }
 
@@ -44,10 +44,7 @@ export async function saveRecipe(body: RecipeWrite, id?: string): Promise<{ ok: 
     remember(recipe);
     return { ok: true, recipe };
   } catch (error) {
-    if (error instanceof ServerUnreachable) {
-      log.unreachable = true;
-      return { ok: false, message: "Server unreachable, try again." };
-    }
+    if (error instanceof ServerUnreachable) return { ok: false, message: "Saving a recipe needs a connection." };
     return { ok: false, message: error instanceof ApiError ? error.message : "Couldn't save that recipe." };
   }
 }
@@ -57,8 +54,7 @@ export async function retireRecipe(id: string): Promise<boolean> {
     await deleteRecipe(id);
     savedRecipes.list = savedRecipes.list.filter((recipe) => recipe.id !== id);
     return true;
-  } catch (error) {
-    if (error instanceof ServerUnreachable) log.unreachable = true;
+  } catch {
     return false;
   }
 }
@@ -72,8 +68,7 @@ export async function unretireRecipe(id: string, index: number): Promise<boolean
     savedRecipes.list = [...rest.slice(0, at), recipe, ...rest.slice(at)];
     savedRecipes.loaded = true;
     return true;
-  } catch (error) {
-    if (error instanceof ServerUnreachable) log.unreachable = true;
+  } catch {
     return false;
   }
 }
@@ -97,10 +92,7 @@ export async function fetchRecipe(id: string): Promise<{ ok: true; recipe: Recip
   try {
     return { ok: true, recipe: await getRecipe(id) };
   } catch (error) {
-    if (error instanceof ServerUnreachable) {
-      log.unreachable = true;
-      return { ok: false, message: "Server unreachable, try again." };
-    }
+    if (error instanceof ServerUnreachable) return { ok: false, message: "Opening a recipe needs a connection." };
     return { ok: false, message: error instanceof ApiError ? error.message : "Couldn't open that recipe." };
   }
 }
@@ -114,10 +106,7 @@ export async function logSavedRecipe(
     const [entry] = rememberEntries([row]);
     return { ok: true, entry };
   } catch (error) {
-    if (error instanceof ServerUnreachable) {
-      log.unreachable = true;
-      return { ok: false, message: "Server unreachable, try again." };
-    }
+    if (error instanceof ServerUnreachable) return { ok: false, message: "Logging a recipe needs a connection." };
     return { ok: false, message: error instanceof ApiError ? error.message : "Couldn't log that recipe." };
   }
 }

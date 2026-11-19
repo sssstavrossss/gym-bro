@@ -10,6 +10,7 @@ import { buildLabel } from "../lib/buildInfo";
 import { saveBlob } from "../lib/download";
 import { accents, applyAccent, applyTheme, readAccent, readTheme, themes, type AccentId, type ThemeId } from "../lib/theme";
 import { allZones, searchZones, suggestedZones, zoneLabel, zoneOffset, zoneTime } from "../lib/timeZones";
+import { forgetAnswers } from "../offline/cache";
 import { boot } from "../state/boot";
 import type { FoodUnit } from "../lib/foodUnits";
 import type { HeightUnit, WeightUnit } from "../lib/units";
@@ -109,6 +110,8 @@ async function onExport() {
 async function onSignOut() {
   if (!boot.config) return;
   clearAllDrafts();
+  // What was kept for offline goes. Anything still waiting to send stays for the next sign-in.
+  await forgetAnswers(boot.accountId);
   await signOut(boot.config);
 }
 </script>

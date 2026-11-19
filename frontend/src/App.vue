@@ -14,6 +14,7 @@ import GoalWeightSheet from "./components/GoalWeightSheet.vue";
 import SettingsSheet from "./components/SettingsSheet.vue";
 import NotificationsSheet from "./components/NotificationsSheet.vue";
 import NutrientSheet from "./components/NutrientSheet.vue";
+import OfflineSheet from "./components/OfflineSheet.vue";
 import AccuracySheet from "./components/AccuracySheet.vue";
 import CardPagesSheet from "./components/CardPagesSheet.vue";
 import RecalculateSheet from "./components/RecalculateSheet.vue";
@@ -27,7 +28,8 @@ import { vp } from "./lib/viewport";
 import { boot } from "./state/boot";
 import { followDeviceZone, loadProfile, profile, retryLoad } from "./state/profile";
 import { refreshInbox } from "./state/inbox";
-import { loadToday, log, viewed } from "./state/log";
+import { loadToday, sendQueue, viewed } from "./state/log";
+import { startSync } from "./state/sync";
 import { closeCopy, closeFoodLayer, closeGroupSheet, closeRecipeSheet, closeSheet, endSelect, openFood, openWeight, ui } from "./ui";
 import SignInView from "./views/SignInView.vue";
 
@@ -67,10 +69,13 @@ onMounted(async () => {
   }
 
   if (boot.signedIn) {
+    startSync(boot.accountId);
     await loadProfile();
     if (profile.hasSaved) {
       void followDeviceZone();
       await loadToday();
+      // Anything logged offline last time goes now.
+      void sendQueue();
       await refreshInbox();
     }
   }
@@ -148,6 +153,7 @@ function onKey(event: KeyboardEvent) {
     <NotificationsSheet />
     <NutrientSheet />
     <CardPagesSheet />
+    <OfflineSheet />
     <AddChooser />
     <FoodSheet />
     <Toast />
@@ -159,9 +165,6 @@ function onKey(event: KeyboardEvent) {
       does not zoom. See frontend/src/lib/focusField.ts.
     -->
     <input ref="kbProxy" class="kb-proxy" type="text" tabindex="-1" aria-hidden="true" autocomplete="off" />
-    <div v-if="log.unreachable" class="offline" role="status">
-      <span class="t-body grow">server unreachable, try again</span>
-    </div>
     <div v-if="profile.offline" class="offline" role="status">
       <span class="t-body grow">Server unreachable, try again.</span>
       <button type="button" class="btn sm primary t-label" @click="retryLoad">Try again</button>

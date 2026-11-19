@@ -2,6 +2,7 @@ import { fileURLToPath, URL } from "node:url";
 import vue from "@vitejs/plugin-vue";
 import { loadEnv } from "vite";
 import { defineConfig } from "vitest/config";
+import { serviceWorker } from "./sw/plugin";
 
 // The dev server is the browser origin (http://localhost:5173). /api and
 // /config.json are proxied to the API so the SPA and the API share an origin
@@ -11,7 +12,7 @@ export default defineConfig(({ mode }) => {
   const port = env.BIND_PORT || "8100";
 
   return {
-    plugins: [vue()],
+    plugins: [vue(), serviceWorker()],
     // Shown in Settings. The Docker build passes GIT_SHA; a local build shows only the date.
     define: {
       __BUILD_SHA__: JSON.stringify(process.env.GIT_SHA ?? env.GIT_SHA ?? ""),
