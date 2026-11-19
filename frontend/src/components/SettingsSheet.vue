@@ -4,14 +4,19 @@ import Bar from "./Bar.vue";
 import BottomSheet from "./BottomSheet.vue";
 import Segmented from "./Segmented.vue";
 import Icon from "./Icon.vue";
+import SwitchRow from "./SwitchRow.vue";
 import { ApiError, getExport, putSettings } from "../api";
 import { signOut } from "../auth/session";
 import { buildLabel } from "../lib/buildInfo";
 import { saveBlob } from "../lib/download";
 import { accents, applyAccent, applyTheme, readAccent, readTheme, themes, type AccentId, type ThemeId } from "../lib/theme";
+import { sectionRows, sectionsSummary, WEEK_ROW } from "../lib/homeSections";
+import { screenLayoutFromFlags } from "../lib/layout";
+import { vp } from "../lib/viewport";
 import { allZones, searchZones, suggestedZones, zoneLabel, zoneOffset, zoneTime } from "../lib/timeZones";
 import { forgetAnswers } from "../offline/cache";
 import { boot } from "../state/boot";
+import { homeSections, sectionShown, setSectionShown } from "../state/homeSections";
 import type { FoodUnit } from "../lib/foodUnits";
 import type { HeightUnit, WeightUnit } from "../lib/units";
 import { applySettings, clearAllDrafts, deviceTimeZone, profile, setFoodUnit, setUnits } from "../state/profile";
@@ -19,7 +24,8 @@ import { foodUnit } from "../state/units";
 import { closeSheet, ui } from "../ui";
 
 const open = computed(() => ui.sheet === "settings");
-const view = ref<"main" | "zone">("main");
+const view = ref<"main" | "zone" | "home">("main");
+const titles = { main: "Settings", zone: "Time zone", home: "Home sections" } as const;
 const theme = ref<ThemeId>(readTheme());
 const accent = ref<AccentId>(readAccent());
 const themeLabel = computed(() => themes.find((item) => item.id === theme.value)?.label ?? "");
@@ -36,10 +42,12 @@ const follows = computed(() => profile.saved?.timeZoneFollowsDevice !== false);
 const device = deviceTimeZone();
 const zones = allZones();
 const results = computed(() => (query.value.trim() ? searchZones(zones, query.value) : suggestedZones(zones, zone.value)));
+const summary = computed(() => sectionsSummary(homeSections.hidden));
+const sections = computed(() => sectionRows(screenLayoutFromFlags({ tablet: vp.tablet, desktop: vp.desktop, wide: vp.wide })));
 
 watch(open, (value) => {
   if (!value) return;
-  view.value = "main";
+  view.value = ui.settingsView;
   query.value = "";
   error.value = "";
   unitsError.value = "";
@@ -117,11 +125,11 @@ async function onSignOut() {
 </script>
 
 <template>
-  <BottomSheet :open="open" :label="view === 'zone' ? 'Time zone' : 'Settings'" @close="closeSheet">
+  <BottomSheet :open="open" :label="titles[view]" @close="closeSheet">
     <template #header>
       <div class="row hdr">
-        <button v-if="view === 'zone'" type="button" class="cbtn back" aria-label="Back to settings" @click="view = 'main'"><Icon name="left" :size="18" /></button>
-        <h2 class="t-head grow">{{ view === "zone" ? "Time zone" : "Settings" }}</h2>
+        <button v-if="view !== 'main'" type="button" class="cbtn back" aria-label="Back to settings" @click="view = 'main'"><Icon name="left" :size="18" /></button>
+        <h2 class="t-head grow">{{ titles[view] }}</h2>
         <button type="button" class="cbtn" aria-label="Close" @click="closeSheet"><Icon name="x" :size="18" /></button>
       </div>
     </template>
@@ -152,6 +160,18 @@ async function onSignOut() {
           <span class="col grow pbars"><Bar :pct="0.62" /><Bar :pct="1" hit /><Bar :pct="1" over /></span>
           <span class="btn primary sm padd">Add</span>
         </div>
+      </section>
+
+      <section class="col group" aria-labelledby="set-home">
+        <h3 id="set-home" class="t-bodys gtitle"><Icon name="layers" :size="16" /> Home</h3>
+        <button type="button" class="frow" data-home-row @click="view = 'home'">
+          <span class="col grow">
+            <span class="t-body">Home sections</span>
+            <span class="t-capn c2 hnames">{{ summary.names }}</span>
+          </span>
+          <span class="t-body c2 hcount">{{ summary.count }}</span>
+          <Icon name="right" :size="16" class="fchev" />
+        </button>
       </section>
 
       <section class="col group" aria-labelledby="set-units" data-units>
@@ -210,6 +230,23 @@ async function onSignOut() {
       </section>
 
       <p v-if="build" class="t-capn c3 m0 build" data-build>{{ build }}</p>
+    </div>
+
+    <div v-else-if="view === 'home'" class="col body" data-home-sections>
+      <p class="t-capn c2 m0">Pick what Home shows under the week. New cards join this list.</p>
+      <div class="col">
+        <SwitchRow :title="WEEK_ROW.title" :caption="WEEK_ROW.caption" on locked data-home-switch="week" />
+        <SwitchRow
+          v-for="row in sections"
+          :key="row.id"
+          :title="row.title"
+          :caption="row.caption"
+          :on="sectionShown(row.id)"
+          :data-home-switch="row.id"
+          @toggle="setSectionShown(row.id, !sectionShown(row.id))"
+        />
+      </div>
+      <p class="t-capn c3 m0">Kept on this device, like the theme.</p>
     </div>
 
     <div v-else class="col body" data-zone-picker>
@@ -287,6 +324,10 @@ async function onSignOut() {
 .zval { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 55%; }
 .fchev { color: var(--text-tertiary); flex: none; }
 .who { overflow-wrap: anywhere; }
+.hnames { overflow-wrap: anywhere; }
+.hcount { flex: none; white-space: nowrap; }
+[data-home-row] { padding-block: var(--space-xs); }
+.body[data-home-sections] { gap: var(--space-s); }
 .signout { flex: none; }
 .build { text-align: center; }
 .body[data-zone-picker] { gap: var(--space-m); }

@@ -51,6 +51,8 @@ export const ui = reactive({
   cardPages: "progress" as PageCard,
   /** The card pages sheet is open over another sheet (a cog on Add food or a recipe), which stays open under it. */
   cardPagesOver: false,
+  /** The page Settings opens on: its list, or Home sections (from Home when every card is off). */
+  settingsView: "main" as "main" | "home",
 });
 
 let toastTimer = 0;
@@ -71,7 +73,8 @@ export function toast(text: string, action?: { label: string; run: () => void })
   }, action ? 5000 : 4000);
 }
 
-export function openSettings(): void {
+export function openSettings(view: "main" | "home" = "main"): void {
+  ui.settingsView = view;
   ui.sheet = "settings";
 }
 
