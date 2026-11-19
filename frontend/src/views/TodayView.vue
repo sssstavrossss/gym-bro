@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
 import AccuracyDot from "../components/AccuracyDot.vue";
+import AddFoodPill from "../components/AddFoodPill.vue";
 import Bar from "../components/Bar.vue";
 import FreshStart from "../components/FreshStart.vue";
 import HomeProgress from "../components/HomeProgress.vue";
@@ -27,6 +28,7 @@ import { refreshInbox } from "../state/inbox";
 import { lastPlanDate } from "../lib/dayLog";
 import { loadDay, onLogChange, totalsOf, viewed } from "../state/log";
 import { sectionShown } from "../state/homeSections";
+import { describe, loadDescribe } from "../state/describe";
 import { deviceTimeZone, profile } from "../state/profile";
 import { weightUnit, wt, wtUnit } from "../state/units";
 import { loadWeekDays, weekCache } from "../state/week";
@@ -37,6 +39,7 @@ const route = useRoute();
 onMounted(() => {
   if (route.query.recalculate === "1") openRecalculate();
   void refreshInbox();
+  void loadDescribe();
 });
 watch(() => route.query.recalculate, (value) => {
   if (value === "1") openRecalculate();
@@ -98,7 +101,7 @@ const promptTitle = computed(() => {
   if (shownDay.value === today.value) return "Log your first food today";
   return shownDay.value > today.value ? "Plan food for this day" : "Nothing logged this day";
 });
-const addFoodLabel = computed(() => (shownDay.value === today.value ? "Add food" : "Add"));
+const promptCaption = computed(() => (describe.available ? "Search, scan or describe a meal" : "Search, scan or pick a recent food"));
 const addFoodName = computed(() => (
   shownDay.value === today.value ? "Add food" : `Add food to ${dayMonth(shownDay.value)}`
 ));
@@ -211,14 +214,13 @@ const weekRows = computed(() => {
         </section>
         <div v-else-if="dayCards" class="daycards" :class="{ stale: viewed.dim }" data-day-cards>
           <MacroBars v-if="sectionShown('macros')" :target="goal" :totals="totalsOf(entries)" :entries="entries" :date="shownDay" :label="shownDay === today ? 'Today\'s macros' : 'That day\'s macros'" />
-          <button v-if="layout === 'phone' && sectionShown('foods') && !hasDay" type="button" class="card prompt row" @click="openFood('search', shownDay)">
-            <span class="disc filled"><Icon name="plus" :size="18" :sw="2.6" /></span>
-            <span class="col grow">
+          <div v-if="layout === 'phone' && sectionShown('foods') && !hasDay" class="card prompt row" data-food-prompt>
+            <button type="button" class="ptext col grow" @click="openFood('search', shownDay)">
               <span class="t-bodys">{{ promptTitle }}</span>
-              <span class="t-capn c2">Search, pick a recent food or add a saved group</span>
-            </span>
-            <Icon name="right" :size="16" class="c3" />
-          </button>
+              <span class="t-capn c2">{{ promptCaption }}</span>
+            </button>
+            <AddFoodPill :date="shownDay" :add-name="addFoodName" />
+          </div>
           <section v-if="layout === 'phone' && sectionShown('foods') && hasDay" class="card logc">
             <div class="chead foodhead">
               <span class="row ftitle">
@@ -226,9 +228,7 @@ const weekRows = computed(() => {
                 <span class="t-label c3 fcount">{{ foodCount }}<span class="sr-only">{{ foodCount === 1 ? " food" : " foods" }}</span></span>
               </span>
               <button v-if="ui.selecting" type="button" class="btn sm primary t-label addpill" @click="endSelect()">Done</button>
-              <button v-else type="button" class="btn sm primary t-label addpill" :aria-label="addFoodName" @click="openFood('search', shownDay)">
-                <Icon name="plus" :size="14" :sw="2.6" />{{ addFoodLabel }}
-              </button>
+              <AddFoodPill v-else :date="shownDay" :add-name="addFoodName" />
             </div>
             <Timeline home compact :max-rows="5" :date="shownDay" :today="today" :entries="entries" />
           </section>
@@ -293,9 +293,7 @@ const weekRows = computed(() => {
         <div class="chead loghead">
           <h2 class="foods section-title c2">{{ foodTitle }}</h2>
           <button v-if="ui.selecting" type="button" class="btn sm primary t-label addfood" @click="endSelect()">Done</button>
-          <button v-else type="button" class="btn sm primary t-label addfood" @click="openFood('search', shownDay)">
-            <Icon name="plus" :size="14" :sw="2.4" />{{ addFoodLabel }}
-          </button>
+          <AddFoodPill v-else class="addfood" :date="shownDay" :add-name="addFoodName" />
           <RouterLink :to="logHref" class="t-label c2 more">Open log <Icon name="right" :size="14" /></RouterLink>
         </div>
         <Timeline home compact show-empty :date="shownDay" :today="today" :entries="entries" />
@@ -335,12 +333,12 @@ const weekRows = computed(() => {
 .loghead { align-items: center; }
 .foods { margin: 0; text-align: left; min-width: 0; }
 .foodhead, .loghead { justify-content: space-between; gap: var(--space-m); min-width: 0; align-items: center; }
-.addfood { margin-left: auto; flex: 0 1 auto; max-width: 100%; }
+.addfood { margin-left: auto; }
+.addpill { flex: none; }
 /* Phone Home card: title row as tall as the Macros title, so the card's own padding is the only space above it. */
 .logc .foodhead { justify-content: space-between; }
 .ftitle { gap: var(--space-s); align-items: baseline; min-width: 0; }
 .fcount { flex: none; font-variant-numeric: tabular-nums; }
-.addpill { flex: none; }
 html.dt-xl .foodhead, html.dt-xl .loghead { flex-wrap: nowrap; }
 html.dt-xl .foodhead .foods, html.dt-xl .loghead .foods { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .more { display: inline-flex; align-items: center; gap: var(--space-s); min-height: var(--control-hit); padding: 0 var(--space-s); text-decoration: none; color: var(--text-secondary); }
@@ -373,6 +371,7 @@ html.dt-xl .foodhead .foods, html.dt-xl .loghead .foods { overflow: hidden; text
   background: none; color: inherit; font: inherit; letter-spacing: inherit; text-align: left;
 }
 .prompt { flex-direction: row; align-items: center; gap: var(--space-m); text-align: left; width: 100%; min-width: 0; }
+.ptext { gap: 2px; min-width: 0; min-height: var(--control-hit); justify-content: center; padding: 0; border: 0; background: none; color: inherit; text-align: left; cursor: pointer; }
 .sk { display: block; height: 12px; width: 40%; border-radius: var(--radius-xs); background: var(--color-surface-2); }
 .logc { min-width: 0; }
 [data-num] { max-width: 100%; overflow-wrap: anywhere; }

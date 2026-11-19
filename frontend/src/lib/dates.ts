@@ -15,8 +15,8 @@ export function todayIso(): string {
   return iso(new Date());
 }
 
-/** The civil date in an IANA zone. Falls back to the browser's local date. */
-export function todayInZone(timeZone: string): string {
+/** The civil date in an IANA zone, now or at another moment. Falls back to the browser's local date. */
+export function todayInZone(timeZone: string, now = new Date()): string {
   try {
     const format = new Intl.DateTimeFormat("en-CA", {
       timeZone,
@@ -24,10 +24,10 @@ export function todayInZone(timeZone: string): string {
       month: "2-digit",
       day: "2-digit",
     });
-    const date = format.format(new Date());
-    return /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : todayIso();
+    const date = format.format(now);
+    return /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : iso(now);
   } catch {
-    return todayIso();
+    return iso(now);
   }
 }
 /** The wall-clock time in an IANA zone, "HH:MM". Falls back to the browser's local time. */

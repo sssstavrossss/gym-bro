@@ -45,6 +45,7 @@ public static class ExportTables
         var ingredients = await db.RecipeIngredients.AsNoTracking().Where(row => row.UserId == userId).ToListAsync(cancellationToken);
         var groups = await db.EntryGroups.AsNoTracking().Where(row => row.UserId == userId).OrderBy(row => row.Name).ToListAsync(cancellationToken);
         var items = await db.EntryGroupItems.AsNoTracking().Where(row => row.UserId == userId).ToListAsync(cancellationToken);
+        var described = await db.MealDescriptions.AsNoTracking().Where(row => row.UserId == userId).OrderBy(row => row.CreatedAt).ToListAsync(cancellationToken);
 
         // A serving can be on a catalogue food, so its name is read by id. Only the ids this person used.
         var servingFoodIds = servings.Select(row => row.FoodId).Distinct().ToList();
@@ -63,6 +64,7 @@ public static class ExportTables
             Servings(servings, foodNames),
             Recipes(recipes, ingredients),
             Groups(groups, items),
+            Descriptions(described),
         ];
     }
 
@@ -155,6 +157,15 @@ public static class ExportTables
                 row.Kcal, row.Protein, row.Fat, row.Carbs, row.SaturatedFat, row.Sugars, row.Fiber, row.Salt,
             }))]);
     }
+
+    private static ExportTable Descriptions(List<MealDescription> rows) => new(
+        "descriptions",
+        ["created_at", "text", "outcome", "foods", "kcal", "logged_at", "model", "input_tokens", "output_tokens"],
+        [.. rows.Select(row => new object?[]
+        {
+            row.CreatedAt.ToString("O"), row.Text, row.Outcome, row.FoodCount, row.Kcal, row.LoggedAt?.ToString("O"),
+            row.Model, row.InputTokens, row.OutputTokens,
+        })]);
 
     private static ExportTable Groups(List<EntryGroup> groups, List<EntryGroupItem> items)
     {

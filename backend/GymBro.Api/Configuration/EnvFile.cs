@@ -99,6 +99,8 @@ public static class EnvFile
         Copy("VAPID_PUBLIC_KEY", "WebPush__PublicKey");
         Copy("VAPID_PRIVATE_KEY", "WebPush__PrivateKey");
         Copy("VAPID_SUBJECT", "WebPush__Subject");
+        Copy("ANTHROPIC_API_KEY", "Describe__ApiKey");
+        Copy("DESCRIBE_MODEL", "Describe__Model");
     }
 
     private static void Copy(string from, string to)

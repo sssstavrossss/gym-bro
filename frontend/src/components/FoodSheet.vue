@@ -11,6 +11,7 @@ import TimeChip from "./TimeChip.vue";
 import FoodAmountView from "./FoodAmountView.vue";
 import BarcodeScanner from "./BarcodeScanner.vue";
 import OfflineNote from "./OfflineNote.vue";
+import DescribePane from "./DescribePane.vue";
 import { dayMonth, todayInZone } from "../lib/dates";
 import { focusField, primeKeyboard } from "../lib/focusField";
 import { int } from "../lib/format";
@@ -68,7 +69,8 @@ import { canSaveRecipe, matchingRecipes, recipeFoodEntries } from "../lib/recipe
 import { deleteSavedGroup, loadGroups, readdSavedGroup, savedGroups } from "../state/groups";
 import { loadRecipes, savedRecipes } from "../state/recipes";
 import { foodAmount, foodUnit } from "../state/units";
-import { closeFoodLayer, closeSheet, openCopy, openFoodScan, openGroupSheet, openRecipeCreate, openRecipeEdit, openRecipeFromEntries, openRecipeLog, toast, ui } from "../ui";
+import { addChosen, describe, loadDescribe, resetDescribe, setRowAmount } from "../state/describe";
+import { closeFoodLayer, closeSheet, openCopy, openFoodScan, openGroupSheet, openRecipeCreate, openRecipeEdit, openRecipeFromEntries, openRecipeLog, toast, ui, type FoodTab } from "../ui";
 
 const open = computed(() => ui.sheet === "food");
 const editing = computed(() => findEntry(ui.editEntryId));
@@ -150,6 +152,14 @@ const sessionRecipeCount = computed(() => recipeFoodEntries(session.value.map((r
 const groupNote = computed(() => groupTimeNote(needTime.value, otherDay.value, time.value));
 const foodEntries = computed(() => entriesOn(ui.foodDate, foodToday.value));
 const foodTotals = computed(() => totalsOf(foodEntries.value));
+const tabs = computed(() => {
+  const list: { value: FoodTab; label: string }[] = [{ value: "search", label: "Search" }];
+  if (describe.available || ui.foodTab === "describe") list.push({ value: "describe", label: "Describe" });
+  list.push({ value: "quick", label: "Quick Add" });
+  return list;
+});
+/** A row from Describe is open on the amount screen: its button says Use and goes back to the list. */
+const describing = computed(() => describe.editing != null && Boolean(ui.detailFoodId) && !editing.value);
 const addVerb = computed(() => {
   if (editing.value) return "Save";
   if (needTime.value) return "Pick a time to add";
@@ -331,6 +341,10 @@ function back() {
   }
   if (showScan.value) {
     ui.foodScan = false;
+    return;
+  }
+  if (describing.value) {
+    leaveDescribed();
     return;
   }
   ui.detailFoodId = null;
@@ -702,8 +716,8 @@ function focusFor() {
 }
 function onAddTabPointer(event: PointerEvent) {
   const label = (event.target as HTMLElement).closest("button")?.textContent?.trim();
-  const next = label === "Quick Add" ? "quick" : label === "Search" ? "search" : null;
-  if (next === "quick" && next !== ui.foodTab) primeKeyboard();
+  const next = label === "Quick Add" ? "quick" : label === "Describe" ? "describe" : label === "Search" ? "search" : null;
+  if ((next === "quick" || next === "describe") && next !== ui.foodTab) primeKeyboard();
 }
 watch(searchFocused, (focused) => {
   if (!focused) {
@@ -758,6 +772,8 @@ watch(open, (isOpen) => {
     void loadRecipes();
     return;
   }
+  resetDescribe();
+  void loadDescribe();
   q.value = "";
   results.value = [];
   searchView.value = false;
@@ -786,6 +802,65 @@ watch(open, (isOpen) => {
 
 function noteSession(entry: { id: string; name: string; kcal: number }) {
   session.value.push({ id: entry.id, name: entry.name, kcal: entry.kcal });
+}
+
+// Describe: the pane lists what Claude found. Changing a row uses the usual amount screen.
+function openDescribed(index: number) {
+  const row = describe.rows[index];
+  if (!row?.food) return;
+  describe.editing = index;
+  showFood(row.food, { amount: row.amount, unit: row.unit });
+}
+function leaveDescribed() {
+  describe.editing = null;
+  ui.detailFoodId = null;
+  detailFood.value = null;
+  formError.value = "";
+}
+function useDescribed() {
+  const index = describe.editing;
+  if (index == null) return;
+  const limit = amountErrorIn(amountNumber.value, unit.value, foodUnit());
+  if (limit) {
+    formError.value = limit;
+    return;
+  }
+  setRowAmount(index, amountNumber.value, unit.value);
+  leaveDescribed();
+}
+function submitDetail() {
+  if (describing.value) useDescribed();
+  else void addDetail();
+}
+/** No match: Search with Claude's name for it. The list waits on the Describe tab. */
+function searchDescribed(query: string) {
+  filter.value = "all";
+  ui.foodTab = "search";
+  q.value = query;
+}
+function quickDescribed(name: string) {
+  primeKeyboard();
+  fill(null);
+  qName.value = name.slice(0, 80);
+  ui.foodTab = "quick";
+}
+async function addDescribed() {
+  const when = logTimeForAdd(ui.foodDate, foodToday.value, time.value);
+  if (!when.ok) {
+    describe.error = "Pick a time to add";
+    return;
+  }
+  describe.error = "";
+  const result = await addChosen({ localDate: ui.foodDate, timeZone: deviceTimeZone(), time: when.time });
+  for (const entry of result.added) noteSession(entry);
+  if (!result.ok) {
+    if (result.message) describe.error = result.message;
+    return;
+  }
+  const count = result.added.length;
+  toast(`Added ${count === 1 ? "1 food" : `${count} foods`} · ${int(result.kcal)} kcal`);
+  void loadRecents();
+  ui.foodTab = "search";
 }
 function saveSessionGroup() {
   if (!canSaveGroup(session.value.length)) return;
@@ -1062,7 +1137,7 @@ async function deleteEdited() {
       <p v-if="needTime && !showEditor && !showScan" class="needt t-label" role="status">
         <Icon name="clock" :size="14" :sw="2.2" /> Logging to {{ dayMonth(ui.foodDate) }} — pick the time you ate it.
       </p>
-      <Segmented v-if="!showDetail && !editing && !showEditor && !showScan && !searchView" v-model="ui.foodTab" label="Add food" :options="[{ value: 'search', label: 'Search' }, { value: 'quick', label: 'Quick Add' }]" @pointerdown="onAddTabPointer" />
+      <Segmented v-if="!showDetail && !editing && !showEditor && !showScan && !searchView" v-model="ui.foodTab" label="Add food" :options="tabs" @pointerdown="onAddTabPointer" />
       </div>
     </template>
 
@@ -1074,7 +1149,7 @@ async function deleteEdited() {
       <BarcodeScanner @found="onScanFound" @create="onScanCreate" />
     </div>
 
-    <FoodAmountView v-else-if="showDetail" ref="amountView" :amount="amount" :macro-title="macroTitle" :goal="sheetGoal" :before="dayBefore" @submit="addDetail">
+    <FoodAmountView v-else-if="showDetail" ref="amountView" :amount="amount" :macro-title="macroTitle" :goal="sheetGoal" :before="dayBefore" @submit="submitDetail">
       <template #meta>
         <span v-if="detailIsMine" class="tag t-capn"><Icon name="lock" :size="10" :sw="2.4" /> my food</span>
         <span v-if="detailFood?.brand">{{ detailFood.brand }} ·</span>
@@ -1097,7 +1172,10 @@ async function deleteEdited() {
         </div>
       </template>
       <template #note><OfflineNote :entry="editing" /></template>
-      <template #hint><kbd>Enter</kbd> {{ editing ? "save" : "add" }} · <kbd>Esc</kbd> {{ editing ? "close" : "back to search" }}</template>
+      <template #hint>
+        <template v-if="describing"><kbd>Enter</kbd> use · <kbd>Esc</kbd> back to the list</template>
+        <template v-else><kbd>Enter</kbd> {{ editing ? "save" : "add" }} · <kbd>Esc</kbd> {{ editing ? "close" : "back to search" }}</template>
+      </template>
       <template #actions>
         <button v-if="editing && editing.queued !== 'failed'" type="button" class="btn secondary t-bodys" aria-label="Copy to another day" :disabled="saving" @click="copyEdited">
           <Icon name="copy" :size="16" /><span>Copy</span>
@@ -1105,11 +1183,16 @@ async function deleteEdited() {
         <button v-if="editing" type="button" class="btn secondary t-bodys" aria-label="Delete" :disabled="saving" @click="deleteEdited">
           <Icon name="trash" :size="16" /><span>Delete</span>
         </button>
-        <button type="button" class="btn primary block t-bodys grow" :disabled="saving || (!editing && needTime)" @click="addDetail">
+        <button v-if="describing" type="button" class="btn primary block t-bodys grow" @click="useDescribed">
+          Use · {{ int(preview.kcal) }} kcal
+        </button>
+        <button v-else type="button" class="btn primary block t-bodys grow" :disabled="saving || (!editing && needTime)" @click="addDetail">
           {{ saveError ? "Try again" : addVerb }}<template v-if="!needTime"> · {{ int(preview.kcal) }} kcal</template>
         </button>
       </template>
     </FoodAmountView>
+
+    <DescribePane v-else-if="!editing && ui.foodTab === 'describe'" :today="foodToday" :need-time="needTime" @open="openDescribed" @search="searchDescribed" @quick="quickDescribed" @add="addDescribed" />
 
     <template v-else-if="!editing && ui.foodTab === 'search'">
       <label class="field row">
