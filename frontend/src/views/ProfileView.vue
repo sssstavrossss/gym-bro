@@ -140,7 +140,7 @@ function onTextCommit() {
         <Icon name="bell" :size="18" />
         <span v-if="inbox.badge > 0" class="hdot" aria-hidden="true" />
       </button>
-      <button type="button" class="cbtn hbtn" aria-label="Settings" data-cog @click="openSettings">
+      <button type="button" class="cbtn hbtn" aria-label="Settings" data-cog @click="openSettings()">
         <Icon name="cog" :size="18" />
       </button>
     </header>

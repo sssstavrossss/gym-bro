@@ -16,6 +16,7 @@ import WeekStrip from "../components/WeekStrip.vue";
 import WeightChart from "../components/WeightChart.vue";
 import { addDays, dayMonth, dayNum, diffDays, shortDate, spanLabel, todayInZone, weekday, weekdayShort, weekStart } from "../lib/dates";
 import { int } from "../lib/format";
+import { HOME_SECTIONS } from "../lib/homeSections";
 import { screenLayoutFromFlags } from "../lib/layout";
 import { goalDismissed, promptState } from "../lib/prompts";
 import { judgeWeekDay } from "../lib/weekCard";
@@ -25,11 +26,12 @@ import { boot } from "../state/boot";
 import { refreshInbox } from "../state/inbox";
 import { lastPlanDate } from "../lib/dayLog";
 import { loadDay, onLogChange, totalsOf, viewed } from "../state/log";
+import { sectionShown } from "../state/homeSections";
 import { deviceTimeZone, profile } from "../state/profile";
 import { weightUnit, wt, wtUnit } from "../state/units";
 import { loadWeekDays, weekCache } from "../state/week";
 import { useRoute } from "vue-router";
-import { endSelect, openFood, openRecalculate, openWeight, ui } from "../ui";
+import { endSelect, openFood, openRecalculate, openSettings, openWeight, ui } from "../ui";
 
 const route = useRoute();
 onMounted(() => {
@@ -105,6 +107,18 @@ function pick(day: string) {
   selected.value = day;
 }
 const layout = computed(() => screenLayoutFromFlags({ tablet: vp.tablet, desktop: vp.desktop, wide: vp.wide }));
+/** Settings → Home sections can switch any card off. The week strip always shows. */
+const nothingShown = computed(() => HOME_SECTIONS.every((row) => !sectionShown(row.id)));
+/** The day's cards in the first column: Macros, and on a phone the foods card. */
+const dayCards = computed(() => sectionShown("macros") || (layout.value === "phone" && sectionShown("foods")));
+/** Wider layouts: the columns that still have a card. With one gone, the rest share the width. */
+const columns = computed(() => ({
+  a: sectionShown("suggestions") || sectionShown("macros"),
+  b: sectionShown("progress"),
+  c: sectionShown("foods"),
+}));
+const columnCount = computed(() => Object.values(columns.value).filter(Boolean).length);
+const fewer = computed(() => layout.value !== "phone" && columnCount.value < 3);
 const weekDates = computed(() => {
   const start = weekStart(today.value || "1970-01-01");
   return Array.from({ length: 7 }, (_, index) => addDays(start, index));
@@ -179,19 +193,25 @@ const weekRows = computed(() => {
       <WeekStrip ref="strip" :anchor="today" :swipe="layout === 'phone'" :selected="selected" :today="today" :setup-date="viewed.setupDate" :logged-dates="viewed.loggedDates" @select="pick" @range="(from, to) => span = [from, to]" />
     </div>
 
-    <div class="grid">
-      <div class="stack c-a">
-        <FreshStart v-if="showFresh && selected === today" />
-        <RecalcPrompt v-if="!showFresh && selected === today" />
-        <GoalReached v-if="showGoal && selected === today" />
+    <div class="grid" :class="{ fewer }" :style="fewer ? { '--cols': Math.max(1, columnCount) } : undefined">
+      <div v-if="nothingShown" class="col homeempty" data-home-empty>
+        <p class="t-body c2 m0">Home shows only the week.</p>
+        <button type="button" class="btn sm secondary t-label" @click="openSettings('home')">Choose sections</button>
+      </div>
+      <div v-if="layout === 'phone' ? !nothingShown : columns.a" class="stack c-a">
+        <template v-if="sectionShown('suggestions') && selected === today">
+          <FreshStart v-if="showFresh" />
+          <RecalcPrompt v-if="!showFresh" />
+          <GoalReached v-if="showGoal" />
+        </template>
 
-        <section v-if="!ready" class="card macros" aria-busy="true" aria-label="Loading today">
+        <section v-if="!ready && dayCards" class="card macros" aria-busy="true" aria-label="Loading today">
           <span class="sk" />
           <span class="sk" />
         </section>
-        <div v-else class="daycards" :class="{ stale: viewed.dim }" data-day-cards>
-          <MacroBars :target="goal" :totals="totalsOf(entries)" :entries="entries" :date="shownDay" :label="shownDay === today ? 'Today\'s macros' : 'That day\'s macros'" />
-          <button v-if="layout === 'phone' && !hasDay" type="button" class="card prompt row" @click="openFood('search', shownDay)">
+        <div v-else-if="dayCards" class="daycards" :class="{ stale: viewed.dim }" data-day-cards>
+          <MacroBars v-if="sectionShown('macros')" :target="goal" :totals="totalsOf(entries)" :entries="entries" :date="shownDay" :label="shownDay === today ? 'Today\'s macros' : 'That day\'s macros'" />
+          <button v-if="layout === 'phone' && sectionShown('foods') && !hasDay" type="button" class="card prompt row" @click="openFood('search', shownDay)">
             <span class="disc filled"><Icon name="plus" :size="18" :sw="2.6" /></span>
             <span class="col grow">
               <span class="t-bodys">{{ promptTitle }}</span>
@@ -199,7 +219,7 @@ const weekRows = computed(() => {
             </span>
             <Icon name="right" :size="16" class="c3" />
           </button>
-          <section v-if="layout === 'phone' && hasDay" class="card logc">
+          <section v-if="layout === 'phone' && sectionShown('foods') && hasDay" class="card logc">
             <div class="chead foodhead">
               <span class="row ftitle">
                 <h2 class="foods section-title c2">{{ foodTitle }}</h2>
@@ -214,10 +234,10 @@ const weekRows = computed(() => {
           </section>
         </div>
 
-        <HomeProgress v-if="layout === 'phone'" :selected="selected" />
+        <HomeProgress v-if="layout === 'phone' && sectionShown('progress')" :selected="selected" />
       </div>
 
-      <div v-if="layout !== 'phone'" class="stack c-b">
+      <div v-if="layout !== 'phone' && columns.b" class="stack c-b">
         <div class="card wbig">
           <button type="button" class="stretch" :aria-label="aria" @click="openWeight()" />
           <div class="row top">
@@ -269,7 +289,7 @@ const weekRows = computed(() => {
         </section>
       </div>
 
-      <section v-if="layout !== 'phone' && ready" class="card logc c-c">
+      <section v-if="layout !== 'phone' && columns.c && ready" class="card logc c-c">
         <div class="chead loghead">
           <h2 class="foods section-title c2">{{ foodTitle }}</h2>
           <button v-if="ui.selecting" type="button" class="btn sm primary t-label addfood" @click="endSelect()">Done</button>
@@ -297,6 +317,11 @@ const weekRows = computed(() => {
 .two .c-c { grid-area: c; }
 .three .grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.25fr); gap: var(--space-xl); align-items: start; }
 .two .stack, .three .stack { gap: var(--space-xl); }
+/* A wider layout with a column switched off: the columns left share the width, in order. */
+.grid.fewer { grid-template-columns: repeat(var(--cols), minmax(0, 1fr)); grid-template-areas: none; }
+.grid.fewer > * { grid-area: auto; grid-column: auto; }
+.homeempty { align-items: center; gap: var(--space-m); padding: var(--space-l) var(--space-xs) 0; text-align: center; }
+.grid.fewer > .homeempty { grid-column: 1 / -1; }
 .weekc { gap: var(--space-xs); min-width: 0; }
 .weekhead { justify-content: space-between; gap: var(--space-s); flex-wrap: wrap; min-width: 0; }
 .weekhead h2 { margin: 0; }
