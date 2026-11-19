@@ -43,6 +43,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
 
     public DbSet<FoodSourceCredit> FoodSourceCredits => Set<FoodSourceCredit>();
 
+    public DbSet<MealDescription> MealDescriptions => Set<MealDescription>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         var user = modelBuilder.Entity<AppUser>();
@@ -617,5 +619,19 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         credit.Property(c => c.Citation).HasColumnName("citation").HasMaxLength(300);
         credit.Property(c => c.ImportedAt).HasColumnName("imported_at");
         credit.Property(c => c.FoodCount).HasColumnName("food_count");
+
+        var described = modelBuilder.Entity<MealDescription>();
+        described.ToTable("meal_descriptions");
+        described.HasKey(d => d.Id);
+        described.Property(d => d.Id).HasColumnName("id");
+        described.Property(d => d.UserId).HasColumnName("user_id").HasMaxLength(64);
+        described.Property(d => d.Text).HasColumnName("text").HasMaxLength(500);
+        described.Property(d => d.Items).HasColumnName("items");
+        described.Property(d => d.FoodCount).HasColumnName("food_count");
+        described.Property(d => d.Kcal).HasColumnName("kcal").HasPrecision(8, 1);
+        described.Property(d => d.CreatedAt).HasColumnName("created_at");
+        described.Property(d => d.LoggedAt).HasColumnName("logged_at");
+        described.HasIndex(d => new { d.UserId, d.CreatedAt });
+        described.HasOne<AppUser>().WithMany().HasForeignKey(d => d.UserId).OnDelete(DeleteBehavior.Cascade);
     }
 }

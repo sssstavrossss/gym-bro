@@ -34,6 +34,7 @@ public static class GymBroEndpoints
         api.MapLogEntries();
         api.MapGroups();
         api.MapRecipes();
+        api.MapDescribe();
         api.MapDayStatus();
         api.MapProgress();
         api.MapNutrients();

@@ -1083,6 +1083,54 @@ namespace GymBro.Api.Data.Migrations
                         });
                 });
 
+            modelBuilder.Entity("GymBro.Api.Data.MealDescription", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<int>("FoodCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("food_count");
+
+                    b.Property<string>("Items")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("items");
+
+                    b.Property<decimal>("Kcal")
+                        .HasPrecision(8, 1)
+                        .HasColumnType("numeric(8,1)")
+                        .HasColumnName("kcal");
+
+                    b.Property<DateTimeOffset?>("LoggedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("logged_at");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("text");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId", "CreatedAt");
+
+                    b.ToTable("meal_descriptions", (string)null);
+                });
+
             modelBuilder.Entity("GymBro.Api.Data.Profile", b =>
                 {
                     b.Property<string>("UserId")
@@ -2191,6 +2239,15 @@ namespace GymBro.Api.Data.Migrations
                         .HasPrincipalKey("UserId", "Id")
                         .OnDelete(DeleteBehavior.NoAction)
                         .HasConstraintName("fk_log_entries_group_owner");
+                });
+
+            modelBuilder.Entity("GymBro.Api.Data.MealDescription", b =>
+                {
+                    b.HasOne("GymBro.Api.Data.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("GymBro.Api.Data.Profile", b =>

@@ -2,6 +2,7 @@ using System.Net.Http.Headers;
 using GymBro.Api.Auth;
 using GymBro.Api.Configuration;
 using GymBro.Api.Data;
+using GymBro.Api.Describe;
 using GymBro.Api.Endpoints;
 using GymBro.Api.Foods;
 using GymBro.Api.Hosting;
@@ -25,6 +26,21 @@ builder.Services.AddScoped<MatvaretabellenImporter>();
 builder.Services.AddScoped<KassalappImporter>();
 builder.Services.Configure<WebPushOptions>(builder.Configuration.GetSection(WebPushOptions.SectionName));
 builder.Services.AddScoped<MondayReminder>();
+builder.Services.Configure<DescribeOptions>(builder.Configuration.GetSection(DescribeOptions.SectionName));
+var describe = builder.Configuration.GetSection(DescribeOptions.SectionName).Get<DescribeOptions>() ?? new DescribeOptions();
+if (testing || e2e)
+{
+    // Tests never call Claude. The rule model answers the same way every time.
+    builder.Services.AddSingleton<IMealModel, RuleMealModel>();
+    builder.Services.AddSingleton(new DescribeSwitch(true));
+}
+else
+{
+    builder.Services.AddSingleton<IMealModel, ClaudeMealModel>();
+    builder.Services.AddSingleton(new DescribeSwitch(describe.IsConfigured));
+}
+
+builder.Services.AddScoped<MealDescriber>();
 builder.Services.AddSingleton<OpenFoodFactsGate>();
 builder.Services.AddHttpClient<IOpenFoodFactsClient, OpenFoodFactsClient>((serviceProvider, client) =>
 {

@@ -6,9 +6,12 @@ import type { PageCard } from "./lib/cardPages";
 import type { SheetName } from "./lib/layout";
 import { deviceTimeZone } from "./state/profile";
 
+/** Add food tabs. Describe shows only when the server can describe meals. */
+export type FoodTab = "search" | "describe" | "quick";
+
 export const ui = reactive({
   sheet: null as SheetName | null,
-  foodTab: "search" as "search" | "quick",
+  foodTab: "search" as FoodTab,
   /** Food open in the detail view. Null on the search list. */
   detailFoodId: null as string | null,
   /** Custom food editor. A seed may carry a name and quick-add numbers, never invented nutrients. */
@@ -177,9 +180,9 @@ export function openAdd(): void {
   ui.sheet = "chooser";
 }
 
-export function openFood(tab: "search" | "quick" = "search", date?: string): void {
+export function openFood(tab: FoodTab = "search", date?: string): void {
   // Search opens on the recents list. Focusing it would raise the iOS keyboard
-  // and cover that list. Quick Add still primes, like the other sheets.
+  // and cover that list. Quick Add and Describe still prime, like the other sheets.
   if (tab !== "search") primeKeyboard();
   const today = todayInZone(deviceTimeZone());
   ui.editEntryId = null;
@@ -196,6 +199,12 @@ export function openFoodScan(): void {
   ui.detailFoodId = null;
   ui.foodEditor = null;
   ui.foodScan = true;
+}
+
+/** Home's scan button: the food sheet for that day, straight to the scanner. */
+export function openFoodWithScan(date?: string): void {
+  openFood("search", date);
+  openFoodScan();
 }
 
 export function startSelect(id?: string): void {

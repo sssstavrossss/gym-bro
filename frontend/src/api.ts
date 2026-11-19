@@ -695,6 +695,74 @@ export async function lookupBarcode(code: string): Promise<BarcodeLookup> {
   return jsonOrThrow(await request(`/api/foods/barcode/${encodeURIComponent(code)}`));
 }
 
+/** One food Claude found in a described meal. food is null when nothing in the catalogue fit. */
+export interface DescribeItem {
+  phrase: string;
+  name: string;
+  guessed: boolean;
+  food: FoodSearchRow | null;
+  amount: number;
+  unit: string;
+}
+
+export interface DescribeResult {
+  id: string;
+  text: string;
+  items: DescribeItem[];
+}
+
+export interface DescribeRecent {
+  id: string;
+  text: string;
+  foods: number;
+  kcal: number;
+  loggedAt: string;
+}
+
+export interface DescribeOverview {
+  available: boolean;
+  recent: DescribeRecent[];
+}
+
+/** Whether this server can describe meals, and the ones this person logged lately. */
+export async function getDescribe(): Promise<DescribeOverview> {
+  return cachedJson("/api/describe");
+}
+
+/** Claude splits the text and picks foods from the catalogue. Nothing is logged. */
+export async function describeMeal(text: string): Promise<DescribeResult> {
+  return jsonOrThrow(await request("/api/describe", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text }),
+  }));
+}
+
+/** A past description with the amounts it was logged with. No call to Claude. */
+export async function getDescription(id: string): Promise<DescribeResult> {
+  return jsonOrThrow(await request(`/api/describe/${id}`));
+}
+
+export interface DescribeLoggedItem {
+  phrase: string;
+  name: string;
+  guessed: boolean;
+  foodId: string;
+  amount: number;
+  unit: string;
+}
+
+/** Keeps what was added, so using this description again gives the same foods and amounts. */
+export async function markDescriptionLogged(id: string, items: DescribeLoggedItem[]): Promise<void> {
+  const response = await request(`/api/describe/${id}/logged`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ items }),
+  });
+  if (response.status === 204) return;
+  await jsonOrThrow(response);
+}
+
 export interface CustomFoodBody {
   name: string;
   brand: string | null;
