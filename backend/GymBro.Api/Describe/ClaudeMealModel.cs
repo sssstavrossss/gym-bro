@@ -28,14 +28,18 @@ public sealed class ClaudeMealModel(IOptions<DescribeOptions> options, ILogger<C
         For each food give:
         - phrase: the words from the note that name it, with its amount, copied as written.
         - name: a short plain English name, as it was eaten ("boiled egg", "wholemeal bread").
-        - searches: one to three short catalogue searches, one or two words each, best first. Give the
-          Norwegian word as well as the English one when you know it ("egg", "brød", "melk").
+        - searches: one to three short catalogue searches, one or two words each, best first, Norwegian
+          before English. Every word of a search must appear in the food's name, so name the everyday form
+          the way the table does, with how it is usually eaten: "ris kokt" for rice, "brød grovt" or "loff"
+          for bread or toast, "egg kokt", "lettmelk", "kaffe traktet", "havregryn". For a dish, make the
+          first search the dish with its main filling ("taco kjøttdeig", "pizza pepperoni"), then the dish alone.
         - grams: your best estimate of the grams (millilitres for drinks) in the amount described.
           When the note gives no amount, use a usual single portion.
         - guessed: true when the note gives no amount for it.
 
         Split a food into the parts someone would log separately: "toast with butter" is bread and butter,
-        "coffee with milk" is coffee and milk. Keep a dish whole when it is one dish (lasagne, pizza, a burrito).
+        "coffee with milk" is coffee and milk, "a ham and cheese sandwich" is two slices of bread, ham and
+        cheese. Keep a dish whole when it is one dish (lasagne, pizza, a burrito, a curry).
         Keep the note's order. If the note is not about food or drink, return an empty list.
         """;
 
@@ -44,14 +48,20 @@ public sealed class ClaudeMealModel(IOptions<DescribeOptions> options, ILogger<C
         Each food from the note comes with numbered candidates and the units each candidate can be logged in.
 
         For each food from the note:
-        - candidate: the number of the candidate that is the same food, prepared the same way (cooked or raw,
-          whole or skimmed). Prefer one marked "yours" when it fits. Use 0 when no candidate is that food;
-          a near miss is worse than none.
+        - food: its number, as in "Food 2".
+        - candidate: the number of the candidate closest to what the note describes. The person checks the
+          list and can change it, so pick the best fit even when the note is vaguer than the catalogue:
+          for plain "rice" pick plain cooked rice over a variety, for "bread" or "toast" an everyday
+          bought bread, for "milk" the unspecified or most common milk. When the note doesn't say, prefer
+          the food as usually eaten (cooked rice and pasta, not dry), unspecified over a brand, and bought
+          over home-made, and for a plain word like "salad" or "cheese" the plainest food of that kind.
+          Prefer one marked "yours" when it fits. Use 0 only when no candidate is that
+          kind of food at all (a rice drink is not rice, a cream for coffee is not coffee).
         - unit: one of the units listed for that candidate, written exactly as listed.
         - amount: how many of that unit the note describes. Use a counted unit for counted things
           ("2 eggs" is 2 of a piece unit when there is one), otherwise grams or millilitres.
           When the note gives no amount, use a usual single portion.
-        Return one entry per food from the note, in the same order.
+        Return one entry for every food from the note, in the same order.
         """;
 
     public async Task<IReadOnlyList<MealPart>> SplitAsync(string text, MealUsage usage, CancellationToken cancellationToken)
@@ -81,18 +91,24 @@ public sealed class ClaudeMealModel(IOptions<DescribeOptions> options, ILogger<C
         CancellationToken cancellationToken)
     {
         var json = await AskAsync(PickSystem, PickPrompt(text, choices), PickSchema, 2048, usage, cancellationToken);
-        var picks = new List<MealPick>();
-        foreach (var (pick, index) in json.GetProperty("picks").EnumerateArray().Select((pick, index) => (pick, index)))
-        {
-            var number = pick.GetProperty("candidate").GetInt32();
-            picks.Add(new MealPick(
-                index,
-                number >= 1 ? number - 1 : null,
-                pick.GetProperty("amount").GetDecimal(),
-                pick.GetProperty("unit").GetString() ?? ""));
-        }
+        return ReadPicks(json);
+    }
 
-        return picks;
+    /// <summary>
+    /// The picks from the reply. Each entry names its food, so a skipped or repeated one can't shift the
+    /// rest onto the wrong food. Candidate numbers start at 1, and 0 means none fits.
+    /// </summary>
+    public static IReadOnlyList<MealPick> ReadPicks(JsonElement json) =>
+        json.GetProperty("picks").EnumerateArray().Select(ReadPick).ToList();
+
+    private static MealPick ReadPick(JsonElement pick)
+    {
+        var candidate = pick.GetProperty("candidate").GetInt32();
+        return new MealPick(
+            pick.GetProperty("food").GetInt32() - 1,
+            candidate >= 1 ? candidate - 1 : null,
+            pick.GetProperty("amount").GetDecimal(),
+            pick.GetProperty("unit").GetString() ?? "");
     }
 
     /// <summary>The note, then each food with its numbered candidates and their units.</summary>
@@ -227,11 +243,12 @@ public sealed class ClaudeMealModel(IOptions<DescribeOptions> options, ILogger<C
               "items": {
                 "type": "object",
                 "properties": {
+                  "food": { "type": "integer" },
                   "candidate": { "type": "integer" },
                   "unit": { "type": "string" },
                   "amount": { "type": "number" }
                 },
-                "required": ["candidate", "unit", "amount"],
+                "required": ["food", "candidate", "unit", "amount"],
                 "additionalProperties": false
               }
             }

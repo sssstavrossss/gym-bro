@@ -56,6 +56,27 @@ public sealed class DescribeMealTests(ApiFactory factory)
     }
 
     [Fact]
+    public async Task Candidates_put_the_persons_own_foods_first_then_the_shortest_names()
+    {
+        factory.Clock.UtcNow = new DateTimeOffset(2026, 11, 20, 8, 30, 0, TimeSpan.Zero);
+        var user = TestData.NewUser("describe-order");
+        using var client = factory.AsUser(user);
+        await Food("Quorbsort, 100 % wholemeal, home-made", 240);
+        var plain = await Food("Quorbsort, plain", 250);
+
+        // The rule model takes the first candidate. By name the home-made one sorts first; the plain one is shorter.
+        var first = await (await client.PostAsJsonAsync("/api/describe", new { text = "quorbsort" })).Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(plain, first.GetProperty("items")[0].GetProperty("food").GetProperty("id").GetGuid());
+
+        var mine = await (await client.PostAsJsonAsync("/api/foods", new
+        {
+            name = "Quorbsort, my own long sourdough loaf", kcalPer100 = 260, proteinPer100 = 9, fatPer100 = 3, carbsPer100 = 50, basis = "g",
+        })).Content.ReadFromJsonAsync<JsonElement>();
+        var second = await (await client.PostAsJsonAsync("/api/describe", new { text = "quorbsort" })).Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(mine.GetProperty("id").GetGuid(), second.GetProperty("items")[0].GetProperty("food").GetProperty("id").GetGuid());
+    }
+
+    [Fact]
     public async Task A_logged_description_comes_back_as_logged_and_stays_private()
     {
         factory.Clock.UtcNow = new DateTimeOffset(2026, 11, 20, 9, 0, 0, TimeSpan.Zero);
@@ -269,6 +290,44 @@ public sealed class DescribeMealTests(ApiFactory factory)
 
         Assert.Null(MealDescriber.Resolve(choice, new MealPick(0, 5, 1, "g")).Food);
         Assert.Null(MealDescriber.Resolve(choice, null).Food);
+    }
+
+    [Fact]
+    public void A_weight_far_from_the_estimate_falls_back_to_the_estimate()
+    {
+        var honey = new Food { Name = "Honning", Basis = "g", NutrientBasis = NutrientBases.Per100, KcalPer100 = 317, ServingQuantity = 15, ServingLabel = "spiseskje" };
+        var choice = new MealChoice(
+            new MealPart("honey", "honey", ["honning"], 15, true),
+            [new MealCandidate(honey, false, MealDescriber.Units(honey, null))]);
+
+        // 15 tablespoons is 225 g against an estimate of 15 g: the number was meant as grams.
+        var spoons = MealDescriber.Resolve(choice, new MealPick(0, 0, 15, "serving"));
+        Assert.Equal(15, spoons.Amount);
+        Assert.Equal("g", spoons.Unit);
+
+        // Within three times either way the pick stands.
+        var two = MealDescriber.Resolve(choice, new MealPick(0, 0, 2, "serving"));
+        Assert.Equal(2, two.Amount);
+        Assert.Equal("serving", two.Unit);
+        Assert.Equal(6, MealDescriber.Resolve(choice, new MealPick(0, 0, 6, "g")).Amount);
+        Assert.Equal(15, MealDescriber.Resolve(choice, new MealPick(0, 0, 4, "g")).Amount);
+    }
+
+    [Fact]
+    public void Each_pick_lands_on_the_food_it_names_even_when_one_is_missing()
+    {
+        using var reply = JsonDocument.Parse("""
+            { "picks": [
+              { "food": 1, "candidate": 2, "unit": "piece", "amount": 2 },
+              { "food": 3, "candidate": 1, "unit": "g", "amount": 10 },
+              { "food": 4, "candidate": 0, "unit": "g", "amount": 200 }
+            ] }
+            """);
+
+        var picks = ClaudeMealModel.ReadPicks(reply.RootElement);
+        Assert.Equal([0, 2, 3], picks.Select(pick => pick.Part));
+        Assert.Equal([1, 0, null], picks.Select(pick => pick.Candidate));
+        Assert.Equal(10, picks[1].Amount);
     }
 
     [Fact]

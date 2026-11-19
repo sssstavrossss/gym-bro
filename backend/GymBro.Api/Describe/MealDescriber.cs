@@ -21,9 +21,9 @@ public sealed class MealDescriber(AppDbContext db, IMealModel model)
 
     public const int SearchesPerPart = 3;
 
-    public const int PerSearch = 4;
+    public const int PerSearch = 6;
 
-    public const int CandidatesMax = 8;
+    public const int CandidatesMax = 12;
 
     public const string TextRequired = "Write what you ate.";
 
@@ -110,7 +110,16 @@ public sealed class MealDescriber(AppDbContext db, IMealModel model)
         return units;
     }
 
-    /// <summary>The model's pick when the food can be logged that way. Otherwise its gram estimate, or one serving.</summary>
+    /// <summary>
+    /// How far a pick's weight may be from the first answer's gram estimate before the estimate wins.
+    /// It catches a number meant for another unit ("15" grams of honey as 15 tablespoons).
+    /// </summary>
+    public const decimal EstimateSpread = 3;
+
+    /// <summary>
+    /// The model's pick when the food can be logged that way and the weight is near the estimate.
+    /// Otherwise its gram estimate, or one serving.
+    /// </summary>
     public static DescribedItem Resolve(MealChoice choice, MealPick? pick)
     {
         var part = choice.Part;
@@ -121,7 +130,7 @@ public sealed class MealDescriber(AppDbContext db, IMealModel model)
 
         var candidate = choice.Candidates[number];
         var unit = candidate.Units.FirstOrDefault(option => string.Equals(option.Unit, pick.Unit.Trim(), StringComparison.OrdinalIgnoreCase));
-        if (unit is not null && Fits(candidate.Food, Tidy(pick.Amount, unit.Unit), unit))
+        if (unit is not null && Fits(candidate.Food, Tidy(pick.Amount, unit.Unit), unit) && NearEstimate(part, Tidy(pick.Amount, unit.Unit), unit))
         {
             return new DescribedItem(part.Phrase, part.Name, part.Guessed, candidate.Food, Tidy(pick.Amount, unit.Unit), unit.Unit);
         }
@@ -138,6 +147,18 @@ public sealed class MealDescriber(AppDbContext db, IMealModel model)
     {
         var snapshot = LogEntryRules.Snapshot(food, amount, unit, unitGrams);
         return snapshot.Error is null ? snapshot.Kcal : null;
+    }
+
+    /// <summary>True when the weight can't be known (ml, a per-serving food) or is within <see cref="EstimateSpread"/> of the estimate.</summary>
+    private static bool NearEstimate(MealPart part, decimal amount, MealUnit unit)
+    {
+        if (unit.Grams is not { } grams || part.Grams <= 0)
+        {
+            return true;
+        }
+
+        var weight = amount * grams;
+        return weight <= part.Grams * EstimateSpread && weight * EstimateSpread >= part.Grams;
     }
 
     private static bool Fits(Food food, decimal amount, MealUnit unit) =>
@@ -161,7 +182,11 @@ public sealed class MealDescriber(AppDbContext db, IMealModel model)
             .Take(SearchesPerPart);
         foreach (var query in queries)
         {
-            var hits = await FoodCatalog.SearchAsync(db, userId, query, cancellationToken);
+            // The search sorts by name, so "brød" lists home-made breads first. The person's own foods come
+            // first here, then the shortest names: in the catalogue those are the everyday ones ("Pizza, kjøpt").
+            var hits = (await FoodCatalog.SearchAsync(db, userId, query, cancellationToken))
+                .OrderBy(hit => hit.UserId == userId ? 0 : 1)
+                .ThenBy(hit => hit.Name.Length);
             foods.AddRange(hits.Where(hit => foods.All(food => food.Id != hit.Id)).Take(PerSearch));
             if (foods.Count >= CandidatesMax)
             {
