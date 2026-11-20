@@ -53,7 +53,9 @@ async function describeFromHome(page: Page) {
   await prompt.getByRole("button", { name: "Describe a meal", exact: true }).click();
   await expect(sheet(page).getByRole("radio", { name: "Describe" })).toBeChecked();
   const box = sheet(page).getByRole("textbox", { name: "What you ate" });
-  await expect(box).toBeFocused();
+  // Opening Describe keeps the keyboard down, like Search: the box waits for a tap.
+  await expect(box).toBeVisible();
+  await expect(box).not.toBeFocused();
   await box.fill(meal);
   await sheet(page).getByRole("button", { name: "Find foods" }).click();
   await expect(sheet(page).getByRole("heading", { name: "2 of 3 found" })).toBeVisible();
@@ -196,10 +198,13 @@ test.describe("phone", () => {
     const find = sheet(page).getByRole("button", { name: "Find foods" });
     const box = sheet(page).getByRole("textbox", { name: "What you ate" });
 
-    // Words or a photo: either one is enough.
+    // Words or a photo: either one is enough. The photo fits the empty box, so the box keeps its height.
     await expect(find).toBeDisabled();
+    const describeBox = sheet(page).locator("[data-describe] .dbox");
+    const emptyHeight = (await describeBox.boundingBox())!.height;
     await input.setInputFiles(photo);
     await expect(sheet(page).getByRole("img", { name: "Your photo" })).toBeVisible();
+    expect(Math.abs((await describeBox.boundingBox())!.height - emptyHeight)).toBeLessThanOrEqual(1);
     await expect(box).toHaveAttribute("placeholder", /Anything the photo doesn't show/);
     await expect(find).toBeEnabled();
     await sheet(page).getByRole("button", { name: "Remove the photo" }).click();

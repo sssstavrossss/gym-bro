@@ -11,8 +11,11 @@ defineProps<{
   /** The thumbnail of the photo to send, or null. */
   photoUrl: string | null;
   placeholder: string;
-  /** A shorter box for editing over the review list. */
-  compact?: boolean;
+  /**
+   * Take focus on mount. Only "Edit and try again", where tapping it means typing. Opening Describe keeps
+   * the keyboard down, like Search, so Recent and "Add a photo" stay in view.
+   */
+  focus?: boolean;
   disabled?: boolean;
   /** A picked photo is still being read. */
   reading?: boolean;
@@ -37,7 +40,7 @@ function picked() {
 </script>
 
 <template>
-  <div class="field dbox" :class="{ compact }">
+  <div class="field dbox">
     <div class="body">
       <div v-if="photoUrl" class="thumb">
         <img :src="photoUrl" alt="Your photo" />
@@ -50,7 +53,8 @@ function picked() {
         <span class="mirror" aria-hidden="true">{{ (text || placeholder) + " " }}</span>
         <textarea
           v-model="text"
-          v-autofocus
+          v-autofocus="focus"
+          :data-no-autofocus="focus ? undefined : ''"
           rows="1"
           :maxlength="DESCRIBE_TEXT_MAX"
           :placeholder="placeholder"
@@ -73,13 +77,18 @@ function picked() {
 </template>
 
 <style scoped>
-.dbox { flex-direction: column; align-items: stretch; gap: var(--space-s); padding: var(--space-m); flex: none; }
+.dbox {
+  flex-direction: column; align-items: stretch; gap: var(--space-s); padding: var(--space-m); flex: none;
+  /* The empty box's height inside its padding: three lines, the gap, and the photo button's row (its 44px
+     target less the overhang below). A photo is this tall, so adding one doesn't change the box. */
+  --dbox-inner: calc(64px + var(--space-s) + var(--control-hit) - (var(--control-hit) - var(--control-chip)) / 2);
+}
 /* The photo and the words are two columns: the words keep to theirs and grow with them. */
 .body { display: flex; align-items: flex-start; gap: var(--space-l); }
-.autosize { display: grid; flex: 1; min-width: 0; min-height: 104px; }
-.dbox.compact .autosize { min-height: 64px; }
-/* Beside a photo the words are at least as tall as it. */
-.thumb + .autosize { min-height: 88px; }
+/* Three lines empty, so the hint still shows above the keyboard; it grows as you write. */
+.autosize { display: grid; flex: 1; min-width: 0; min-height: 64px; }
+/* Beside a photo the words are at least as tall as it, and more words grow the box. */
+.thumb + .autosize { min-height: var(--dbox-inner); }
 .autosize > * { grid-area: 1 / 1; padding: 0; font: inherit; letter-spacing: inherit; white-space: pre-wrap; overflow-wrap: break-word; }
 .mirror { visibility: hidden; }
 /* main.css sets every phone field to at least 16px so iOS doesn't zoom; the copy must match the field. */
@@ -91,7 +100,7 @@ function picked() {
 /* The small button keeps its 44px target: the face sits at the box's padding and the target overhangs it. */
 .foot { display: flex; margin-bottom: calc((var(--control-hit) - var(--control-chip)) / -2); }
 .foot .btn { --btn-bg: var(--color-hover); }
-.thumb { position: relative; width: 88px; height: 88px; flex: none; }
+.thumb { position: relative; width: var(--dbox-inner); height: var(--dbox-inner); flex: none; }
 .thumb img { display: block; width: 100%; height: 100%; object-fit: cover; border-radius: var(--radius-m); }
 /* A 24px disc on the corner, in a 44px target. */
 .tx {
