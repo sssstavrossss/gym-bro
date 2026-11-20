@@ -1106,6 +1106,10 @@ namespace GymBro.Api.Data.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("food_count");
 
+                    b.Property<bool>("HasPhoto")
+                        .HasColumnType("boolean")
+                        .HasColumnName("has_photo");
+
                     b.Property<int>("InputTokens")
                         .HasColumnType("integer")
                         .HasColumnName("input_tokens");

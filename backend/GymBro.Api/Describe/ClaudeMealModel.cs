@@ -9,7 +9,8 @@ namespace GymBro.Api.Describe;
 
 /// <summary>
 /// <see cref="IMealModel"/> on the Claude API. Both questions use structured output, so the reply is JSON that
-/// matches a schema. Effort is low: these are short lookups, not reasoning tasks.
+/// matches a schema. Effort is low: these are short lookups, not reasoning tasks. A photo goes only to the
+/// split, as an image block before the words.
 /// </summary>
 public sealed class ClaudeMealModel(IOptions<DescribeOptions> options, ILogger<ClaudeMealModel> logger) : IMealModel
 {
@@ -21,26 +22,37 @@ public sealed class ClaudeMealModel(IOptions<DescribeOptions> options, ILogger<C
     public string Name => options.Value.Model;
 
     private const string SplitSystem = """
-        You read a short note of what someone ate or drank and list each food in it.
+        You read a note of what someone ate or drank and list each food in it. The note is their words,
+        a photo of the meal, or both.
         The foods are looked up in Matvaretabellen, the Norwegian food composition table, which has Norwegian
         names ("Egg, kokt", "Brød, grovt", "Smør", "Lettmelk") and English names, and in the person's own foods.
 
         For each food give:
-        - phrase: the words from the note that name it, with its amount, copied as written.
+        - phrase: the words from the note that name it, with its amount, copied as written. For a food
+          from a photo, a few words for what you see, with the amount ("2 fried eggs", "rice, about a cup").
         - name: a short plain English name, as it was eaten ("boiled egg", "wholemeal bread").
         - searches: one to three short catalogue searches, one or two words each, best first, Norwegian
           before English. Every word of a search must appear in the food's name, so name the everyday form
           the way the table does, with how it is usually eaten: "ris kokt" for rice, "brød grovt" or "loff"
-          for bread or toast, "egg kokt", "lettmelk", "kaffe traktet", "havregryn". For a dish, make the
-          first search the dish with its main filling ("taco kjøttdeig", "pizza pepperoni"), then the dish alone.
+          for bread or toast, "egg kokt", "lettmelk", "kaffe traktet", "havregryn". For a particular kind
+          of a food, search the kind first ("sausage cocktail" or "sosisser" for cocktail sausages), then
+          the plain food. For a dish, make the first search its usual name or the dish with its main
+          filling ("pasta bolognese", "taco kjøttdeig", "pizza pepperoni"), then the dish alone.
         - grams: your best estimate of the grams (millilitres for drinks) in the amount described.
           When the note gives no amount, use a usual single portion.
-        - guessed: true when the note gives no amount for it.
+        - guessed: true when the note gives no amount for it. An amount judged from a photo is a guess.
 
         Split a food into the parts someone would log separately: "toast with butter" is bread and butter,
         "coffee with milk" is coffee and milk, "a ham and cheese sandwich" is two slices of bread, ham and
         cheese. Keep a dish whole when it is one dish (lasagne, pizza, a burrito, a curry).
         Keep the note's order. If the note is not about food or drink, return an empty list.
+
+        A photo shows the meal itself. List each food and drink in it that someone would log, and judge
+        each amount from the plate, bowl, glass, cutlery or packaging around it. Words sent with a photo
+        come first: they can name foods, amounts or cooking the photo can't show ("fried in butter",
+        "I ate half"), and they say which part is theirs when the photo shows more. Don't list the plate,
+        cutlery, garnish, or anything you can't tell is food. If a photo shows no food or drink and the
+        words name none, return an empty list.
         """;
 
     private const string PickSystem = """
@@ -59,14 +71,16 @@ public sealed class ClaudeMealModel(IOptions<DescribeOptions> options, ILogger<C
           kind of food at all (a rice drink is not rice, a cream for coffee is not coffee).
         - unit: one of the units listed for that candidate, written exactly as listed.
         - amount: how many of that unit the note describes. Use a counted unit for counted things
-          ("2 eggs" is 2 of a piece unit when there is one), otherwise grams or millilitres.
+          ("2 eggs" is 2 of a piece unit when there is one), otherwise grams or millilitres. When that
+          many of the unit would weigh far from the food's grams (small sausages and a grill sausage's
+          piece), use grams instead.
           When the note gives no amount, use a usual single portion.
         Return one entry for every food from the note, in the same order.
         """;
 
-    public async Task<IReadOnlyList<MealPart>> SplitAsync(string text, MealUsage usage, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<MealPart>> SplitAsync(MealNote note, MealUsage usage, CancellationToken cancellationToken)
     {
-        var json = await AskAsync(SplitSystem, text, SplitSchema, 2048, usage, cancellationToken);
+        var json = await AskAsync(SplitSystem, SplitContent(note), SplitSchema, 2048, usage, cancellationToken);
         var parts = new List<MealPart>();
         foreach (var food in json.GetProperty("foods").EnumerateArray())
         {
@@ -111,6 +125,25 @@ public sealed class ClaudeMealModel(IOptions<DescribeOptions> options, ILogger<C
             pick.GetProperty("unit").GetString() ?? "");
     }
 
+    /// <summary>The words alone, or the photo first and then the words (or a line saying there are none).</summary>
+    public static MessageContentParam SplitContent(MealNote note)
+    {
+        if (note.Photo is not { } photo)
+        {
+            return note.Text;
+        }
+
+        List<ContentBlockParam> blocks =
+        [
+            new ImageBlockParam
+            {
+                Source = new Base64ImageSource { Data = Convert.ToBase64String(photo.Data), MediaType = photo.MediaType },
+            },
+            new TextBlockParam { Text = note.Text.Length > 0 ? $"Words with the photo: {note.Text}" : "No words, only the photo." },
+        ];
+        return blocks;
+    }
+
     /// <summary>The note, then each food with its numbered candidates and their units.</summary>
     public static string PickPrompt(string text, IReadOnlyList<MealChoice> choices)
     {
@@ -153,7 +186,7 @@ public sealed class ClaudeMealModel(IOptions<DescribeOptions> options, ILogger<C
 
     private async Task<JsonElement> AskAsync(
         string system,
-        string user,
+        MessageContentParam user,
         Dictionary<string, JsonElement> schema,
         int maxTokens,
         MealUsage usage,

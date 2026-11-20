@@ -707,7 +707,12 @@ export interface DescribeItem {
 
 export interface DescribeResult {
   id: string;
+  /** The words sent. Empty when only a photo was. */
   text: string;
+  /** A photo was sent. The server doesn't keep it. */
+  photo: boolean;
+  /** With a photo: the foods Claude saw in it, "Fried egg, rice". Null without one. */
+  seen: string | null;
   items: DescribeItem[];
   /** Descriptions left in the last 24 hours after this one. Null when read back without asking Claude. */
   left: number | null;
@@ -716,6 +721,8 @@ export interface DescribeResult {
 export interface DescribeRecent {
   id: string;
   text: string;
+  photo: boolean;
+  seen: string | null;
   foods: number;
   kcal: number;
   loggedAt: string;
@@ -736,12 +743,25 @@ export async function getDescribe(): Promise<DescribeOverview> {
   return cachedJson("/api/describe");
 }
 
-/** Claude splits the text and picks foods from the catalogue. Nothing is logged. retryOf links an edited retry to the attempt before it. */
-export async function describeMeal(text: string, retryOf: string | null = null): Promise<DescribeResult> {
+/** A shrunk JPEG for Describe, base64 without the data URL prefix. */
+export interface DescribePhoto {
+  mediaType: string;
+  data: string;
+}
+
+/**
+ * Claude reads the words, the photo, or both, and picks foods from the catalogue. Nothing is logged.
+ * retryOf links an edited retry to the attempt before it.
+ */
+export async function describeMeal(text: string, retryOf: string | null = null, photo: DescribePhoto | null = null): Promise<DescribeResult> {
   return jsonOrThrow(await request("/api/describe", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(retryOf ? { text, retryOf } : { text }),
+    body: JSON.stringify({
+      text,
+      ...(retryOf ? { retryOf } : {}),
+      ...(photo ? { photo: { mediaType: photo.mediaType, data: photo.data } } : {}),
+    }),
   }));
 }
 

@@ -23,6 +23,8 @@ public static class DescribeEndpoints
 
     public const string NothingFound = "No foods in that. Try naming what you ate, like “2 eggs and toast”.";
 
+    public const string NothingInPhoto = "No foods in that photo. Try another, or write what you ate.";
+
     public const string DailyLimitReached = "That's the limit for Describe for now. Search still works.";
 
     public const string Missing = "No description with that id.";
@@ -67,10 +69,20 @@ public static class DescribeEndpoints
             .OrderByDescending(row => row.LoggedAt)
             .Take(RecentLimit * 4)
             .ToListAsync(cancellationToken);
+        // The same words twice are one recent. Every photo is its own.
         var recent = logged
-            .DistinctBy(row => LogEntryRules.Collapse(row.Text).ToLowerInvariant())
+            .DistinctBy(row => row.HasPhoto ? row.Id.ToString() : LogEntryRules.Collapse(row.Text).ToLowerInvariant())
             .Take(RecentLimit)
-            .Select(row => new { id = row.Id, text = row.Text, foods = row.FoodCount, kcal = row.Kcal, loggedAt = row.LoggedAt })
+            .Select(row => new
+            {
+                id = row.Id,
+                text = row.Text,
+                photo = row.HasPhoto,
+                seen = row.HasPhoto ? Seen(Read(row.Items).Select(item => item.Name)) : null,
+                foods = row.FoodCount,
+                kcal = row.Kcal,
+                loggedAt = row.LoggedAt,
+            })
             .ToList();
         return Results.Ok(new { available = true, limit = quota.Limit, left = quota.Left, nextAt = quota.NextAt, recent });
     }
@@ -98,7 +110,17 @@ public static class DescribeEndpoints
             return ApiResults.Error(Off, StatusCodes.Status404NotFound);
         }
 
-        if (MealDescriber.RejectText(request.Text) is { } invalid)
+        MealPhoto? photo = null;
+        if (request.Photo is { } sent)
+        {
+            (photo, var unusable) = MealPhoto.Read(sent.MediaType, sent.Data);
+            if (unusable is not null)
+            {
+                return ApiResults.Error(unusable);
+            }
+        }
+
+        if (MealDescriber.RejectText(request.Text, photo is not null) is { } invalid)
         {
             return ApiResults.Error(invalid);
         }
@@ -113,7 +135,7 @@ public static class DescribeEndpoints
         }
 
         await users.UpsertAsync(principal, cancellationToken);
-        var text = request.Text!.Trim();
+        var text = (request.Text ?? "").Trim();
         var retryOf = request.RetryOf is { } earlier
             && await db.MealDescriptions.AnyAsync(row => row.Id == earlier && row.UserId == userId, cancellationToken)
                 ? earlier
@@ -124,7 +146,7 @@ public static class DescribeEndpoints
         string outcome;
         try
         {
-            items = await describer.DescribeAsync(userId, text, usage, cancellationToken);
+            items = await describer.DescribeAsync(userId, new MealNote(text, photo), usage, cancellationToken);
             outcome = items.Count == 0 ? MealOutcomes.Nothing : MealOutcomes.Found;
         }
         catch (MealModelException ex)
@@ -137,6 +159,7 @@ public static class DescribeEndpoints
             Id = Guid.NewGuid(),
             UserId = userId,
             Text = text,
+            HasPhoto = photo is not null,
             CreatedAt = now,
             Outcome = outcome,
             Model = Clip(model.Name, 64),
@@ -158,13 +181,13 @@ public static class DescribeEndpoints
         await db.SaveChangesAsync(cancellationToken);
         var left = outcome == MealOutcomes.Failed ? quota.Left : quota.Left - 1;
         logger.LogInformation(
-            "Describe for {UserId}: {Outcome}, {Found} of {Foods} foods matched, {Calls} calls, {InputTokens} input and {OutputTokens} output tokens, {DurationMs} ms, {Left} of {Limit} left, retry of {RetryOf}",
-            userId, outcome, items.Count(item => item.Food is not null), items.Count, row.Calls, row.InputTokens, row.OutputTokens, row.DurationMs, left, quota.Limit, retryOf);
+            "Describe for {UserId}: {Outcome}, photo {Photo}, {Found} of {Foods} foods matched, {Calls} calls, {InputTokens} input and {OutputTokens} output tokens, {DurationMs} ms, {Left} of {Limit} left, retry of {RetryOf}",
+            userId, outcome, row.HasPhoto, items.Count(item => item.Food is not null), items.Count, row.Calls, row.InputTokens, row.OutputTokens, row.DurationMs, left, quota.Limit, retryOf);
 
         return outcome switch
         {
             MealOutcomes.Found => Results.Ok(await ResponseAsync(db, userId, row, items, left, cancellationToken)),
-            MealOutcomes.Nothing => ApiResults.Error(NothingFound, StatusCodes.Status422UnprocessableEntity),
+            MealOutcomes.Nothing => ApiResults.Error(row.HasPhoto ? NothingInPhoto : NothingFound, StatusCodes.Status422UnprocessableEntity),
             MealOutcomes.Declined => ApiResults.Error(Declined, StatusCodes.Status422UnprocessableEntity),
             _ => ApiResults.Error(ModelDown, StatusCodes.Status503ServiceUnavailable),
         };
@@ -287,6 +310,8 @@ public static class DescribeEndpoints
         {
             id = row.Id,
             text = row.Text,
+            photo = row.HasPhoto,
+            seen = row.HasPhoto ? Seen(items.Select(item => item.Name)) : null,
             left,
             items = items.Select(item => new
             {
@@ -331,6 +356,19 @@ public static class DescribeEndpoints
         }
     }
 
+    /// <summary>
+    /// What Claude saw in a photo, from the foods' plain names: "Fried egg, rice, cherry tomatoes". The photo
+    /// isn't kept, so this is how a recent one is told apart.
+    /// </summary>
+    public static string Seen(IEnumerable<string> names)
+    {
+        var seen = string.Join(", ", names
+            .Select(name => LogEntryRules.Collapse(name))
+            .Where(name => name.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase));
+        return Clip(seen.Length > 0 ? char.ToUpperInvariant(seen[0]) + seen[1..] : seen, 120);
+    }
+
     private static string Clip(string? value, int max)
     {
         var text = LogEntryRules.Collapse(value);
@@ -340,7 +378,10 @@ public static class DescribeEndpoints
     private sealed record StoredItem(string Phrase, string Name, bool Guessed, Guid? FoodId, decimal Amount, string Unit);
 }
 
-public sealed record DescribeRequest(string? Text, Guid? RetryOf = null);
+/// <summary>Words, a photo, or both. <see cref="Photo"/> is base64 with its image type.</summary>
+public sealed record DescribeRequest(string? Text, Guid? RetryOf = null, PhotoRequest? Photo = null);
+
+public sealed record PhotoRequest(string? MediaType, string? Data);
 
 public sealed record LoggedRequest(List<LoggedItem>? Items);
 

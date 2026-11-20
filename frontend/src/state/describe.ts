@@ -2,10 +2,12 @@ import { reactive } from "vue";
 import { ApiError, describeMeal, getDescribe, getDescription, markDescriptionLogged, ServerUnreachable, type DescribeRecent } from "../api";
 import { chosenRows, loggedItems, rowKcal, rowsFrom, type DescribeRow } from "../lib/describe";
 import { macrosForFood } from "../lib/foodAmount";
+import { PHOTO_UNREADABLE, shrinkPhoto, type MealPhoto } from "../photo/mealPhoto";
 import { saveQuickAdd, type LogEntry } from "./log";
 
 // "Describe a meal" on the food sheet. The state lives here, not in the pane, because the amount
 // screen replaces the pane while a row is being changed and the list has to be there when it comes back.
+// A description is words, a photo, or both. The photo lives only here, on the phone, until it is sent.
 
 export type DescribePhase = "write" | "finding" | "review";
 
@@ -18,6 +20,10 @@ export const describe = reactive({
   left: 0,
   nextAt: null as string | null,
   text: "",
+  /** The photo to send with the words. */
+  photo: null as MealPhoto | null,
+  /** A picked photo is being shrunk. Find waits for it. */
+  readingPhoto: false,
   phase: "write" as DescribePhase,
   error: "",
   /** The last find failed for a reason that may pass (Claude or the server unreachable): its button says Try again. */
@@ -25,8 +31,12 @@ export const describe = reactive({
   /** Changing the words over the review list. draft is the text box; the list stays until the new one comes. */
   revising: false,
   draft: "",
+  draftPhoto: null as MealPhoto | null,
   /** The saved description the review list came from. */
   id: null as string | null,
+  /** It had a photo, and what Claude saw in it. A recent one has no photo left to show. */
+  fromPhoto: false,
+  seen: null as string | null,
   rows: [] as DescribeRow[],
   /** Row open on the amount screen. Its button says Use and comes back here. */
   editing: null as number | null,
@@ -52,12 +62,17 @@ export async function loadDescribe(): Promise<void> {
 export function resetDescribe(): void {
   gen++;
   describe.text = "";
+  describe.photo = null;
+  describe.readingPhoto = false;
   describe.phase = "write";
   describe.error = "";
   describe.retryable = false;
   describe.revising = false;
   describe.draft = "";
+  describe.draftPhoto = null;
   describe.id = null;
+  describe.fromPhoto = false;
+  describe.seen = null;
   describe.rows = [];
   describe.editing = null;
   describe.adding = false;
@@ -67,6 +82,7 @@ export function resetDescribe(): void {
 export function startRevise(): void {
   if (describe.phase !== "review" || describe.adding) return;
   describe.draft = describe.text;
+  describe.draftPhoto = describe.photo;
   describe.revising = true;
   describe.error = "";
   describe.retryable = false;
@@ -77,8 +93,35 @@ export function cancelRevise(): void {
   gen++;
   if (describe.phase === "finding") describe.phase = "review";
   describe.revising = false;
+  describe.draftPhoto = null;
+  describe.readingPhoto = false;
   describe.error = "";
   describe.retryable = false;
+}
+
+/** Where a picked photo goes: the first description, or the words being edited over the review list. */
+export type PhotoSlot = "photo" | "draftPhoto";
+
+/** Shrinks the picked photo and puts it in `slot`. A photo that can't be read says so and leaves the slot as it was. */
+export async function attachPhoto(file: Blob, slot: PhotoSlot = "photo"): Promise<void> {
+  const mine = gen;
+  describe.readingPhoto = true;
+  describe.error = "";
+  describe.retryable = false;
+  try {
+    const photo = await shrinkPhoto(file);
+    if (mine !== gen) return;
+    describe[slot] = photo;
+  } catch {
+    if (mine !== gen) return;
+    describe.error = PHOTO_UNREADABLE;
+  } finally {
+    if (mine === gen) describe.readingPhoto = false;
+  }
+}
+
+export function removePhoto(slot: PhotoSlot = "photo"): void {
+  describe[slot] = null;
 }
 
 function messageFor(error: unknown): string {
@@ -92,15 +135,19 @@ function passing(error: unknown): boolean {
   return error instanceof ServerUnreachable || (error instanceof ApiError && error.status === 503);
 }
 
-async function ask(text: string, retryOf: string | null, onFail: () => void): Promise<void> {
+async function ask(text: string, photo: MealPhoto | null, retryOf: string | null, onFail: () => void): Promise<void> {
   const mine = ++gen;
   describe.phase = "finding";
   describe.error = "";
   describe.retryable = false;
   try {
-    const result = await describeMeal(text, retryOf);
+    const result = await describeMeal(text, retryOf, photo);
     if (mine !== gen) return;
     describe.text = result.text;
+    describe.photo = photo;
+    describe.draftPhoto = null;
+    describe.fromPhoto = result.photo;
+    describe.seen = result.seen;
     describe.id = result.id;
     describe.rows = rowsFrom(result.items, () => crypto.randomUUID());
     describe.revising = false;
@@ -118,19 +165,22 @@ async function ask(text: string, retryOf: string | null, onFail: () => void): Pr
   }
 }
 
+/** Words or a photo to send, and nothing still being read. */
+export function canDescribe(text: string, photo: MealPhoto | null): boolean {
+  return (text.trim().length > 0 || photo != null) && !describe.readingPhoto && describe.phase !== "finding";
+}
+
 export async function findFoods(): Promise<void> {
-  const text = describe.text.trim();
-  if (!text || describe.phase === "finding") return;
-  await ask(text, null, () => {
+  if (!canDescribe(describe.text, describe.photo)) return;
+  await ask(describe.text.trim(), describe.photo, null, () => {
     describe.phase = "write";
   });
 }
 
-/** The edited words, sent again. The new attempt points at the one it replaces. */
+/** The edited words (and photo), sent again. The new attempt points at the one it replaces. */
 export async function findAgain(): Promise<void> {
-  const text = describe.draft.trim();
-  if (!text || describe.phase === "finding") return;
-  await ask(text, describe.id, () => {
+  if (!canDescribe(describe.draft, describe.draftPhoto)) return;
+  await ask(describe.draft.trim(), describe.draftPhoto, describe.id, () => {
     describe.phase = "review";
   });
 }
@@ -139,6 +189,9 @@ export async function findAgain(): Promise<void> {
 export async function useRecent(recent: DescribeRecent): Promise<void> {
   const mine = ++gen;
   describe.text = recent.text;
+  describe.photo = null;
+  describe.fromPhoto = recent.photo;
+  describe.seen = recent.seen;
   describe.phase = "finding";
   describe.error = "";
   describe.retryable = false;
