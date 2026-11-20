@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using GymBro.Api.Data;
 using GymBro.Api.Describe;
+using Anthropic.Models.Messages;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -160,6 +161,113 @@ public sealed class DescribeMealTests(ApiFactory factory)
         Assert.Equal(HttpStatusCode.BadRequest, tooLong.StatusCode);
         var nothing = await client.PostAsJsonAsync("/api/describe", new { text = ", , ." });
         Assert.Equal(HttpStatusCode.UnprocessableEntity, nothing.StatusCode);
+    }
+
+    [Fact]
+    public async Task A_photo_alone_or_with_words_is_described_and_the_photo_is_not_kept()
+    {
+        factory.Clock.UtcNow = new DateTimeOffset(2026, 11, 20, 11, 0, 0, TimeSpan.Zero);
+        var user = TestData.NewUser("describe-photo");
+        using var client = factory.AsUser(user);
+        var pea = await Food("Quorbpea green", 80);
+        var photo = new { mediaType = "image/jpeg", data = Convert.ToBase64String(Jpeg) };
+
+        // The test model sees RuleMealModel.PhotoMeal in every photo.
+        var alone = await client.PostAsJsonAsync("/api/describe", new { photo });
+        Assert.Equal(HttpStatusCode.OK, alone.StatusCode);
+        var aloneBody = await alone.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("", aloneBody.GetProperty("text").GetString());
+        Assert.True(aloneBody.GetProperty("photo").GetBoolean());
+        Assert.Equal("Kylling, ris kokt", aloneBody.GetProperty("seen").GetString());
+        Assert.Equal(["150 g kylling", "ris kokt"], aloneBody.GetProperty("items").EnumerateArray().Select(item => item.GetProperty("phrase").GetString()));
+
+        var both = await (await client.PostAsJsonAsync("/api/describe", new { text = " quorbpea ", photo })).Content.ReadFromJsonAsync<JsonElement>();
+        var items = both.GetProperty("items").EnumerateArray().ToList();
+        Assert.Equal(3, items.Count);
+        Assert.Equal(pea, items[2].GetProperty("food").GetProperty("id").GetGuid());
+        Assert.Equal("Kylling, ris kokt, quorbpea", both.GetProperty("seen").GetString());
+
+        // Words alone are as before: no photo, nothing seen.
+        var words = await (await client.PostAsJsonAsync("/api/describe", new { text = "quorbpea" })).Content.ReadFromJsonAsync<JsonElement>();
+        Assert.False(words.GetProperty("photo").GetBoolean());
+        Assert.Equal(JsonValueKind.Null, words.GetProperty("seen").ValueKind);
+
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var rows = await db.MealDescriptions.Where(row => row.UserId == user).OrderBy(row => row.Text).ToListAsync();
+            Assert.Equal([true, true, false], rows.Select(row => row.HasPhoto).OrderByDescending(has => has));
+            Assert.Contains(rows, row => row.HasPhoto && row.Text == "");
+        }
+
+        // Two photos with the same words are two recent ones: each photo is its own meal.
+        var again = await (await client.PostAsJsonAsync("/api/describe", new { text = "quorbpea", photo })).Content.ReadFromJsonAsync<JsonElement>();
+        foreach (var id in new[] { both.GetProperty("id").GetGuid(), again.GetProperty("id").GetGuid() })
+        {
+            var logged = await client.PostAsJsonAsync($"/api/describe/{id}/logged", new
+            {
+                items = new object[] { new { phrase = "quorbpea", name = "quorbpea", guessed = true, foodId = pea, amount = 50, unit = "g" } },
+            });
+            Assert.Equal(HttpStatusCode.NoContent, logged.StatusCode);
+        }
+
+        var recent = (await client.GetFromJsonAsync<JsonElement>("/api/describe")).GetProperty("recent").EnumerateArray().ToList();
+        Assert.Equal(2, recent.Count);
+        Assert.All(recent, row =>
+        {
+            Assert.True(row.GetProperty("photo").GetBoolean());
+            Assert.Equal("quorbpea", row.GetProperty("text").GetString());
+            // As logged: only the peas were kept.
+            Assert.Equal("Quorbpea", row.GetProperty("seen").GetString());
+        });
+    }
+
+    [Fact]
+    public async Task Words_or_a_photo_are_needed_and_a_photo_must_be_an_image()
+    {
+        var user = TestData.NewUser("describe-photo-bad");
+        using var client = factory.AsUser(user);
+
+        async Task<string?> Refused(object body)
+        {
+            var response = await client.PostAsJsonAsync("/api/describe", body);
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+            return (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("error").GetString();
+        }
+
+        var jpeg = Convert.ToBase64String(Jpeg);
+        Assert.Equal(MealDescriber.TextRequired, await Refused(new { text = " " }));
+        Assert.Equal(MealPhoto.Unreadable, await Refused(new { photo = new { mediaType = "image/png", data = jpeg } }));
+        Assert.Equal(MealPhoto.Unreadable, await Refused(new { photo = new { mediaType = "image/gif", data = jpeg } }));
+        Assert.Equal(MealPhoto.Unreadable, await Refused(new { photo = new { mediaType = "image/jpeg", data = "not base64!" } }));
+        Assert.Equal(MealPhoto.Unreadable, await Refused(new { text = "an egg", photo = new { mediaType = "image/jpeg", data = "" } }));
+        var huge = new byte[MealPhoto.MaxBytes + 1];
+        Jpeg.CopyTo(huge, 0);
+        Assert.Equal(MealPhoto.TooLarge, await Refused(new { photo = new { mediaType = "image/jpeg", data = Convert.ToBase64String(huge) } }));
+
+        // Nothing reached the model, so nothing was saved or counted.
+        await using var scope = factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        Assert.False(await db.MealDescriptions.AnyAsync(row => row.UserId == user));
+    }
+
+    [Fact]
+    public void A_photo_goes_to_the_split_before_the_words_and_the_pick_is_told_it_was_a_photo()
+    {
+        var photo = MealPhoto.Read("image/jpeg", Convert.ToBase64String(Jpeg)).Photo!;
+
+        Assert.Equal("2 eggs", new MealNote("2 eggs").ForPick);
+        Assert.Equal("A photo of the meal.", new MealNote("", photo).ForPick);
+        Assert.Equal("A photo of the meal, with the words: fried in butter", new MealNote("fried in butter", photo).ForPick);
+
+        var words = JsonSerializer.Serialize(new UserMessageParam { Content = ClaudeMealModel.SplitContent(new MealNote("2 eggs")) });
+        Assert.DoesNotContain("image", words);
+        var withPhoto = JsonSerializer.Serialize(new UserMessageParam { Content = ClaudeMealModel.SplitContent(new MealNote("fried in butter", photo)) });
+        var image = withPhoto.IndexOf("\"type\":\"image\"", StringComparison.Ordinal);
+        var text = withPhoto.IndexOf("Words with the photo: fried in butter", StringComparison.Ordinal);
+        Assert.True(image >= 0 && text > image, withPhoto);
+        Assert.Contains("image/jpeg", withPhoto);
+        Assert.Contains("No words, only the photo.", JsonSerializer.Serialize(new UserMessageParam { Content = ClaudeMealModel.SplitContent(new MealNote("", photo)) }));
     }
 
     [Fact]
@@ -396,6 +504,9 @@ public sealed class DescribeMealTests(ApiFactory factory)
         return id;
     }
 
+    /// <summary>The start of a JPEG: enough for the type check. The test model never reads the picture.</summary>
+    private static readonly byte[] Jpeg = [0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, (byte)'J', (byte)'F', (byte)'I', (byte)'F', 0x00, 0x01];
+
     private static MealDescription Seed(string user, string text, DateTimeOffset createdAt, string outcome = MealOutcomes.Found) => new()
     {
         Id = Guid.NewGuid(),
@@ -410,7 +521,7 @@ public sealed class DescribeMealTests(ApiFactory factory)
     {
         public string Name => "failing";
 
-        public Task<IReadOnlyList<MealPart>> SplitAsync(string text, MealUsage usage, CancellationToken cancellationToken)
+        public Task<IReadOnlyList<MealPart>> SplitAsync(MealNote note, MealUsage usage, CancellationToken cancellationToken)
         {
             // A refusal is an answer, so it is paid for; a call that never got through costs nothing.
             usage.Add(refused ? 120 : 0, refused ? 5 : 0);

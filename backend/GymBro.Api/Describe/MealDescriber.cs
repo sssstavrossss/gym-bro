@@ -9,9 +9,10 @@ namespace GymBro.Api.Describe;
 public sealed record DescribedItem(string Phrase, string Name, bool Guessed, Food? Food, decimal Amount, string Unit);
 
 /// <summary>
-/// Turns a typed meal into foods to review: the model splits the text, the person's own catalogue is
-/// searched for each part, then the model picks a candidate and an amount. A pick in a unit the food
-/// can't be logged in falls back to the model's gram estimate, so every match can be logged as shown.
+/// Turns a described meal (words, a photo, or both) into foods to review: the model splits the note, the
+/// person's own catalogue is searched for each part, then the model picks a candidate and an amount. A pick
+/// in a unit the food can't be logged in falls back to the model's gram estimate, so every match can be
+/// logged as shown.
 /// </summary>
 public sealed class MealDescriber(AppDbContext db, IMealModel model)
 {
@@ -25,24 +26,25 @@ public sealed class MealDescriber(AppDbContext db, IMealModel model)
 
     public const int CandidatesMax = 12;
 
-    public const string TextRequired = "Write what you ate.";
+    public const string TextRequired = "Write what you ate, or add a photo.";
 
     public const string TextTooLong = "That's a long one. Keep it under 500 characters, or split it in two.";
 
-    public static string? RejectText(string? text)
+    /// <summary>Why the words can't be sent, or null. With a photo they may be empty.</summary>
+    public static string? RejectText(string? text, bool photo = false)
     {
         var trimmed = (text ?? "").Trim();
         if (trimmed.Length == 0)
         {
-            return TextRequired;
+            return photo ? null : TextRequired;
         }
 
         return trimmed.Length > TextMax ? TextTooLong : null;
     }
 
-    public async Task<IReadOnlyList<DescribedItem>> DescribeAsync(string userId, string text, MealUsage usage, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<DescribedItem>> DescribeAsync(string userId, MealNote note, MealUsage usage, CancellationToken cancellationToken)
     {
-        var parts = (await model.SplitAsync(text, usage, cancellationToken))
+        var parts = (await model.SplitAsync(note, usage, cancellationToken))
             .Where(part => !string.IsNullOrWhiteSpace(part.Name))
             .Take(PartsMax)
             .ToList();
@@ -64,7 +66,7 @@ public sealed class MealDescriber(AppDbContext db, IMealModel model)
                 found[index].Select(food => new MealCandidate(food, food.UserId == userId, Units(food, servings.GetValueOrDefault(food.Id)))).ToList()))
             .ToList();
         var picks = choices.Any(choice => choice.Candidates.Count > 0)
-            ? await model.PickAsync(text, choices, usage, cancellationToken)
+            ? await model.PickAsync(note.ForPick, choices, usage, cancellationToken)
             : [];
         var byPart = picks
             .Where(pick => pick.Part >= 0 && pick.Part < choices.Count)

@@ -6,14 +6,19 @@ namespace GymBro.Api.Describe;
 /// <summary>
 /// A stand-in for Claude in Testing and E2e, so tests are free and repeatable. It splits on commas and
 /// "and"/"with", reads a leading number ("2 eggs", "200 g rice"), and takes the first candidate.
+/// Every photo shows <see cref="PhotoMeal"/>, read before the words.
 /// </summary>
 public sealed partial class RuleMealModel : IMealModel
 {
+    /// <summary>What the test model "sees" in any photo.</summary>
+    public const string PhotoMeal = "150 g kylling, ris kokt";
+
     public string Name => "rule";
 
-    public Task<IReadOnlyList<MealPart>> SplitAsync(string text, MealUsage usage, CancellationToken cancellationToken)
+    public Task<IReadOnlyList<MealPart>> SplitAsync(MealNote note, MealUsage usage, CancellationToken cancellationToken)
     {
         usage.Add(0, 0);
+        var text = note.Photo is null ? note.Text : string.Join(", ", new[] { PhotoMeal, note.Text }.Where(words => words.Length > 0));
         var parts = new List<MealPart>();
         foreach (var raw in Separator().Split(text))
         {

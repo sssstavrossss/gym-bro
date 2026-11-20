@@ -1,26 +1,41 @@
 <script setup lang="ts">
 import { computed } from "vue";
+import DescribeBox from "./DescribeBox.vue";
 import Icon from "./Icon.vue";
 import {
   addLabel,
-  DESCRIBE_TEXT_MAX,
   describeHint,
   describeNote,
   describeOfflineNote,
+  describePhotoAlone,
+  describePhotoHint,
+  describePhotoPlaceholder,
   describePlaceholder,
   describeRetryPrompt,
   leftLine,
+  noteText,
   recentLine,
   reviewTitle,
   searchSeed,
 } from "../lib/describe";
 import { recentSubtitle } from "../lib/foodSheet";
 import { connection } from "../state/connection";
-import { cancelRevise, describe, findAgain, findFoods, startRevise, toggleRow, useRecent } from "../state/describe";
+import {
+  attachPhoto,
+  canDescribe,
+  cancelRevise,
+  describe,
+  findAgain,
+  findFoods,
+  removePhoto,
+  startRevise,
+  toggleRow,
+  useRecent,
+} from "../state/describe";
 import { deviceTimeZone } from "../state/profile";
 import { foodUnit } from "../state/units";
 
-// The Describe tab on Add food: a text box, then the foods Claude found, then Add.
+// The Describe tab on Add food: words, a photo or both, then the foods Claude found, then Add.
 // Logging and the amount screen belong to the food sheet, so this pane only asks for them.
 
 const props = defineProps<{
@@ -39,8 +54,10 @@ const emit = defineEmits<{
 const finding = computed(() => describe.phase === "finding");
 const spent = computed(() => describe.limit > 0 && describe.left === 0);
 const canSend = computed(() => !connection.offline && !finding.value && !spent.value);
-const canFind = computed(() => canSend.value && describe.text.trim().length > 0);
-const canFindAgain = computed(() => canSend.value && describe.draft.trim().length > 0);
+const canFind = computed(() => canSend.value && canDescribe(describe.text, describe.photo));
+const canFindAgain = computed(() => canSend.value && canDescribe(describe.draft, describe.draftPhoto));
+/** The words at the top of the review, or what Claude saw when only a photo was sent. */
+const sentText = computed(() => describe.text || (describe.photo ? describePhotoAlone : noteText({ text: "", photo: describe.fromPhoto, seen: describe.seen })));
 const addText = computed(() => (props.needTime ? "Pick a time to add" : addLabel(describe.rows)));
 const canAdd = computed(() => !props.needTime && !describe.adding && !describe.revising && describe.rows.some((row) => row.on && row.food));
 const left = computed(() => leftLine(describe, deviceTimeZone()));
@@ -68,21 +85,16 @@ function onDraftKey(event: KeyboardEvent) {
   <div class="dpane" data-describe>
     <div class="dscroll">
       <template v-if="describe.phase === 'write'">
-        <label class="field dbox">
-          <textarea
-            v-model="describe.text"
-            v-autofocus
-            class="t-body"
-            rows="4"
-            :maxlength="DESCRIBE_TEXT_MAX"
-            :placeholder="describePlaceholder"
-            aria-label="What you ate"
-            enterkeyhint="go"
-            autocomplete="off"
-            @keydown="onKey"
-          />
-        </label>
-        <p class="t-label c2 hint">{{ describeHint }}</p>
+        <DescribeBox
+          v-model="describe.text"
+          :photo-url="describe.photo?.url ?? null"
+          :placeholder="describe.photo ? describePhotoPlaceholder : describePlaceholder"
+          :reading="describe.readingPhoto"
+          @keydown="onKey"
+          @pick="attachPhoto($event)"
+          @remove="removePhoto()"
+        />
+        <p class="t-label c2 hint">{{ describe.photo ? describePhotoHint : describeHint }}</p>
         <p v-if="describe.error" class="err t-label" role="alert">{{ describe.error }}</p>
         <p v-if="connection.offline" class="well t-label c2" role="status">{{ describeOfflineNote }}</p>
         <template v-if="describe.recent.length">
@@ -94,8 +106,9 @@ function onDraftKey(event: KeyboardEvent) {
           <ul class="rows" aria-label="Recent descriptions">
             <li v-for="recent in describe.recent" :key="recent.id">
               <button type="button" class="drow pick" :disabled="connection.offline" @click="useRecent(recent)">
+                <span v-if="recent.photo" class="cam" aria-label="From a photo"><Icon name="camera" :size="18" /></span>
                 <span class="col grow tx">
-                  <span class="t-body clamp">{{ recent.text }}</span>
+                  <span class="t-body clamp">{{ noteText(recent) }}</span>
                   <span class="t-label c2">{{ recentLine(recent, today, deviceTimeZone()) }}</span>
                 </span>
                 <Icon name="right" :size="16" class="c3" />
@@ -106,22 +119,23 @@ function onDraftKey(event: KeyboardEvent) {
       </template>
 
       <template v-else>
-        <label v-if="describe.revising" class="field dbox draft" data-describe-draft>
-          <textarea
-            v-model="describe.draft"
-            v-autofocus
-            class="t-body"
-            rows="2"
-            :maxlength="DESCRIBE_TEXT_MAX"
-            :disabled="finding"
-            aria-label="What you ate"
-            enterkeyhint="go"
-            autocomplete="off"
-            @keydown="onDraftKey"
-          />
-        </label>
+        <DescribeBox
+          v-if="describe.revising"
+          v-model="describe.draft"
+          compact
+          data-describe-draft
+          :photo-url="describe.draftPhoto?.url ?? null"
+          :placeholder="describe.draftPhoto ? describePhotoPlaceholder : describePlaceholder"
+          :disabled="finding"
+          :reading="describe.readingPhoto"
+          @keydown="onDraftKey"
+          @pick="attachPhoto($event, 'draftPhoto')"
+          @remove="removePhoto('draftPhoto')"
+        />
         <button v-else type="button" class="well dtext" aria-label="Edit what you ate" :disabled="describe.adding || finding" @click="startRevise">
-          <span class="t-body grow">{{ describe.text }}</span>
+          <img v-if="describe.photo" :src="describe.photo.url" alt="Your photo" class="wthumb" />
+          <span v-else-if="describe.fromPhoto" class="cam" aria-label="From a photo"><Icon name="camera" :size="18" /></span>
+          <span class="t-body grow" :class="{ c2: !describe.text }">{{ sentText }}</span>
           <Icon name="edit" :size="16" class="c2" />
         </button>
         <p v-if="describe.revising && describe.error" class="err t-label" role="alert">{{ describe.error }}</p>
@@ -209,10 +223,6 @@ function onDraftKey(event: KeyboardEvent) {
 <style scoped>
 .dpane { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
 .dscroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: var(--space-m); }
-.dbox { align-items: flex-start; padding: var(--space-m); flex: none; }
-.dbox textarea { border: 0; outline: 0; background: transparent; color: inherit; width: 100%; min-height: 104px; resize: none; font: inherit; padding: 0; }
-.dbox.draft textarea { min-height: 64px; }
-.dbox textarea::placeholder { color: var(--text-tertiary); }
 .hint, .note { margin: 0; }
 .err { margin: 0; padding: var(--space-m); border-radius: var(--radius-l); border: 1px dashed var(--text-tertiary); }
 .lhead { display: flex; align-items: center; gap: var(--space-s); margin-top: var(--space-s); }
@@ -239,7 +249,11 @@ span.chkhit { cursor: default; }
 .skc { gap: 8px; }
 .sk { display: block; height: 12px; border-radius: 6px; background: var(--color-surface-2); }
 .sk.thin { height: 10px; }
-.dtext { display: flex; align-items: flex-start; gap: var(--space-s); text-align: left; border: 0; color: inherit; cursor: pointer; flex: none; }
+.dtext { display: flex; align-items: center; gap: var(--space-m); text-align: left; border: 0; color: inherit; cursor: pointer; flex: none; }
+.wthumb { width: var(--control-hit); height: var(--control-hit); border-radius: var(--radius-s); object-fit: cover; flex: none; }
+/* A photo isn't kept, so a camera tile stands in for it on a recent one. */
+.cam { width: var(--control-hit); height: var(--control-hit); border-radius: var(--radius-s); background: var(--color-surface-2); color: var(--text-secondary); display: inline-flex; align-items: center; justify-content: center; flex: none; }
+.well .cam { background: var(--color-hover); }
 .dtray { flex: none; padding-top: var(--space-m); margin-top: var(--space-m); border-top: 1px solid var(--color-border); }
 .dtray .btn :deep(svg) { flex: none; }
 .pair { gap: var(--space-s); }

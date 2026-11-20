@@ -169,6 +169,90 @@ test.describe("phone", () => {
     await expect(sheet(page).getByRole("button", { name: "Add 1 food · 180 kcal" })).toBeVisible();
   });
 
+  test("a photo alone finds foods, words can join it, and a photo meal comes back with a camera", async ({ page }) => {
+    const oid = `e2e-describe-photo-${Date.now()}-${test.info().project.name}`;
+    const when = await clock(page);
+    await setUp(page.request, oid, when);
+    await sign(page, oid);
+    await page.goto("/today");
+    await page.locator("main.today [data-food-prompt]").getByRole("button", { name: "Describe a meal", exact: true }).click();
+
+    // A real picture, so the app can shrink it the way it shrinks a phone photo.
+    const png = Buffer.from(await page.evaluate(() => {
+      const canvas = document.createElement("canvas");
+      canvas.width = 2000;
+      canvas.height = 1500;
+      const context = canvas.getContext("2d")!;
+      context.fillStyle = "#c08040";
+      context.fillRect(0, 0, 2000, 1500);
+      context.fillStyle = "#ffffff";
+      context.beginPath();
+      context.arc(1000, 750, 600, 0, 7);
+      context.fill();
+      return canvas.toDataURL("image/png").split(",")[1];
+    }), "base64");
+    const photo = { name: "meal.png", mimeType: "image/png", buffer: png };
+    const input = sheet(page).locator("[data-describe-photo-input]");
+    const find = sheet(page).getByRole("button", { name: "Find foods" });
+    const box = sheet(page).getByRole("textbox", { name: "What you ate" });
+
+    // Words or a photo: either one is enough.
+    await expect(find).toBeDisabled();
+    await input.setInputFiles(photo);
+    await expect(sheet(page).getByRole("img", { name: "Your photo" })).toBeVisible();
+    await expect(box).toHaveAttribute("placeholder", /Anything the photo doesn't show/);
+    await expect(find).toBeEnabled();
+    await sheet(page).getByRole("button", { name: "Remove the photo" }).click();
+    await expect(find).toBeDisabled();
+    await expect(sheet(page).getByRole("button", { name: "Add a photo" })).toBeVisible();
+    await input.setInputFiles(photo);
+    await expect(find).toBeEnabled();
+
+    // Sent shrunk, as a JPEG, with no words. The test model sees "150 g kylling, ris kokt" in any photo.
+    const sent = page.waitForRequest((request) => request.url().endsWith("/api/describe") && request.method() === "POST");
+    await find.click();
+    const body = (await sent).postDataJSON();
+    expect(body.text).toBe("");
+    expect(body.photo.mediaType).toBe("image/jpeg");
+    expect(Buffer.from(body.photo.data, "base64").subarray(0, 3)).toEqual(Buffer.from([0xff, 0xd8, 0xff]));
+    await expect(sheet(page).locator("[data-described]")).toHaveCount(2);
+    const top = sheet(page).getByRole("button", { name: "Edit what you ate" });
+    await expect(top).toContainText("Your photo");
+    await expect(top.getByRole("img", { name: "Your photo" })).toBeVisible();
+
+    // Edit and try again keeps the photo and adds the words.
+    await sheet(page).getByRole("button", { name: "Edit and try again" }).click();
+    const draftPhoto = sheet(page).locator("[data-describe-draft]").getByRole("img", { name: "Your photo" });
+    await expect(draftPhoto).toBeVisible();
+    // The words are a column beside the photo: long ones wrap there, never under it, and every line shows.
+    await box.fill("Chicken thigh fried in butter, I only ate half the rice, and the salad had a spoon of olive oil and some feta cheese on top, plus a glass of orange juice and a coffee with milk afterwards");
+    const [thumb, words] = [await draftPhoto.boundingBox(), await box.boundingBox()];
+    expect(words!.x).toBeGreaterThanOrEqual(thumb!.x + thumb!.width);
+    expect(words!.height).toBeGreaterThan(thumb!.height);
+    expect(await box.evaluate((el) => el.scrollHeight - el.clientHeight)).toBeLessThanOrEqual(1);
+    await box.fill("2 zibble eggs");
+    await sheet(page).getByRole("button", { name: "Find again" }).click();
+    await expect(sheet(page).locator("[data-described]")).toHaveCount(3);
+    await expect(sheet(page).locator('[data-described="found"]').filter({ hasText: "Fictional zibble egg" })).toContainText("“2 zibble eggs”");
+    await expect(top).toContainText("2 zibble eggs");
+
+    // Only the eggs go in. The photo isn't kept, so the recent one shows a camera and what was logged.
+    for (const row of await sheet(page).locator('[data-described="found"]').all()) {
+      if (!(await row.textContent())?.includes("Fictional zibble egg")) await row.locator(".chkhit").click();
+    }
+    await sheet(page).getByRole("button", { name: "Add 1 food · 180 kcal" }).click();
+    await expect(page.getByText("Added 1 food · 180 kcal")).toBeVisible();
+    await sheet(page).getByRole("radio", { name: "Describe" }).click();
+    const recent = sheet(page).getByRole("list", { name: "Recent descriptions" }).getByRole("button");
+    await expect(recent).toHaveCount(1);
+    await expect(recent).toContainText("Zibble eggs · 2 zibble eggs");
+    await expect(recent.locator('[aria-label="From a photo"]')).toBeVisible();
+    await recent.click();
+    await expect(sheet(page).getByRole("button", { name: "Add 1 food · 180 kcal" })).toBeVisible();
+    await expect(top.locator('[aria-label="From a photo"]')).toBeVisible();
+    await expect(top).toContainText("2 zibble eggs");
+  });
+
   test("the count shows from five left, and at none Describe says when it is back", async ({ page }) => {
     const oid = `e2e-describe-limit-${Date.now()}-${test.info().project.name}`;
     const when = await clock(page);

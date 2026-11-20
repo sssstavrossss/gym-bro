@@ -7,9 +7,12 @@ import { int } from "./format";
 
 export const DESCRIBE_TEXT_MAX = 500;
 
-export const describePlaceholder = "What did you eat? For example: 2 eggs, toast with butter, coffee with milk";
+export const describePlaceholder = "What did you eat? Write it, add a photo, or both. For example: 2 eggs, toast with butter";
+export const describePhotoPlaceholder = "Anything the photo doesn't show? For example: \"fried in butter\", \"I ate half\"";
 export const describeHint = "Write it the way you'd say it. Amounts help: \"200 g\", \"2 slices\", \"a big bowl\". Anything without one gets a usual portion.";
-export const describeNote = "Claude picks the foods and guesses amounts. Calories come from Matvaretabellen and your own foods.";
+export const describePhotoHint = "The photo shows what's there. Words help with what it can't: how it was cooked, how much you ate, or what's hidden.";
+export const describeNote = "Claude picks the foods and guesses amounts. Photos go to Claude and aren't kept. Calories come from Matvaretabellen and your own foods.";
+export const describePhotoAlone = "Your photo";
 export const describeRetryPrompt = "Not what you meant?";
 export const describeLeftShownAt = 5;
 export const describeOfflineNote = "Describing a meal needs a connection. Your recent foods, My foods and Quick add work offline.";
@@ -61,6 +64,15 @@ export function whenLabel(loggedAt: string, today: string, timeZone: string): st
   if (day === addDays(today, -1)) return "yesterday";
   if (day > addDays(today, -7) && day < today) return weekdayShort(day);
   return dayMonth(day);
+}
+
+/**
+ * What a description says, for the list of recent ones and the top of the review. Words alone are shown
+ * as written. A photo isn't kept, so a description with one leads with what Claude saw in it.
+ */
+export function noteText(note: { text: string; photo?: boolean; seen?: string | null }): string {
+  if (!note.photo) return note.text;
+  return [note.seen, note.text].filter(Boolean).join(" · ");
 }
 
 /** "3 foods · 412 kcal · yesterday" under a recent description. */

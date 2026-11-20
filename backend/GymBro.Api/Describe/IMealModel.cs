@@ -3,7 +3,8 @@ using GymBro.Api.Data;
 namespace GymBro.Api.Describe;
 
 /// <summary>
-/// The two questions "Describe a meal" asks a model. First: which foods are in the text, and how much of each.
+/// The two questions "Describe a meal" asks a model. First: which foods are in the note (words, a photo, or
+/// both), and how much of each.
 /// Second, after the app has searched its own catalogue: which of the found foods is each one, in which unit.
 /// The model never invents nutrients. Every number shown comes from a stored food.
 /// </summary>
@@ -13,7 +14,7 @@ public interface IMealModel
     string Name { get; }
 
     /// <remarks>Each call adds what it cost to <paramref name="usage"/>, even when it then fails.</remarks>
-    Task<IReadOnlyList<MealPart>> SplitAsync(string text, MealUsage usage, CancellationToken cancellationToken);
+    Task<IReadOnlyList<MealPart>> SplitAsync(MealNote note, MealUsage usage, CancellationToken cancellationToken);
 
     Task<IReadOnlyList<MealPick>> PickAsync(
         string text,
@@ -39,12 +40,12 @@ public sealed class MealUsage
     }
 }
 
-/// <summary>One food named in the text.</summary>
-/// <param name="Phrase">The words it came from, with the amount: "2 eggs".</param>
+/// <summary>One food named in the text or seen in the photo.</summary>
+/// <param name="Phrase">The words it came from, with the amount: "2 eggs". From a photo, what was seen: "rice, about a cup".</param>
 /// <param name="Name">A short plain name: "boiled egg".</param>
 /// <param name="Searches">Catalogue searches to try, best first.</param>
 /// <param name="Grams">Estimated grams (or ml) for the amount. A usual portion when the text gives none.</param>
-/// <param name="Guessed">True when the text gives no amount.</param>
+/// <param name="Guessed">True when the words give no amount (an amount judged from a photo is a guess).</param>
 public sealed record MealPart(string Phrase, string Name, IReadOnlyList<string> Searches, decimal Grams, bool Guessed);
 
 /// <summary>A unit a food can be logged in. <see cref="Grams"/> is the weight of one, when known.</summary>

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { DescribeItem, FoodSearchRow } from "../src/api";
-import { addLabel, chosenRows, leftLine, loggedItems, recentLine, reviewTitle, rowsFrom, searchSeed, whenLabel } from "../src/lib/describe";
+import { addLabel, chosenRows, leftLine, loggedItems, noteText, recentLine, reviewTitle, rowsFrom, searchSeed, whenLabel } from "../src/lib/describe";
 
 const egg: FoodSearchRow = {
   id: "egg",
@@ -90,5 +90,17 @@ describe("describe a meal", () => {
     expect(leftLine({ limit: 20, left: 0, nextAt: null }, "Europe/Oslo", now)).toBe("That's all 20 for now. Search still works.");
     // Before the server has answered there is no limit to show.
     expect(leftLine({ limit: 0, left: 0, nextAt: null }, "Europe/Oslo", now)).toBe("");
+  });
+});
+
+describe("noteText", () => {
+  it("shows words as written", () => {
+    expect(noteText({ text: "2 eggs and toast", photo: false, seen: null })).toBe("2 eggs and toast");
+  });
+
+  it("leads a photo with what Claude saw, then the words", () => {
+    expect(noteText({ text: "fried in butter", photo: true, seen: "Chicken breast, rice" })).toBe("Chicken breast, rice · fried in butter");
+    expect(noteText({ text: "", photo: true, seen: "Chicken breast, rice" })).toBe("Chicken breast, rice");
+    expect(noteText({ text: "fried in butter", photo: true, seen: null })).toBe("fried in butter");
   });
 });

@@ -1,7 +1,7 @@
 namespace GymBro.Api.Data;
 
 /// <summary>
-/// One "Describe a meal" request. A row is saved for every attempt, so a person's use can be counted and
+/// One "Describe a meal" request: words, a photo, or both. A row is saved for every attempt, so a person's use can be counted and
 /// read back (<see cref="Outcome"/>, tokens, time), and a logged one can be used again. <see cref="Items"/> is
 /// JSON: the foods as last logged (or as matched until then), each with phrase, name, guessed, food id, amount
 /// and unit; empty unless <see cref="Outcome"/> is found. <see cref="FoodCount"/> and <see cref="Kcal"/> describe
@@ -13,7 +13,11 @@ public sealed class MealDescription
 
     public string UserId { get; set; } = "";
 
+    /// <summary>The person's words. Empty when they sent only a photo.</summary>
     public string Text { get; set; } = "";
+
+    /// <summary>A photo was sent with it. The photo itself goes to the model and is not kept.</summary>
+    public bool HasPhoto { get; set; }
 
     public string Items { get; set; } = "[]";
 
