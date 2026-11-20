@@ -122,7 +122,7 @@ function onDraftKey(event: KeyboardEvent) {
         <DescribeBox
           v-if="describe.revising"
           v-model="describe.draft"
-          compact
+          focus
           data-describe-draft
           :photo-url="describe.draftPhoto?.url ?? null"
           :placeholder="describe.draftPhoto ? describePhotoPlaceholder : describePlaceholder"

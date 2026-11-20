@@ -181,9 +181,10 @@ export function openAdd(): void {
 }
 
 export function openFood(tab: FoodTab = "search", date?: string): void {
-  // Search opens on the recents list. Focusing it would raise the iOS keyboard
-  // and cover that list. Quick Add and Describe still prime, like the other sheets.
-  if (tab !== "search") primeKeyboard();
+  // Search and Describe open on a list (recent foods, recent descriptions) and
+  // Describe on its photo button: raising the iOS keyboard would cover them, so
+  // only Quick Add primes, like the other sheets.
+  if (tab === "quick") primeKeyboard();
   const today = todayInZone(deviceTimeZone());
   ui.editEntryId = null;
   ui.detailFoodId = null;
