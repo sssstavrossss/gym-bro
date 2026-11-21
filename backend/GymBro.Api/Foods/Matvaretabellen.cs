@@ -16,7 +16,6 @@ public static class Matvaretabellen
 }
 
 public sealed class MatvaretabellenImporter(
-    AppDbContext db,
     FoodTableImporter tables,
     IHttpClientFactory http,
     IOptions<FoodOptions> options,
@@ -79,15 +78,7 @@ public sealed class MatvaretabellenImporter(
 
         var rows = file.Foods.Select(food => Row(food, message =>
             logger.LogWarning("Matvaretabellen {FoodId}: {Message}", food.FoodId, message)));
-        var result = await tables.ImportAsync(FoodSources.Matvaretabellen, rows, cancellationToken);
-        var aliases = await FoodAliasCatalogue.ApplyAsync(db, cancellationToken);
-        logger.LogInformation(
-            "Food search aliases added {Inserted}, already present {AlreadyPresent}, explicit seeds skipped {Skipped}, catalogue foods checked {Considered}.",
-            aliases.Inserted,
-            aliases.AlreadyPresent,
-            aliases.Skipped,
-            aliases.Considered);
-        return result;
+        return await tables.ImportAsync(FoodSources.Matvaretabellen, rows, cancellationToken);
     }
 
     /// <summary>A Matvaretabellen food as a <see cref="FoodTableRow"/>, or null when it has no name or no kcal.</summary>

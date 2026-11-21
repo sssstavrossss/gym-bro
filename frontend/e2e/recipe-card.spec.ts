@@ -1,9 +1,16 @@
-import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
+import { expect, test, type APIRequestContext, type Locator, type Page } from "@playwright/test";
 
 // The macros card on the recipe screens, and the one cog that picks its pages everywhere.
 
 function headers(oid: string): Record<string, string> {
   return { "X-Test-Oid": oid, "X-Test-Name": "Test User", "Content-Type": "application/json" };
+}
+
+/** Waits for a sheet's slide-in (and any other finite animation in it) to end, so a click lands on the row it means. */
+async function settled(dialog: Locator) {
+  await dialog.evaluate((el) => Promise.all(el.getAnimations({ subtree: true })
+    .filter((animation) => animation.effect?.getTiming().iterations !== Infinity)
+    .map((animation) => animation.finished.catch(() => undefined))));
 }
 
 async function clock(page: Page) {
@@ -89,7 +96,11 @@ test("log recipe is an amount screen with the day's card, and its cog opens over
   const pages = page.getByRole("dialog", { name: "Macros card pages" });
   await expect(pages).toBeVisible();
   await expect(logging).toBeVisible();
-  await pages.getByRole("switch", { name: /^Vitamins/ }).click();
+  // On webkit a click during the slide-in could land beside the row, so nothing was hidden.
+  await settled(pages);
+  const vitamins = pages.getByRole("switch", { name: /^Vitamins/ });
+  await vitamins.click();
+  await expect(vitamins).toHaveAttribute("aria-checked", "false");
   await page.keyboard.press("Escape");
   await expect(pages).toBeHidden();
   await expect(logging).toBeVisible();
