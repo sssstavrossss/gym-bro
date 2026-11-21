@@ -15,16 +15,14 @@ public static class Matvaretabellen
     public const string Citation = "Matvaretabellen 2026. Mattilsynet. www.matvaretabellen.no";
 }
 
-public sealed record MatvaretabellenImportResult(int Upserted, int Retired, int Skipped, string Coverage);
-
 public sealed class MatvaretabellenImporter(
     AppDbContext db,
+    FoodTableImporter tables,
     IHttpClientFactory http,
     IOptions<FoodOptions> options,
-    TimeProvider clock,
     ILogger<MatvaretabellenImporter> logger)
 {
-    public async Task<MatvaretabellenImportResult> ImportOfficialAsync(CancellationToken cancellationToken)
+    public async Task<FoodTableImportResult> ImportOfficialAsync(CancellationToken cancellationToken)
     {
         var url = string.IsNullOrWhiteSpace(options.Value.MatvaretabellenUrl)
             ? FoodOptions.DefaultMatvaretabellenUrl
@@ -67,10 +65,10 @@ public sealed class MatvaretabellenImporter(
         return string.Concat(norwegianUrl.AsSpan(0, index), "/en/", norwegianUrl.AsSpan(index + token.Length));
     }
 
-    public Task<MatvaretabellenImportResult> ImportAsync(Stream json, CancellationToken cancellationToken) =>
+    public Task<FoodTableImportResult> ImportAsync(Stream json, CancellationToken cancellationToken) =>
         ImportAsync(json, null, cancellationToken);
 
-    public async Task<MatvaretabellenImportResult> ImportAsync(Stream norwegian, Stream? english, CancellationToken cancellationToken)
+    public async Task<FoodTableImportResult> ImportAsync(Stream norwegian, Stream? english, CancellationToken cancellationToken)
     {
         var file = await ReadFileAsync(norwegian, cancellationToken);
         if (english is not null)
@@ -78,79 +76,10 @@ public sealed class MatvaretabellenImporter(
             var englishFile = await ReadFileAsync(english, cancellationToken);
             ApplyEnglishNames(file, englishFile);
         }
-        var started = clock.GetUtcNow();
-        var existing = await db.Foods
-            .Where(food => food.Source == Matvaretabellen.Source)
-            .ToDictionaryAsync(food => food.SourceId, cancellationToken);
-        var seen = new HashSet<string>(StringComparer.Ordinal);
-        var upserted = 0;
-        var skipped = 0;
 
-        foreach (var food in file.Foods)
-        {
-            var parsed = Map(food);
-            if (parsed is null)
-            {
-                skipped++;
-                continue;
-            }
-
-            if (!seen.Add(parsed.Food.SourceId))
-            {
-                skipped++;
-                continue;
-            }
-
-            if (existing.TryGetValue(parsed.Food.SourceId, out var row))
-            {
-                Copy(parsed, row);
-                NutrientPanel.ApplyMatvare(row, Constituents(food), message =>
-                    logger.LogWarning("Matvaretabellen {FoodId}: {Message}", food.FoodId, message));
-                row.RetiredAt = null;
-                row.UpdatedAt = started;
-            }
-            else
-            {
-                row = new Food
-                {
-                    Id = Guid.NewGuid(),
-                    Source = Matvaretabellen.Source,
-                    SourceId = parsed.Food.SourceId,
-                    UpdatedAt = started,
-                };
-                Copy(parsed, row);
-                NutrientPanel.ApplyMatvare(row, Constituents(food), message =>
-                    logger.LogWarning("Matvaretabellen {FoodId}: {Message}", food.FoodId, message));
-                db.Foods.Add(row);
-                existing[parsed.Food.SourceId] = row;
-            }
-
-            upserted++;
-        }
-
-        var retired = 0;
-        foreach (var row in existing.Values)
-        {
-            if (row.RetiredAt is null && !seen.Contains(row.SourceId))
-            {
-                row.RetiredAt = started;
-                retired++;
-            }
-        }
-
-        var credit = await db.FoodSourceCredits.FirstOrDefaultAsync(
-            row => row.Source == Matvaretabellen.Source,
-            cancellationToken);
-        if (credit is null)
-        {
-            credit = new FoodSourceCredit { Source = Matvaretabellen.Source };
-            db.FoodSourceCredits.Add(credit);
-        }
-
-        credit.Citation = Matvaretabellen.Citation;
-        credit.ImportedAt = started;
-        credit.FoodCount = seen.Count;
-        await db.SaveChangesAsync(cancellationToken);
+        var rows = file.Foods.Select(food => Row(food, message =>
+            logger.LogWarning("Matvaretabellen {FoodId}: {Message}", food.FoodId, message)));
+        var result = await tables.ImportAsync(FoodSources.Matvaretabellen, rows, cancellationToken);
         var aliases = await FoodAliasCatalogue.ApplyAsync(db, cancellationToken);
         logger.LogInformation(
             "Food search aliases added {Inserted}, already present {AlreadyPresent}, explicit seeds skipped {Skipped}, catalogue foods checked {Considered}.",
@@ -158,21 +87,22 @@ public sealed class MatvaretabellenImporter(
             aliases.AlreadyPresent,
             aliases.Skipped,
             aliases.Considered);
-        logger.LogInformation(
-            "Matvaretabellen import upserted {Upserted}, retired {Retired}, skipped {Skipped}.",
-            upserted,
-            retired,
-            skipped);
-        var live = existing.Values.Where(row => row.RetiredAt is null).ToList();
-        var coverage = Micronutrients.CoverageLine(
-            "Matvaretabellen",
-            live.Count,
-            live.Count(row => row.SaturatedFatPer100 is not null),
-            live.Count(row => row.SugarsPer100 is not null),
-            live.Count(row => row.FiberPer100 is not null),
-            live.Count(row => row.SaltPer100 is not null))
-            + " " + Micronutrients.PanelCoverage(live);
-        return new MatvaretabellenImportResult(upserted, retired, skipped, coverage);
+        return result;
+    }
+
+    /// <summary>A Matvaretabellen food as a <see cref="FoodTableRow"/>, or null when it has no name or no kcal.</summary>
+    internal static FoodTableRow? Row(MvtFood food, Action<string>? warn = null)
+    {
+        var mapped = Map(food);
+        if (mapped is null)
+        {
+            return null;
+        }
+
+        var panel = new Food();
+        NutrientPanel.ApplyMatvare(panel, Constituents(food), warn);
+        var parsed = mapped.Food with { Panel = NutrientPanel.Per100(panel) };
+        return new FoodTableRow(parsed, mapped.NameEn, mapped.Portions, [.. food.SearchKeywords ?? [], .. food.SearchKeywordsEn]);
     }
 
     internal static MappedFood? Map(MvtFood food)
@@ -320,32 +250,6 @@ public sealed class MatvaretabellenImporter(
         return false;
     }
 
-    private static void Copy(MappedFood mapped, Food row)
-    {
-        var parsed = mapped.Food;
-        row.UserId = null;
-        row.Source = Matvaretabellen.Source;
-        row.SourceId = parsed.SourceId;
-        row.Barcode = parsed.Barcode;
-        row.Name = parsed.Name;
-        row.NameEn = mapped.NameEn;
-        row.Basis = parsed.Basis;
-        row.NutrientBasis = NutrientBases.Per100;
-        row.KcalPer100 = parsed.KcalPer100;
-        row.ProteinPer100 = parsed.ProteinPer100;
-        row.FatPer100 = parsed.FatPer100;
-        row.CarbsPer100 = parsed.CarbsPer100;
-        row.SaturatedFatPer100 = parsed.SaturatedFatPer100;
-        row.SugarsPer100 = parsed.SugarsPer100;
-        row.FiberPer100 = parsed.FiberPer100;
-        row.SaltPer100 = parsed.SaltPer100;
-        row.ServingQuantity = parsed.ServingQuantity;
-        row.ServingLabel = parsed.ServingLabel;
-        row.PieceQuantity = parsed.PieceQuantity;
-        row.PieceLabel = parsed.PieceLabel;
-        row.Portions = FoodPortions.Write(mapped.Portions);
-    }
-
     private async Task<Stream> DownloadAsync(string url, string label, CancellationToken cancellationToken)
     {
         var client = http.CreateClient("matvaretabellen");
@@ -370,6 +274,7 @@ public sealed class MatvaretabellenImporter(
     {
         var names = new Dictionary<string, string>(StringComparer.Ordinal);
         var portions = new Dictionary<string, List<MvtPortion>>(StringComparer.Ordinal);
+        var keywords = new Dictionary<string, List<string>>(StringComparer.Ordinal);
         foreach (var food in english.Foods)
         {
             var id = food.FoodId?.Trim();
@@ -381,6 +286,7 @@ public sealed class MatvaretabellenImporter(
 
             names[id] = name;
             portions[id] = food.Portions;
+            keywords[id] = food.SearchKeywords ?? [];
         }
 
         foreach (var food in norwegian.Foods)
@@ -392,6 +298,7 @@ public sealed class MatvaretabellenImporter(
             }
 
             food.FoodNameEn = name;
+            food.SearchKeywordsEn = keywords[id];
             foreach (var portion in food.Portions)
             {
                 portion.PortionNameEn = portions[id].FirstOrDefault(other => other.Id == portion.Id)?.PortionName;
@@ -438,6 +345,13 @@ public sealed class MatvaretabellenImporter(
         public List<MvtConstituent> Constituents { get; set; } = [];
 
         public List<MvtPortion> Portions { get; set; } = [];
+
+        /// <summary>The table's own search words: other spellings (<c>kaffi</c>), synonyms, and group words (<c>fisk</c>).</summary>
+        public List<string> SearchKeywords { get; set; } = [];
+
+        /// <summary>The English file's search words for the same food. Not in the Norwegian file.</summary>
+        [System.Text.Json.Serialization.JsonIgnore]
+        public List<string> SearchKeywordsEn { get; set; } = [];
     }
 
     internal sealed class MvtCalories

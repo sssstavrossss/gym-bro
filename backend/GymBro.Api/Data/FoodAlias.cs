@@ -1,5 +1,21 @@
 namespace GymBro.Api.Data;
 
+/// <summary>Where a <see cref="FoodAlias"/> came from.</summary>
+public static class FoodAliasKinds
+{
+    /// <summary>Our own curated phrase (<c>food-alias-lexicon</c>). Kept across imports.</summary>
+    public const string Lexicon = "lexicon";
+
+    /// <summary>The food table's own search word for this food (<c>sylteagurk</c>, <c>kaffi</c>). Replaced on each import.</summary>
+    public const string Keyword = "keyword";
+
+    /// <summary>
+    /// A table keyword shared by many foods (<c>fisk</c>, <c>frukt</c>). It finds those foods but never ranks them
+    /// above a food whose own name matches. Replaced on each import.
+    /// </summary>
+    public const string Category = "category";
+}
+
 /// <summary>
 /// A hidden search phrase for one catalogue food, keyed by source and source id
 /// rather than the food row id. Import may update the food row; these phrases stay.
@@ -19,4 +35,7 @@ public sealed class FoodAlias
     public string Normalized { get; set; } = "";
 
     public string ExpectedNameEn { get; set; } = "";
+
+    /// <summary>One of <see cref="FoodAliasKinds"/>.</summary>
+    public string Kind { get; set; } = FoodAliasKinds.Lexicon;
 }

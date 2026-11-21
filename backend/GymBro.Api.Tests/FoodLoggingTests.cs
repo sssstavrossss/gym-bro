@@ -305,7 +305,7 @@ public sealed class FoodLoggingTests(ApiFactory factory)
     private static string English(string name) =>
         "{ \"foods\": [ { \"foodId\": \"test.kylling\", \"foodName\": \"" + name + "\", \"portions\": [ { \"id\": \"porsjon\", \"portionName\": \"portion\" } ] } ] }";
 
-    private async Task<MatvaretabellenImportResult> Import(string norwegian, string english)
+    private async Task<FoodTableImportResult> Import(string norwegian, string english)
     {
         await using var scope = factory.Services.CreateAsyncScope();
         var importer = scope.ServiceProvider.GetRequiredService<MatvaretabellenImporter>();

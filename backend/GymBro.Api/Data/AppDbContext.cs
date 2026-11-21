@@ -236,6 +236,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         alias.Property(a => a.Phrase).HasColumnName("phrase").HasMaxLength(80);
         alias.Property(a => a.Normalized).HasColumnName("normalized").HasMaxLength(80);
         alias.Property(a => a.ExpectedNameEn).HasColumnName("expected_name_en").HasMaxLength(300);
+        alias.Property(a => a.Kind).HasColumnName("kind").HasMaxLength(16).HasDefaultValue(FoodAliasKinds.Lexicon);
         alias.HasIndex(a => new { a.Source, a.SourceId, a.Normalized }).IsUnique();
 
         var confirmation = modelBuilder.Entity<FoodBasisConfirmation>();

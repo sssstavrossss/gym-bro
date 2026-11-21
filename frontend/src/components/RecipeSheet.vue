@@ -11,6 +11,7 @@ import NutrientCard from "./NutrientCard.vue";
 import TimeChip from "./TimeChip.vue";
 import { dayMonth, todayInZone } from "../lib/dates";
 import { convertAmount, distinctUnits, parseAmount, servingName, unitsForFood, type CatalogFood, type OwnServing, type UnitChoice } from "../lib/foodAmount";
+import { foodTitle, isForeign, sourceName } from "../lib/foodOrigin";
 import { amountErrorIn, fromShown, isConverted, quickAmountsFor, readField, shownChoices, shownField, shownWeightWord, type ShownAmount } from "../lib/foodUnits";
 import { int } from "../lib/format";
 import type { MacroAmounts } from "../lib/macros";
@@ -361,7 +362,7 @@ function draftFrom(food: CatalogFood, origin: ShownAmount): DraftLine {
   return {
     key: crypto.randomUUID(),
     foodId: food.id,
-    name: food.name,
+    name: foodTitle(food),
     amountText: origin.text,
     unit: origin.unit,
     available: true,
@@ -536,12 +537,10 @@ function onPadInput(event: Event) {
   });
 }
 
-/** Matvaretabellen is most results, so it is not named. The others are. */
-function sourceLabel(source: string): string {
-  if (source === "custom") return "Your food";
-  if (source === "off") return "Open Food Facts";
-  if (source === "kassalapp") return "Kassalapp";
-  return "";
+/** Home foods from Matvaretabellen are most results, so they are not named. The others are. */
+function sourceLabel(food: CatalogFood): string {
+  if (food.source === "mvt" && !isForeign(food)) return "";
+  return sourceName(food.source) ?? "";
 }
 
 function foodFacts(food: CatalogFood): string {
@@ -558,7 +557,7 @@ function foodFacts(food: CatalogFood): string {
     const perHundred = food.nutrientBasis === "per_100" && (food.basis === "g" || food.basis === "ml");
     bits.push(perHundred ? `1 ${food.servingLabel} = ${int(food.servingQuantity)} ${food.basis}` : `${food.servingQuantity} ${food.servingLabel}`);
   }
-  const source = food.source ? sourceLabel(food.source) : "";
+  const source = food.source ? sourceLabel(food) : "";
   if (source) bits.push(source);
   return bits.join(" · ");
 }
@@ -847,7 +846,7 @@ async function addLog() {
         <h3 v-if="section.title" class="t-cap c3 section-title">{{ section.title }}</h3>
         <button v-for="food in section.rows" :key="food.id" type="button" class="rrow row" @pointerdown="pressIngredient($event, food)" @click="pickIngredient($event, food)">
           <span class="col grow rtext">
-            <span class="t-body name">{{ food.name }}</span>
+            <span class="t-body name">{{ foodTitle(food) }}</span>
             <span class="t-label c2 facts">{{ rowFacts(food) }}</span>
           </span>
           <MicroRing :nutrients="food.nutrients" />

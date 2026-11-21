@@ -282,7 +282,7 @@ public sealed class MealDescriber(AppDbContext db, IMealModel model)
             // The search sorts each rank by name, so "brød" lists home-made breads first. The person's own foods
             // come first here, then the closest match ("gulost" finds "Gulost, uspesifisert" before "Edamer,
             // gulost"), then the shortest names: in the catalogue those are the everyday ones ("Pizza, kjøpt").
-            var hits = (await FoodCatalog.SearchRankedAsync(db, userId, query, cancellationToken))
+            var hits = HomeOnlyWhenFound(await FoodCatalog.SearchRankedAsync(db, userId, query, FoodSources.DefaultHome, cancellationToken))
                 .OrderBy(hit => hit.Food.UserId == userId ? 0 : 1)
                 .ThenBy(hit => hit.Rank)
                 .ThenBy(hit => hit.Food.Name.Length)
@@ -296,4 +296,12 @@ public sealed class MealDescriber(AppDbContext db, IMealModel model)
 
         return foods.Take(CandidatesMax).ToList();
     }
+
+    /// <summary>
+    /// Another country's foods only when the home table (with own foods and Open Food Facts) has nothing for this
+    /// search. Offered side by side, the model picks "Hallon" for "bringebær" or a Swedish granola over the
+    /// Norwegian one; alone, they fill the gaps the home table has ("kåldolmar", "semla").
+    /// </summary>
+    public static IEnumerable<RankedFood> HomeOnlyWhenFound(IReadOnlyList<RankedFood> hits) =>
+        hits.Any(hit => hit.Tier == 0) ? hits.Where(hit => hit.Tier == 0) : hits;
 }

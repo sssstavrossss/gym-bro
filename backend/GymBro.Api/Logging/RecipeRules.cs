@@ -433,7 +433,7 @@ public static class RecipeRules
             return BuiltLine.Bad(TooLarge);
         }
 
-        var name = LogEntryRules.Collapse(food.Name);
+        var name = LogEntryRules.Collapse(FoodSources.DisplayName(food, FoodSources.DefaultHome));
         if (name.Length == 0)
         {
             name = "Food";

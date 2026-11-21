@@ -222,19 +222,19 @@ public sealed class FoodEndpointTests(ApiFactory factory)
         Assert.Equal("GymBroTests/1.0 (api tests)", client.DefaultRequestHeaders.UserAgent.ToString());
     }
 
-    private async Task<MatvaretabellenImportResult> Import(string fileName)
+    private async Task<FoodTableImportResult> Import(string fileName)
     {
         await using var stream = File.OpenRead(Path.Combine(AppContext.BaseDirectory, "Fixtures", fileName));
         return await ImportStream(stream);
     }
 
-    private async Task<MatvaretabellenImportResult> ImportJson(string json)
+    private async Task<FoodTableImportResult> ImportJson(string json)
     {
         await using var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(json));
         return await ImportStream(stream);
     }
 
-    private async Task<MatvaretabellenImportResult> ImportStream(Stream stream)
+    private async Task<FoodTableImportResult> ImportStream(Stream stream)
     {
         await using var scope = factory.Services.CreateAsyncScope();
         var importer = scope.ServiceProvider.GetRequiredService<MatvaretabellenImporter>();

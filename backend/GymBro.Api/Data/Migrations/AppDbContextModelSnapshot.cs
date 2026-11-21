@@ -698,6 +698,14 @@ namespace GymBro.Api.Data.Migrations
                         .HasColumnType("character varying(300)")
                         .HasColumnName("expected_name_en");
 
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasDefaultValue("lexicon")
+                        .HasColumnName("kind");
+
                     b.Property<string>("Normalized")
                         .IsRequired()
                         .HasMaxLength(80)
