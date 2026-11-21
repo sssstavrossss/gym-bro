@@ -378,14 +378,27 @@ public static class FoodEndpoints
             return denied;
         }
 
-        var credit = await db.FoodSourceCredits.AsNoTracking()
-            .FirstOrDefaultAsync(row => row.Source == Matvaretabellen.Source, cancellationToken);
+        var credits = await db.FoodSourceCredits.AsNoTracking().ToListAsync(cancellationToken);
+        var credit = credits.FirstOrDefault(row => row.Source == Matvaretabellen.Source);
         return Results.Ok(new
         {
             matvaretabellen = Matvaretabellen.Citation,
             openFoodFacts = OpenFoodFactsCredit.Citation,
             importedAt = credit?.ImportedAt,
             foodCount = credit?.FoodCount ?? 0,
+            // Every imported table, in the registry's order: its name, country and citation.
+            sources = FoodSources.All
+                .Select(source => (source, credit: credits.FirstOrDefault(row => row.Source == source.Id)))
+                .Where(pair => pair.credit is not null)
+                .Select(pair => new
+                {
+                    source = pair.source.Id,
+                    name = pair.source.Name,
+                    country = pair.source.Country,
+                    citation = pair.credit!.Citation,
+                    importedAt = pair.credit.ImportedAt,
+                    foodCount = pair.credit.FoodCount,
+                }),
         });
     }
 
@@ -714,6 +727,7 @@ public static class FoodEndpoints
         brand = food.Brand,
         name = food.Name,
         nameEn = food.NameEn,
+        country = FoodSources.Country(food.Source),
         basis = food.Basis,
         confirmedBasis,
         nutrientBasis = food.NutrientBasis,
@@ -743,6 +757,7 @@ public static class FoodEndpoints
         brand = food.Brand,
         name = food.Name,
         nameEn = food.NameEn,
+        country = FoodSources.Country(food.Source),
         basis = food.Basis,
         confirmedBasis,
         nutrientBasis = food.NutrientBasis,

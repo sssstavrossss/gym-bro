@@ -25,6 +25,7 @@ import {
   type OwnServing,
 } from "../lib/foodAmount";
 import { amountErrorIn } from "../lib/foodUnits";
+import { countryTag, foodTitle, originLine } from "../lib/foodOrigin";
 import { acceptSearchResult, preparedSearch, searchDebounceMs, searchKept } from "../lib/foodSearch";
 import {
   addNeedsTime,
@@ -268,10 +269,7 @@ const dayBefore = computed<MacroAmounts>(() => {
 const macroTitle = computed(() => afterTitle(ui.foodDate, foodToday.value, editing.value ? "saving" : "adding", Boolean(sheetGoal.value)));
 
 function rowSub(food: FoodSearchRow): string {
-  const english = food.nameEn && food.nameEn.localeCompare(food.name, undefined, { sensitivity: "accent" }) !== 0
-    ? `${food.nameEn} · `
-    : "";
-  return withBrand(food.brand, english + per100Line(food));
+  return withBrand(food.brand, originLine(food) + per100Line(food));
 }
 const detailIsMine = computed(() => (detailFood.value ? isMyFood(detailFood.value) : false));
 
@@ -1272,7 +1270,7 @@ async function deleteEdited() {
           </div>
           <div v-for="(food, index) in recents" :key="food.id" class="rrow row" :class="{ hl: keyboardEntry && index === hi }" @mouseenter="hi = index">
             <button type="button" class="col grow rtext" @pointerdown="pressFood($event, food, { amount: food.amount, unit: food.unit })" @click="pickFood($event, food, { amount: food.amount, unit: food.unit })">
-              <span class="row gap6 nm"><span class="t-body ell">{{ food.name }}</span><span v-if="isMyFood(food)" class="tag t-capn">my food</span></span>
+              <span class="row gap6 nm"><span class="t-body ell">{{ foodTitle(food) }}</span><span v-if="isMyFood(food)" class="tag t-capn">my food</span><span v-else-if="countryTag(food)" class="tag t-capn">{{ countryTag(food) }}</span></span>
               <span class="t-label c2 ell">{{ withBrand(food.brand, recentSubtitle(food, food.amount, food.unit, foodUnit())) }}</span>
             </button>
             <MicroRing :nutrients="food.nutrients" />
@@ -1294,7 +1292,7 @@ async function deleteEdited() {
           <div v-if="results.length" class="row lhead"><span class="t-cap c2 section-title">Results</span></div>
           <button v-for="(food, index) in results" :key="food.id" type="button" class="rrow row" :class="{ hl: keyboardEntry && index === hi }" @pointerdown="pressFood($event, food)" @click="pickFood($event, food)" @mouseenter="hi = index">
             <span class="col grow rtext">
-              <span class="row gap6 nm"><span class="t-body ell">{{ food.name }}</span><span v-if="isMyFood(food)" class="tag t-capn">my food</span></span>
+              <span class="row gap6 nm"><span class="t-body ell">{{ foodTitle(food) }}</span><span v-if="isMyFood(food)" class="tag t-capn">my food</span><span v-else-if="countryTag(food)" class="tag t-capn">{{ countryTag(food) }}</span></span>
               <span class="t-label c2 ell">{{ rowSub(food) }}</span>
             </span>
             <MicroRing :nutrients="food.nutrients" />

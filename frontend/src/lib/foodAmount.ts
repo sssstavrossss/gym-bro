@@ -6,6 +6,8 @@ export interface CatalogFood {
   source: string;
   name: string;
   nameEn: string | null;
+  /** The food table's country (`NO`, `SE`). Null for own foods and Open Food Facts products. */
+  country?: string | null;
   basis: string | null;
   confirmedBasis?: "g" | "ml" | null;
   nutrientBasis: string;

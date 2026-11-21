@@ -222,7 +222,7 @@ public sealed class FoodAliasTests(ApiFactory factory)
         return body.GetProperty("foods").EnumerateArray().Select(row => row.GetProperty("id").GetGuid()).ToList();
     }
 
-    private async Task<MatvaretabellenImportResult> Import(string friedEnglishName)
+    private async Task<FoodTableImportResult> Import(string friedEnglishName)
     {
         await using var scope = factory.Services.CreateAsyncScope();
         var importer = scope.ServiceProvider.GetRequiredService<MatvaretabellenImporter>();

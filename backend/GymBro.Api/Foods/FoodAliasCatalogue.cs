@@ -88,6 +88,7 @@ public static class FoodAliasCatalogue
         var existing = await db.FoodAliases
             .Where(alias => alias.Source == Source)
             .ToListAsync(cancellationToken);
+        // Keywords from the table and our phrases share one key, so a table keyword can already hold a phrase.
         var byKey = existing.ToDictionary(alias => (alias.SourceId, alias.Normalized));
         var seenSeeds = new HashSet<string>(StringComparer.Ordinal);
         var inserted = 0;
@@ -130,6 +131,9 @@ public static class FoodAliasCatalogue
                     {
                         row.ExpectedNameEn = food.NameEn;
                     }
+
+                    // The table had the same word as a keyword. Ours is curated, so it ranks like a name.
+                    row.Kind = FoodAliasKinds.Lexicon;
 
                     already++;
                     continue;

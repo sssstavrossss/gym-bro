@@ -3,8 +3,11 @@ using Microsoft.EntityFrameworkCore;
 
 namespace GymBro.Api.Foods;
 
-/// <summary>A search result and how closely it matched; see <see cref="FoodCatalog.SearchRankedAsync"/>.</summary>
-public sealed record RankedFood(Food Food, int Rank);
+/// <summary>
+/// A search result, how closely it matched, and how near its country is to home
+/// (<see cref="FoodSources.Tier"/>); see <see cref="FoodCatalog.SearchRankedAsync"/>.
+/// </summary>
+public sealed record RankedFood(Food Food, int Rank, int Tier);
 
 public static class FoodCatalog
 {
@@ -27,17 +30,20 @@ public static class FoodCatalog
         string userId,
         string query,
         CancellationToken cancellationToken) =>
-        (await SearchRankedAsync(db, userId, query, cancellationToken)).Select(hit => hit.Food).ToList();
+        (await SearchRankedAsync(db, userId, query, FoodSources.DefaultHome, cancellationToken)).Select(hit => hit.Food).ToList();
 
     /// <summary>
     /// <see cref="SearchAsync"/> with each food's match rank: 0 for the exact name or phrase, 1 for a name that
     /// starts with the text, 2 for a whole last word, 3 for a last word that starts a word, 4 otherwise. A food
-    /// found only by a word's base form ranks 5 to 9 the same way. Foods of one rank are in name order.
+    /// found only by a word's base form ranks 5 to 9 the same way. The order is the rank's band (0–1, 2–3, 4, base forms), then country
+    /// tier for <paramref name="home"/>, then rank, then name. A table's category word (<c>fisk</c>) finds a food
+    /// but never ranks it above 4.
     /// </summary>
     public static async Task<List<RankedFood>> SearchRankedAsync(
         AppDbContext db,
         string userId,
         string query,
+        string home,
         CancellationToken cancellationToken)
     {
         var normalized = FoodAliasCatalogue.Normalize(query);
@@ -57,7 +63,7 @@ public static class FoodCatalog
                 .OrderBy(food => food.Name)
                 .Take(SearchLimit)
                 .ToListAsync(cancellationToken))
-                .Select(food => new RankedFood(food, 0))
+                .Select(food => new RankedFood(food, 0, FoodSources.Tier(food.Source, home)))
                 .ToList();
         }
 
@@ -86,6 +92,7 @@ public static class FoodCatalog
         const string aliasPad = "(' ' || a.normalized || ' ') COLLATE \"C\"";
         const string nameBrandPad = "(' ' || coalesce(f.search_name, '') || ' ' || coalesce(f.search_brand, '') || ' ') COLLATE \"C\"";
         const string aliasOfFood = "a.source = f.source AND a.source_id = f.source_id AND a.expected_name_en = f.name_en";
+        const string rankingAlias = aliasOfFood + " AND a.kind <> '" + FoodAliasKinds.Category + "'";
         string Strict(string pad) => string.Join(" AND ", matchParams.Select(param => pad + " LIKE " + param));
         string Loose(string pad) => string.Join(" AND ", matchParams.Select((param, index) => stemParams[index] is { } stem
             ? "(" + pad + " LIKE " + param + " OR " + pad + " LIKE " + stem + ")"
@@ -114,16 +121,16 @@ public static class FoodCatalog
                     OR f.search_name COLLATE "C" = {exact}
                     OR f.search_name_en COLLATE "C" = {exact}
                     OR f.search_brand COLLATE "C" = {exact}
-                    OR EXISTS (SELECT 1 FROM food_aliases AS a WHERE {aliasOfFood} AND a.normalized COLLATE "C" = {exact}) THEN 0
+                    OR EXISTS (SELECT 1 FROM food_aliases AS a WHERE {rankingAlias} AND a.normalized COLLATE "C" = {exact}) THEN 0
                   WHEN f.search_name COLLATE "C" LIKE {prefix}
                     OR f.search_name_en COLLATE "C" LIKE {prefix}
-                    OR EXISTS (SELECT 1 FROM food_aliases AS a WHERE {aliasOfFood} AND a.normalized COLLATE "C" LIKE {prefix}) THEN 1
+                    OR EXISTS (SELECT 1 FROM food_aliases AS a WHERE {rankingAlias} AND a.normalized COLLATE "C" LIKE {prefix}) THEN 1
                   WHEN {namePad} LIKE {lastWhole}
                     OR {enPad} LIKE {lastWhole}
-                    OR EXISTS (SELECT 1 FROM food_aliases AS a WHERE {aliasOfFood} AND {aliasPad} LIKE {lastWhole}) THEN 2
+                    OR EXISTS (SELECT 1 FROM food_aliases AS a WHERE {rankingAlias} AND {aliasPad} LIKE {lastWhole}) THEN 2
                   WHEN {namePad} LIKE {lastPrefix}
                     OR {enPad} LIKE {lastPrefix}
-                    OR EXISTS (SELECT 1 FROM food_aliases AS a WHERE {aliasOfFood} AND {aliasPad} LIKE {lastPrefix}) THEN 3
+                    OR EXISTS (SELECT 1 FROM food_aliases AS a WHERE {rankingAlias} AND {aliasPad} LIKE {lastPrefix}) THEN 3
                   ELSE 4
                 END
                 """;
@@ -131,19 +138,44 @@ public static class FoodCatalog
 
         // Without a base form the query is the strict one. With one, a food that matches the words as typed
         // still comes first, and base-form matches are ranked among themselves by the base-form text.
-        var order = anyStem
-            ? $"CASE WHEN {Matches(Strict)} THEN 0 ELSE 1 END, {Rank(normalized)}, {Rank(string.Join(' ', tokens.Select((token, index) => stems[index] ?? token)))}, f.name, f.source"
-            : $"{Rank(normalized)}, f.name, f.source";
         var rank = anyStem
             ? $"CASE WHEN {Matches(Strict)} THEN 0 ELSE 5 END + {Rank(normalized)}"
             : Rank(normalized);
+        var stemRank = anyStem ? Rank(string.Join(' ', tokens.Select((token, index) => stems[index] ?? token))) : "0";
+
+        // Home foods come first within a band: tier 0 is home and foods with no country, 1 a neighbour, 2 the rest.
+        string Tier()
+        {
+            var cases = new List<string>();
+            foreach (var tier in new[] { 1, 2 })
+            {
+                var sources = FoodSources.SourcesAtTier(tier, home);
+                if (sources.Count > 0)
+                {
+                    cases.Add($"WHEN f.source IN ({string.Join(", ", sources.Select(source => Add(source)))}) THEN {tier}");
+                }
+            }
+
+            return cases.Count == 0 ? "0" : $"CASE {string.Join(" ", cases)} ELSE 0 END";
+        }
+
+        // Ranks fall into bands: the name or phrase itself or its start (0–1), a last word (2–3), any other match
+        // (4), a match by a word's base form only. Within a band, home foods come before a neighbour's and the
+        // rest, so "Quinoa" from another country still comes before a home "Salat med quinoa". OFFSET 0 keeps
+        // Postgres from inlining the inner select: inlined, it copies each rank's alias lookups into every sort
+        // expression that reads it, and "chicken" took 2.6 s instead of 90 ms.
         var sql = $"""
-            SELECT f.id AS "Id", {rank} AS "Rank"
-            FROM foods AS f
-            WHERE f.retired_at IS NULL
-              AND (f.user_id IS NULL OR f.user_id = {userParam})
-              AND ({Matches(anyStem ? Loose : Strict)})
-            ORDER BY {order}
+            SELECT s."Id", s."Rank", s."Tier"
+            FROM (
+                SELECT f.id AS "Id", f.name, f.source, {rank} AS "Rank", {stemRank} AS stem_rank, {Tier()} AS "Tier"
+                FROM foods AS f
+                WHERE f.retired_at IS NULL
+                  AND (f.user_id IS NULL OR f.user_id = {userParam})
+                  AND ({Matches(anyStem ? Loose : Strict)})
+                OFFSET 0
+            ) AS s
+            ORDER BY CASE WHEN s."Rank" <= 1 THEN 0 WHEN s."Rank" <= 3 THEN 1 WHEN s."Rank" = 4 THEN 2 ELSE 3 END,
+                s."Tier", s."Rank", s.stem_rank, s.name, s.source
             LIMIT {SearchLimit}
             """;
 
@@ -156,7 +188,7 @@ public static class FoodCatalog
         var ids = hits.Select(hit => hit.Id).ToList();
         var rows = await db.Foods.AsNoTracking().Where(food => ids.Contains(food.Id)).ToListAsync(cancellationToken);
         var byId = rows.ToDictionary(food => food.Id);
-        return hits.Where(hit => byId.ContainsKey(hit.Id)).Select(hit => new RankedFood(byId[hit.Id], hit.Rank)).ToList();
+        return hits.Where(hit => byId.ContainsKey(hit.Id)).Select(hit => new RankedFood(byId[hit.Id], hit.Rank, hit.Tier)).ToList();
     }
 
     private sealed class SearchHit
@@ -164,6 +196,8 @@ public static class FoodCatalog
         public Guid Id { get; set; }
 
         public int Rank { get; set; }
+
+        public int Tier { get; set; }
     }
 
     /// <summary>How many distinct foods the food sheet lists under Recent. Matches the prototype.</summary>

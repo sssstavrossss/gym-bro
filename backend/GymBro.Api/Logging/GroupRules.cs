@@ -1,4 +1,5 @@
 using GymBro.Api.Data;
+using GymBro.Api.Foods;
 
 namespace GymBro.Api.Logging;
 
@@ -161,7 +162,7 @@ public static class GroupRules
 
     private static string DisplayName(Food food)
     {
-        var text = food.Name ?? "";
+        var text = FoodSources.DisplayName(food, FoodSources.DefaultHome);
         return text.Length <= 300 ? text : text[..300];
     }
 }

@@ -128,7 +128,8 @@ public static class LogEntryEndpoints
                 return ApiResults.Error(snapshot.Error);
             }
 
-            name = food.Name.Length <= 300 ? food.Name : food.Name[..300];
+            var shown = FoodSources.DisplayName(food, FoodSources.DefaultHome);
+            name = shown.Length <= 300 ? shown : shown[..300];
             kcal = snapshot.Kcal;
             protein = snapshot.Protein;
             fat = snapshot.Fat;

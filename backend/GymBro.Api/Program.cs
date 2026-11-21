@@ -22,7 +22,9 @@ builder.Services.Configure<PostgresOptions>(builder.Configuration.GetSection(Pos
 builder.Services.Configure<FoodOptions>(builder.Configuration.GetSection(FoodOptions.SectionName));
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<UserDirectory>();
+builder.Services.AddScoped<FoodTableImporter>();
 builder.Services.AddScoped<MatvaretabellenImporter>();
+builder.Services.AddScoped<LivsmedelsverketImporter>();
 builder.Services.AddScoped<KassalappImporter>();
 builder.Services.Configure<WebPushOptions>(builder.Configuration.GetSection(WebPushOptions.SectionName));
 builder.Services.AddScoped<MondayReminder>();
@@ -56,6 +58,13 @@ builder.Services.AddHttpClient("matvaretabellen", client =>
 {
     client.Timeout = TimeSpan.FromMinutes(2);
     client.DefaultRequestHeaders.UserAgent.ParseAdd("GymBro/1.0 (self-hosted; Matvaretabellen import)");
+    client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+});
+builder.Services.AddHttpClient("livsmedelsverket", client =>
+{
+    client.BaseAddress = new Uri(Livsmedelsverket.ApiUrl);
+    client.Timeout = TimeSpan.FromSeconds(30);
+    client.DefaultRequestHeaders.UserAgent.ParseAdd("GymBro/1.0 (self-hosted; Livsmedelsverket import)");
     client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
 });
 if (!testing && !e2e)
@@ -228,7 +237,7 @@ if (args.Contains("--import-matvaretabellen"))
     {
         var result = await importer.ImportOfficialAsync(CancellationToken.None);
         Console.WriteLine(
-            $"Matvaretabellen: {result.Upserted} foods upserted, {result.Retired} retired, {result.Skipped} skipped.");
+            $"Matvaretabellen: {result.Upserted} foods upserted, {result.Retired} retired, {result.Skipped} skipped, {result.Keywords} keywords, {result.Categories} category words.");
         Console.WriteLine(result.Coverage);
         Console.WriteLine(Matvaretabellen.Citation);
         if (result.Upserted == 0)
@@ -239,6 +248,31 @@ if (args.Contains("--import-matvaretabellen"))
     catch (Exception ex) when (ex is not OperationCanceledException)
     {
         Console.Error.WriteLine("Matvaretabellen import failed: " + ex.Message);
+        Environment.ExitCode = 1;
+    }
+
+    return;
+}
+
+if (args.Contains("--import-livsmedelsverket"))
+{
+    await using var scope = app.Services.CreateAsyncScope();
+    var importer = scope.ServiceProvider.GetRequiredService<LivsmedelsverketImporter>();
+    try
+    {
+        var result = await importer.ImportOfficialAsync(CancellationToken.None);
+        Console.WriteLine(
+            $"Livsmedelsverket: {result.Upserted} foods upserted, {result.Retired} retired, {result.Skipped} skipped.");
+        Console.WriteLine(result.Coverage);
+        Console.WriteLine(Livsmedelsverket.Citation);
+        if (result.Upserted == 0)
+        {
+            Environment.ExitCode = 1;
+        }
+    }
+    catch (Exception ex) when (ex is not OperationCanceledException)
+    {
+        Console.Error.WriteLine("Livsmedelsverket import failed: " + ex.Message);
         Environment.ExitCode = 1;
     }
 
