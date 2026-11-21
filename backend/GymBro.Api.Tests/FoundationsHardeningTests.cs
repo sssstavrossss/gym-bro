@@ -48,6 +48,15 @@ public sealed class FoundationsHardeningTests(ApiFactory factory)
     }
 
     [Fact]
+    public async Task Database_connections_run_without_jit()
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var jit = await db.Database.SqlQueryRaw<string>("SELECT current_setting('jit') AS \"Value\"").SingleAsync();
+        Assert.Equal("off", jit);
+    }
+
+    [Fact]
     public void Data_protection_keys_are_written_under_the_content_root()
     {
         using var scope = factory.Services.CreateScope();

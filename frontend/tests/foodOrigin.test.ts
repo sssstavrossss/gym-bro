@@ -3,6 +3,7 @@ import { countryTag, foodTitle, isForeign, originLine, sourceName } from "../src
 
 const kylling = { source: "mvt", name: "Kylling, filet, rå", nameEn: "Chicken, fillet, raw", country: "NO" };
 const kyckling = { source: "slv", name: "Kyckling bröstfilé rå", nameEn: "Chicken breast fillet raw", country: "SE" };
+const kana = { source: "fineli", name: "Broileri, rintafilee, paistettu", nameEn: "Chicken breast fillet, fried", country: "FI" };
 const mine = { source: "custom", name: "Mormors grøt", nameEn: null, country: null };
 
 describe("food origin", () => {
@@ -18,6 +19,11 @@ describe("food origin", () => {
     expect(foodTitle(kyckling)).toBe("Chicken breast fillet raw");
     expect(countryTag(kyckling)).toBe("Sweden");
     expect(originLine(kyckling)).toBe("Livsmedelsverket · ");
+  });
+
+  it("names Fineli and Finland for a Finnish food", () => {
+    expect(countryTag(kana)).toBe("Finland");
+    expect(originLine(kana)).toBe("Fineli · ");
   });
 
   it("treats the home country as given, so a Swedish home shows Norwegian foods as foreign", () => {
