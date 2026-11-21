@@ -30,6 +30,7 @@ These are the rules the app's screens follow. Read this before you add or change
 - **Long lists inside a card** show five rows, then scroll inside the card. A thin bar and a fade show that there is more.
 - **Numbers are typed on the app keypad** on a touch screen, never on the phone's number pad.
 - **Settings for occasional use** go behind the cog. Anything new on Home gets its own on/off switch in Settings → Home sections; the week strip always stays.
+- **Pickers with an automatic choice** (time zone, food country) put the automatic option first as its own radio row, then the search, then the list. Picking a row by hand stops the automatic choice until it is picked again, and the Settings row says which it is ("Follows the time zone", "Set by hand"). When the automatic choice changes on its own, a toast says so with a Change action that opens the picker.
 - **Hints are subtle.** Show that something can be changed, or that something is new, with a small cue (a pencil, a dot, a tint), not with extra text.
 
 ## Mocks

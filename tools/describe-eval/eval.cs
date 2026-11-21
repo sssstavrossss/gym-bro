@@ -10,7 +10,9 @@
 // It calls the real Claude API and is never part of CI. Each case is a split and a pick call, about a tenth
 // of a cent on Haiku. Usage is in README.md under "Describe a meal" → "Measuring accuracy".
 //
-//   dotnet run tools/describe-eval/eval.cs -- [--runs 3] [--only id,id] [--out results.json] [--verbose]
+//   dotnet run tools/describe-eval/eval.cs -- [--runs 3] [--only id,id] [--home SE] [--out results.json] [--verbose]
+//
+// --home is the food country for cases that do not name one (Norway when left out).
 //
 // ANTHROPIC_API_KEY  the key (required).
 // EVAL_DB            a Postgres connection string for a database with the catalogue imported.
@@ -24,6 +26,7 @@ using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using GymBro.Api.Data;
 using GymBro.Api.Describe;
+using GymBro.Api.Foods;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -93,7 +96,7 @@ foreach (var evalCase in cases)
         string? failure = null;
         try
         {
-            items = await describer.DescribeAsync(userId, new MealNote(evalCase.Text.Trim(), photo), usage, CancellationToken.None);
+            items = await describer.DescribeAsync(userId, new MealNote(evalCase.Text.Trim(), photo, null, evalCase.Home ?? arguments.Home ?? FoodSources.DefaultHome), usage, CancellationToken.None);
         }
         catch (MealModelException ex)
         {
@@ -119,9 +122,10 @@ return 0;
 
 /// <summary>
 /// One meal note and what a good answer holds. <see cref="Alternatives"/> lists other good answers (a taco as
-/// one dish, or as shells, meat and cheese); the best-scoring one counts.
+/// one dish, or as shells, meat and cheese); the best-scoring one counts. <see cref="Home"/> is the person's food
+/// country (Norway when left out).
 /// </summary>
-sealed record EvalCase(string Id, string Text, string? Photo, IReadOnlyList<ExpectedFood>? Expect, IReadOnlyList<IReadOnlyList<ExpectedFood>>? Alternatives, string? Note)
+sealed record EvalCase(string Id, string Text, string? Photo, IReadOnlyList<ExpectedFood>? Expect, IReadOnlyList<IReadOnlyList<ExpectedFood>>? Alternatives, string? Note, string? Home)
 {
     public IReadOnlyList<IReadOnlyList<ExpectedFood>> Answers => [.. Expect is null ? [] : new[] { Expect }, .. Alternatives ?? []];
 }
@@ -424,7 +428,7 @@ sealed class TraceModel(IMealModel inner, bool verbose) : IMealModel
     }
 }
 
-sealed record EvalArguments(string Cases, int Runs, HashSet<string> Only, string? Out, bool Verbose)
+sealed record EvalArguments(string Cases, int Runs, HashSet<string> Only, string? Out, bool Verbose, string? Home)
 {
     public static EvalArguments Parse(string[] args)
     {
@@ -433,6 +437,7 @@ sealed record EvalArguments(string Cases, int Runs, HashSet<string> Only, string
         var only = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         string? output = null;
         var verbose = false;
+        string? home = null;
         for (var i = 0; i < args.Length; i++)
         {
             switch (args[i])
@@ -442,11 +447,12 @@ sealed record EvalArguments(string Cases, int Runs, HashSet<string> Only, string
                 case "--only": only.UnionWith(args[++i].Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)); break;
                 case "--out": output = args[++i]; break;
                 case "--verbose" or "-v": verbose = true; break;
+                case "--home": home = args[++i].ToUpperInvariant(); break;
                 default: throw new ArgumentException($"Unknown argument {args[i]}");
             }
         }
 
-        return new EvalArguments(cases, runs, only, output, verbose);
+        return new EvalArguments(cases, runs, only, output, verbose, home);
     }
 }
 

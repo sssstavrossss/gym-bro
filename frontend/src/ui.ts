@@ -9,6 +9,8 @@ import { deviceTimeZone } from "./state/profile";
 /** Add food tabs. Describe shows only when the server can describe meals. */
 export type FoodTab = "search" | "describe" | "quick";
 
+export type SettingsView = "main" | "home" | "country";
+
 export const ui = reactive({
   sheet: null as SheetName | null,
   foodTab: "search" as FoodTab,
@@ -54,8 +56,8 @@ export const ui = reactive({
   cardPages: "progress" as PageCard,
   /** The card pages sheet is open over another sheet (a cog on Add food or a recipe), which stays open under it. */
   cardPagesOver: false,
-  /** The page Settings opens on: its list, or Home sections (from Home when every card is off). */
-  settingsView: "main" as "main" | "home",
+  /** The page Settings opens on: its list, Home sections (from Home when every card is off), or the food country (from its toast). */
+  settingsView: "main" as SettingsView,
 });
 
 let toastTimer = 0;
@@ -76,7 +78,7 @@ export function toast(text: string, action?: { label: string; run: () => void })
   }, action ? 5000 : 4000);
 }
 
-export function openSettings(view: "main" | "home" = "main"): void {
+export function openSettings(view: SettingsView = "main"): void {
   ui.settingsView = view;
   ui.sheet = "settings";
 }

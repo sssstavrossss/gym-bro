@@ -293,6 +293,22 @@ public static class ProfileEndpoints
             profile.TimeZoneFollowsDevice = follows;
         }
 
+        if (request.FoodCountry is { } country)
+        {
+            var code = country.Trim().ToUpperInvariant();
+            if (!FoodCountries.IsKnown(code))
+            {
+                return ApiResults.Error(FoodCountries.Invalid);
+            }
+
+            profile.FoodCountry = code;
+        }
+
+        if (request.FoodCountryFollowsZone is { } followsZone)
+        {
+            profile.FoodCountryFollowsZone = followsZone;
+        }
+
         if (request.WeightUnit is { } weightUnit)
         {
             if (!Units.IsWeight(weightUnit))
@@ -366,7 +382,7 @@ public static class ProfileEndpoints
         profile.UpdatedAt = clock.GetUtcNow();
         await db.SaveChangesAsync(cancellationToken);
         return Results.Ok(new SettingsResponse(
-            profile.TimeZone, profile.TimeZoneFollowsDevice, profile.WeightUnit, profile.HeightUnit, profile.FoodUnit, profile.FatLimits, profile.SodiumLimit,
+            profile.TimeZone, profile.TimeZoneFollowsDevice, FoodCountries.Home(profile), profile.FoodCountryFollowsZone, profile.WeightUnit, profile.HeightUnit, profile.FoodUnit, profile.FatLimits, profile.SodiumLimit,
             profile.HomeHidden, profile.MacrosHidden, profile.ProgressHidden));
     }
 
@@ -470,6 +486,8 @@ public static class ProfileEndpoints
             profile.FatPercent,
             profile.TimeZone,
             profile.TimeZoneFollowsDevice,
+            FoodCountries.Home(profile),
+            profile.FoodCountryFollowsZone,
             profile.WeightUnit,
             profile.HeightUnit,
             profile.FoodUnit,
@@ -534,6 +552,8 @@ public sealed record ProfileResponse(
     decimal FatPercent,
     string TimeZone,
     bool TimeZoneFollowsDevice,
+    string FoodCountry,
+    bool FoodCountryFollowsZone,
     string WeightUnit,
     string HeightUnit,
     string FoodUnit,
@@ -543,13 +563,16 @@ public sealed record ProfileResponse(
     string[]? MacrosHidden,
     string[]? ProgressHidden);
 
-/// <summary>Display preferences. None of them changes the targets, so saving one writes no target history.</summary>
+/// <summary>
+/// Display preferences. None of them changes the targets, so saving one writes no target history.
+/// <see cref="FoodCountry"/> is an ISO code picked by hand; send <see cref="FoodCountryFollowsZone"/> false with it.
+/// </summary>
 public sealed record SettingsRequest(string? TimeZone, bool? TimeZoneFollowsDevice, string? WeightUnit = null, string? HeightUnit = null, string? FatLimits = null, string? FoodUnit = null, string? SodiumLimit = null,
-    string?[]? HomeHidden = null, string?[]? MacrosHidden = null, string?[]? ProgressHidden = null);
+    string?[]? HomeHidden = null, string?[]? MacrosHidden = null, string?[]? ProgressHidden = null, string? FoodCountry = null, bool? FoodCountryFollowsZone = null);
 
-/// <summary>The hidden lists are null until the app first saves them.</summary>
+/// <summary>The hidden lists are null until the app first saves them. <see cref="FoodCountry"/> is the one in use.</summary>
 public sealed record SettingsResponse(
-    string TimeZone, bool TimeZoneFollowsDevice, string WeightUnit, string HeightUnit, string FoodUnit, string FatLimits, string SodiumLimit,
+    string TimeZone, bool TimeZoneFollowsDevice, string FoodCountry, bool FoodCountryFollowsZone, string WeightUnit, string HeightUnit, string FoodUnit, string FatLimits, string SodiumLimit,
     string[]? HomeHidden, string[]? MacrosHidden, string[]? ProgressHidden);
 
 public sealed record WeightResponse(

@@ -40,6 +40,7 @@ import { typeInto } from "./numbers";
 import { afterInsertion, nextQuickInput, tookWholeSelection } from "./quickEntry";
 import { toast } from "../ui";
 import type { LogEntry } from "../state/log";
+import { foodCountry } from "../state/profile";
 import { foodUnit } from "../state/units";
 import { foodTitle } from "./foodOrigin";
 
@@ -118,7 +119,7 @@ export function useFoodAmount(options: FoodAmountOptions) {
     if (whole && setting.value === "g") return `${int(value)} ${baseUnit.value}`;
     return sizeLabel(value, baseUnit.value, setting.value);
   }
-  const title = computed(() => (food.value ? foodTitle(food.value) : entry.value?.name ?? ""));
+  const title = computed(() => (food.value ? foodTitle(food.value, foodCountry()) : entry.value?.name ?? ""));
   const per100 = computed(() => {
     if (food.value && !entry.value) return per100Line(food.value);
     const current = entry.value;

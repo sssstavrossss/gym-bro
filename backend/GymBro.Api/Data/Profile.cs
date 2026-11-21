@@ -37,6 +37,16 @@ public sealed class Profile
     /// <summary>The app moves <see cref="TimeZone"/> to the device's zone when they differ. Off once a zone is picked by hand.</summary>
     public bool TimeZoneFollowsDevice { get; set; } = true;
 
+    /// <summary>
+    /// The country picked by hand, as an ISO code (<c>SE</c>). Empty until one is picked. Read it through
+    /// <see cref="GymBro.Api.Profiles.FoodCountries.Home(Profile)"/>, which follows the time zone instead while
+    /// <see cref="FoodCountryFollowsZone"/> is on.
+    /// </summary>
+    public string FoodCountry { get; set; } = "";
+
+    /// <summary>The food country is the time zone's country. Off once a country is picked by hand.</summary>
+    public bool FoodCountryFollowsZone { get; set; } = true;
+
     /// <summary>How body weight is shown: <c>kg</c> or <c>lb</c>. Storage is always kilograms.</summary>
     public string WeightUnit { get; set; } = Units.Kilograms;
 

@@ -8,6 +8,7 @@
 
   <ItemGroup>
     <EmbeddedResource Include="Foods\food-alias-lexicon.v1.json" />
+    <EmbeddedResource Include="Profiles\zone-countries.tsv" />
   </ItemGroup>
 
   <ItemGroup>

@@ -4,6 +4,7 @@ using GymBro.Api.Data;
 using GymBro.Api.Describe;
 using GymBro.Api.Foods;
 using GymBro.Api.Logging;
+using GymBro.Api.Profiles;
 using GymBro.Api.Users;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -146,7 +147,8 @@ public static class DescribeEndpoints
         string outcome;
         try
         {
-            items = await describer.DescribeAsync(userId, new MealNote(text, photo, MealNote.ReadTime(request.Time)), usage, cancellationToken);
+            var home = await FoodCountries.HomeAsync(db, userId, cancellationToken);
+            items = await describer.DescribeAsync(userId, new MealNote(text, photo, MealNote.ReadTime(request.Time), home), usage, cancellationToken);
             outcome = items.Count == 0 ? MealOutcomes.Nothing : MealOutcomes.Found;
         }
         catch (MealModelException ex)

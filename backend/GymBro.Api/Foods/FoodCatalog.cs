@@ -29,8 +29,9 @@ public static class FoodCatalog
         AppDbContext db,
         string userId,
         string query,
+        string home,
         CancellationToken cancellationToken) =>
-        (await SearchRankedAsync(db, userId, query, FoodSources.DefaultHome, cancellationToken)).Select(hit => hit.Food).ToList();
+        (await SearchRankedAsync(db, userId, query, home, cancellationToken)).Select(hit => hit.Food).ToList();
 
     /// <summary>
     /// <see cref="SearchAsync"/> with each food's match rank: 0 for the exact name or phrase, 1 for a name that

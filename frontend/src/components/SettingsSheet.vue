@@ -5,9 +5,10 @@ import BottomSheet from "./BottomSheet.vue";
 import Segmented from "./Segmented.vue";
 import Icon from "./Icon.vue";
 import SwitchRow from "./SwitchRow.vue";
-import { ApiError, getExport, putSettings } from "../api";
+import { ApiError, getExport, putSettings, type SettingsBody } from "../api";
 import { signOut } from "../auth/session";
 import { buildLabel } from "../lib/buildInfo";
+import { allCountries, countryName, countryTables, searchCountries } from "../lib/foodCountries";
 import { saveBlob } from "../lib/download";
 import { accents, applyAccent, applyTheme, readAccent, readTheme, themes, type AccentId, type ThemeId } from "../lib/theme";
 import { sectionRows, sectionsSummary, WEEK_ROW } from "../lib/homeSections";
@@ -19,13 +20,13 @@ import { boot } from "../state/boot";
 import { homeSections, sectionShown, setSectionShown } from "../state/homeSections";
 import type { FoodUnit } from "../lib/foodUnits";
 import type { HeightUnit, WeightUnit } from "../lib/units";
-import { applySettings, clearAllDrafts, deviceTimeZone, profile, setFoodUnit, setUnits } from "../state/profile";
+import { applySettings, clearAllDrafts, deviceTimeZone, foodCountry, profile, setFoodUnit, setUnits } from "../state/profile";
 import { foodUnit } from "../state/units";
 import { closeSheet, ui } from "../ui";
 
 const open = computed(() => ui.sheet === "settings");
-const view = ref<"main" | "zone" | "home">("main");
-const titles = { main: "Settings", zone: "Time zone", home: "Home sections" } as const;
+const view = ref<"main" | "zone" | "home" | "country">("main");
+const titles = { main: "Settings", zone: "Time zone", home: "Home sections", country: "Food country" } as const;
 const theme = ref<ThemeId>(readTheme());
 const accent = ref<AccentId>(readAccent());
 const themeLabel = computed(() => themes.find((item) => item.id === theme.value)?.label ?? "");
@@ -35,6 +36,7 @@ const busy = ref(false);
 const error = ref("");
 const now = ref(new Date());
 const search = ref<HTMLInputElement | null>(null);
+const followRow = ref<HTMLButtonElement | null>(null);
 const build = buildLabel(__BUILD_SHA__, __BUILD_TIME__);
 
 const zone = computed(() => profile.saved?.timeZone || profile.form.timeZone || deviceTimeZone());
@@ -42,6 +44,10 @@ const follows = computed(() => profile.saved?.timeZoneFollowsDevice !== false);
 const device = deviceTimeZone();
 const zones = allZones();
 const results = computed(() => (query.value.trim() ? searchZones(zones, query.value) : suggestedZones(zones, zone.value)));
+const country = computed(() => foodCountry());
+const countryFollows = computed(() => profile.saved?.foodCountryFollowsZone !== false);
+const countries = allCountries();
+const countryResults = computed(() => searchCountries(countries, query.value));
 const summary = computed(() => sectionsSummary(homeSections.hidden));
 const sections = computed(() => sectionRows(screenLayoutFromFlags({ tablet: vp.tablet, desktop: vp.desktop, wide: vp.wide })));
 
@@ -66,15 +72,17 @@ function chooseAccent(id: AccentId) {
   applyAccent(id);
 }
 
-function openZones() {
+function openPicker(next: "zone" | "country") {
   now.value = new Date();
   query.value = "";
   error.value = "";
-  view.value = "zone";
-  void nextTick(() => search.value?.scrollIntoView({ block: "nearest" }));
+  view.value = next;
+  // The zone list opens at its search. The country list opens at its top, where "Use the time zone" is.
+  void nextTick(() => (next === "zone" ? search.value : followRow.value)?.scrollIntoView({ block: "nearest" }));
 }
 
-async function save(body: { timeZone: string; timeZoneFollowsDevice: boolean }) {
+/** Saves a time zone or food country pick and goes back to the list. */
+async function save(body: SettingsBody) {
   if (busy.value) return;
   busy.value = true;
   error.value = "";
@@ -82,7 +90,8 @@ async function save(body: { timeZone: string; timeZoneFollowsDevice: boolean }) 
     applySettings(await putSettings(body));
     view.value = "main";
   } catch (failure) {
-    error.value = failure instanceof Error ? failure.message : "Couldn't save the time zone.";
+    const what = view.value === "country" ? "food country" : "time zone";
+    error.value = failure instanceof Error ? failure.message : `Couldn't save the ${what}.`;
   } finally {
     busy.value = false;
   }
@@ -194,7 +203,7 @@ async function onSignOut() {
 
       <section class="col group" aria-labelledby="set-region">
         <h3 id="set-region" class="t-bodys gtitle"><Icon name="clock" :size="16" /> Region</h3>
-        <button type="button" class="frow" data-zone-row @click="openZones">
+        <button type="button" class="frow" data-zone-row @click="openPicker('zone')">
           <span class="col grow">
             <span class="t-body">Time zone</span>
             <span class="t-capn c2">{{ follows ? "Follows this device" : "Set by hand" }}</span>
@@ -202,6 +211,15 @@ async function onSignOut() {
           <span class="t-body c2 zval">{{ zoneLabel(zone) }}</span>
           <Icon name="right" :size="16" class="fchev" />
         </button>
+        <button type="button" class="frow" data-country-row @click="openPicker('country')">
+          <span class="col grow">
+            <span class="t-body">Food country</span>
+            <span class="t-capn c2">{{ countryFollows ? "Follows the time zone" : "Set by hand" }}</span>
+          </span>
+          <span class="t-body c2 zval">{{ countryName(country) }}</span>
+          <Icon name="right" :size="16" class="fchev" />
+        </button>
+        <span class="t-capn c2 gnote" data-country-note>Foods from your country come first in search and Describe.</span>
       </section>
 
       <section class="col group" aria-labelledby="set-data" data-export>
@@ -247,6 +265,46 @@ async function onSignOut() {
         />
       </div>
       <p class="t-capn c3 m0">Kept on this device, like the theme.</p>
+    </div>
+
+    <div v-else-if="view === 'country'" class="col body" data-country-picker>
+      <button ref="followRow" type="button" class="zrow" role="radio" :aria-checked="countryFollows" :disabled="busy" @click="save({ foodCountryFollowsZone: true })">
+        <span class="tick" aria-hidden="true"><Icon v-if="countryFollows" name="check" :size="16" /></span>
+        <span class="col grow">
+          <span class="t-body">Use the time zone</span>
+          <span class="t-capn c2">{{ countryFollows ? `${countryName(country)} · from ${zoneLabel(zone)}` : `The country of ${zoneLabel(zone)}` }}</span>
+        </span>
+      </button>
+      <input
+        ref="search"
+        v-model="query"
+        class="field zsearch t-body"
+        type="search"
+        inputmode="search"
+        autocomplete="off"
+        placeholder="Search country"
+        aria-label="Search countries"
+        data-no-autofocus
+      />
+      <div class="col zlist" role="radiogroup" aria-label="Countries">
+        <button
+          v-for="item in countryResults"
+          :key="item.code"
+          type="button"
+          class="zrow"
+          role="radio"
+          :aria-checked="!countryFollows && item.code === country"
+          :disabled="busy"
+          :data-country="item.code"
+          @click="save({ foodCountry: item.code, foodCountryFollowsZone: false })"
+        >
+          <span class="tick" aria-hidden="true"><Icon v-if="!countryFollows && item.code === country" name="check" :size="16" /></span>
+          <span class="t-body grow zname">{{ item.name }}</span>
+          <span class="t-capn c2 ztables">{{ countryTables(item.code) }}</span>
+        </button>
+        <p v-if="!countryResults.length" class="t-body c2 m0">No country matches “{{ query }}”.</p>
+      </div>
+      <p v-if="error" class="t-body m0" role="alert">{{ error }}</p>
     </div>
 
     <div v-else class="col body" data-zone-picker>
@@ -330,7 +388,7 @@ async function onSignOut() {
 .body[data-home-sections] { gap: var(--space-s); }
 .signout { flex: none; }
 .build { text-align: center; }
-.body[data-zone-picker] { gap: var(--space-m); }
+.body[data-zone-picker], .body[data-country-picker] { gap: var(--space-m); }
 .zsearch { width: 100%; font-size: 16px; }
 .zlist { gap: 0; }
 .zrow { width: 100%; min-height: var(--control-hit); display: flex; align-items: center; gap: var(--space-s); text-align: left; padding: var(--space-s) 0; border-bottom: 1px solid var(--color-border); min-width: 0; }
@@ -339,6 +397,8 @@ async function onSignOut() {
 .tick { width: 18px; flex: none; display: grid; place-items: center; color: var(--text-primary); }
 .zname { overflow-wrap: anywhere; }
 .zoff { flex: none; white-space: nowrap; font-variant-numeric: tabular-nums; }
+/* The tables a country's foods come from. Long ones ("Matvaretabellen · Kassalapp") wrap rather than squeeze the name. */
+.ztables { flex: 0 1 auto; text-align: right; max-width: 55%; }
 :global(html.dt-l) .frow { flex-wrap: wrap; }
 :global(html.dt-l) .zval { max-width: 100%; }
 </style>
