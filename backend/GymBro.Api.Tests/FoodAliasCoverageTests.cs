@@ -36,13 +36,13 @@ public sealed class FoodAliasPlanTests
     {
         var file = LoadNames();
         var lexicon = FoodAliasLexicon.Current;
-        Assert.Equal(1, lexicon.Version);
+        Assert.Equal(2, lexicon.Version);
         Assert.Equal(lexicon.ReviewedAgainst!.EnSha256, file.EnSha256);
         Assert.Equal(lexicon.ReviewedAgainst.NbSha256, file.NbSha256);
         Assert.Equal(2121, file.Foods.Count);
         Assert.Equal(lexicon.Rules.Select(rule => rule.Id).Distinct().Count(), lexicon.Rules.Length);
 
-        var planned = file.Foods.Select(food => (food, phrases: FoodAliasPlanner.PhrasesFor(food.Id, food.Nb, food.En))).ToList();
+        var planned = file.Foods.Select(food => (food, phrases: FoodAliasPlanner.PhrasesFor("mvt", food.Id, food.Nb, food.En))).ToList();
         string[] Ids(string query) => planned
             .Where(row => row.phrases.Any(phrase => FoodAliasCatalogue.Normalize(phrase.Phrase) == FoodAliasCatalogue.Normalize(query)))
             .Select(row => row.food.Id)
@@ -94,7 +94,7 @@ public sealed class FoodAliasPlanTests
         {
             var food = file.Foods.Single(row => row.Id == seed.SourceId);
             Assert.Equal(seed.ExpectedNameEn, food.En);
-            var phrases = FoodAliasPlanner.PhrasesFor(food.Id, food.Nb, food.En);
+            var phrases = FoodAliasPlanner.PhrasesFor("mvt", food.Id, food.Nb, food.En);
             foreach (var phrase in seed.Phrases)
             {
                 Assert.Contains(phrases, item => FoodAliasCatalogue.Normalize(item.Phrase) == FoodAliasCatalogue.Normalize(phrase));

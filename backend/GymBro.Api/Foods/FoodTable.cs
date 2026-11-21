@@ -86,14 +86,19 @@ public sealed class FoodTableImporter(AppDbContext db, TimeProvider clock, ILogg
         await db.SaveChangesAsync(cancellationToken);
 
         var (keywords, categories) = await ReplaceKeywordsAsync(source, seen.Values.ToList(), cancellationToken);
+        // Our phrases after the keywords, so a word the table also lists ranks as ours.
+        var aliases = await FoodAliasCatalogue.ApplyAsync(db, source.Id, cancellationToken);
         logger.LogInformation(
-            "{Source} import upserted {Upserted}, retired {Retired}, skipped {Skipped}; {Keywords} keywords, {Categories} category words.",
+            "{Source} import upserted {Upserted}, retired {Retired}, skipped {Skipped}; {Keywords} keywords, {Categories} category words; lexicon phrases added {Inserted}, already present {AlreadyPresent}, seeds skipped {SeedsSkipped}.",
             source.Name,
             upserted,
             retired,
             skipped,
             keywords,
-            categories);
+            categories,
+            aliases.Inserted,
+            aliases.AlreadyPresent,
+            aliases.Skipped);
 
         var live = existing.Values.Where(food => food.RetiredAt is null).ToList();
         var coverage = Micronutrients.CoverageLine(

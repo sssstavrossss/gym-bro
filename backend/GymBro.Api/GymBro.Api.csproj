@@ -7,7 +7,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <EmbeddedResource Include="Foods\food-alias-lexicon.v1.json" />
+    <EmbeddedResource Include="Foods\food-alias-lexicon.v2.json" />
     <EmbeddedResource Include="Profiles\zone-countries.tsv" />
   </ItemGroup>
 

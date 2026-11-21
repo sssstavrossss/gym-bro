@@ -9,9 +9,9 @@ public sealed record FoodAliasSeed(string SourceId, string ExpectedNameEn, IRead
 public sealed record FoodAliasApplyResult(int Inserted, int AlreadyPresent, int Skipped, int Considered);
 
 /// <summary>
-/// Curated search phrases for Matvaretabellen foods. The preserved seeds below
-/// stay in place. Lexicon v1 adds everyday synonyms and punctuation phrases for
-/// the rest of the catalogue. This is not every possible synonym.
+/// Curated search phrases for the national food tables. The preserved seeds below (Matvaretabellen) stay in
+/// place. The lexicon adds everyday synonyms and punctuation phrases, and since v2 the same food's words in the
+/// other Nordic languages (<see cref="FoodWord"/>), for every table it lists. This is not every possible synonym.
 /// Chicken fillet in this catalogue is the breast: thigh, drumstick, and whole leg
 /// are different rows and are not given a breast phrase. A cooked fillet is not
 /// treated as the raw row; each official row keeps its own nutrients and only
@@ -79,17 +79,27 @@ public static class FoodAliasCatalogue
         return new string(buffer, 0, length);
     }
 
-    public static async Task<FoodAliasApplyResult> ApplyAsync(AppDbContext db, CancellationToken cancellationToken)
+    /// <summary>Adds the lexicon's phrases to every table it covers, or to one (<paramref name="source"/>) after its import.</summary>
+    public static async Task<FoodAliasApplyResult> ApplyAsync(AppDbContext db, CancellationToken cancellationToken) =>
+        await ApplyAsync(db, null, cancellationToken);
+
+    public static async Task<FoodAliasApplyResult> ApplyAsync(AppDbContext db, string? source, CancellationToken cancellationToken)
     {
+        var sources = FoodAliasLexicon.Current.Languages.Keys.Where(id => source is null || id == source).ToList();
+        if (sources.Count == 0)
+        {
+            return new FoodAliasApplyResult(0, 0, 0, 0);
+        }
+
         var foods = await db.Foods.AsNoTracking()
-            .Where(food => food.Source == Source && food.UserId == null)
-            .Select(food => new { food.SourceId, food.Name, food.NameEn })
+            .Where(food => sources.Contains(food.Source) && food.UserId == null)
+            .Select(food => new { food.Source, food.SourceId, food.Name, food.NameEn })
             .ToListAsync(cancellationToken);
         var existing = await db.FoodAliases
-            .Where(alias => alias.Source == Source)
+            .Where(alias => sources.Contains(alias.Source))
             .ToListAsync(cancellationToken);
         // Keywords from the table and our phrases share one key, so a table keyword can already hold a phrase.
-        var byKey = existing.ToDictionary(alias => (alias.SourceId, alias.Normalized));
+        var byKey = existing.ToDictionary(alias => (alias.Source, alias.SourceId, alias.Normalized));
         var seenSeeds = new HashSet<string>(StringComparer.Ordinal);
         var inserted = 0;
         var already = 0;
@@ -102,21 +112,24 @@ public static class FoodAliasCatalogue
                 continue;
             }
 
-            foreach (var seed in Seeds)
+            if (food.Source == Source)
             {
-                if (!string.Equals(seed.SourceId, food.SourceId, StringComparison.Ordinal))
+                foreach (var seed in Seeds)
                 {
-                    continue;
-                }
+                    if (!string.Equals(seed.SourceId, food.SourceId, StringComparison.Ordinal))
+                    {
+                        continue;
+                    }
 
-                seenSeeds.Add(seed.SourceId);
-                if (food.NameEn != seed.ExpectedNameEn)
-                {
-                    skipped++;
+                    seenSeeds.Add(seed.SourceId);
+                    if (food.NameEn != seed.ExpectedNameEn)
+                    {
+                        skipped++;
+                    }
                 }
             }
 
-            foreach (var phrase in FoodAliasPlanner.PhrasesFor(food.SourceId, food.Name, food.NameEn))
+            foreach (var phrase in FoodAliasPlanner.PhrasesFor(food.Source, food.SourceId, food.Name, food.NameEn))
             {
                 var normalized = Normalize(phrase.Phrase);
                 if (normalized.Length < 2)
@@ -124,7 +137,7 @@ public static class FoodAliasCatalogue
                     continue;
                 }
 
-                var key = (food.SourceId, normalized);
+                var key = (food.Source, food.SourceId, normalized);
                 if (byKey.TryGetValue(key, out var row))
                 {
                     if (row.ExpectedNameEn != food.NameEn)
@@ -142,7 +155,7 @@ public static class FoodAliasCatalogue
                 var created = new FoodAlias
                 {
                     Id = Guid.NewGuid(),
-                    Source = Source,
+                    Source = food.Source,
                     SourceId = food.SourceId,
                     Phrase = phrase.Phrase,
                     Normalized = normalized,
@@ -154,7 +167,8 @@ public static class FoodAliasCatalogue
             }
         }
 
-        foreach (var seed in Seeds)
+        // Seeds are Matvaretabellen's: count a missing one only when that table was applied.
+        foreach (var seed in sources.Contains(Source) ? Seeds : [])
         {
             if (seenSeeds.Add(seed.SourceId))
             {

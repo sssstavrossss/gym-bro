@@ -15,6 +15,14 @@ public sealed class FoodAliasLexicon
 
     public AliasRule[] Rules { get; init; } = [];
 
+    /// <summary>The tables the lexicon covers, by source id, and the language of each one's own names: nb, sv or fi.</summary>
+    public Dictionary<string, string> Languages { get; init; } = [];
+
+    /// <summary>Endings of a compound that names a dish made with a food (<c>keitto</c>, <c>gryta</c>), not the food.</summary>
+    public string[] DishEnds { get; init; } = [];
+
+    public FoodWord[] Words { get; init; } = [];
+
     public ReviewedCatalogue? ReviewedAgainst { get; init; }
 
     public string[] Limits { get; init; } = [];
@@ -26,7 +34,7 @@ public sealed class FoodAliasLexicon
     private static FoodAliasLexicon Load()
     {
         var assembly = typeof(FoodAliasLexicon).Assembly;
-        var name = assembly.GetManifestResourceNames().Single(resource => resource.EndsWith("food-alias-lexicon.v1.json", StringComparison.Ordinal));
+        var name = assembly.GetManifestResourceNames().Single(resource => resource.EndsWith("food-alias-lexicon.v2.json", StringComparison.Ordinal));
         using var stream = assembly.GetManifestResourceStream(name) ?? throw new InvalidOperationException("Food alias lexicon is missing.");
         return JsonSerializer.Deserialize<FoodAliasLexicon>(stream, new JsonSerializerOptions { PropertyNameCaseInsensitive = true })
             ?? throw new InvalidOperationException("Food alias lexicon was empty.");
@@ -40,6 +48,43 @@ public sealed class ReviewedCatalogue
     public string NbSha256 { get; init; } = "";
 
     public int FoodCount { get; init; }
+
+    public int SlvFoodCount { get; init; }
+
+    public int FineliFoodCount { get; init; }
+}
+
+/// <summary>
+/// One food in Norwegian, Swedish and Finnish. A row whose own name starts with one of its words in that table's
+/// language gets the other languages' words as search phrases. A word ending in <c>*</c> also matches a compound that
+/// starts with it, unless the compound ends in a dish word; one starting with <c>*</c> matches a compound ending in it.
+/// </summary>
+public sealed class FoodWord
+{
+    public string Id { get; init; } = "";
+
+    public string[] Nb { get; init; } = [];
+
+    public string[] Sv { get; init; } = [];
+
+    public string[] Fi { get; init; } = [];
+
+    /// <summary>More forms that match, by language, but are not added as phrases (a genitive, a fat level).</summary>
+    public Dictionary<string, string[]> Also { get; init; } = [];
+
+    /// <summary>First words that look like a match but are another food (<c>grissini</c>).</summary>
+    public string[] Unless { get; init; } = [];
+
+    /// <summary>Whole words anywhere in the name that rule the row out (a plant-based substitute).</summary>
+    public string[] UnlessWords { get; init; } = [];
+
+    public string[] In(string language) => language switch
+    {
+        "nb" => Nb,
+        "sv" => Sv,
+        "fi" => Fi,
+        _ => [],
+    };
 }
 
 public sealed class AliasRule
@@ -68,25 +113,43 @@ public static class FoodAliasPlanner
     public const string KindLexical = "lexical";
     public const string KindStructural = "structural";
     public const string KindHyphen = "hyphen";
+    public const string KindWord = "word";
+
+    private static readonly string[] Languages = ["nb", "sv", "fi"];
 
     public sealed record PlannedPhrase(string Phrase, string Kind, string RuleId);
 
     private static readonly Regex HyphenWord = new(@"\p{L}{2,}(?:-\p{L}{2,})+", RegexOptions.CultureInvariant | RegexOptions.Compiled);
 
-    public static IReadOnlyList<PlannedPhrase> PhrasesFor(string sourceId, string? nameNb, string? nameEn)
+    /// <summary>
+    /// The search phrases for one catalogue row. <paramref name="name"/> is the row's own name, in the table's
+    /// language (<see cref="FoodAliasLexicon.Languages"/>). The English rules apply to every table; the Norwegian
+    /// rules, seeds, word order and hyphen phrases to Matvaretabellen, as in v1. Words apply to every table.
+    /// </summary>
+    public static IReadOnlyList<PlannedPhrase> PhrasesFor(string source, string sourceId, string? name, string? nameEn)
     {
         var lexicon = FoodAliasLexicon.Current;
-        var planned = new List<PlannedPhrase>();
-        foreach (var seed in FoodAliasCatalogue.Seeds)
+        if (!lexicon.Languages.TryGetValue(source, out var language))
         {
-            if (!string.Equals(seed.SourceId, sourceId, StringComparison.Ordinal) || nameEn != seed.ExpectedNameEn)
-            {
-                continue;
-            }
+            return [];
+        }
 
-            foreach (var phrase in seed.Phrases)
+        var norwegian = language == "nb";
+        var nameNb = norwegian ? name : null;
+        var planned = new List<PlannedPhrase>();
+        if (source == FoodAliasCatalogue.Source)
+        {
+            foreach (var seed in FoodAliasCatalogue.Seeds)
             {
-                planned.Add(new PlannedPhrase(phrase, KindSeed, "preserved-seed"));
+                if (!string.Equals(seed.SourceId, sourceId, StringComparison.Ordinal) || nameEn != seed.ExpectedNameEn)
+                {
+                    continue;
+                }
+
+                foreach (var phrase in seed.Phrases)
+                {
+                    planned.Add(new PlannedPhrase(phrase, KindSeed, "preserved-seed"));
+                }
             }
         }
 
@@ -113,11 +176,85 @@ public static class FoodAliasPlanner
             }
         }
 
-        AddStructural(nameEn, lexicon.PrepEn, planned);
-        AddStructural(nameNb, lexicon.PrepNb, planned);
-        AddHyphens(nameEn, planned);
-        AddHyphens(nameNb, planned);
-        return DistinctUsable(planned, nameNb, nameEn);
+        if (norwegian)
+        {
+            AddStructural(nameEn, lexicon.PrepEn, planned);
+            AddStructural(nameNb, lexicon.PrepNb, planned);
+            AddHyphens(nameEn, planned);
+            AddHyphens(nameNb, planned);
+        }
+
+        foreach (var word in lexicon.Words)
+        {
+            if (!WordMatches(word, language, name))
+            {
+                continue;
+            }
+
+            // A word the row's own language shares (Norwegian and Swedish "tomater") is the row's own word, not a translation.
+            var own = word.In(language).Concat(word.Also.GetValueOrDefault(language) ?? []).Select(Plain).ToHashSet(StringComparer.Ordinal);
+            foreach (var other in Languages.Where(other => other != language))
+            {
+                foreach (var text in word.In(other).Select(Plain).Where(text => !own.Contains(text)))
+                {
+                    planned.Add(new PlannedPhrase(text, KindWord, word.Id));
+                }
+            }
+        }
+
+        return DistinctUsable(planned, name, nameEn);
+    }
+
+    /// <summary>Whether a row's own name, in <paramref name="language"/>, names this word's food.</summary>
+    public static bool WordMatches(FoodWord word, string language, string? name)
+    {
+        var head = Head(name);
+        if (head.Length == 0 || word.Unless.Any(pattern => PatternMatches(pattern, head, name)))
+        {
+            return false;
+        }
+
+        if (word.UnlessWords.Any(text => HasWord(name, text)))
+        {
+            return false;
+        }
+
+        var also = word.Also.GetValueOrDefault(language) ?? [];
+        return word.In(language).Concat(also).Any(pattern => PatternMatches(pattern, head, name));
+    }
+
+    /// <summary>The first word of a name, lower-case: up to the first space, comma, bracket or slash. Hyphens stay.</summary>
+    internal static string Head(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return "";
+        }
+
+        var text = name.Trim().Normalize(System.Text.NormalizationForm.FormC);
+        var end = text.IndexOfAny([' ', '\t', ',', '(', '/']);
+        return (end < 0 ? text : text[..end]).ToLowerInvariant();
+    }
+
+    private static string Plain(string pattern) => pattern.Trim().Trim('*').Normalize(System.Text.NormalizationForm.FormC).ToLowerInvariant();
+
+    private static bool PatternMatches(string pattern, string head, string? name)
+    {
+        var text = pattern.Trim().Normalize(System.Text.NormalizationForm.FormC).ToLowerInvariant();
+        if (text.StartsWith('*'))
+        {
+            return head.EndsWith(text[1..], StringComparison.Ordinal);
+        }
+
+        if (text.EndsWith('*'))
+        {
+            var start = text[..^1];
+            return head.StartsWith(start, StringComparison.Ordinal)
+                && (head.Length == start.Length || !FoodAliasLexicon.Current.DishEnds.Any(end => head.EndsWith(end, StringComparison.Ordinal)));
+        }
+
+        // A phrase of more than one word ("svarta vinbär") matches the start of the whole name.
+        return text.Contains(' ') ? NameStarts(name, text) : head == text;
     }
 
     public static bool NameStarts(string? name, string prefix)
@@ -246,7 +383,7 @@ public static class FoodAliasPlanner
         }
     }
 
-    private static IReadOnlyList<PlannedPhrase> DistinctUsable(List<PlannedPhrase> planned, string? nameNb, string? nameEn)
+    private static IReadOnlyList<PlannedPhrase> DistinctUsable(List<PlannedPhrase> planned, string? name, string? nameEn)
     {
         var kept = new List<PlannedPhrase>();
         var seen = new HashSet<string>(StringComparer.Ordinal);
@@ -264,7 +401,7 @@ public static class FoodAliasPlanner
                 continue;
             }
 
-            if (phrase.Kind != KindSeed && SearchableAlready(text, nameNb, nameEn))
+            if (phrase.Kind != KindSeed && SearchableAlready(text, name, nameEn))
             {
                 continue;
             }
@@ -275,8 +412,8 @@ public static class FoodAliasPlanner
         return kept;
     }
 
-    private static bool SearchableAlready(string phrase, string? nameNb, string? nameEn) =>
-        Contains(nameNb, phrase) || Contains(nameEn, phrase);
+    private static bool SearchableAlready(string phrase, string? name, string? nameEn) =>
+        Contains(name, phrase) || Contains(nameEn, phrase);
 
     private static bool Contains(string? name, string phrase) =>
         !string.IsNullOrEmpty(name) && name.Contains(phrase, StringComparison.OrdinalIgnoreCase);
