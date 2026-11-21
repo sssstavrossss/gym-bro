@@ -25,6 +25,7 @@ builder.Services.AddScoped<UserDirectory>();
 builder.Services.AddScoped<FoodTableImporter>();
 builder.Services.AddScoped<MatvaretabellenImporter>();
 builder.Services.AddScoped<LivsmedelsverketImporter>();
+builder.Services.AddScoped<FineliImporter>();
 builder.Services.AddScoped<KassalappImporter>();
 builder.Services.Configure<WebPushOptions>(builder.Configuration.GetSection(WebPushOptions.SectionName));
 builder.Services.AddScoped<MondayReminder>();
@@ -273,6 +274,40 @@ if (args.Contains("--import-livsmedelsverket"))
     catch (Exception ex) when (ex is not OperationCanceledException)
     {
         Console.Error.WriteLine("Livsmedelsverket import failed: " + ex.Message);
+        Environment.ExitCode = 1;
+    }
+
+    return;
+}
+
+if (args.Contains("--import-fineli"))
+{
+    var fileFlag = Array.IndexOf(args, "--file");
+    if (fileFlag < 0 || fileFlag + 1 >= args.Length)
+    {
+        Console.Error.WriteLine("Pass --file with Fineli's open-data zip (the package with 74 components).");
+        Environment.ExitCode = 1;
+        return;
+    }
+
+    await using var scope = app.Services.CreateAsyncScope();
+    var importer = scope.ServiceProvider.GetRequiredService<FineliImporter>();
+    try
+    {
+        await using var file = File.OpenRead(args[fileFlag + 1]);
+        var result = await importer.ImportFileAsync(file, CancellationToken.None);
+        Console.WriteLine(
+            $"Fineli: {result.Upserted} foods upserted, {result.Retired} retired, {result.Skipped} skipped.");
+        Console.WriteLine(result.Coverage);
+        Console.WriteLine(Fineli.Citation);
+        if (result.Upserted == 0)
+        {
+            Environment.ExitCode = 1;
+        }
+    }
+    catch (Exception ex) when (ex is not OperationCanceledException)
+    {
+        Console.Error.WriteLine("Fineli import failed: " + ex.Message);
         Environment.ExitCode = 1;
     }
 

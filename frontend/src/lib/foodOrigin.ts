@@ -19,6 +19,7 @@ const SOURCE_NAMES: Record<string, string> = {
   mvt: "Matvaretabellen",
   kassalapp: "Kassalapp",
   slv: "Livsmedelsverket",
+  fineli: "Fineli",
   off: "Open Food Facts",
   custom: "Your food",
 };

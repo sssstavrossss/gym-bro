@@ -66,6 +66,10 @@ public sealed class PostgresOptions
             Database = Database,
             Username = Username,
             Password = Password,
+            // The app runs short queries. Food search's cost estimate is large (a LIKE over every catalogue row,
+            // with alias lookups), so Postgres compiled it with JIT on each call: about 1 s of compiling for a
+            // query that runs in 50-150 ms.
+            Options = "-c jit=off",
         };
         return builder.ConnectionString;
     }

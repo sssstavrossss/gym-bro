@@ -24,7 +24,10 @@ public static class FoodSources
     public static readonly FoodSource Livsmedelsverket = new(
         Foods.Livsmedelsverket.Source, "Livsmedelsverket", "SE", Foods.Livsmedelsverket.Citation);
 
-    public static readonly IReadOnlyList<FoodSource> All = [Matvaretabellen, Kassalapp, Livsmedelsverket];
+    public static readonly FoodSource Fineli = new(
+        Foods.Fineli.Source, "Fineli", "FI", Foods.Fineli.Citation);
+
+    public static readonly IReadOnlyList<FoodSource> All = [Matvaretabellen, Kassalapp, Livsmedelsverket, Fineli];
 
     /// <summary>Countries whose foods come second for one another. Nordic tables share most dishes and names.</summary>
     private static readonly IReadOnlySet<string> Nordic = new HashSet<string>(StringComparer.Ordinal) { "NO", "SE", "FI", "DK", "IS" };
