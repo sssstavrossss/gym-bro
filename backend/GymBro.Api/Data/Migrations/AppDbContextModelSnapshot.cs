@@ -400,6 +400,10 @@ namespace GymBro.Api.Data.Migrations
                         .HasColumnType("numeric(8,2)")
                         .HasColumnName("poly_fat_per_100");
 
+                    b.Property<string>("Portions")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("portions");
+
                     b.Property<decimal?>("Omega3Per100")
                         .HasPrecision(8, 2)
                         .HasColumnType("numeric(8,2)")

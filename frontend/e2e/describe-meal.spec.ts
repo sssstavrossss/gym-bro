@@ -220,6 +220,8 @@ test.describe("phone", () => {
     expect(body.text).toBe("");
     expect(body.photo.mediaType).toBe("image/jpeg");
     expect(Buffer.from(body.photo.data, "base64").subarray(0, 3)).toEqual(Buffer.from([0xff, 0xd8, 0xff]));
+    // The wall clock goes too, so Claude can tell breakfast from a late snack.
+    expect(body.time).toMatch(/^\d{2}:\d{2}$/);
     await expect(sheet(page).locator("[data-described]")).toHaveCount(2);
     const top = sheet(page).getByRole("button", { name: "Edit what you ate" });
     await expect(top).toContainText("Your photo");

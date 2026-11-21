@@ -90,6 +90,9 @@ public sealed partial class Food
 
     public string? PieceLabel { get; set; }
 
+    /// <summary>JSON list of Matvaretabellen household measures; see <see cref="Foods.FoodPortions"/>. Null on other foods.</summary>
+    public string? Portions { get; set; }
+
     public DateTimeOffset? RetiredAt { get; set; }
 
     public DateTimeOffset UpdatedAt { get; set; }

@@ -56,6 +56,12 @@ public sealed class FoodLoggingTests(ApiFactory factory)
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var copies = await db.Foods.CountAsync(food => food.Source == "mvt" && food.SourceId == "test.kylling");
         Assert.Equal(1, copies);
+
+        // Every measure with a weight is kept once, with the English file's name when it has one.
+        var row = await db.Foods.SingleAsync(food => food.Source == "mvt" && food.SourceId == "test.kylling");
+        Assert.Equal(
+            [new FoodPortion("porsjon", "porsjon", "portion", 40), new FoodPortion("stk", "filet", null, 60)],
+            FoodPortions.Read(row));
         await RetireFixture();
     }
 
@@ -287,7 +293,9 @@ public sealed class FoodLoggingTests(ApiFactory factory)
               ],
               "portions": [
                 { "id": "porsjon", "portionName": "porsjon", "portionUnit": "stk", "quantity": 40, "unit": "g" },
-                { "id": "stk", "portionName": "filet", "portionUnit": "stk", "quantity": 60, "unit": "g" }
+                { "id": "stk", "portionName": "filet", "portionUnit": "stk", "quantity": 60, "unit": "g" },
+                { "id": "stk", "portionName": "filet again", "portionUnit": "stk", "quantity": 70, "unit": "g" },
+                { "id": "dl", "portionName": "desiliter", "portionUnit": "dl", "quantity": 0, "unit": "g" }
               ]
             }
           ]
@@ -295,7 +303,7 @@ public sealed class FoodLoggingTests(ApiFactory factory)
         """;
 
     private static string English(string name) =>
-        "{ \"foods\": [ { \"foodId\": \"test.kylling\", \"foodName\": \"" + name + "\" } ] }";
+        "{ \"foods\": [ { \"foodId\": \"test.kylling\", \"foodName\": \"" + name + "\", \"portions\": [ { \"id\": \"porsjon\", \"portionName\": \"portion\" } ] } ] }";
 
     private async Task<MatvaretabellenImportResult> Import(string norwegian, string english)
     {

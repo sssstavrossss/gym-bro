@@ -23,28 +23,41 @@ public sealed class ClaudeMealModel(IOptions<DescribeOptions> options, ILogger<C
 
     private const string SplitSystem = """
         You read a note of what someone ate or drank and list each food in it. The note is their words,
-        a photo of the meal, or both.
+        a photo of the meal, or both. It may say the local time it was written, a hint for what the meal
+        was and how big (a bowl at breakfast is smaller than a plate at dinner); it may have been eaten earlier.
         The foods are looked up in Matvaretabellen, the Norwegian food composition table, which has Norwegian
         names ("Egg, kokt", "Brød, grovt", "Smør", "Lettmelk") and English names, and in the person's own foods.
 
         For each food give:
         - phrase: the words from the note that name it, with its amount, copied as written. For a food
           from a photo, a few words for what you see, with the amount ("2 fried eggs", "rice, about a cup").
-        - name: a short plain English name, as it was eaten ("boiled egg", "wholemeal bread").
+        - name: a short plain English name, as it was eaten ("boiled egg", "wholemeal bread"). Translate
+          Norwegian with care: gulost is yellow cheese and brunost brown cheese.
         - searches: one to three short catalogue searches, one or two words each, best first, Norwegian
-          before English. Every word of a search must appear in the food's name, so name the everyday form
+          before English. When the note names the food in Norwegian, its own word comes first ("bolle",
+          "skolebolle", "brunost"). Every word of a search must appear in the food's name, so name the everyday form
           the way the table does, with how it is usually eaten: "ris kokt" for rice, "brød grovt" or "loff"
           for bread or toast, "egg kokt", "lettmelk", "kaffe traktet", "havregryn". For a particular kind
           of a food, search the kind first ("sausage cocktail" or "sosisser" for cocktail sausages), then
           the plain food. For a dish, make the first search its usual name or the dish with its main
-          filling ("pasta bolognese", "taco kjøttdeig", "pizza pepperoni"), then the dish alone.
+          filling ("pasta bolognese", "taco kjøttdeig", "pizza pepperoni"), then the dish alone. For a
+          bread or bun, search its kind ("pølsebrød", "hamburgerbrød", "lompe", "rundstykke",
+          "knekkebrød"; "bolle" is a sweet bun).
+          When a package, label or brand shows in the photo or is named, make the first search the brand
+          and product ("Grandiosa", "Tine lettmelk").
         - grams: your best estimate of the grams (millilitres for drinks) in the amount described.
           When the note gives no amount, use a usual single portion.
         - guessed: true when the note gives no amount for it. An amount judged from a photo is a guess.
+        - added: true only for a food the note doesn't name that you add yourself (the cooking fat below).
 
         Split a food into the parts someone would log separately: "toast with butter" is bread and butter,
         "coffee with milk" is coffee and milk, "a ham and cheese sandwich" is two slices of bread, ham and
-        cheese. Keep a dish whole when it is one dish (lasagne, pizza, a burrito, a curry).
+        cheese, "a tuna sandwich" is bread and tuna, "a hot dog" is a sausage and its bun. Keep a dish whole
+        when it is one dish (lasagne, pizza, a burrito, a curry), and keep whole a drink made with milk
+        (a latte, a cappuccino, hot chocolate) and a dish cooked with it (porridge made with milk).
+        When the words or the photo say a food was fried, sautéed or stir-fried and the fat isn't named,
+        add the cooking fat as its own food: phrase "oil for frying", about a tablespoon a portion, guessed
+        and added.
         Keep the note's order. If the note is not about food or drink, return an empty list.
 
         A photo shows the meal itself. List each food and drink in it that someone would log, and judge
@@ -67,14 +80,23 @@ public sealed class ClaudeMealModel(IOptions<DescribeOptions> options, ILogger<C
           bought bread, for "milk" the unspecified or most common milk. When the note doesn't say, prefer
           the food as usually eaten (cooked rice and pasta, not dry), unspecified over a brand, and bought
           over home-made, and for a plain word like "salad" or "cheese" the plainest food of that kind.
-          Prefer one marked "yours" when it fits. Use 0 only when no candidate is that
-          kind of food at all (a rice drink is not rice, a cream for coffee is not coffee).
+          Prefer one marked "yours" when it fits. The note's own words count over the plain name when they
+          differ. Use 0 when no candidate is that kind of food (a rice drink is not rice, a cream for coffee
+          is not coffee), or when there is only the raw or dry form of a food eaten cooked (oats for
+          porridge). Use 0 for a cooking fat when the food cooked in it was matched to one already fried
+          in fat ("stekt i fett"). When the note lists a dish's parts as separate foods (shells, mince and
+          cheese for tacos), pick each plain part, not a whole dish that already holds the others.
         - unit: one of the units listed for that candidate, written exactly as listed.
         - amount: how many of that unit the note describes. Use a counted unit for counted things
-          ("2 eggs" is 2 of a piece unit when there is one), otherwise grams or millilitres. When that
+          ("2 eggs" is 2 of a piece unit when there is one), otherwise grams or millilitres. A measure the
+          note names is the unit of that name: "3 slices" of cheese is 3 of slice, not of the amount for a
+          slice of bread; "2 tbsp" is 2 of tablespoon; "a large glass" is 1 of glass (large). When that
           many of the unit would weigh far from the food's grams (small sausages and a grill sausage's
           piece), use grams instead.
           When the note gives no amount, use a usual single portion.
+        - retry: when the candidate is 0 because nothing fits, one to three other short catalogue searches
+          to try, in the table's own words, Norwegian first ("havregrøt" for oatmeal, "wokblanding" for
+          stir-fry vegetables, "cola kunstig søtet" for a diet cola). Otherwise an empty list.
         Return one entry for every food from the note, in the same order.
         """;
 
@@ -92,7 +114,8 @@ public sealed class ClaudeMealModel(IOptions<DescribeOptions> options, ILogger<C
                 food.GetProperty("name").GetString() ?? "",
                 searches,
                 food.GetProperty("grams").GetDecimal(),
-                food.GetProperty("guessed").GetBoolean()));
+                food.GetProperty("guessed").GetBoolean(),
+                food.TryGetProperty("added", out var added) && added.ValueKind == JsonValueKind.True));
         }
 
         return parts;
@@ -118,19 +141,27 @@ public sealed class ClaudeMealModel(IOptions<DescribeOptions> options, ILogger<C
     private static MealPick ReadPick(JsonElement pick)
     {
         var candidate = pick.GetProperty("candidate").GetInt32();
+        var retry = pick.TryGetProperty("retry", out var searches) && searches.ValueKind == JsonValueKind.Array
+            ? searches.EnumerateArray().Select(search => search.GetString() ?? "").Where(search => search.Trim().Length > 0).ToList()
+            : [];
         return new MealPick(
             pick.GetProperty("food").GetInt32() - 1,
             candidate >= 1 ? candidate - 1 : null,
             pick.GetProperty("amount").GetDecimal(),
-            pick.GetProperty("unit").GetString() ?? "");
+            pick.GetProperty("unit").GetString() ?? "",
+            retry);
     }
 
-    /// <summary>The words alone, or the photo first and then the words (or a line saying there are none).</summary>
+    /// <summary>
+    /// The words alone, or the photo first and then the words (or a line saying there are none). The time it
+    /// was written, when sent, comes before the words.
+    /// </summary>
     public static MessageContentParam SplitContent(MealNote note)
     {
+        var written = note.Time is { } time ? $"Written at {time.ToString("HH:mm", CultureInfo.InvariantCulture)}. " : "";
         if (note.Photo is not { } photo)
         {
-            return note.Text;
+            return written.Length == 0 ? note.Text : $"{written}Note: {note.Text}";
         }
 
         List<ContentBlockParam> blocks =
@@ -139,7 +170,7 @@ public sealed class ClaudeMealModel(IOptions<DescribeOptions> options, ILogger<C
             {
                 Source = new Base64ImageSource { Data = Convert.ToBase64String(photo.Data), MediaType = photo.MediaType },
             },
-            new TextBlockParam { Text = note.Text.Length > 0 ? $"Words with the photo: {note.Text}" : "No words, only the photo." },
+            new TextBlockParam { Text = written + (note.Text.Length > 0 ? $"Words with the photo: {note.Text}" : "No words, only the photo.") },
         ];
         return blocks;
     }
@@ -255,9 +286,10 @@ public sealed class ClaudeMealModel(IOptions<DescribeOptions> options, ILogger<C
                   "name": { "type": "string" },
                   "searches": { "type": "array", "items": { "type": "string" } },
                   "grams": { "type": "number" },
-                  "guessed": { "type": "boolean" }
+                  "guessed": { "type": "boolean" },
+                  "added": { "type": "boolean" }
                 },
-                "required": ["phrase", "name", "searches", "grams", "guessed"],
+                "required": ["phrase", "name", "searches", "grams", "guessed", "added"],
                 "additionalProperties": false
               }
             }
@@ -279,9 +311,10 @@ public sealed class ClaudeMealModel(IOptions<DescribeOptions> options, ILogger<C
                   "food": { "type": "integer" },
                   "candidate": { "type": "integer" },
                   "unit": { "type": "string" },
-                  "amount": { "type": "number" }
+                  "amount": { "type": "number" },
+                  "retry": { "type": "array", "items": { "type": "string" } }
                 },
-                "required": ["food", "candidate", "unit", "amount"],
+                "required": ["food", "candidate", "unit", "amount", "retry"],
                 "additionalProperties": false
               }
             }
