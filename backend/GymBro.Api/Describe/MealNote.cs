@@ -1,8 +1,17 @@
+using System.Globalization;
+
 namespace GymBro.Api.Describe;
 
-/// <summary>What the person sent: their words, a photo of the meal, or both. <see cref="Text"/> is trimmed and may be empty.</summary>
-public sealed record MealNote(string Text, MealPhoto? Photo = null)
+/// <summary>
+/// What the person sent: their words, a photo of the meal, or both. <see cref="Text"/> is trimmed and may be
+/// empty. <see cref="Time"/> is the phone's local time when it was sent, a hint for the meal and its size.
+/// </summary>
+public sealed record MealNote(string Text, MealPhoto? Photo = null, TimeOnly? Time = null)
 {
+    /// <summary>"07:40" as a time, or null for anything else: the time is only a hint, so a bad one is dropped.</summary>
+    public static TimeOnly? ReadTime(string? time) =>
+        TimeOnly.TryParseExact(time?.Trim(), "HH:mm", CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed) ? parsed : null;
+
     /// <summary>
     /// The note as the pick step reads it. Only the split sees the photo itself; by then each food has a
     /// phrase saying what was seen, so the pick needs only to know the note was a photo.

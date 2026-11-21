@@ -218,6 +218,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         food.Property(f => f.ServingLabel).HasColumnName("serving_label").HasMaxLength(80);
         food.Property(f => f.PieceQuantity).HasColumnName("piece_quantity").HasPrecision(8, 2);
         food.Property(f => f.PieceLabel).HasColumnName("piece_label").HasMaxLength(80);
+        food.Property(f => f.Portions).HasColumnName("portions").HasColumnType("jsonb");
         food.Property(f => f.RetiredAt).HasColumnName("retired_at");
         food.Property(f => f.UpdatedAt).HasColumnName("updated_at");
         food.HasIndex(f => new { f.Source, f.SourceId }).IsUnique().HasFilter("user_id IS NULL");

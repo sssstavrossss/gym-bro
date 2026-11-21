@@ -3,6 +3,9 @@ using Microsoft.EntityFrameworkCore;
 
 namespace GymBro.Api.Foods;
 
+/// <summary>A search result and how closely it matched; see <see cref="FoodCatalog.SearchRankedAsync"/>.</summary>
+public sealed record RankedFood(Food Food, int Rank);
+
 public static class FoodCatalog
 {
     public const int SearchLimit = 25;
@@ -23,6 +26,18 @@ public static class FoodCatalog
         AppDbContext db,
         string userId,
         string query,
+        CancellationToken cancellationToken) =>
+        (await SearchRankedAsync(db, userId, query, cancellationToken)).Select(hit => hit.Food).ToList();
+
+    /// <summary>
+    /// <see cref="SearchAsync"/> with each food's match rank: 0 for the exact name or phrase, 1 for a name that
+    /// starts with the text, 2 for a whole last word, 3 for a last word that starts a word, 4 otherwise. A food
+    /// found only by a word's base form ranks 5 to 9 the same way. Foods of one rank are in name order.
+    /// </summary>
+    public static async Task<List<RankedFood>> SearchRankedAsync(
+        AppDbContext db,
+        string userId,
+        string query,
         CancellationToken cancellationToken)
     {
         var normalized = FoodAliasCatalogue.Normalize(query);
@@ -37,11 +52,13 @@ public static class FoodCatalog
                 return [];
             }
 
-            return await Visible(db.Foods.AsNoTracking(), userId)
+            return (await Visible(db.Foods.AsNoTracking(), userId)
                 .Where(food => food.Barcode == query)
                 .OrderBy(food => food.Name)
                 .Take(SearchLimit)
-                .ToListAsync(cancellationToken);
+                .ToListAsync(cancellationToken))
+                .Select(food => new RankedFood(food, 0))
+                .ToList();
         }
 
         // Names are already folded by the same function as the query, so this does not call lower() or regexp_replace.
@@ -117,8 +134,11 @@ public static class FoodCatalog
         var order = anyStem
             ? $"CASE WHEN {Matches(Strict)} THEN 0 ELSE 1 END, {Rank(normalized)}, {Rank(string.Join(' ', tokens.Select((token, index) => stems[index] ?? token)))}, f.name, f.source"
             : $"{Rank(normalized)}, f.name, f.source";
+        var rank = anyStem
+            ? $"CASE WHEN {Matches(Strict)} THEN 0 ELSE 5 END + {Rank(normalized)}"
+            : Rank(normalized);
         var sql = $"""
-            SELECT f.id AS "Value"
+            SELECT f.id AS "Id", {rank} AS "Rank"
             FROM foods AS f
             WHERE f.retired_at IS NULL
               AND (f.user_id IS NULL OR f.user_id = {userParam})
@@ -127,15 +147,23 @@ public static class FoodCatalog
             LIMIT {SearchLimit}
             """;
 
-        var orderedIds = await db.Database.SqlQueryRaw<Guid>(sql, args.ToArray()).ToListAsync(cancellationToken);
-        if (orderedIds.Count == 0)
+        var hits = await db.Database.SqlQueryRaw<SearchHit>(sql, args.ToArray()).ToListAsync(cancellationToken);
+        if (hits.Count == 0)
         {
             return [];
         }
 
-        var rows = await db.Foods.AsNoTracking().Where(food => orderedIds.Contains(food.Id)).ToListAsync(cancellationToken);
+        var ids = hits.Select(hit => hit.Id).ToList();
+        var rows = await db.Foods.AsNoTracking().Where(food => ids.Contains(food.Id)).ToListAsync(cancellationToken);
         var byId = rows.ToDictionary(food => food.Id);
-        return orderedIds.Where(byId.ContainsKey).Select(id => byId[id]).ToList();
+        return hits.Where(hit => byId.ContainsKey(hit.Id)).Select(hit => new RankedFood(byId[hit.Id], hit.Rank)).ToList();
+    }
+
+    private sealed class SearchHit
+    {
+        public Guid Id { get; set; }
+
+        public int Rank { get; set; }
     }
 
     /// <summary>How many distinct foods the food sheet lists under Recent. Matches the prototype.</summary>

@@ -246,7 +246,31 @@ public sealed class MatvaretabellenImporter(
                 micros.Sugars,
                 micros.Fiber,
                 micros.Salt),
-            CleanName(food.FoodNameEn));
+            CleanName(food.FoodNameEn),
+            Portions(food));
+    }
+
+    /// <summary>Every measure with a weight, once per id, in the file's order.</summary>
+    internal static IReadOnlyList<FoodPortion> Portions(MvtFood food)
+    {
+        var portions = new List<FoodPortion>();
+        foreach (var portion in food.Portions)
+        {
+            var id = portion.Id?.Trim();
+            if (string.IsNullOrEmpty(id)
+                || portions.Any(existing => existing.Id == id)
+                || !TryQuantity(portion.Quantity, out var grams)
+                || grams <= 0)
+            {
+                continue;
+            }
+
+            var name = string.IsNullOrWhiteSpace(portion.PortionName) ? id : portion.PortionName.Trim();
+            var english = string.IsNullOrWhiteSpace(portion.PortionNameEn) ? null : portion.PortionNameEn.Trim();
+            portions.Add(new FoodPortion(id, name, english, grams));
+        }
+
+        return portions;
     }
 
     private static IEnumerable<MatvareConstituent> Constituents(MvtFood food) =>
@@ -319,6 +343,7 @@ public sealed class MatvaretabellenImporter(
         row.ServingLabel = parsed.ServingLabel;
         row.PieceQuantity = parsed.PieceQuantity;
         row.PieceLabel = parsed.PieceLabel;
+        row.Portions = FoodPortions.Write(mapped.Portions);
     }
 
     private async Task<Stream> DownloadAsync(string url, string label, CancellationToken cancellationToken)
@@ -344,6 +369,7 @@ public sealed class MatvaretabellenImporter(
     internal static void ApplyEnglishNames(MvtFile norwegian, MvtFile english)
     {
         var names = new Dictionary<string, string>(StringComparer.Ordinal);
+        var portions = new Dictionary<string, List<MvtPortion>>(StringComparer.Ordinal);
         foreach (var food in english.Foods)
         {
             var id = food.FoodId?.Trim();
@@ -354,14 +380,21 @@ public sealed class MatvaretabellenImporter(
             }
 
             names[id] = name;
+            portions[id] = food.Portions;
         }
 
         foreach (var food in norwegian.Foods)
         {
             var id = food.FoodId?.Trim();
-            if (id is not null && names.TryGetValue(id, out var name))
+            if (id is null || !names.TryGetValue(id, out var name))
             {
-                food.FoodNameEn = name;
+                continue;
+            }
+
+            food.FoodNameEn = name;
+            foreach (var portion in food.Portions)
+            {
+                portion.PortionNameEn = portions[id].FirstOrDefault(other => other.Id == portion.Id)?.PortionName;
             }
         }
     }
@@ -377,7 +410,7 @@ public sealed class MatvaretabellenImporter(
         return trimmed.Length <= 300 ? trimmed : trimmed[..300];
     }
 
-    internal sealed record MappedFood(ParsedFood Food, string? NameEn);
+    internal sealed record MappedFood(ParsedFood Food, string? NameEn, IReadOnlyList<FoodPortion> Portions);
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -430,6 +463,9 @@ public sealed class MatvaretabellenImporter(
         public string? PortionName { get; set; }
 
         public string? PortionUnit { get; set; }
+
+        /// <summary>The English file's name for the same measure. Not in the Norwegian file.</summary>
+        public string? PortionNameEn { get; set; }
 
         public JsonElement Quantity { get; set; }
     }

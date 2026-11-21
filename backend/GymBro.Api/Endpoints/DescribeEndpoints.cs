@@ -146,7 +146,7 @@ public static class DescribeEndpoints
         string outcome;
         try
         {
-            items = await describer.DescribeAsync(userId, new MealNote(text, photo), usage, cancellationToken);
+            items = await describer.DescribeAsync(userId, new MealNote(text, photo, MealNote.ReadTime(request.Time)), usage, cancellationToken);
             outcome = items.Count == 0 ? MealOutcomes.Nothing : MealOutcomes.Found;
         }
         catch (MealModelException ex)
@@ -379,7 +379,8 @@ public static class DescribeEndpoints
 }
 
 /// <summary>Words, a photo, or both. <see cref="Photo"/> is base64 with its image type.</summary>
-public sealed record DescribeRequest(string? Text, Guid? RetryOf = null, PhotoRequest? Photo = null);
+/// <param name="Time">The phone's local time, "07:40". A hint for the meal; anything else is ignored.</param>
+public sealed record DescribeRequest(string? Text, Guid? RetryOf = null, PhotoRequest? Photo = null, string? Time = null);
 
 public sealed record PhotoRequest(string? MediaType, string? Data);
 

@@ -10,7 +10,8 @@ public sealed record DescribedItem(string Phrase, string Name, bool Guessed, Foo
 
 /// <summary>
 /// Turns a described meal (words, a photo, or both) into foods to review: the model splits the note, the
-/// person's own catalogue is searched for each part, then the model picks a candidate and an amount. A pick
+/// person's own catalogue is searched for each part, then the model picks a candidate and an amount. A part
+/// with nothing that fits is searched once more with the searches the pick suggests, and picked again. A pick
 /// in a unit the food can't be logged in falls back to the model's gram estimate, so every match can be
 /// logged as shown.
 /// </summary>
@@ -56,24 +57,89 @@ public sealed class MealDescriber(AppDbContext db, IMealModel model)
         var found = new List<List<Food>>();
         foreach (var part in parts)
         {
-            found.Add(await SearchAsync(userId, part, cancellationToken));
+            found.Add(await SearchAsync(userId, part.Searches.Append(part.Name), cancellationToken));
         }
 
+        var choices = await ChoicesAsync(userId, parts, found, cancellationToken);
+        var picks = ByPart(await model.PickAsync(note.ForPick, choices, usage, cancellationToken), choices.Count);
+        await RetryAsync(userId, note, found, choices, picks, usage, cancellationToken);
+
+        // A food the model added itself (oil for frying) is dropped when it found none, or when the pick
+        // left it out because the dish already holds it; it was never in the note to be "not found".
+        return choices
+            .Select((choice, index) => Resolve(choice, picks.GetValueOrDefault(index)))
+            .Where((item, index) => item.Food is not null || !choices[index].Part.Added)
+            .ToList();
+    }
+
+    /// <summary>
+    /// Once, for the parts the pick found nothing for but suggested other searches: search those, and ask
+    /// again about only the parts that turned up new foods. Their choices and picks are replaced in place.
+    /// </summary>
+    private async Task RetryAsync(
+        string userId,
+        MealNote note,
+        IReadOnlyList<List<Food>> found,
+        List<MealChoice> choices,
+        Dictionary<int, MealPick> picks,
+        MealUsage usage,
+        CancellationToken cancellationToken)
+    {
+        var parts = new List<int>();
+        var foods = new List<List<Food>>();
+        foreach (var (index, pick) in picks.OrderBy(entry => entry.Key))
+        {
+            if (pick.Candidate is not null || pick.Retry is not { Count: > 0 } searches)
+            {
+                continue;
+            }
+
+            var seen = found[index].Select(food => food.Id).ToHashSet();
+            var fresh = (await SearchAsync(userId, searches, cancellationToken)).Where(food => !seen.Contains(food.Id)).ToList();
+            if (fresh.Count > 0)
+            {
+                parts.Add(index);
+                foods.Add(fresh);
+            }
+        }
+
+        if (parts.Count == 0)
+        {
+            return;
+        }
+
+        var again = await ChoicesAsync(userId, parts.Select(index => choices[index].Part).ToList(), foods, cancellationToken);
+        var answers = ByPart(await model.PickAsync(note.ForPick, again, usage, cancellationToken), again.Count);
+        foreach (var (index, position) in parts.Select((index, position) => (index, position)))
+        {
+            choices[index] = again[position];
+            if (answers.TryGetValue(position, out var answer))
+            {
+                picks[index] = answer;
+            }
+            else
+            {
+                picks.Remove(index);
+            }
+        }
+    }
+
+    private async Task<List<MealChoice>> ChoicesAsync(string userId, IReadOnlyList<MealPart> parts, IReadOnlyList<List<Food>> found, CancellationToken cancellationToken)
+    {
         var servings = await ServingEndpoints.ForFoods(db, userId, found.SelectMany(foods => foods).Select(food => food.Id), cancellationToken);
-        var choices = parts
+        return parts
             .Select((part, index) => new MealChoice(
                 part,
                 found[index].Select(food => new MealCandidate(food, food.UserId == userId, Units(food, servings.GetValueOrDefault(food.Id)))).ToList()))
             .ToList();
-        var picks = choices.Any(choice => choice.Candidates.Count > 0)
-            ? await model.PickAsync(note.ForPick, choices, usage, cancellationToken)
-            : [];
-        var byPart = picks
-            .Where(pick => pick.Part >= 0 && pick.Part < choices.Count)
+    }
+
+    /// <summary>Each part's pick. A pick for a part that doesn't exist, or a second one for a part, is ignored.</summary>
+    private static Dictionary<int, MealPick> ByPart(IReadOnlyList<MealPick> picks, int count) =>
+        picks
+            .Where(pick => pick.Part >= 0 && pick.Part < count)
             .GroupBy(pick => pick.Part)
             .ToDictionary(group => group.Key, group => group.First());
-        return choices.Select((choice, index) => Resolve(choice, byPart.GetValueOrDefault(index))).ToList();
-    }
 
     /// <summary>The units <paramref name="food"/> can be logged in, with one's weight when there is one.</summary>
     public static IReadOnlyList<MealUnit> Units(Food food, IReadOnlyList<UserServing>? servings)
@@ -109,6 +175,19 @@ public sealed class MealDescriber(AppDbContext db, IMealModel model)
             units.Add(new MealUnit(serving.Name, serving.Name, serving.Grams));
         }
 
+        // The table's household measures, each once: a measure the serving or piece already is adds nothing.
+        foreach (var portion in FoodPortions.Read(food))
+        {
+            var label = portion.NameEn ?? portion.Name;
+            if (units.Any(unit => string.Equals(unit.Unit, portion.Id, StringComparison.OrdinalIgnoreCase)
+                || (unit.Grams == portion.Grams && string.Equals(unit.Label, portion.Name, StringComparison.OrdinalIgnoreCase))))
+            {
+                continue;
+            }
+
+            units.Add(new MealUnit(portion.Id, label, portion.Grams, AsGrams: true));
+        }
+
         return units;
     }
 
@@ -131,8 +210,17 @@ public sealed class MealDescriber(AppDbContext db, IMealModel model)
         }
 
         var candidate = choice.Candidates[number];
-        var unit = candidate.Units.FirstOrDefault(option => string.Equals(option.Unit, pick.Unit.Trim(), StringComparison.OrdinalIgnoreCase));
-        if (unit is not null && Fits(candidate.Food, Tidy(pick.Amount, unit.Unit), unit) && NearEstimate(part, Tidy(pick.Amount, unit.Unit), unit))
+        var unit = candidate.Units.FirstOrDefault(option => string.Equals(option.Unit, UnitName(pick.Unit), StringComparison.OrdinalIgnoreCase));
+        if (unit is { AsGrams: true, Grams: { } each } && NearEstimate(part, Tidy(pick.Amount, unit.Unit), unit))
+        {
+            var weight = Tidy(Tidy(pick.Amount, unit.Unit) * each, "g");
+            var grams = candidate.Units.First(option => option.Unit is "g");
+            if (Fits(candidate.Food, weight, grams))
+            {
+                return new DescribedItem(part.Phrase, part.Name, part.Guessed, candidate.Food, weight, "g");
+            }
+        }
+        else if (unit is not null && Fits(candidate.Food, Tidy(pick.Amount, unit.Unit), unit) && NearEstimate(part, Tidy(pick.Amount, unit.Unit), unit))
         {
             return new DescribedItem(part.Phrase, part.Name, part.Guessed, candidate.Food, Tidy(pick.Amount, unit.Unit), unit.Unit);
         }
@@ -142,6 +230,13 @@ public sealed class MealDescriber(AppDbContext db, IMealModel model)
         return Fits(candidate.Food, amount, fallback)
             ? new DescribedItem(part.Phrase, part.Name, part.Guessed, candidate.Food, amount, fallback.Unit)
             : new DescribedItem(part.Phrase, part.Name, part.Guessed, null, 0, "");
+    }
+
+    /// <summary>The unit as listed, when a reply copies its description too: "piece (1 egg = 60 g)" is "piece".</summary>
+    private static string UnitName(string unit)
+    {
+        var bracket = unit.IndexOf(" (", StringComparison.Ordinal);
+        return (bracket > 0 ? unit[..bracket] : unit).Trim();
     }
 
     /// <summary>Kcal for an item as it would be logged, or null when it can't be.</summary>
@@ -174,21 +269,24 @@ public sealed class MealDescriber(AppDbContext db, IMealModel model)
     private static string Label(string? label, string fallback) =>
         string.IsNullOrWhiteSpace(label) ? fallback : label.Trim();
 
-    private async Task<List<Food>> SearchAsync(string userId, MealPart part, CancellationToken cancellationToken)
+    private async Task<List<Food>> SearchAsync(string userId, IEnumerable<string> searches, CancellationToken cancellationToken)
     {
         var foods = new List<Food>();
-        var queries = part.Searches.Append(part.Name)
+        var queries = searches
             .Select(query => query.Trim())
             .Where(query => FoodCatalog.ValidateQuery(query) is null)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Take(SearchesPerPart);
         foreach (var query in queries)
         {
-            // The search sorts by name, so "brød" lists home-made breads first. The person's own foods come
-            // first here, then the shortest names: in the catalogue those are the everyday ones ("Pizza, kjøpt").
-            var hits = (await FoodCatalog.SearchAsync(db, userId, query, cancellationToken))
-                .OrderBy(hit => hit.UserId == userId ? 0 : 1)
-                .ThenBy(hit => hit.Name.Length);
+            // The search sorts each rank by name, so "brød" lists home-made breads first. The person's own foods
+            // come first here, then the closest match ("gulost" finds "Gulost, uspesifisert" before "Edamer,
+            // gulost"), then the shortest names: in the catalogue those are the everyday ones ("Pizza, kjøpt").
+            var hits = (await FoodCatalog.SearchRankedAsync(db, userId, query, cancellationToken))
+                .OrderBy(hit => hit.Food.UserId == userId ? 0 : 1)
+                .ThenBy(hit => hit.Rank)
+                .ThenBy(hit => hit.Food.Name.Length)
+                .Select(hit => hit.Food);
             foods.AddRange(hits.Where(hit => foods.All(food => food.Id != hit.Id)).Take(PerSearch));
             if (foods.Count >= CandidatesMax)
             {

@@ -1,9 +1,11 @@
 import { reactive } from "vue";
 import { ApiError, describeMeal, getDescribe, getDescription, markDescriptionLogged, ServerUnreachable, type DescribeRecent } from "../api";
 import { chosenRows, loggedItems, rowKcal, rowsFrom, type DescribeRow } from "../lib/describe";
+import { timeInZone } from "../lib/dates";
 import { macrosForFood } from "../lib/foodAmount";
 import { PHOTO_UNREADABLE, shrinkPhoto, type MealPhoto } from "../photo/mealPhoto";
 import { saveQuickAdd, type LogEntry } from "./log";
+import { deviceTimeZone } from "./profile";
 
 // "Describe a meal" on the food sheet. The state lives here, not in the pane, because the amount
 // screen replaces the pane while a row is being changed and the list has to be there when it comes back.
@@ -141,7 +143,7 @@ async function ask(text: string, photo: MealPhoto | null, retryOf: string | null
   describe.error = "";
   describe.retryable = false;
   try {
-    const result = await describeMeal(text, retryOf, photo);
+    const result = await describeMeal({ text, photo, retryOf, time: timeInZone(deviceTimeZone()) });
     if (mine !== gen) return;
     describe.text = result.text;
     describe.photo = photo;

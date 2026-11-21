@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using GymBro.Api.Data;
 using GymBro.Api.Describe;
+using GymBro.Api.Foods;
 using Anthropic.Models.Messages;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
@@ -57,15 +58,17 @@ public sealed class DescribeMealTests(ApiFactory factory)
     }
 
     [Fact]
-    public async Task Candidates_put_the_persons_own_foods_first_then_the_shortest_names()
+    public async Task Candidates_put_the_persons_own_foods_first_then_the_closest_match_then_the_shortest_name()
     {
         factory.Clock.UtcNow = new DateTimeOffset(2026, 11, 20, 8, 30, 0, TimeSpan.Zero);
         var user = TestData.NewUser("describe-order");
         using var client = factory.AsUser(user);
         await Food("Quorbsort, 100 % wholemeal, home-made", 240);
         var plain = await Food("Quorbsort, plain", 250);
+        await Food("Ed, quorbsort", 260);
 
         // The rule model takes the first candidate. By name the home-made one sorts first; the plain one is shorter.
+        // "Ed, quorbsort" is shorter still, but only its last word matches, so a name that starts with it wins.
         var first = await (await client.PostAsJsonAsync("/api/describe", new { text = "quorbsort" })).Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal(plain, first.GetProperty("items")[0].GetProperty("food").GetProperty("id").GetGuid());
 
@@ -479,6 +482,123 @@ public sealed class DescribeMealTests(ApiFactory factory)
         Assert.Contains("No candidates.", prompt, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Table_measures_are_units_logged_as_grams()
+    {
+        var cheese = new Food
+        {
+            Name = "Gulost", Basis = "g", NutrientBasis = NutrientBases.Per100, KcalPer100 = 350, ServingQuantity = 40, ServingLabel = "porsjon",
+            Portions = FoodPortions.Write(
+            [
+                new FoodPortion("porsjon", "porsjon", "portion", 40),
+                new FoodPortion("skive", "skive", "slice", 10),
+                new FoodPortion("ss", "spiseskje", null, 15),
+            ]),
+        };
+        var units = MealDescriber.Units(cheese, null);
+
+        // The portion is the serving already, so it isn't listed twice. The rest are named in English when the table has it.
+        Assert.Equal(["g", "serving", "skive", "ss"], units.Select(unit => unit.Unit));
+        Assert.Equal(["slice", "spiseskje"], units.Where(unit => unit.AsGrams).Select(unit => unit.Label));
+        Assert.Contains("skive (1 slice = 10 g)", ClaudeMealModel.PickPrompt("3 skiver gulost",
+            [new MealChoice(new MealPart("3 skiver gulost", "cheese", ["gulost"], 35, false), [new MealCandidate(cheese, false, units)])]), StringComparison.Ordinal);
+
+        var choice = new MealChoice(new MealPart("3 skiver gulost", "cheese", ["gulost"], 35, false), [new MealCandidate(cheese, false, units)]);
+        var slices = MealDescriber.Resolve(choice, new MealPick(0, 0, 3, "skive (1 slice = 10 g)"));
+        Assert.Equal(30, slices.Amount);
+        Assert.Equal("g", slices.Unit);
+        Assert.Equal(23, MealDescriber.Resolve(choice, new MealPick(0, 0, 1.5m, "SS")).Amount);
+
+        // Twenty slices is 200 g against an estimate of 35 g: the estimate wins.
+        var many = MealDescriber.Resolve(choice, new MealPick(0, 0, 20, "skive"));
+        Assert.Equal(35, many.Amount);
+        Assert.Equal("g", many.Unit);
+
+        Assert.Empty(FoodPortions.Read(new Food { Portions = "not json" }));
+        Assert.Null(FoodPortions.Write([]));
+    }
+
+    [Fact]
+    public async Task A_food_with_no_fit_gets_one_more_search_and_unmatched_cooking_fat_is_left_out()
+    {
+        factory.Clock.UtcNow = new DateTimeOffset(2026, 11, 20, 13, 0, 0, TimeSpan.Zero);
+        var user = TestData.NewUser("describe-retry");
+        var soft = await Food("Quorbzap soft", 300);
+        var loaf = await Food("Zingleloaf sweet", 320);
+        var mild = await Food("Quorbched mild", 350);
+        var model = new ScriptedModel(
+            [
+                new MealPart("a zap bun", "zap bun", ["quorbzap"], 60, false),
+                new MealPart("cheese", "cheese", ["quorbched"], 20, true),
+                new MealPart("oil for frying", "oil", ["zzquorbnooil"], 10, true, Added: true),
+            ],
+            // Nothing fits the bun or the cheese; the bun gets another search. The cheese's suggestion finds nothing new.
+            choices => [new MealPick(0, null, 1, "g", ["zingleloaf"]), new MealPick(1, null, 1, "g", ["quorbched"]), new MealPick(2, null, 1, "g")],
+            choices => [new MealPick(0, 0, 60, "g")]);
+        using var app = factory.WithWebHostBuilder(builder => builder.ConfigureTestServices(services =>
+        {
+            services.RemoveAll<IMealModel>();
+            services.AddSingleton<IMealModel>(model);
+        }));
+        using var client = app.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Test-Oid", user);
+        client.DefaultRequestHeaders.Add("X-Test-Name", "Test User");
+
+        var response = await client.PostAsJsonAsync("/api/describe", new { text = "a zap bun with cheese", time = "07:45" });
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var items = (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("items").EnumerateArray().ToList();
+
+        // The bun was found on the second search; the cheese stays a row to fix; the oil the model added is gone.
+        Assert.Equal(["a zap bun", "cheese"], items.Select(item => item.GetProperty("phrase").GetString()));
+        Assert.Equal(loaf, items[0].GetProperty("food").GetProperty("id").GetGuid());
+        Assert.Equal(60, items[0].GetProperty("amount").GetDecimal());
+        Assert.Equal(JsonValueKind.Null, items[1].GetProperty("food").ValueKind);
+
+        Assert.Equal(2, model.Asked.Count);
+        Assert.Contains(model.Asked[0][0].Candidates, candidate => candidate.Food.Id == soft);
+        Assert.Contains(model.Asked[0][1].Candidates, candidate => candidate.Food.Id == mild);
+        var again = Assert.Single(model.Asked[1]);
+        Assert.Equal("a zap bun", again.Part.Phrase);
+        Assert.DoesNotContain(again.Candidates, candidate => candidate.Food.Id == soft);
+        Assert.Contains(again.Candidates, candidate => candidate.Food.Id == loaf);
+
+        Assert.Equal(new TimeOnly(7, 45), model.Notes.Single().Time);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        Assert.Equal(3, (await db.MealDescriptions.SingleAsync(row => row.UserId == user)).Calls);
+    }
+
+    [Fact]
+    public void The_time_it_was_written_goes_before_the_words()
+    {
+        Assert.Equal(new TimeOnly(7, 5), MealNote.ReadTime("07:05"));
+        Assert.Null(MealNote.ReadTime(null));
+        Assert.Null(MealNote.ReadTime("7:05"));
+        Assert.Null(MealNote.ReadTime("25:00"));
+        Assert.Null(MealNote.ReadTime("07:05:00"));
+
+        var words = JsonSerializer.Serialize(new UserMessageParam { Content = ClaudeMealModel.SplitContent(new MealNote("2 eggs", null, new TimeOnly(7, 5))) });
+        Assert.Contains("Written at 07:05. Note: 2 eggs", words, StringComparison.Ordinal);
+        var photo = MealPhoto.Read("image/jpeg", Convert.ToBase64String(Jpeg)).Photo!;
+        var withPhoto = JsonSerializer.Serialize(new UserMessageParam { Content = ClaudeMealModel.SplitContent(new MealNote("", photo, new TimeOnly(19, 30))) });
+        Assert.Contains("Written at 19:30. No words, only the photo.", withPhoto, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void A_pick_reads_its_suggested_searches()
+    {
+        using var reply = JsonDocument.Parse("""
+            { "picks": [
+              { "food": 1, "candidate": 0, "unit": "g", "amount": 50, "retry": ["lompe", " ", "pølsebrød"] },
+              { "food": 2, "candidate": 1, "unit": "g", "amount": 10 }
+            ] }
+            """);
+
+        var picks = ClaudeMealModel.ReadPicks(reply.RootElement);
+        Assert.Equal(["lompe", "pølsebrød"], picks[0].Retry!);
+        Assert.Empty(picks[1].Retry!);
+    }
+
     private async Task<Guid> Food(string name, decimal kcal, decimal? piece = null, string basis = "g")
     {
         var id = Guid.NewGuid();
@@ -516,6 +636,30 @@ public sealed class DescribeMealTests(ApiFactory factory)
         Outcome = outcome,
         Model = "rule",
     };
+
+    /// <summary>Splits into the given parts and answers each pick with the next script, recording what it was asked.</summary>
+    private sealed class ScriptedModel(IReadOnlyList<MealPart> parts, params Func<IReadOnlyList<MealChoice>, IReadOnlyList<MealPick>>[] picks) : IMealModel
+    {
+        public string Name => "scripted";
+
+        public List<MealNote> Notes { get; } = [];
+
+        public List<IReadOnlyList<MealChoice>> Asked { get; } = [];
+
+        public Task<IReadOnlyList<MealPart>> SplitAsync(MealNote note, MealUsage usage, CancellationToken cancellationToken)
+        {
+            Notes.Add(note);
+            usage.Add(100, 10);
+            return Task.FromResult(parts);
+        }
+
+        public Task<IReadOnlyList<MealPick>> PickAsync(string text, IReadOnlyList<MealChoice> choices, MealUsage usage, CancellationToken cancellationToken)
+        {
+            Asked.Add([.. choices]);
+            usage.Add(100, 10);
+            return Task.FromResult(Asked.Count <= picks.Length ? picks[Asked.Count - 1](choices) : []);
+        }
+    }
 
     private sealed class FailingModel(bool refused) : IMealModel
     {

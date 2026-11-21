@@ -749,11 +749,19 @@ export interface DescribePhoto {
   data: string;
 }
 
-/**
- * Claude reads the words, the photo, or both, and picks foods from the catalogue. Nothing is logged.
- * retryOf links an edited retry to the attempt before it.
- */
-export async function describeMeal(text: string, retryOf: string | null = null, photo: DescribePhoto | null = null): Promise<DescribeResult> {
+/** What Describe sends. */
+export interface DescribeNote {
+  text: string;
+  photo?: DescribePhoto | null;
+  /** Links an edited retry to the attempt before it. */
+  retryOf?: string | null;
+  /** The wall clock when it was sent, "HH:MM". It tells Claude whether "a bowl" is breakfast or a late snack. */
+  time?: string | null;
+}
+
+/** Claude reads the words, the photo, or both, and picks foods from the catalogue. Nothing is logged. */
+export async function describeMeal(note: DescribeNote): Promise<DescribeResult> {
+  const { text, photo, retryOf, time } = note;
   return jsonOrThrow(await request("/api/describe", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -761,6 +769,7 @@ export async function describeMeal(text: string, retryOf: string | null = null, 
       text,
       ...(retryOf ? { retryOf } : {}),
       ...(photo ? { photo: { mediaType: photo.mediaType, data: photo.data } } : {}),
+      ...(time ? { time } : {}),
     }),
   }));
 }
