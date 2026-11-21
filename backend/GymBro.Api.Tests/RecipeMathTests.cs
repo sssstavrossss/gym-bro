@@ -9,7 +9,7 @@ public sealed class RecipeMathTests
     public void Protein_per_portion_is_the_ingredient_total_divided_by_portions()
     {
         var chicken = Sample("Chicken", 400, 100, 10, 0);
-        var line = RecipeRules.BuildNew(chicken, "user", 250, "g", null);
+        var line = RecipeRules.BuildNew(chicken, "user", 250, "g", null, "NO");
         Assert.Equal(RecipeRules.BuildStatus.Ok, line.Status);
         Assert.Equal(250, line.Grams);
         Assert.Equal(1000, line.Nutrients.Kcal);
@@ -49,8 +49,8 @@ public sealed class RecipeMathTests
     {
         var oats = Sample("Oats", 200, 20, 4, 30);
         var milk = Sample("Milk", 50, 5, 2, 6, "ml");
-        var solid = RecipeRules.BuildNew(oats, "user", 100, "g", null);
-        var liquid = RecipeRules.BuildNew(milk, "user", 250, "ml", null);
+        var solid = RecipeRules.BuildNew(oats, "user", 100, "g", null, "NO");
+        var liquid = RecipeRules.BuildNew(milk, "user", 250, "ml", null, "NO");
         Assert.Equal(100, solid.Grams);
         Assert.Null(liquid.Grams);
         Assert.Equal(125, liquid.Nutrients.Kcal);
@@ -70,7 +70,7 @@ public sealed class RecipeMathTests
     public void An_own_serving_uses_its_gram_weight_and_a_per_serving_food_has_none()
     {
         var bread = Sample("Bread", 250, 10, 2, 40);
-        var slices = RecipeRules.BuildNew(bread, "user", 2, "slice", 40);
+        var slices = RecipeRules.BuildNew(bread, "user", 2, "slice", 40, "NO");
         Assert.Equal(RecipeRules.BuildStatus.Ok, slices.Status);
         Assert.Equal("slice", slices.Unit);
         Assert.Equal(80, slices.Grams);
@@ -87,7 +87,7 @@ public sealed class RecipeMathTests
             FatPer100 = 4,
             CarbsPer100 = 8,
         };
-        var servings = RecipeRules.BuildNew(shake, "user", 2, "serving", null);
+        var servings = RecipeRules.BuildNew(shake, "user", 2, "serving", null, "NO");
         Assert.Null(servings.Grams);
         Assert.Equal(440, servings.Nutrients.Kcal);
         Assert.Equal(60, servings.Nutrients.Protein);
@@ -118,26 +118,26 @@ public sealed class RecipeMathTests
             FoodOwnerKey = Food.CatalogueOwnerKey,
         };
 
-        var same = RecipeRules.BuildEdit(retired, "user", 250, "g", null, kept);
+        var same = RecipeRules.BuildEdit(retired, "user", 250, "g", null, kept, "NO");
         Assert.Equal(250, same.Nutrients.Protein);
         Assert.Equal(1000, same.Nutrients.Kcal);
         Assert.Equal("Chicken", same.Name);
 
-        var half = RecipeRules.BuildEdit(retired, "user", 125, "g", null, kept);
+        var half = RecipeRules.BuildEdit(retired, "user", 125, "g", null, kept, "NO");
         Assert.Equal(125, half.Amount);
         Assert.Equal(125, half.Nutrients.Protein);
         Assert.Equal(500, half.Nutrients.Kcal);
         Assert.Equal(125, half.Grams);
 
-        var otherUnit = RecipeRules.BuildEdit(retired, "user", 1, "serving", null, kept);
+        var otherUnit = RecipeRules.BuildEdit(retired, "user", 1, "serving", null, kept, "NO");
         Assert.Equal(RecipeRules.KeepAmount, otherUnit.Error);
 
-        var fresh = RecipeRules.BuildNew(retired, "user", 250, "g", null);
+        var fresh = RecipeRules.BuildNew(retired, "user", 250, "g", null, "NO");
         Assert.Equal(RecipeRules.FoodRetired, fresh.Error);
 
         var stranger = Sample("Secret", 10, 1, 1, 1);
         stranger.UserId = "someone-else";
-        Assert.Equal(RecipeRules.BuildStatus.NotFound, RecipeRules.BuildNew(stranger, "user", 100, "g", null).Status);
+        Assert.Equal(RecipeRules.BuildStatus.NotFound, RecipeRules.BuildNew(stranger, "user", 100, "g", null, "NO").Status);
     }
 
     [Fact]

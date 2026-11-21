@@ -3,6 +3,7 @@ using System.Text.Json;
 using GymBro.Api.Data;
 using GymBro.Api.Foods;
 using GymBro.Api.Logging;
+using GymBro.Api.Profiles;
 using GymBro.Api.Users;
 using Microsoft.EntityFrameworkCore;
 
@@ -128,7 +129,7 @@ public static class LogEntryEndpoints
                 return ApiResults.Error(snapshot.Error);
             }
 
-            var shown = FoodSources.DisplayName(food, FoodSources.DefaultHome);
+            var shown = FoodSources.DisplayName(food, await FoodCountries.HomeAsync(db, userId, cancellationToken));
             name = shown.Length <= 300 ? shown : shown[..300];
             kcal = snapshot.Kcal;
             protein = snapshot.Protein;

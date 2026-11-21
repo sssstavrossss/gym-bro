@@ -158,7 +158,8 @@ public sealed class ClaudeMealModel(IOptions<DescribeOptions> options, ILogger<C
     /// </summary>
     public static MessageContentParam SplitContent(MealNote note)
     {
-        var written = note.Time is { } time ? $"Written at {time.ToString("HH:mm", CultureInfo.InvariantCulture)}. " : "";
+        var written = (note.HomeHint is { } hint ? $"{hint}\n" : "")
+            + (note.Time is { } time ? $"Written at {time.ToString("HH:mm", CultureInfo.InvariantCulture)}. " : "");
         if (note.Photo is not { } photo)
         {
             return written.Length == 0 ? note.Text : $"{written}Note: {note.Text}";

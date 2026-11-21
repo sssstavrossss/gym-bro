@@ -57,7 +57,7 @@ public sealed class MealDescriber(AppDbContext db, IMealModel model)
         var found = new List<List<Food>>();
         foreach (var part in parts)
         {
-            found.Add(await SearchAsync(userId, part.Searches.Append(part.Name), cancellationToken));
+            found.Add(await SearchAsync(userId, note.Home, part.Searches.Append(part.Name), cancellationToken));
         }
 
         var choices = await ChoicesAsync(userId, parts, found, cancellationToken);
@@ -95,7 +95,7 @@ public sealed class MealDescriber(AppDbContext db, IMealModel model)
             }
 
             var seen = found[index].Select(food => food.Id).ToHashSet();
-            var fresh = (await SearchAsync(userId, searches, cancellationToken)).Where(food => !seen.Contains(food.Id)).ToList();
+            var fresh = (await SearchAsync(userId, note.Home, searches, cancellationToken)).Where(food => !seen.Contains(food.Id)).ToList();
             if (fresh.Count > 0)
             {
                 parts.Add(index);
@@ -269,7 +269,7 @@ public sealed class MealDescriber(AppDbContext db, IMealModel model)
     private static string Label(string? label, string fallback) =>
         string.IsNullOrWhiteSpace(label) ? fallback : label.Trim();
 
-    private async Task<List<Food>> SearchAsync(string userId, IEnumerable<string> searches, CancellationToken cancellationToken)
+    private async Task<List<Food>> SearchAsync(string userId, string home, IEnumerable<string> searches, CancellationToken cancellationToken)
     {
         var foods = new List<Food>();
         var queries = searches
@@ -282,7 +282,7 @@ public sealed class MealDescriber(AppDbContext db, IMealModel model)
             // The search sorts each rank by name, so "brød" lists home-made breads first. The person's own foods
             // come first here, then the closest match ("gulost" finds "Gulost, uspesifisert" before "Edamer,
             // gulost"), then the shortest names: in the catalogue those are the everyday ones ("Pizza, kjøpt").
-            var hits = HomeOnlyWhenFound(await FoodCatalog.SearchRankedAsync(db, userId, query, FoodSources.DefaultHome, cancellationToken))
+            var hits = HomeOnlyWhenFound(await FoodCatalog.SearchRankedAsync(db, userId, query, home, cancellationToken))
                 .OrderBy(hit => hit.Food.UserId == userId ? 0 : 1)
                 .ThenBy(hit => hit.Rank)
                 .ThenBy(hit => hit.Food.Name.Length)

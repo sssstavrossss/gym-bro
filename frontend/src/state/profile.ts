@@ -37,6 +37,7 @@ import {
   type Sex,
 } from "../lib/nutrition";
 import { atMostOneDecimal, formatMeasure, parseDecimal, sameNumber } from "../lib/numbers";
+import { countryMovedText, DEFAULT_FOOD_COUNTRY } from "../lib/foodCountries";
 import { foodUnitOf, type FoodUnit } from "../lib/foodUnits";
 import { fatLimitsOf, sodiumLimitOf, type FatLimitsSetting, type NutrientPerson, type SodiumLimitSetting } from "../lib/nutrientCards";
 import { osloYear } from "../lib/nutrients";
@@ -59,6 +60,7 @@ import { isFreshStart, isLowAccuracy, profileTrendLabel } from "../lib/weightDis
 import { boot } from "./boot";
 import { adoptCardPages } from "./cardPages";
 import { adoptHomeSections } from "./homeSections";
+import { openSettings, toast } from "../ui";
 
 export interface ProfileForm {
   sex: Sex | "";
@@ -460,6 +462,8 @@ export function applySettings(settings: SettingsResponse): void {
       ...profile.saved,
       timeZone: settings.timeZone,
       timeZoneFollowsDevice: settings.timeZoneFollowsDevice,
+      foodCountry: settings.foodCountry,
+      foodCountryFollowsZone: settings.foodCountryFollowsZone,
       weightUnit,
       heightUnit,
       foodUnit: foodUnitOf(settings.foodUnit),
@@ -537,17 +541,29 @@ async function saveLimit<K extends "fatLimits" | "sodiumLimit">(key: K, value: N
   }
 }
 
-/** Keeps the profile on this device's zone, unless a zone was picked by hand. Quiet on failure; it retries next start. */
+/** The food country in use: its foods come first in search and Describe, and keep their own names. */
+export function foodCountry(): string {
+  return profile.saved?.foodCountry || DEFAULT_FOOD_COUNTRY;
+}
+
+/**
+ * Keeps the profile on this device's zone, unless a zone was picked by hand. Quiet on failure; it retries next
+ * start. When the new zone brings a new food country, a toast says so, with a way to change it.
+ */
 export async function followDeviceZone(): Promise<void> {
   const saved = profile.saved;
   if (!saved || saved.timeZoneFollowsDevice === false) return;
   const device = deviceTimeZone();
   if (!device || device === saved.timeZone) return;
+  const before = foodCountry();
   try {
     applySettings(await putSettings({ timeZone: device }));
   } catch {
     // The next start tries again.
+    return;
   }
+  const after = foodCountry();
+  if (after !== before) toast(countryMovedText(after), { label: "Change", run: () => openSettings("country") });
 }
 
 export async function commitProfile(): Promise<boolean> {

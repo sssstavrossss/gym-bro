@@ -59,6 +59,10 @@ export interface ProfileResponse {
   timeZone: string;
   /** The app keeps timeZone on the device's zone. False once a zone was picked by hand. */
   timeZoneFollowsDevice?: boolean;
+  /** The food country in use, as an ISO code: its foods come first in search and Describe. */
+  foodCountry?: string;
+  /** The food country is the time zone's. False once a country was picked by hand. */
+  foodCountryFollowsZone?: boolean;
   /** Display units. Values stay in kg and cm. */
   weightUnit?: "kg" | "lb";
   heightUnit?: "cm" | "ftin";
@@ -484,6 +488,9 @@ export async function putProfile(body: ProfileBody): Promise<ProfileStateRespons
 export interface SettingsBody {
   timeZone?: string;
   timeZoneFollowsDevice?: boolean;
+  /** An ISO code picked by hand. Send foodCountryFollowsZone false with it. */
+  foodCountry?: string;
+  foodCountryFollowsZone?: boolean;
   weightUnit?: "kg" | "lb";
   heightUnit?: "cm" | "ftin";
   foodUnit?: FoodUnit;
@@ -497,6 +504,8 @@ export interface SettingsBody {
 export interface SettingsResponse {
   timeZone: string;
   timeZoneFollowsDevice: boolean;
+  foodCountry: string;
+  foodCountryFollowsZone: boolean;
   weightUnit: "kg" | "lb";
   heightUnit: "cm" | "ftin";
   foodUnit: FoodUnit;

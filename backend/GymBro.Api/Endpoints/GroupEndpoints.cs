@@ -3,6 +3,7 @@ using System.Text.Json;
 using GymBro.Api.Data;
 using GymBro.Api.Foods;
 using GymBro.Api.Logging;
+using GymBro.Api.Profiles;
 using Microsoft.EntityFrameworkCore;
 
 namespace GymBro.Api.Endpoints;
@@ -367,7 +368,8 @@ public static class GroupEndpoints
             : await db.UserServings.AsNoTracking()
                 .Where(row => row.UserId == userId && foodIds.Contains(row.FoodId))
                 .ToListAsync(cancellationToken);
-        return new PlanContext(foods.ToDictionary(food => food.Id), servings);
+        var home = await FoodCountries.HomeAsync(db, userId, cancellationToken);
+        return new PlanContext(foods.ToDictionary(food => food.Id), servings, home);
     }
 
     private static GroupResponse Project(EntryGroup group, IReadOnlyList<EntryGroupItem> items, PlanContext context)
@@ -485,7 +487,8 @@ public static class GroupEndpoints
         decimal? Salt = null,
         Dictionary<string, decimal?>? Nutrients = null);
 
-    private sealed class PlanContext(Dictionary<Guid, Food> foods, List<UserServing> servings)
+    /// <summary>The group's foods and the person's own servings for them. <paramref name="home"/> names foods as the log does.</summary>
+    private sealed class PlanContext(Dictionary<Guid, Food> foods, List<UserServing> servings, string home)
     {
         public Food? Food(Guid id) => foods.TryGetValue(id, out var food) ? food : null;
 
@@ -504,7 +507,7 @@ public static class GroupEndpoints
                 ownGrams = servings.FirstOrDefault(row => row.FoodId == foodId && row.NameKey == key)?.Grams;
             }
 
-            return GroupRules.Plan(item, food, ownGrams);
+            return GroupRules.Plan(item, food, ownGrams, home);
         }
     }
 

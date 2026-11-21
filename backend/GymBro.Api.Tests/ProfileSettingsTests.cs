@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using GymBro.Api.Data;
+using GymBro.Api.Profiles;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -35,6 +36,54 @@ public sealed class ProfileSettingsTests(ApiFactory factory)
         Assert.Equal(HttpStatusCode.BadRequest, unknown.StatusCode);
         state = await client.GetFromJsonAsync<JsonElement>("/api/profile");
         Assert.Equal("Europe/Oslo", state.GetProperty("profile").GetProperty("timeZone").GetString());
+    }
+
+    [Fact]
+    public async Task The_food_country_follows_the_time_zone_until_one_is_picked()
+    {
+        factory.Clock.UtcNow = new DateTimeOffset(2026, 11, 16, 8, 0, 0, TimeSpan.Zero);
+        var user = TestData.NewUser("settings-country");
+        using var client = factory.AsUser(user);
+        await TestData.PutWeighIn(client, "2026-11-16", """{"kg":83.6,"timeZone":"UTC"}""");
+        var saved = (await TestData.PutProfile(client, TestData.Profile(timeZone: "Europe/Stockholm"))).GetProperty("profile");
+        Assert.Equal(("SE", true), (saved.GetProperty("foodCountry").GetString(), saved.GetProperty("foodCountryFollowsZone").GetBoolean()));
+
+        // A new zone brings its country while the country follows it.
+        var moved = await Settings(client, new { timeZone = "Europe/Helsinki" });
+        Assert.Equal(("FI", true), (moved.GetProperty("foodCountry").GetString(), moved.GetProperty("foodCountryFollowsZone").GetBoolean()));
+
+        // Picked by hand, it stays when the zone moves.
+        var picked = await Settings(client, new { foodCountry = "no", foodCountryFollowsZone = false });
+        Assert.Equal(("NO", false), (picked.GetProperty("foodCountry").GetString(), picked.GetProperty("foodCountryFollowsZone").GetBoolean()));
+        Assert.Equal("NO", (await Settings(client, new { timeZone = "Europe/Stockholm" })).GetProperty("foodCountry").GetString());
+        var state = await client.GetFromJsonAsync<JsonElement>("/api/profile");
+        Assert.Equal("NO", state.GetProperty("profile").GetProperty("foodCountry").GetString());
+
+        // Following again goes back to the zone's country.
+        Assert.Equal("SE", (await Settings(client, new { foodCountryFollowsZone = true })).GetProperty("foodCountry").GetString());
+
+        var unknown = await client.PutAsJsonAsync("/api/profile/settings", new { foodCountry = "XX", foodCountryFollowsZone = false });
+        Assert.Equal(HttpStatusCode.BadRequest, unknown.StatusCode);
+        Assert.True((await client.GetFromJsonAsync<JsonElement>("/api/profile")).GetProperty("profile").GetProperty("foodCountryFollowsZone").GetBoolean());
+        Assert.Equal(1, await HistoryCount(user));
+    }
+
+    [Fact]
+    public void A_zone_names_its_country_and_a_zone_with_none_falls_back_to_norway()
+    {
+        Assert.Equal(("SE", "FI", "NO", "US"), (FoodCountries.OfZone("Europe/Stockholm"), FoodCountries.OfZone("Europe/Helsinki"), FoodCountries.OfZone("Europe/Oslo"), FoodCountries.OfZone("America/New_York")));
+        // Older names some browsers report.
+        Assert.Equal(("UA", "IN"), (FoodCountries.OfZone("Europe/Kiev"), FoodCountries.OfZone("Asia/Calcutta")));
+        Assert.Null(FoodCountries.OfZone("UTC"));
+
+        Assert.Equal("SE", FoodCountries.Home("Europe/Stockholm", followsZone: true, picked: "FI"));
+        Assert.Equal("FI", FoodCountries.Home("Europe/Stockholm", followsZone: false, picked: "FI"));
+        Assert.Equal("NO", FoodCountries.Home("UTC", followsZone: true, picked: ""));
+        // A hand pick that is not a country (never saved, but an old row could hold one) follows the zone.
+        Assert.Equal("SE", FoodCountries.Home("Europe/Stockholm", followsZone: false, picked: ""));
+        Assert.Equal("NO", FoodCountries.Home(null));
+        Assert.True(FoodCountries.IsKnown("GB"));
+        Assert.False(FoodCountries.IsKnown("gb"));
     }
 
     [Fact]
@@ -196,6 +245,13 @@ public sealed class ProfileSettingsTests(ApiFactory factory)
     {
         using var client = factory.AsUser(TestData.NewUser("keep-goal-none"));
         Assert.Equal(HttpStatusCode.BadRequest, (await client.PostAsync("/api/weight/keep-goal", null)).StatusCode);
+    }
+
+    private static async Task<JsonElement> Settings(HttpClient client, object body)
+    {
+        var response = await client.PutAsJsonAsync("/api/profile/settings", body);
+        Assert.True(response.StatusCode == HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
+        return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
     private async Task<int> HistoryCount(string userId)

@@ -1219,6 +1219,20 @@ namespace GymBro.Api.Data.Migrations
                         .HasColumnType("character varying(8)")
                         .HasColumnName("fat_setting");
 
+                    b.Property<string>("FoodCountry")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(2)
+                        .HasColumnType("character varying(2)")
+                        .HasDefaultValue("")
+                        .HasColumnName("food_country");
+
+                    b.Property<bool>("FoodCountryFollowsZone")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true)
+                        .HasColumnName("food_country_follows_zone");
+
                     b.Property<string>("FoodUnit")
                         .IsRequired()
                         .ValueGeneratedOnAdd()

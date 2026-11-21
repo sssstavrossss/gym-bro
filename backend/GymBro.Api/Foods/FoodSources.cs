@@ -12,7 +12,10 @@ public sealed record FoodSource(string Id, string Name, string Country, string C
 /// </summary>
 public static class FoodSources
 {
-    /// <summary>The country search favours until the profile has its own setting.</summary>
+    /// <summary>
+    /// The food country when none can be told: no profile yet, or a time zone that is no country's (<c>UTC</c>).
+    /// Otherwise it comes from <see cref="GymBro.Api.Profiles.FoodCountries.Home(Profile)"/>.
+    /// </summary>
     public const string DefaultHome = "NO";
 
     public static readonly FoodSource Matvaretabellen = new(

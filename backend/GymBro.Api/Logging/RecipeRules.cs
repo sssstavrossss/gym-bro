@@ -283,7 +283,7 @@ public static class RecipeRules
         public static BuiltLine Bad(string error) => new(BuildStatus.Invalid, error, "", Guid.Empty, "", 0, "", null, default);
     }
 
-    public static BuiltLine BuildNew(Food? food, string userId, decimal rawAmount, string? unit, decimal? ownGramsEach)
+    public static BuiltLine BuildNew(Food? food, string userId, decimal rawAmount, string? unit, decimal? ownGramsEach, string home)
     {
         if (!Owned(food, userId))
         {
@@ -295,7 +295,7 @@ public static class RecipeRules
             return BuiltLine.Bad(FoodRetired);
         }
 
-        return FromFood(food, rawAmount, unit, ownGramsEach);
+        return FromFood(food, rawAmount, unit, ownGramsEach, home);
     }
 
     /// <summary>
@@ -309,7 +309,8 @@ public static class RecipeRules
         decimal rawAmount,
         string? unit,
         decimal? ownGramsEach,
-        RecipeIngredient? kept)
+        RecipeIngredient? kept,
+        string home)
     {
         if (!Owned(food, userId))
         {
@@ -318,7 +319,7 @@ public static class RecipeRules
 
         if (food!.RetiredAt is null)
         {
-            return FromFood(food, rawAmount, unit, ownGramsEach);
+            return FromFood(food, rawAmount, unit, ownGramsEach, home);
         }
 
         if (kept is null || kept.FoodId != food.Id)
@@ -418,7 +419,8 @@ public static class RecipeRules
     private static bool Owned(Food? food, string userId) =>
         food is not null && (food.UserId is null || food.UserId == userId);
 
-    private static BuiltLine FromFood(Food food, decimal rawAmount, string? unit, decimal? ownGramsEach)
+    /// <summary>A line from the food as it is now, named as the log names it for <paramref name="home"/>.</summary>
+    private static BuiltLine FromFood(Food food, decimal rawAmount, string? unit, decimal? ownGramsEach, string home)
     {
         var amount = LogEntryRules.Round2(rawAmount);
         var snapshot = LogEntryRules.Snapshot(food, amount, unit, ownGramsEach);
@@ -433,7 +435,7 @@ public static class RecipeRules
             return BuiltLine.Bad(TooLarge);
         }
 
-        var name = LogEntryRules.Collapse(FoodSources.DisplayName(food, FoodSources.DefaultHome));
+        var name = LogEntryRules.Collapse(FoodSources.DisplayName(food, home));
         if (name.Length == 0)
         {
             name = "Food";

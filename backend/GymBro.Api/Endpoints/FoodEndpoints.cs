@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using GymBro.Api.Data;
 using GymBro.Api.Foods;
+using GymBro.Api.Profiles;
 using GymBro.Api.Users;
 using Microsoft.EntityFrameworkCore;
 
@@ -94,7 +95,8 @@ public static class FoodEndpoints
         }
 
         var userId = Caller.Id(principal);
-        var foods = await FoodCatalog.SearchAsync(db, userId, query, cancellationToken);
+        var home = await FoodCountries.HomeAsync(db, userId, cancellationToken);
+        var foods = await FoodCatalog.SearchAsync(db, userId, query, home, cancellationToken);
         var confirmed = await ConfirmedBases(db, userId, foods, cancellationToken);
         var servings = await ServingEndpoints.ForFoods(db, userId, foods.Select(food => food.Id), cancellationToken);
         return Results.Ok(new { query, foods = foods.Select(food => ToResponse(food, confirmed.GetValueOrDefault(food.Id), servings.GetValueOrDefault(food.Id))).ToList() });
@@ -121,7 +123,8 @@ public static class FoodEndpoints
         }
 
         var userId = Caller.Id(principal);
-        var localBefore = await FoodCatalog.SearchAsync(db, userId, query, cancellationToken);
+        var home = await FoodCountries.HomeAsync(db, userId, cancellationToken);
+        var localBefore = await FoodCatalog.SearchAsync(db, userId, query, home, cancellationToken);
         var confirmed = await ConfirmedBases(db, userId, localBefore, cancellationToken);
         var servings = await ServingEndpoints.ForFoods(db, userId, localBefore.Select(food => food.Id), cancellationToken);
         var outcome = await off.SearchAsync(query, cancellationToken);

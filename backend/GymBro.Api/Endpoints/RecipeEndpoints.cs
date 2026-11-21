@@ -3,6 +3,7 @@ using System.Text.Json;
 using GymBro.Api.Data;
 using GymBro.Api.Foods;
 using GymBro.Api.Logging;
+using GymBro.Api.Profiles;
 using GymBro.Api.Users;
 using Microsoft.EntityFrameworkCore;
 
@@ -435,6 +436,7 @@ public static class RecipeEndpoints
             }
         }
 
+        var home = await FoodCountries.HomeAsync(db, userId, cancellationToken);
         var lines = new List<RecipeRules.BuiltLine>(draft.Ingredients.Count);
         for (var i = 0; i < draft.Ingredients.Count; i++)
         {
@@ -454,8 +456,8 @@ public static class RecipeEndpoints
             }
 
             var built = existing is null
-                ? RecipeRules.BuildNew(food, userId, input.Amount, unit, ownGrams)
-                : RecipeRules.BuildEdit(food, userId, input.Amount, unit, ownGrams, keptByIndex[i]);
+                ? RecipeRules.BuildNew(food, userId, input.Amount, unit, ownGrams, home)
+                : RecipeRules.BuildEdit(food, userId, input.Amount, unit, ownGrams, keptByIndex[i], home);
             if (built.Status == RecipeRules.BuildStatus.NotFound)
             {
                 return Built.Fail(built.Error ?? RecipeRules.MissingFood, StatusCodes.Status404NotFound);

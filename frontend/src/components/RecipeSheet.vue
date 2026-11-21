@@ -50,7 +50,7 @@ import {
   type RecipeTotals,
 } from "../lib/recipes";
 import { afterTitle, entriesOn, targetOn } from "../state/foodDay";
-import { deviceTimeZone, profile } from "../state/profile";
+import { deviceTimeZone, foodCountry, profile } from "../state/profile";
 import { foodAmount, foodUnit } from "../state/units";
 import { findEntry, totalsOf, viewed } from "../state/log";
 import { deleteRecipeWithUndo, fetchRecipe, logSavedRecipe, saveRecipe } from "../state/recipes";
@@ -362,7 +362,7 @@ function draftFrom(food: CatalogFood, origin: ShownAmount): DraftLine {
   return {
     key: crypto.randomUUID(),
     foodId: food.id,
-    name: foodTitle(food),
+    name: foodTitle(food, foodCountry()),
     amountText: origin.text,
     unit: origin.unit,
     available: true,
@@ -539,7 +539,7 @@ function onPadInput(event: Event) {
 
 /** Home foods from Matvaretabellen are most results, so they are not named. The others are. */
 function sourceLabel(food: CatalogFood): string {
-  if (food.source === "mvt" && !isForeign(food)) return "";
+  if (food.source === "mvt" && !isForeign(food, foodCountry())) return "";
   return sourceName(food.source) ?? "";
 }
 
@@ -846,7 +846,7 @@ async function addLog() {
         <h3 v-if="section.title" class="t-cap c3 section-title">{{ section.title }}</h3>
         <button v-for="food in section.rows" :key="food.id" type="button" class="rrow row" @pointerdown="pressIngredient($event, food)" @click="pickIngredient($event, food)">
           <span class="col grow rtext">
-            <span class="t-body name">{{ foodTitle(food) }}</span>
+            <span class="t-body name">{{ foodTitle(food, foodCountry()) }}</span>
             <span class="t-label c2 facts">{{ rowFacts(food) }}</span>
           </span>
           <MicroRing :nutrients="food.nutrients" />

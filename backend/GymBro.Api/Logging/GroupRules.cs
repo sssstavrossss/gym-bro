@@ -57,9 +57,10 @@ public static class GroupRules
 
     /// <summary>
     /// What one re-add should write. <paramref name="ownGramsEach"/> is the person's
-    /// serving as it is now, or null when that name is gone.
+    /// serving as it is now, or null when that name is gone. <paramref name="home"/> is the food country:
+    /// another country's food is named in English, as the log names it.
     /// </summary>
-    public static PlannedItem Plan(EntryGroupItem item, Food? food, decimal? ownGramsEach)
+    public static PlannedItem Plan(EntryGroupItem item, Food? food, decimal? ownGramsEach, string home)
     {
         if (item.FoodId is null)
         {
@@ -82,13 +83,13 @@ public static class GroupRules
                 item.Salt);
         }
 
-        var label = ItemLabel(item, food);
+        var label = ItemLabel(item, food, home);
         if (food is null || food.RetiredAt is not null || (food.UserId is not null && food.UserId != item.UserId))
         {
             return PlannedItem.Skip(label, Skipped(label));
         }
 
-        var name = DisplayName(food);
+        var name = DisplayName(food, home);
         var standard = LogEntryRules.NormalizeUnit(item.Unit);
         var named = standard is null && item.Unit.Length > 0 ? item.Unit : null;
         FoodSnapshot snapshot;
@@ -150,19 +151,19 @@ public static class GroupRules
         && food.NutrientBasis == NutrientBases.Per100
         && food.Basis == "g";
 
-    private static string ItemLabel(EntryGroupItem item, Food? food)
+    private static string ItemLabel(EntryGroupItem item, Food? food, string home)
     {
         if (item.Name.Length > 0)
         {
             return item.Name;
         }
 
-        return food is null ? "A food" : DisplayName(food);
+        return food is null ? "A food" : DisplayName(food, home);
     }
 
-    private static string DisplayName(Food food)
+    private static string DisplayName(Food food, string home)
     {
-        var text = FoodSources.DisplayName(food, FoodSources.DefaultHome);
+        var text = FoodSources.DisplayName(food, home);
         return text.Length <= 300 ? text : text[..300];
     }
 }

@@ -544,6 +544,10 @@ public sealed class DescribeMealTests(ApiFactory factory)
         client.DefaultRequestHeaders.Add("X-Test-Oid", user);
         client.DefaultRequestHeaders.Add("X-Test-Name", "Test User");
 
+        // Living in Sweden: the note carries the food country.
+        await TestData.PutWeighIn(client, "2026-11-20", """{"kg":83.6,"timeZone":"UTC"}""");
+        await TestData.PutProfile(client, TestData.Profile(timeZone: "Europe/Stockholm"));
+
         var response = await client.PostAsJsonAsync("/api/describe", new { text = "a zap bun with cheese", time = "07:45" });
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var items = (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("items").EnumerateArray().ToList();
@@ -562,7 +566,7 @@ public sealed class DescribeMealTests(ApiFactory factory)
         Assert.DoesNotContain(again.Candidates, candidate => candidate.Food.Id == soft);
         Assert.Contains(again.Candidates, candidate => candidate.Food.Id == loaf);
 
-        Assert.Equal(new TimeOnly(7, 45), model.Notes.Single().Time);
+        Assert.Equal((new TimeOnly(7, 45), "SE"), (model.Notes.Single().Time, model.Notes.Single().Home));
         await using var scope = factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         Assert.Equal(3, (await db.MealDescriptions.SingleAsync(row => row.UserId == user)).Calls);
@@ -582,6 +586,19 @@ public sealed class DescribeMealTests(ApiFactory factory)
         var photo = MealPhoto.Read("image/jpeg", Convert.ToBase64String(Jpeg)).Photo!;
         var withPhoto = JsonSerializer.Serialize(new UserMessageParam { Content = ClaudeMealModel.SplitContent(new MealNote("", photo, new TimeOnly(19, 30))) });
         Assert.Contains("Written at 19:30. No words, only the photo.", withPhoto, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Outside_norway_the_note_says_which_language_to_search_first()
+    {
+        Assert.Null(new MealNote("2 eggs").HomeHint);
+        var swedish = new MealNote("2 eggs", null, new TimeOnly(7, 5), "SE");
+        var words = JsonSerializer.Serialize(new UserMessageParam { Content = ClaudeMealModel.SplitContent(swedish) });
+        Assert.Contains("search in Swedish first", words, StringComparison.Ordinal);
+        Assert.Contains("Written at 07:05. Note: 2 eggs", words, StringComparison.Ordinal);
+        Assert.Equal($"2 eggs\n{swedish.HomeHint}", swedish.ForPick);
+        Assert.Contains("Finnish first", new MealNote("x", Home: "FI").HomeHint, StringComparison.Ordinal);
+        Assert.Contains("English first", new MealNote("x", Home: "GB").HomeHint, StringComparison.Ordinal);
     }
 
     [Fact]

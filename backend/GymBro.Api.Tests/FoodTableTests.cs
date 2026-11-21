@@ -168,6 +168,47 @@ public sealed class FoodTableTests(ApiFactory factory)
         await Retire("zqhome");
     }
 
+    [Fact]
+    public async Task The_food_country_puts_its_own_table_first_and_its_foods_keep_their_own_names()
+    {
+        factory.Clock.UtcNow = new DateTimeOffset(2026, 10, 24, 12, 0, 0, TimeSpan.Zero);
+        var user = TestData.NewUser("table-country");
+        using var client = factory.AsUser(user);
+        await Retire("slv");
+        await Retire("fineli");
+        await ImportTable(FoodSources.Fineli, Row("f1", "Zqkaali, keitetty", "Zqcabbage, boiled"));
+        await ImportSlv(Slv(91001, "Zqkål kokt", "Zqcabbage boiled", ("ENERC", "kcal", 30)));
+
+        // In Norway both are neighbours' foods, so the name decides.
+        Assert.Equal(["f1", "91001"], await SourceIds(client, "zqcabbage"));
+
+        await TestData.PutWeighIn(client, "2026-10-24", """{"kg":83.6,"timeZone":"UTC"}""");
+        await TestData.PutProfile(client, TestData.Profile(timeZone: "Europe/Stockholm"));
+        Assert.Equal(["91001", "f1"], await SourceIds(client, "zqcabbage"));
+
+        // Logged in Sweden, a Swedish food keeps its own name and a Finnish one goes by its English name.
+        var foods = await Search(client, "zqcabbage");
+        Assert.Equal("Zqkål kokt", await LoggedName(client, foods[0], "table-country-1"));
+        Assert.Equal("Zqcabbage, boiled", await LoggedName(client, foods[1], "table-country-2"));
+
+        // A country picked by hand wins over the zone.
+        var picked = await client.PutAsJsonAsync("/api/profile/settings", new { foodCountry = "FI", foodCountryFollowsZone = false });
+        Assert.Equal(HttpStatusCode.OK, picked.StatusCode);
+        Assert.Equal(["f1", "91001"], await SourceIds(client, "zqcabbage"));
+        await Retire("slv");
+        await Retire("fineli");
+    }
+
+    private static async Task<string?> LoggedName(HttpClient client, JsonElement food, string key)
+    {
+        var logged = await client.PostAsync("/api/log-entries", new StringContent(
+            $$"""{"idempotencyKey":"{{key}}","localDate":"2026-10-24","timeZone":"UTC","foodId":"{{food.GetProperty("id").GetGuid()}}","amount":150,"unit":"g"}""",
+            Encoding.UTF8,
+            "application/json"));
+        Assert.True(logged.StatusCode == HttpStatusCode.Created, await logged.Content.ReadAsStringAsync());
+        return (await logged.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("name").GetString();
+    }
+
     private static SlvFood Slv(int number, string name, string nameEn, params (string Code, string Unit, decimal Value)[] values) =>
         new(number, name, nameEn, values.Select(value => new SlvNutrient(value.Code, value.Unit, value.Value)).ToList());
 
