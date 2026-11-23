@@ -369,6 +369,16 @@ if (args.Contains("--backfill-food-aliases"))
     return;
 }
 
+if (args.Contains("--backfill-food-measures"))
+{
+    await using var scope = app.Services.CreateAsyncScope();
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    var measures = await FoodMeasures.ApplyAsync(db, null, CancellationToken.None);
+    Console.WriteLine(
+        $"Food measures v{FoodMeasures.Current.Version}: {measures.Updated} rows given measures, {measures.AlreadyPresent} already had them, {measures.Renamed} skipped because the name changed, {measures.Missing} not in the database.");
+    return;
+}
+
 app.Run();
 
 public partial class Program
