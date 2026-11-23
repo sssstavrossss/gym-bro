@@ -6,7 +6,8 @@ namespace GymBro.Api.Foods;
 
 /// <summary>
 /// The Swedish Food Agency's food composition database (Livsmedelsdatabasen), CC BY 4.0. Read from its open API:
-/// one list per language and one request per food for the nutrient values. No household measures.
+/// one list per language and one request per food for the nutrient values. It publishes no household measures;
+/// <see cref="FoodMeasures"/> adds reviewed ones for common foods.
 /// </summary>
 public static class Livsmedelsverket
 {

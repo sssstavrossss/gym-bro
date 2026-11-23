@@ -85,15 +85,19 @@ public sealed class FoodTableImporter(AppDbContext db, TimeProvider clock, ILogg
         credit.FoodCount = seen.Count;
         await db.SaveChangesAsync(cancellationToken);
 
+        // Measures the table does not publish, put back on the rows the copy above just cleared.
+        var measures = await FoodMeasures.ApplyAsync(db, source.Id, cancellationToken);
         var (keywords, categories) = await ReplaceKeywordsAsync(source, seen.Values.ToList(), cancellationToken);
         // Our phrases after the keywords, so a word the table also lists ranks as ours.
         var aliases = await FoodAliasCatalogue.ApplyAsync(db, source.Id, cancellationToken);
         logger.LogInformation(
-            "{Source} import upserted {Upserted}, retired {Retired}, skipped {Skipped}; {Keywords} keywords, {Categories} category words; lexicon phrases added {Inserted}, already present {AlreadyPresent}, seeds skipped {SeedsSkipped}.",
+            "{Source} import upserted {Upserted}, retired {Retired}, skipped {Skipped}; reviewed measures on {Measured} rows, {Renamed} renamed; {Keywords} keywords, {Categories} category words; lexicon phrases added {Inserted}, already present {AlreadyPresent}, seeds skipped {SeedsSkipped}.",
             source.Name,
             upserted,
             retired,
             skipped,
+            measures.Updated + measures.AlreadyPresent,
+            measures.Renamed,
             keywords,
             categories,
             aliases.Inserted,
