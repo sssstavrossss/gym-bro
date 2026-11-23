@@ -30,7 +30,11 @@ public static class FoodSources
     public static readonly FoodSource Fineli = new(
         Foods.Fineli.Source, "Fineli", "FI", Foods.Fineli.Citation);
 
-    public static readonly IReadOnlyList<FoodSource> All = [Matvaretabellen, Kassalapp, Livsmedelsverket, Fineli];
+    /// <summary>The United States' table: home there, and after the home table and its neighbours everywhere else.</summary>
+    public static readonly FoodSource Usda = new(
+        Foods.Usda.Source, "USDA FoodData Central", "US", Foods.Usda.Citation);
+
+    public static readonly IReadOnlyList<FoodSource> All = [Matvaretabellen, Kassalapp, Livsmedelsverket, Fineli, Usda];
 
     /// <summary>Countries whose foods come second for one another. Nordic tables share most dishes and names.</summary>
     private static readonly IReadOnlySet<string> Nordic = new HashSet<string>(StringComparer.Ordinal) { "NO", "SE", "FI", "DK", "IS" };

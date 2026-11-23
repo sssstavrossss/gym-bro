@@ -27,6 +27,7 @@ describe("food countries", () => {
     expect(countryTables("NO")).toBe("Matvaretabellen · Kassalapp");
     expect(countryTables("SE")).toBe("Livsmedelsverket");
     expect(countryTables("FI")).toBe("Fineli");
+    expect(countryTables("US")).toBe("USDA FoodData Central");
     expect(countryTables("FR")).toBe("Global foods");
   });
 
@@ -42,6 +43,7 @@ describe("food countries", () => {
 
   it("says what a move to a new country changes", () => {
     expect(countryMovedText("SE")).toBe("In Sweden: Swedish foods first");
+    expect(countryMovedText("US")).toBe("In United States: American foods first");
     expect(countryMovedText("FR")).toBe("In France: foods by their English names");
   });
 });
