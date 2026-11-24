@@ -4,6 +4,7 @@ import { lastPlanDate } from "./lib/dayLog";
 import { primeKeyboard, rememberOpener } from "./lib/focusField";
 import type { PageCard } from "./lib/cardPages";
 import type { SheetName } from "./lib/layout";
+import { TOAST_LIFE, TOAST_SHORT, enqueue, frontTimer, type QueuedToast, type ToastAction, type ToastMerge } from "./lib/toastQueue";
 import { deviceTimeZone } from "./state/profile";
 
 /** Add food tabs. Describe shows only when the server can describe meals. */
@@ -25,7 +26,8 @@ export const ui = reactive({
   /** The barcode scanner is open over the search list. */
   foodScan: false,
   editEntryId: null as string | null,
-  toast: null as null | { id: number; text: string; action?: { label: string; run: () => void } },
+  /** Waiting toasts: [0] is in front and counting down, [1] shows its edge behind, the rest wait unseen. */
+  toasts: [] as QueuedToast[],
   weightDate: todayIso(),
   /** Local date the open food sheet will log to. Today unless a past day asked. */
   foodDate: todayIso(),
@@ -60,22 +62,52 @@ export const ui = reactive({
   settingsView: "main" as SettingsView,
 });
 
-let toastTimer = 0;
+let toastSeq = 0;
+const toastClock = frontTimer(TOAST_LIFE, () => dismissToast());
 
-export function runToastAction(): void {
-  const action = ui.toast?.action;
-  ui.toast = null;
-  action?.run();
+/**
+ * Shows a toast at the bottom of the screen. It waits behind the ones already showing, and its 4 s start when
+ * it reaches the front. One with Undo cuts the ones ahead of it to a second each. Toasts with the same `merge` kind arriving back to back become one.
+ */
+export function toast(text: string, action?: ToastAction, options: { error?: boolean; merge?: ToastMerge } = {}): void {
+  const spec = { text, ...(action ? { action } : {}), ...(options.error ? { error: true } : {}), ...(options.merge ? { merge: options.merge } : {}) };
+  const next = enqueue(ui.toasts, spec, ++toastSeq);
+  ui.toasts = next.queue;
+  if (next.restart) toastClock.start();
+  else if (next.cut) toastClock.shorten(TOAST_SHORT);
 }
 
-export function toast(text: string, action?: { label: string; run: () => void }): void {
-  const id = Date.now();
-  ui.toast = action ? { id, text, action } : { id, text };
-  window.clearTimeout(toastTimer);
-  // Undo stays up for at least 5 seconds (decision 39).
-  toastTimer = window.setTimeout(() => {
-    if (ui.toast?.id === id) ui.toast = null;
-  }, action ? 5000 : 4000);
+/** A failure: the alert icon, announced at once. */
+export function toastError(text: string): void {
+  toast(text, undefined, { error: true });
+}
+
+/** Takes the front toast away (its time ran out, it was thrown off, or its button was tapped). The next one comes forward. */
+export function dismissToast(id?: number): void {
+  const front = ui.toasts[0];
+  if (!front || (id != null && front.id !== id)) return;
+  ui.toasts = ui.toasts.slice(1);
+  toastClock.stop();
+  if (ui.toasts.length) toastClock.start(ui.toasts[0].short ? TOAST_SHORT : TOAST_LIFE);
+}
+
+export function runToastAction(): void {
+  const front = ui.toasts[0];
+  if (!front) return;
+  dismissToast(front.id);
+  front.action?.run();
+}
+
+/** A finger (or the pointer) on the front toast stops its clock until it lets go. */
+export function holdToast(held: boolean): void {
+  if (held) toastClock.pause();
+  else toastClock.resume();
+}
+
+/** Clears every toast at once (sign-out, tests). */
+export function clearToasts(): void {
+  ui.toasts = [];
+  toastClock.stop();
 }
 
 export function openSettings(view: SettingsView = "main"): void {

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
-import { ApiError, createCustomFood, getFood, listMyFoods, listRecentFoods, searchFoods, searchOpenFoodFacts, ServerUnreachable, type FoodSearchRow, type OffFoodRow, type RecentFood, type SavedGroup } from "../api";
+import { ApiError, createCustomFood, getFood, restoreCustomFood, listMyFoods, listRecentFoods, searchFoods, searchOpenFoodFacts, ServerUnreachable, type FoodSearchRow, type OffFoodRow, type RecentFood, type SavedGroup } from "../api";
 import BottomSheet from "./BottomSheet.vue";
 import FoodEditor from "./FoodEditor.vue";
 import Icon from "./Icon.vue";
@@ -67,11 +67,11 @@ import SavedGroups from "./SavedGroups.vue";
 import RecipeList from "./RecipeList.vue";
 import { canSaveGroup, groupTimeNote, matchingGroups, readdToast } from "../lib/groups";
 import { canSaveRecipe, matchingRecipes, recipeFoodEntries } from "../lib/recipes";
-import { deleteSavedGroup, loadGroups, readdSavedGroup, savedGroups } from "../state/groups";
+import { deleteSavedGroup, loadGroups, readdSavedGroup, restoreSavedGroup, savedGroups } from "../state/groups";
 import { loadRecipes, savedRecipes } from "../state/recipes";
 import { foodAmount, foodUnit } from "../state/units";
 import { addChosen, describe, loadDescribe, resetDescribe, setRowAmount } from "../state/describe";
-import { closeFoodLayer, closeSheet, openCopy, openFoodScan, openGroupSheet, openRecipeCreate, openRecipeEdit, openRecipeFromEntries, openRecipeLog, toast, ui, type FoodTab } from "../ui";
+import { closeFoodLayer, closeSheet, openCopy, openFoodScan, openGroupSheet, openRecipeCreate, openRecipeEdit, openRecipeFromEntries, openRecipeLog, toast, toastError, ui, type FoodTab } from "../ui";
 
 const open = computed(() => ui.sheet === "food");
 const editing = computed(() => findEntry(ui.editEntryId));
@@ -543,7 +543,28 @@ async function onFoodDeleted(food: FoodSearchRow) {
   detailFood.value = null;
   await loadMine();
   if (trimmedQuery.value && filter.value === "all") void runSearch(trimmedQuery.value);
-  toast(`Deleted ${food.name} · past entries kept`);
+  toast(`Deleted ${food.name} · past entries kept`, { label: "Undo", run: () => { void undoFoodDelete(food); } });
+}
+async function undoFoodDelete(food: FoodSearchRow) {
+  try {
+    await restoreCustomFood(food.id);
+  } catch {
+    toastError("Couldn't restore that food.");
+    return;
+  }
+  await loadMine();
+  if (trimmedQuery.value && filter.value === "all") void runSearch(trimmedQuery.value);
+}
+/** Undo for adds: the entries go, and so do their rows in the "added" bar. */
+function undoAdds(entries: LogEntry[]) {
+  const ids = new Set(entries.map((entry) => entry.id));
+  session.value = session.value.filter((row) => !ids.has(row.id));
+  void removeEntries(entries, { announce: false });
+}
+/** The add toast: Undo, and back-to-back adds fold into one ("Added 2 foods · 237 kcal"). */
+function addedToast(text: string, entries: LogEntry[]) {
+  const kcal = entries.reduce((sum, entry) => sum + entry.kcal, 0);
+  toast(text, { label: "Undo", run: () => undoAdds(entries) }, { merge: { kind: "add", count: entries.length, kcal } });
 }
 async function loadRecents() {
   const gen = ++recentGen;
@@ -625,8 +646,8 @@ async function addRecent(food: RecentFood) {
       return;
     }
     recentKeys.delete(food.id);
-    toast(`Added ${foodAmount(result.entry.amount, result.entry.unit || picked.unit)} ${result.entry.name} · ${int(result.entry.kcal)} kcal`);
     noteSession(result.entry);
+    addedToast(`Added ${foodAmount(result.entry.amount, result.entry.unit || picked.unit)} ${result.entry.name} · ${int(result.entry.kcal)} kcal`, [result.entry]);
     justAdded.value = food.id;
     window.clearTimeout(justTimer);
     justTimer = window.setTimeout(() => {
@@ -864,7 +885,7 @@ async function addDescribed() {
     return;
   }
   const count = result.added.length;
-  toast(`Added ${count === 1 ? "1 food" : `${count} foods`} · ${int(result.kcal)} kcal`);
+  addedToast(`Added ${count === 1 ? "1 food" : `${count} foods`} · ${int(result.kcal)} kcal`, result.added);
   void loadRecents();
   ui.foodTab = "search";
 }
@@ -910,21 +931,30 @@ async function addGroup(group: SavedGroup) {
   window.setTimeout(() => {
     if (justGroup.value === group.id) justGroup.value = null;
   }, 1200);
-  toast(readdToast(group.name, result.entries.length, addedKcal, result.notice), result.entries.length ? {
-    label: "Undo",
-    run: () => {
-      const ids = new Set(result.entries.map((entry) => entry.id));
-      session.value = session.value.filter((row) => !ids.has(row.id));
-      void removeEntries(result.entries, { announce: false });
-    },
-  } : undefined);
+  const text = readdToast(group.name, result.entries.length, addedKcal, result.notice);
+  // A notice (a food that is gone) stays its own toast so it isn't folded away.
+  if (result.entries.length && !result.notice.trim()) addedToast(text, result.entries);
+  else toast(text, result.entries.length ? { label: "Undo", run: () => undoAdds(result.entries) } : undefined);
 }
 async function removeGroup(group: SavedGroup) {
   if (saving.value) return;
   saving.value = true;
+  const index = savedGroups.list.findIndex((row) => row.id === group.id);
+  formError.value = "";
   const removed = await deleteSavedGroup(group.id);
   saving.value = false;
-  if (removed) toast(`Deleted group ${group.name}`);
+  if (!removed.ok) {
+    formError.value = removed.message;
+    return;
+  }
+  toast(`Deleted group ${group.name}`, {
+    label: "Undo",
+    run: () => {
+      void restoreSavedGroup(group.id, index).then((ok) => {
+        if (!ok) toastError("Couldn't restore that group.");
+      });
+    },
+  });
 }
 
 async function addQuick() {
@@ -1006,10 +1036,10 @@ async function addQuick() {
       return;
     }
     const savedMine = qSave.value;
-    toast(savedMine
-      ? `Added ${result.entry.name} · ${int(result.entry.kcal)} kcal · saved to My foods`
-      : `Added ${result.entry.name} · ${int(result.entry.kcal)} kcal`);
     noteSession(result.entry);
+    addedToast(savedMine
+      ? `Added ${result.entry.name} · ${int(result.entry.kcal)} kcal · saved to My foods`
+      : `Added ${result.entry.name} · ${int(result.entry.kcal)} kcal`, [result.entry]);
     if (savedMine) void loadMine();
     const held = otherDay.value ? time.value : null;
     fill(null);
@@ -1090,8 +1120,8 @@ async function addDetail() {
       formError.value = result.message;
       return;
     }
-    toast(`Added ${foodAmount(result.entry.amount, result.entry.unit || unit.value)} ${result.entry.name} · ${int(result.entry.kcal)} kcal`);
     noteSession(result.entry);
+    addedToast(`Added ${foodAmount(result.entry.amount, result.entry.unit || unit.value)} ${result.entry.name} · ${int(result.entry.kcal)} kcal`, [result.entry]);
     const backToSearch = searchView.value;
     ui.detailFoodId = null;
     detailFood.value = null;
@@ -1127,7 +1157,7 @@ async function deleteEdited() {
 <template>
   <BottomSheet :open="open" :label="sheetLabel" full @close="closeSheet">
     <template #header>
-      <div class="toast-pad">
+      <div class="headcol">
       <div class="row hdr">
         <button v-if="showDetail || showEditor || showScan" type="button" class="cbtn"  aria-label="Back" @click="back">
           <Icon name="left" :size="18" />
@@ -1338,7 +1368,7 @@ async function deleteEdited() {
         <p v-if="formError" class="err t-label" role="alert">{{ formError }}</p>
       </div>
       <!-- Hidden while the search field has the keyboard: the list needs that room, and Done isn't needed mid-typing. -->
-      <div v-if="session.length" v-show="!searchFocused" class="well session" role="status" data-session>
+      <div v-if="session.length" v-show="!searchFocused" class="well session" role="status" data-session data-toast-floor>
         <span class="col stext">
           <span class="t-bodys">{{ session.length }} added · {{ int(sessionKcal) }} kcal</span>
           <span class="t-capn c2">{{ otherDay ? dayMonth(ui.foodDate) : "Today" }} · {{ int(foodTotals.kcal) }} kcal</span>
@@ -1400,10 +1430,10 @@ async function deleteEdited() {
         </span>
         <button type="button" class="btn sm secondary t-label" @click="saveError = false">Dismiss</button>
       </div>
-      <Keypad v-if="!keyboardEntry" @key="qKey" />
+      <Keypad v-if="!keyboardEntry" data-toast-floor @key="qKey" />
       <p v-else class="t-capn c3 khint keyhint"><kbd>Tab</kbd> next field · <kbd>Enter</kbd> {{ editing ? "save" : "add" }} · <kbd>Esc</kbd> close</p>
       <OfflineNote :entry="editing" />
-      <div class="row gap8 actions">
+      <div class="row gap8 actions" data-toast-floor>
         <button v-if="editing && editing.queued !== 'failed'" type="button" class="btn secondary t-bodys" aria-label="Copy to another day" :disabled="saving" @click="copyEdited">
           <Icon name="copy" :size="16" /><span>Copy</span>
         </button>
@@ -1421,7 +1451,6 @@ async function deleteEdited() {
 <style scoped>
 .hdr { gap: var(--space-m); min-width: 0; flex-wrap: wrap; align-items: center; }
 .needt { margin: 0; display: flex; align-items: center; gap: var(--space-s); color: var(--text-secondary); }
-.toast-pad { display: flex; flex-direction: column; gap: var(--space-m); padding-top: var(--food-toast-space, 0px); }
 .gap2 { gap: var(--space-2xs); }
 .gap8 { gap: var(--space-s); }
 .field { flex: none; }
@@ -1459,6 +1488,7 @@ async function deleteEdited() {
 .actions .btn.primary { width: auto; flex: 1 1 auto; min-width: 0; }
 .base { min-width: 0; max-width: 100%; display: flex; align-items: baseline; gap: var(--space-s); flex-wrap: wrap; }
 /* The Home nutrient card, the same size, on the sheet's grey. */
+.headcol { display: flex; flex-direction: column; gap: var(--space-m); }
 .session { display: flex; flex-direction: column; align-items: stretch; gap: var(--space-s); flex: none; min-width: 0; max-width: 100%; box-sizing: border-box; }
 .stext { min-width: 0; }
 .sbtns { display: flex; flex-wrap: wrap; align-items: stretch; gap: var(--space-s); margin: 0; min-width: 0; max-width: 100%; }

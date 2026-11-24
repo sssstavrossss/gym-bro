@@ -75,7 +75,7 @@ const sheetStyle = computed(() => {
         <div class="sheet-body">
           <slot />
         </div>
-        <div v-if="$slots.footer" class="sheet-foot">
+        <div v-if="$slots.footer" class="sheet-foot" data-toast-floor>
           <slot name="footer" />
         </div>
       </div>

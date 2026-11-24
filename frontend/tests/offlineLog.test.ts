@@ -16,7 +16,7 @@ const { todayIso } = await import("../src/lib/dates");
 const { dayTotals, loadToday, log, saveQuickAdd, sendQueue } = await import("../src/state/log");
 const { connection } = await import("../src/state/connection");
 const { outbox, setOps } = await import("../src/state/outbox");
-const { ui } = await import("../src/ui");
+const { ui, clearToasts } = await import("../src/ui");
 
 const today = todayIso();
 
@@ -71,7 +71,7 @@ afterEach(() => {
   log.entries = [];
   log.date = "";
   connection.offline = false;
-  ui.toast = null;
+  clearToasts();
   vi.clearAllMocks();
 });
 
@@ -111,7 +111,7 @@ it("sends the queue under the same key once the server answers, and says so", as
   expect(api.addLogEntry.mock.calls[0][0]).toMatchObject({ idempotencyKey: "later", time: "08:00" });
   expect(outbox.ops).toEqual([]);
   expect(log.entries.map((entry) => [entry.id, entry.queued])).toEqual([["id-later", undefined]]);
-  expect(ui.toast?.text).toBe("Back online. 1 food sent.");
+  expect(ui.toasts.at(-1)?.text).toBe("Back online. 1 food sent.");
 });
 
 it("keeps an add the server refuses as couldn't send, out of the totals", async () => {
@@ -126,7 +126,7 @@ it("keeps an add the server refuses as couldn't send, out of the totals", async 
   expect(log.entries).toHaveLength(1);
   expect(log.entries[0]).toMatchObject({ queued: "failed", queuedNote: "That food was deleted." });
   expect(dayTotals().kcal).toBe(0);
-  expect(ui.toast?.text).toContain("1 food couldn't send");
+  expect(ui.toasts.at(-1)?.text).toContain("1 food couldn't send");
 });
 
 it("stops when the server goes away again and keeps the rest", async () => {

@@ -14,7 +14,7 @@ import { nudgeTenth, parseDecimal, typeInto } from "../lib/numbers";
 import { earliestNewWeighInDate, gapLabel, isFreshStart, isLowAccuracy, newWeighInDates, trendChange } from "../lib/weightDisplay";
 import { profile, removeWeighIn, saveWeighIn } from "../state/profile";
 import { weightUnit, wt, wtSigned, wtUnit } from "../state/units";
-import { closeSheet, toast, ui } from "../ui";
+import { closeSheet, toast, toastError, ui } from "../ui";
 import { keyboardEntry } from "../lib/viewport";
 import { armReplace } from "../lib/focusField";
 import { afterInsertion, markWholeSelection, nextQuickInput, tookWholeSelection } from "../lib/quickEntry";
@@ -299,7 +299,7 @@ async function del() {
   }
   closeSheet();
   if (old == null) {
-    toast("Weigh-in deleted");
+    toast(`Deleted weigh-in · ${shortDate(date)}`);
     return;
   }
   const kilograms = old;
@@ -313,10 +313,10 @@ async function restoreWeighIn(date: string, kilograms: number) {
   const result = await saveWeighIn(date, kilograms);
   if (result?.confirm) {
     const forced = await saveWeighIn(date, kilograms, true);
-    if (!forced || forced.confirm) toast("Could not restore that weigh-in.");
+    if (!forced || forced.confirm) toastError("Couldn't restore that weigh-in.");
     return;
   }
-  if (!result) toast("Could not restore that weigh-in.");
+  if (!result) toastError("Couldn't restore that weigh-in.");
 }
 
 const diffText = computed(() => (

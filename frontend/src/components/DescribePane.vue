@@ -203,7 +203,7 @@ function onDraftKey(event: KeyboardEvent) {
     </div>
 
     <div class="dtray">
-      <button v-if="describe.phase === 'write'" type="button" class="btn primary block t-bodys" :disabled="!canFind" @click="findFoods">
+      <button v-if="describe.phase === 'write'" type="button" class="btn primary block t-bodys" data-toast-floor :disabled="!canFind" @click="findFoods">
         <Icon name="sparkle" :size="18" /><span>{{ describe.retryable ? "Try again" : "Find foods" }}</span>
       </button>
       <div v-else-if="describe.revising" class="row pair">
@@ -212,7 +212,7 @@ function onDraftKey(event: KeyboardEvent) {
           <Icon name="sparkle" :size="18" /><span>{{ describe.retryable ? "Try again" : "Find again" }}</span>
         </button>
       </div>
-      <button v-else type="button" class="btn primary block t-bodys" :disabled="!canAdd" @click="emit('add')">
+      <button v-else type="button" class="btn primary block t-bodys" data-toast-floor :disabled="!canAdd" @click="emit('add')">
         {{ finding ? "Add" : addText }}
       </button>
       <p v-if="left && (describe.phase === 'write' || describe.revising)" class="t-capn c3 left" role="status">{{ left }}</p>

@@ -43,7 +43,7 @@ public static class ExportTables
         var servings = await db.UserServings.AsNoTracking().Where(row => row.UserId == userId).ToListAsync(cancellationToken);
         var recipes = await db.Recipes.AsNoTracking().Where(row => row.UserId == userId).OrderBy(row => row.Name).ToListAsync(cancellationToken);
         var ingredients = await db.RecipeIngredients.AsNoTracking().Where(row => row.UserId == userId).ToListAsync(cancellationToken);
-        var groups = await db.EntryGroups.AsNoTracking().Where(row => row.UserId == userId).OrderBy(row => row.Name).ToListAsync(cancellationToken);
+        var groups = await db.EntryGroups.AsNoTracking().Where(row => row.UserId == userId && row.DeletedAt == null).OrderBy(row => row.Name).ToListAsync(cancellationToken);
         var items = await db.EntryGroupItems.AsNoTracking().Where(row => row.UserId == userId).ToListAsync(cancellationToken);
         var described = await db.MealDescriptions.AsNoTracking().Where(row => row.UserId == userId).OrderBy(row => row.CreatedAt).ToListAsync(cancellationToken);
 

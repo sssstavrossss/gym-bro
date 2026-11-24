@@ -89,7 +89,7 @@ test("food in ounces: typed in oz, saved in grams, untouched amounts kept exactl
   await expect(edit.getByRole("textbox", { name: "Amount of Fictional oat bowl" })).toHaveValue("5.3");
   await expect(edit.getByRole("textbox", { name: "Finished weight in ounces, optional" })).toHaveValue("15.9");
   await edit.getByRole("button", { name: "Save recipe" }).click();
-  await expect(page.getByText(/Updated “Fictional oat pot”/)).toBeVisible();
+  await expect(page.getByText(/Updated Fictional oat pot · [\d,]+ kcal per portion/)).toBeVisible();
   const saved = await (await page.request.get(`/api/recipes/${recipeId}`, { headers })).json();
   expect(saved.ingredients[0].amount).toBe(150);
   expect(saved.finishedGrams).toBe(450);

@@ -121,7 +121,7 @@ test("save a group from a selection, expand it, and re-add it on today", async (
   await expect(naming.getByRole("heading", { name: "Save as group" })).toBeVisible();
   await naming.getByLabel("Group name").fill("Usual breakfast");
   await naming.getByRole("button", { name: /Save group · 3 items/ }).click();
-  await expect(page.getByText(/Saved “Usual breakfast” · 3 items/)).toBeVisible();
+  await expect(page.getByText(/Saved Usual breakfast · 3 items/)).toBeVisible();
 
   await page.getByRole("button", { name: "Add food", exact: true }).click();
   const food = page.getByRole("dialog", { name: "Add food" });

@@ -343,13 +343,40 @@ public sealed class SavedGroupTests(ApiFactory factory)
 
         await using var scope = factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        Assert.Equal(0, await db.EntryGroups.CountAsync(row => row.UserId == owner && row.Id == groupId));
+        // Deleting keeps the row for Undo: hidden from the API, items and entry links left in place.
+        Assert.NotNull((await db.EntryGroups.AsNoTracking().SingleAsync(row => row.UserId == owner && row.Id == groupId)).DeletedAt);
         Assert.Equal(0, await db.EntryGroups.CountAsync(row => row.UserId == strangerId));
         Assert.Equal(0, await db.LogEntries.CountAsync(row => row.UserId == strangerId));
-        Assert.Equal(0, await db.EntryGroupItems.CountAsync(row => row.GroupId == groupId));
+        Assert.Equal(2, await db.EntryGroupItems.CountAsync(row => row.GroupId == groupId));
         var kept = await db.LogEntries.AsNoTracking().Where(row => row.UserId == owner && row.DeletedAt == null).ToListAsync();
         Assert.Equal(4, kept.Count);
-        Assert.All(kept, row => Assert.Null(row.GroupId));
+        Assert.Equal(2, kept.Count(row => row.GroupId == groupId));
+        Assert.Equal(HttpStatusCode.NotFound, (await Readd(client, groupId, "2026-10-24", "after-delete")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await client.DeleteAsync("/api/groups/" + groupId)).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await stranger.PostAsync("/api/groups/" + groupId + "/restore", null)).StatusCode);
+    }
+
+    [Fact]
+    public async Task Restoring_a_deleted_group_brings_it_back_with_its_items()
+    {
+        factory.Clock.UtcNow = new DateTimeOffset(2026, 10, 24, 9, 0, 0, TimeSpan.Zero);
+        using var client = factory.AsUser(TestData.NewUser("group-restore"));
+        await Setup(client, "2026-10-24");
+        var groupId = await GroupOfThree(client, "2026-10-24");
+        Assert.Equal(HttpStatusCode.NoContent, (await client.DeleteAsync("/api/groups/" + groupId)).StatusCode);
+        Assert.Equal(0, (await client.GetFromJsonAsync<JsonElement>("/api/groups")).GetProperty("groups").GetArrayLength());
+
+        var restored = await client.PostAsync("/api/groups/" + groupId + "/restore", null);
+        Assert.Equal(HttpStatusCode.OK, restored.StatusCode);
+        var body = await restored.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("Usual breakfast", body.GetProperty("name").GetString());
+        Assert.Equal(3, body.GetProperty("items").GetArrayLength());
+
+        var list = await client.GetFromJsonAsync<JsonElement>("/api/groups");
+        Assert.Equal(groupId, list.GetProperty("groups")[0].GetProperty("id").GetGuid());
+        Assert.Equal(HttpStatusCode.Created, (await Readd(client, groupId, "2026-10-24", "after-restore")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.PostAsync("/api/groups/" + groupId + "/restore", null)).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await client.PostAsync("/api/groups/" + Guid.NewGuid() + "/restore", null)).StatusCode);
     }
 
     [Fact]

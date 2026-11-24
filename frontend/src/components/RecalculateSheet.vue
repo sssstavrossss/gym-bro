@@ -112,8 +112,8 @@ async function accept(mode: "adaptive" | "formula") {
     await loadProfile();
     await loadToday();
     toast(saved.reason === "recalculation_formula"
-      ? "Target set from the formula."
-      : saved.reason === "recalculation_adaptive" ? "Target recalculated from your logs." : `Target saved. Your burn stays at ${int(saved.burn)} until it can be measured.`);
+      ? "Target set from the formula"
+      : saved.reason === "recalculation_adaptive" ? "Target recalculated from your logs" : `Target saved · burn stays at ${int(saved.burn)} until it can be measured`);
     closeSheet();
   } catch (err) {
     error.value = err instanceof Error ? err.message : "Couldn't save the new target.";

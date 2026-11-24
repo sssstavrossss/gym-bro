@@ -156,6 +156,16 @@ public sealed class CustomFoodSliceTests(ApiFactory factory)
         Assert.Equal(220, history.GetProperty("kcal").GetDecimal());
         Assert.Equal("Fictional desk shake", history.GetProperty("name").GetString());
 
+        // Undo: only the owner can bring it back, and it is listed again.
+        Assert.Equal(HttpStatusCode.NotFound, (await stranger.PostAsync("/api/foods/" + id + "/restore", null)).StatusCode);
+        var restored = await client.PostAsync("/api/foods/" + id + "/restore", null);
+        Assert.Equal(HttpStatusCode.OK, restored.StatusCode);
+        Assert.Equal(id, (await restored.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid());
+        var mineRestored = await client.GetFromJsonAsync<JsonElement>("/api/foods/mine");
+        Assert.Contains(mineRestored.GetProperty("foods").EnumerateArray(), row => row.GetProperty("id").GetGuid() == id);
+        Assert.Equal(HttpStatusCode.OK, (await client.PostAsync("/api/foods/" + id + "/restore", null)).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await client.DeleteAsync("/api/foods/" + id)).StatusCode);
+
         var weighted = await client.PostAsJsonAsync("/api/foods", new
         {
             name = "Fictional weighed bar",

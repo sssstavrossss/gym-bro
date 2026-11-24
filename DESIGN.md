@@ -31,6 +31,7 @@ These are the rules the app's screens follow. Read this before you add or change
 - **Numbers are typed on the app keypad** on a touch screen, never on the phone's number pad.
 - **Settings for occasional use** go behind the cog. Anything new on Home gets its own on/off switch in Settings → Home sections; the week strip always stays.
 - **Pickers with an automatic choice** (time zone, food country) put the automatic option first as its own radio row, then the search, then the list. Picking a row by hand stops the automatic choice until it is picked again, and the Settings row says which it is ("Follows the time zone", "Set by hand"). When the automatic choice changes on its own, a toast says so with a Change action that opens the picker.
+- **Toasts** say what happened in one line, the same way everywhere: what was done, then the detail after a `·` ("Added 150 g Kylling · 165 kcal"). Every add and delete has Undo; a failure goes through `toastError` (alert icon, no button). They sit at the bottom, above the lowest bar, so a new bottom bar or keypad in a sheet gets `data-toast-floor`. Never move a sheet's content to make room for one.
 - **Hints are subtle.** Show that something can be changed, or that something is new, with a small cue (a pencil, a dot, a tint), not with extra text.
 
 ## Mocks

@@ -17,7 +17,7 @@ import { connection } from "../state/connection";
 import { onLogChange } from "../state/log";
 import { profile } from "../state/profile";
 import { weightUnit, wt, wtUnit } from "../state/units";
-import { openCardPages, openOffline, openWeight, toast } from "../ui";
+import { openCardPages, openOffline, openWeight, toastError } from "../ui";
 
 const props = defineProps<{ selected: string }>();
 
@@ -90,7 +90,7 @@ async function load() {
     if (id !== requestId) return;
     failed.value = data.value == null;
     // Offline the card keeps what it shows, or says it has nothing yet; no toast on every swipe.
-    if (error instanceof ApiError) toast(error.message);
+    if (error instanceof ApiError) toastError(error.message);
   }
 }
 

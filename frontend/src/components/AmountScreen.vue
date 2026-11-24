@@ -83,7 +83,7 @@ defineExpose({ field });
         <slot name="card" />
       </div>
     </div>
-    <div class="tray" data-amount-tray>
+    <div class="tray" data-amount-tray data-toast-floor>
       <slot name="alerts" />
       <!-- One line that scrolls sideways when long serving names or large text don't fit. -->
       <div v-if="chips.length" class="row chips" role="group" aria-label="Quick amounts">

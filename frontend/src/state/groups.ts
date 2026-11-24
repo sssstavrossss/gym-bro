@@ -5,11 +5,11 @@ import {
   deleteGroup,
   listGroups,
   logGroup,
+  restoreGroup,
   ServerUnreachable,
   type SavedGroup,
 } from "../api";
 import { rememberEntries, type LogEntry } from "./log";
-import { toast } from "../ui";
 
 export const savedGroups = reactive({
   list: [] as SavedGroup[],
@@ -45,13 +45,25 @@ export async function saveGroupFromEntries(
   }
 }
 
-export async function deleteSavedGroup(id: string): Promise<boolean> {
+/** Deletes a saved group. The toast's Undo puts it back where it was in the list. */
+export async function deleteSavedGroup(id: string): Promise<{ ok: true } | { ok: false; message: string }> {
   try {
     await deleteGroup(id);
     savedGroups.list = savedGroups.list.filter((group) => group.id !== id);
-    return true;
+    return { ok: true };
   } catch (error) {
-    toast(error instanceof ApiError ? error.message : error instanceof ServerUnreachable ? "Deleting a group needs a connection." : "Couldn't delete that group.");
+    if (error instanceof ServerUnreachable) return { ok: false, message: "Deleting a group needs a connection." };
+    return { ok: false, message: error instanceof ApiError ? error.message : "Couldn't delete that group." };
+  }
+}
+
+export async function restoreSavedGroup(id: string, index: number): Promise<boolean> {
+  try {
+    const group = await restoreGroup(id);
+    const rest = savedGroups.list.filter((row) => row.id !== id);
+    savedGroups.list = [...rest.slice(0, index), group, ...rest.slice(index)];
+    return true;
+  } catch {
     return false;
   }
 }

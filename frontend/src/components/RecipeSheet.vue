@@ -52,7 +52,7 @@ import {
 import { afterTitle, entriesOn, targetOn } from "../state/foodDay";
 import { deviceTimeZone, foodCountry, profile } from "../state/profile";
 import { foodAmount, foodUnit } from "../state/units";
-import { findEntry, totalsOf, viewed } from "../state/log";
+import { findEntry, removeEntries, totalsOf, viewed } from "../state/log";
 import { deleteRecipeWithUndo, fetchRecipe, logSavedRecipe, saveRecipe } from "../state/recipes";
 import { closeRecipeSheet, finishRecipeSave, openRecipeEdit, toast, ui } from "../ui";
 
@@ -712,8 +712,8 @@ async function save() {
   }
   const verb = mode.value === "edit" ? "Updated" : "Saved";
   // From the food sheet the list is right behind this sheet, so there is nothing to point to.
-  const where = ui.recipeReturn === "food" || ui.recipeReturn === "log" ? "" : " Find it under Add food → Recipes.";
-  toast(`${verb} “${result.recipe.name}” · ${recipeMacro(result.recipe.perPortion.protein)} g protein per portion.${where}`);
+  const where = ui.recipeReturn === "food" || ui.recipeReturn === "log" ? "" : " · find it in Add food";
+  toast(`${verb} ${result.recipe.name} · ${int(result.recipe.perPortion.kcal)} kcal per portion${where}`);
   finishRecipeSave();
 }
 
@@ -755,7 +755,11 @@ async function addLog() {
     error.value = result.message;
     return;
   }
-  toast(`Added ${foodAmount(result.entry.amount, result.entry.unit)} ${result.entry.name} · ${recipeMacro(result.entry.protein)} g protein`);
+  const entry = result.entry;
+  toast(`Added ${foodAmount(entry.amount, entry.unit)} ${entry.name} · ${int(entry.kcal)} kcal`, {
+    label: "Undo",
+    run: () => { void removeEntries([entry], { announce: false }); },
+  }, { merge: { kind: "add", count: 1, kcal: entry.kcal } });
   closeRecipeSheet();
 }
 

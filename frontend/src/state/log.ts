@@ -38,7 +38,7 @@ import {
 import { connection } from "./connection";
 import { hasSendable, outbox, sendQueued, setOps, type QueuedOp } from "./outbox";
 import { deviceTimeZone } from "./profile";
-import { toast, ui } from "../ui";
+import { toast, toastError, ui } from "../ui";
 
 export interface LogEntry {
   id: string;
@@ -421,7 +421,7 @@ export async function loadDay(date: string): Promise<void> {
     if (gen !== viewGeneration) return;
     viewed.loaded = true;
     if (error instanceof ServerUnreachable) showMissing(asked);
-    else if (error instanceof ApiError) toast(error.message);
+    else if (error instanceof ApiError) toastError(error.message);
   } finally {
     if (gen === viewGeneration) {
       viewed.loading = false;
@@ -440,7 +440,7 @@ export async function setFasting(date: string, fasting: boolean): Promise<boolea
     }
     return true;
   } catch (error) {
-    toast(error instanceof ApiError ? error.message : connection.offline ? "Marking a fasting day needs a connection." : "Couldn't update that day.");
+    toastError(error instanceof ApiError ? error.message : connection.offline ? "Marking a fasting day needs a connection." : "Couldn't update that day.");
     return false;
   }
 }
@@ -696,7 +696,7 @@ export async function removeEntries(entries: LogEntry[], options?: { announce?: 
     const fallback = entries.length > 1
       ? "Couldn't delete those entries. They're still here."
       : "Couldn't delete that entry. It's still here.";
-    toast(error instanceof ApiError ? error.message : fallback);
+    toastError(error instanceof ApiError ? error.message : fallback);
     return false;
   }
   if (removed.some((item) => item.queued)) sendSoon();
@@ -707,12 +707,7 @@ export async function removeEntries(entries: LogEntry[], options?: { announce?: 
     noteIfEmpty(entry.localDate);
   }
   rememberViewed();
-  if (announce) {
-    toast(removed.length === 1 ? `Deleted ${removed[0].entry.name}` : `Deleted ${removed.length} items`, {
-      label: "Undo",
-      run: () => { void undoDeletes(removed); },
-    });
-  }
+  if (announce) deletedToast(removed);
   return true;
 }
 
@@ -723,10 +718,15 @@ async function undoDeletes(items: Removal[]): Promise<void> {
   }
   sendSoon();
   if (!left.length) return;
-  toast(left.length === 1 ? `Deleted ${left[0].entry.name}` : `Deleted ${left.length} items`, {
+  deletedToast(left);
+}
+
+/** "Deleted Egg" with Undo. Deletes back to back fold into one toast ("Deleted 3 items"). */
+function deletedToast(items: Removal[]): void {
+  toast(items.length === 1 ? `Deleted ${items[0].entry.name}` : `Deleted ${items.length} items`, {
     label: "Undo",
-    run: () => { void undoDeletes(left); },
-  });
+    run: () => { void undoDeletes(items); },
+  }, { merge: { kind: "delete", count: items.length } });
 }
 
 function queueCopies(entries: LogEntry[], localDate: string, keys: Record<string, string>): { ok: true; copies: LogEntry[] } {
@@ -795,7 +795,7 @@ export async function sendQueue(): Promise<void> {
   if (outbox.ops === before) return;
   await reloadShown();
   const text = sentToast(result);
-  if (text) toast(text);
+  if (text) toast(text, undefined, { error: result.failed > 0 || result.dropped.length > 0 });
 }
 
 /** The server answers again: send the queue, or at least bring the screens up to date. */

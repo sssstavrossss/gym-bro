@@ -129,9 +129,11 @@ test("select, copy to today, and hover-delete with undo", async ({ page }) => {
   const removeBox = await remove.boundingBox();
   expect(removeBox && removeBox.width >= 44 && removeBox.height >= 44).toBeTruthy();
   await remove.click();
-  await expect(page.getByRole("button", { name: "Undo" })).toBeVisible();
+  // The copy's toast is cut short; the delete's Undo comes to the front after it.
+  const undo = page.locator(".toast.front").filter({ hasText: "Deleted Fictional broth" }).getByRole("button", { name: "Undo" });
+  await expect(undo).toBeVisible();
   await expect(page.locator("button.frow").filter({ hasText: "Fictional broth" })).toHaveCount(1);
-  await page.getByRole("button", { name: "Undo" }).click();
+  await undo.click();
   await expect(page.locator("button.frow").filter({ hasText: "Fictional broth" })).toHaveCount(2);
   await expect(complete).toBeChecked();
 

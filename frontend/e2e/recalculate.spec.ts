@@ -52,7 +52,7 @@ test("without enough data the burn is kept, and saving still writes the target",
     await sheet.screenshot({ path: "/opt/cursor/artifacts/recalculate-phone.png" });
   }
   await sheet.getByRole("button", { name: /^Accept/ }).click();
-  await expect(page.getByText(/Target saved\. Your burn stays at [\d,]+ until it can be measured\./)).toBeVisible();
+  await expect(page.getByText(/Target saved · burn stays at [\d,]+ until it can be measured/)).toBeVisible();
   const history = await (await page.request.get("/api/profile/history", { headers })).json();
   // Today's row already had the setup's profile_change; the recalculation adds its own reason.
   expect(history.rows[0].reasons).toContain("recalculation_kept");
@@ -120,7 +120,7 @@ test.describe("measured", () => {
       await sheet.screenshot({ path: "/opt/cursor/artifacts/recalculate-measured.png" });
     }
     await accept.click();
-    await expect(page.getByText("Target recalculated from your logs.")).toBeVisible();
+    await expect(page.getByText("Target recalculated from your logs")).toBeVisible();
 
     await page.goto("/profile");
     const history = page.locator("[data-target-history]");

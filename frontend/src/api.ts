@@ -854,6 +854,11 @@ export async function deleteCustomFood(id: string): Promise<void> {
   await jsonOrThrow(response);
 }
 
+/** Undo for deleting one of your own foods. Returns the food as `GET /api/foods/{id}` does. */
+export async function restoreCustomFood(id: string): Promise<FoodSearchRow> {
+  return jsonOrThrow(await request(`/api/foods/${id}/restore`, { method: "POST" }));
+}
+
 export async function createServing(foodId: string, body: { name: string; grams: number }): Promise<OwnServing> {
   return jsonOrThrow(await request(`/api/foods/${foodId}/servings`, {
     method: "POST",
@@ -942,6 +947,11 @@ export async function deleteGroup(id: string): Promise<void> {
   const response = await request(`/api/groups/${id}`, { method: "DELETE" });
   if (response.status === 204) return;
   await jsonOrThrow(response);
+}
+
+/** Undo for deleting a group. Returns the group as `GET /api/groups/{id}` does. */
+export async function restoreGroup(id: string): Promise<SavedGroup> {
+  return jsonOrThrow(await request(`/api/groups/${id}/restore`, { method: "POST" }));
 }
 
 export interface RecipeIngredient {
