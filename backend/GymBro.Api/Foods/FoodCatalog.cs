@@ -39,8 +39,9 @@ public static class FoodCatalog
     /// one that starts with it inside a longer word (<c>Laksepålegg</c>), 4 for a whole last word, 5 for a last word
     /// that starts a word, 6 otherwise. A food found only by a word's base form ranks 7 to 13 the same way. The order
     /// is the level's band (0–3, 4–5, 6, base forms), then country tier for <paramref name="home"/>, then level, where
-    /// the name in another word order places half a level below a name and a table's keyword one level, then the
-    /// shorter name. A table's category word
+    /// the name in another word order places half a level below a name and a table's keyword one level, then, for a
+    /// food found by a later word, one that is a kind of it (<c>corn grits</c> for <c>grits</c>), then the shorter
+    /// name. A table's category word
     /// (<c>fisk</c>) finds a food but never ranks it above 6.
     /// </summary>
     public static async Task<List<RankedFood>> SearchRankedAsync(
@@ -135,7 +136,8 @@ public static class FoodCatalog
         {
             var lastWord = text[(text.LastIndexOf(' ') + 1)..];
             // As written, the words may be apart by any run of other characters: "kylling filet" in "Kylling, filet".
-            var written = "^" + text.Replace(" ", "[^[:alnum:]]+", StringComparison.Ordinal) + "(e?s)?";
+            var words = text.Replace(" ", "[^[:alnum:]]+", StringComparison.Ordinal) + "(e?s)?";
+            var written = "^" + words;
             return new LevelPatterns(
                 Add(text),
                 Add("^" + text + "(e?s)?( |$)"),
@@ -143,7 +145,8 @@ public static class FoodCatalog
                 Add(written + "-"),
                 Add(LikePrefix(text)),
                 Add("(^| )" + lastWord + "(e?s)?( |$)"),
-                Add(WordPrefixPattern(lastWord)));
+                Add(WordPrefixPattern(lastWord)),
+                Add("^([[:alnum:]]+[ -])?" + words + "\\s*([,(;]|$)"));
         }
 
         // A food's own names (and our phrases, which stand in for a name), its name in another word order, and the
@@ -158,7 +161,8 @@ public static class FoodCatalog
             LEFT JOIN LATERAL (
                 SELECT min(CASE WHEN {keywordAlias} OR {orderAlias} THEN {None} ELSE {aliasLevel} END) AS name_level,
                        min(CASE WHEN {orderAlias} THEN {aliasLevel} ELSE {None} END) AS order_level,
-                       min(CASE WHEN {keywordAlias} THEN {aliasLevel} ELSE {None} END) AS keyword_level{(stemmed is null ? "" : ",\n           min(" + Level("a.normalized", "a.phrase", stemmed) + ") AS stem_level")}
+                       min(CASE WHEN {keywordAlias} THEN {aliasLevel} ELSE {None} END) AS keyword_level,
+                       bool_or(NOT {keywordAlias} AND a.phrase ~* {typed.KindOf}) AS kind_of{(stemmed is null ? "" : ",\n           min(" + Level("a.normalized", "a.phrase", stemmed) + ") AS stem_level")}
                 FROM food_aliases AS a
                 WHERE {rankingAlias}
             ) AS al ON TRUE
@@ -173,6 +177,11 @@ public static class FoodCatalog
         var stemLevel = stemmed is null
             ? "0"
             : $"LEAST({Level("f.search_name", "f.name", stemmed)}, {Level("f.search_name_en", "f.name_en", stemmed)}, coalesce(al.stem_level, {None}))";
+
+        // A food found by a later word is a kind of what was typed when a name of its opens with one word and then the
+        // words: "Cereals, corn grits" as "corn grits, Cereals" for "grits", but not "Cereals, QUAKER, hominy grits"
+        // or "Liver paste with bacon". At the same place it comes first. A table's keyword is not a name.
+        var kindOf = $"CASE WHEN f.name ~* {typed.KindOf} OR f.name_en ~* {typed.KindOf} OR al.kind_of THEN 0 ELSE 1 END";
 
         // Without a base form the query is the strict one. With one, a food that matches the words as typed
         // still comes first, and base-form matches are ranked among themselves by the base-form text.
@@ -197,12 +206,15 @@ public static class FoodCatalog
         // Levels fall into bands: the name or phrase itself or its start (0–3), a last word (4–5), any other match
         // (6), a match by a word's base form only. Within a band, home foods come before a neighbour's and the rest,
         // so "Quinoa" from another country still comes before a home "Salat med quinoa". Then the place (the level,
-        // another word order half a level lower, a keyword one lower), and the shorter name: "Ris jasmin okokt" before "Ris à la Malta m. grädde". OFFSET 0 keeps Postgres from inlining the inner select: inlined, it copies each level's alias
-        // lookups into every sort expression that reads it, and "chicken" took 2.6 s instead of 90 ms.
+        // another word order half a level lower, a keyword one lower), a kind of what was typed, and the shorter name:
+        // "Ris jasmin okokt" before "Ris à la Malta m. grädde". OFFSET 0 keeps Postgres from inlining the inner select:
+        // inlined, it copies each level's alias lookups into every sort expression that reads it, and "chicken" took
+        // 2.6 s instead of 90 ms.
         var sql = $"""
             SELECT s."Id", s."Rank", s."Tier"
             FROM (
                 SELECT m."Id", m.name, m.source, m."Tier", m.stem_level,
+                       CASE WHEN LEAST(m.name_level, m.order_level, m.keyword_level) >= 4 THEN m.kind_of ELSE 0 END AS kind_of,
                        m.base_form_only + LEAST(m.name_level, m.order_level, m.keyword_level) AS "Rank",
                        CASE WHEN m.name_level <= LEAST(m.order_level, m.keyword_level) THEN m.name_level * 2
                             WHEN m.order_level <= m.keyword_level THEN m.order_level * 2 + 1
@@ -213,7 +225,8 @@ public static class FoodCatalog
                            {nameLevel} AS name_level,
                            coalesce(al.order_level, {None}) AS order_level,
                            coalesce(al.keyword_level, {None}) AS keyword_level,
-                           {stemLevel} AS stem_level
+                           {stemLevel} AS stem_level,
+                           {kindOf} AS kind_of
                     FROM foods AS f
                     {lateral}
                     WHERE f.retired_at IS NULL
@@ -223,7 +236,7 @@ public static class FoodCatalog
                 ) AS m
             ) AS s
             ORDER BY CASE WHEN s."Rank" <= 3 THEN 0 WHEN s."Rank" <= 5 THEN 1 WHEN s."Rank" = {None} THEN 2 ELSE 3 END,
-                s."Tier", s.place, s.stem_level, length(s.name), s.name, s.source
+                s."Tier", s.place, s.kind_of, s.stem_level, length(s.name), s.name, s.source
             LIMIT {SearchLimit}
             """;
 
@@ -253,7 +266,8 @@ public static class FoodCatalog
         string Hyphen,
         string Start,
         string LastWord,
-        string LastPrefix);
+        string LastPrefix,
+        string KindOf);
 
     private sealed class SearchHit
     {

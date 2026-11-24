@@ -328,6 +328,30 @@ public sealed class FoodSearchPartialTests(ApiFactory factory)
         }
     }
 
+    [Fact]
+    public async Task A_food_found_by_a_later_word_comes_first_when_a_name_of_it_is_one_word_and_the_word()
+    {
+        var user = TestData.NewUser("partial-kind-of");
+        using var client = factory.AsUser(user);
+        var ids = new[] { "kindof.plain", "kindof.with", "kindof.brand" };
+        try
+        {
+            await Clear(ids);
+            const string plain = "Zqcereals, corn zqgrits, white, regular and quick, enriched, cooked with water";
+            await Add(client, "kindof.brand", "Zqcereals, ZQBRAND, hominy zqgrits, dry", "Zqcereals, ZQBRAND, hominy zqgrits, dry", []);
+            await Add(client, "kindof.with", "Zqporridge with zqgrits", "Zqporridge with zqgrits", []);
+            await Add(client, "kindof.plain", plain, plain, ["corn zqgrits, Zqcereals, white, regular and quick, enriched, cooked with water"], FoodAliasKinds.Name);
+
+            // All three have the word whole but not first (level 4). "corn zqgrits" is a kind of zqgrits, so the
+            // longest name comes first; the others keep the shorter name first.
+            Assert.Equal(["kindof.plain", "kindof.with", "kindof.brand"], await Ids(client, "zqgrits"));
+        }
+        finally
+        {
+            await Clear(ids);
+        }
+    }
+
     private async Task Add(
         HttpClient client,
         string sourceId,
