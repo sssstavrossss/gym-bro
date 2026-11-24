@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import DescribeBox from "./DescribeBox.vue";
+import FoundRows from "./FoundRows.vue";
 import Icon from "./Icon.vue";
 import {
   addLabel,
@@ -16,9 +17,7 @@ import {
   noteText,
   recentLine,
   reviewTitle,
-  searchSeed,
 } from "../lib/describe";
-import { recentSubtitle } from "../lib/foodSheet";
 import { connection } from "../state/connection";
 import {
   attachPhoto,
@@ -33,7 +32,6 @@ import {
   useRecent,
 } from "../state/describe";
 import { deviceTimeZone } from "../state/profile";
-import { foodUnit } from "../state/units";
 
 // The Describe tab on Add food: words, a photo or both, then the foods Claude found, then Add.
 // Logging and the amount screen belong to the food sheet, so this pane only asks for them.
@@ -140,58 +138,19 @@ function onDraftKey(event: KeyboardEvent) {
         </button>
         <p v-if="describe.revising && describe.error" class="err t-label" role="alert">{{ describe.error }}</p>
 
-        <template v-if="finding">
-          <div class="lhead" role="status"><h3 class="t-cap c2 section-title">Finding foods…</h3></div>
-          <ul class="rows" aria-hidden="true">
-            <li v-for="width in [70, 80, 55, 65]" :key="width" class="drow">
-              <span class="chk off faint" />
-              <span class="col grow skc">
-                <span class="sk" :style="{ width: width + '%' }" />
-                <span class="sk thin" :style="{ width: width - 25 + '%' }" />
-              </span>
-            </li>
-          </ul>
-        </template>
+        <FoundRows v-if="finding" :rows="[]" title="" finding="Finding foods…" label="Foods found" />
 
         <div v-else class="review" :class="{ dim: describe.revising }" :inert="describe.revising || undefined">
-          <div class="lhead">
-            <h3 class="t-cap c2 section-title">{{ reviewTitle(describe.rows) }}</h3>
-            <span class="grow" />
-            <span v-if="describe.rows.some((row) => row.food)" class="t-capn c2">tap one to change it</span>
-          </div>
-          <ul class="rows" aria-label="Foods found">
-            <li v-for="(row, index) in describe.rows" :key="row.key" class="drow" :class="{ top: !row.food }" :data-described="row.food ? 'found' : 'missing'">
-              <template v-if="row.food">
-                <button type="button" class="chkhit" :aria-pressed="row.on" :aria-label="`Include ${row.food.name}`" @click="toggleRow(index)">
-                  <span class="chk" :class="{ off: !row.on }"><Icon v-if="row.on" name="check" :size="14" :sw="3" /></span>
-                </button>
-                <button type="button" class="pick grow" :class="{ dim: !row.on }" @click="emit('open', index)">
-                  <span class="col grow tx">
-                    <span class="row nm">
-                      <span class="t-body ell">{{ row.food.name }}</span>
-                      <span v-if="row.guessed" class="tag t-capn">guessed</span>
-                    </span>
-                    <span class="t-label c2">{{ recentSubtitle(row.food, row.amount, row.unit, foodUnit()) }}</span>
-                    <span class="t-capn c3 quote">“{{ row.phrase }}”</span>
-                  </span>
-                  <Icon name="right" :size="16" class="c3" />
-                </button>
-              </template>
-              <template v-else>
-                <span class="chkhit"><span class="chk off" /></span>
-                <span class="col grow miss">
-                  <span class="col tx">
-                    <span class="t-body">No match for “{{ row.phrase }}”</span>
-                    <span class="t-label c2">Pick a food or type the calories.</span>
-                  </span>
-                  <span class="row gap8">
-                    <button type="button" class="btn sm secondary t-label" @click="emit('search', searchSeed(row))"><Icon name="search" :size="14" /><span>Search</span></button>
-                    <button type="button" class="btn sm secondary t-label" @click="emit('quick', row.name || row.phrase)">Quick add</button>
-                  </span>
-                </span>
-              </template>
-            </li>
-          </ul>
+          <FoundRows
+            :rows="describe.rows"
+            :title="reviewTitle(describe.rows)"
+            label="Foods found"
+            quick
+            @toggle="toggleRow"
+            @open="emit('open', $event)"
+            @search="(seed) => emit('search', seed)"
+            @quick="emit('quick', $event)"
+          />
           <p v-if="!describe.revising && describe.error" class="err t-label" role="alert">{{ describe.error }}</p>
           <div v-if="!describe.revising" class="retry" data-describe-retry>
             <span class="t-label c2">{{ describeRetryPrompt }}</span>
@@ -229,26 +188,9 @@ function onDraftKey(event: KeyboardEvent) {
 .lhead h3 { margin: 0; }
 .rows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
 .drow { display: flex; align-items: center; gap: var(--space-s); border-bottom: 1px solid var(--color-border); min-width: 0; }
-.drow.top { align-items: flex-start; }
 .pick { display: flex; align-items: center; gap: var(--space-m); min-height: var(--control-hit); padding: var(--space-m) 0; background: none; border: 0; color: inherit; text-align: left; min-width: 0; width: 100%; cursor: pointer; }
-.pick.dim .tx { opacity: .55; }
 .tx { gap: 2px; min-width: 0; }
-.nm { gap: var(--space-s); min-width: 0; align-items: center; }
-.ell { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .clamp { display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.quote { font-style: italic; }
-.chkhit { flex: none; display: inline-flex; align-items: center; justify-content: center; width: var(--control-hit); height: var(--control-hit); margin-left: calc((var(--control-hit) - 24px) / -2); background: none; border: 0; padding: 0; color: inherit; cursor: pointer; }
-.drow.top .chkhit { margin-top: var(--space-s); }
-span.chkhit { cursor: default; }
-.chk { width: 24px; height: 24px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: var(--color-action); color: var(--color-on-action); }
-.chk.off { background: transparent; box-shadow: inset 0 0 0 2px var(--text-tertiary); }
-.chk.faint { opacity: .4; }
-.drow:has(.chk.faint) { padding: var(--space-m) 0; }
-.miss { gap: var(--space-s); padding: var(--space-m) 0; min-width: 0; }
-.gap8 { gap: var(--space-s); flex-wrap: wrap; }
-.skc { gap: 8px; }
-.sk { display: block; height: 12px; border-radius: 6px; background: var(--color-surface-2); }
-.sk.thin { height: 10px; }
 .dtext { display: flex; align-items: center; gap: var(--space-m); text-align: left; border: 0; color: inherit; cursor: pointer; flex: none; }
 .wthumb { width: var(--control-hit); height: var(--control-hit); border-radius: var(--radius-s); object-fit: cover; flex: none; }
 /* A photo isn't kept, so a camera tile stands in for it on a recent one. */

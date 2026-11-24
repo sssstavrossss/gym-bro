@@ -1,6 +1,7 @@
 import { accessToken } from "./auth/session";
 import type { CatalogFood, OwnServing } from "./lib/foodAmount";
 import type { LabelFill } from "./lib/customFood";
+import type { ImportSource, RecipeImportResult } from "./lib/recipeImport";
 import { kg as formatKg } from "./lib/format";
 import { dispositionName } from "./lib/download";
 import type { LookupStatus } from "./lib/barcode";
@@ -792,6 +793,15 @@ export async function readLabel(photo: DescribePhoto): Promise<LabelFill & { lef
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ photo: { mediaType: photo.mediaType, data: photo.data } }),
+  }));
+}
+
+/** Ingredients from a recipe link or pasted text, matched to foods for the recipe form. Nothing is saved; it counts toward Describe's limit. */
+export async function importRecipe(source: ImportSource): Promise<RecipeImportResult> {
+  return jsonOrThrow(await request("/api/recipes/import", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(source),
   }));
 }
 

@@ -47,7 +47,7 @@ public sealed class MealDescriber(AppDbContext db, IMealModel model)
     {
         var parts = (await model.SplitAsync(note, usage, cancellationToken))
             .Where(part => !string.IsNullOrWhiteSpace(part.Name))
-            .Take(PartsMax)
+            .Take(note.Recipe ? RecipePage.IngredientsMax : PartsMax)
             .ToList();
         if (parts.Count == 0)
         {

@@ -6,10 +6,27 @@ namespace GymBro.Api.Describe;
 /// <summary>
 /// What the person sent: their words, a photo of the meal, or both. <see cref="Text"/> is trimmed and may be
 /// empty. <see cref="Time"/> is the phone's local time when it was sent, a hint for the meal and its size.
-/// <see cref="Home"/> is their food country, whose foods the search puts first.
+/// <see cref="Home"/> is their food country, whose foods the search puts first. <see cref="Recipe"/> marks a recipe's
+/// ingredient list for New recipe, one ingredient a line, rather than a meal.
 /// </summary>
-public sealed record MealNote(string Text, MealPhoto? Photo = null, TimeOnly? Time = null, string Home = FoodSources.DefaultHome)
+public sealed record MealNote(string Text, MealPhoto? Photo = null, TimeOnly? Time = null, string Home = FoodSources.DefaultHome, bool Recipe = false)
 {
+    /// <summary>
+    /// Goes before a recipe's lines for both questions. The meal prompts assume a meal as eaten (cooked rice, a
+    /// usual portion, added frying fat); a recipe is the opposite, so this says so where the lines are.
+    /// </summary>
+    public const string RecipeNote = """
+        This is a recipe's ingredient list, not a meal. Each line is one ingredient: list each as one food, in the
+        same order, without splitting it or adding any (no cooking fat). Amounts are for the whole recipe. An
+        ingredient is as bought: raw meat, fish and vegetables, dry rice, pasta, grains and beans ("ris ukokt",
+        "pasta tørr", "linser tørre"), unless the line says cooked or canned. So pick the raw or dry candidate,
+        and don't use 0 because only the raw or dry form is listed. A pinch or "to taste" is a few grams. Skip
+        a heading ("Saus:", "Til servering") or a step that isn't an ingredient.
+        """;
+
+    /// <summary>The ingredient lines with <see cref="RecipeNote"/>, or the words of a meal.</summary>
+    public string Words => Recipe ? $"{RecipeNote}\nIngredients:\n{Text}" : Text;
+
     /// <summary>
     /// Which language to search in first, for a food country other than Norway. The prompts are written for
     /// Matvaretabellen and say Norwegian first; this goes with the note, so the prompts stay the same for everyone.
@@ -32,7 +49,7 @@ public sealed record MealNote(string Text, MealPhoto? Photo = null, TimeOnly? Ti
     /// <see cref="HomeHint"/> follows on its own line, for the retry searches.
     /// </summary>
     public string ForPick => (Photo is null
-        ? Text
+        ? Words
         : Text.Length > 0 ? $"A photo of the meal, with the words: {Text}" : "A photo of the meal.")
         + (HomeHint is { } hint ? $"\n{hint}" : "");
 }

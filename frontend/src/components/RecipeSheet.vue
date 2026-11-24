@@ -8,6 +8,7 @@ import Icon from "./Icon.vue";
 import Keypad from "./Keypad.vue";
 import MicroRing from "./MicroRing.vue";
 import NutrientCard from "./NutrientCard.vue";
+import RecipeImport from "./RecipeImport.vue";
 import TimeChip from "./TimeChip.vue";
 import { dayMonth, todayInZone } from "../lib/dates";
 import { convertAmount, distinctUnits, parseAmount, servingName, unitsForFood, type CatalogFood, type OwnServing, type UnitChoice } from "../lib/foodAmount";
@@ -54,6 +55,10 @@ import { deviceTimeZone, foodCountry, profile } from "../state/profile";
 import { foodAmount, foodUnit } from "../state/units";
 import { findEntry, removeEntries, totalsOf, viewed } from "../state/log";
 import { deleteRecipeWithUndo, fetchRecipe, logSavedRecipe, saveRecipe } from "../state/recipes";
+import { chosenRows } from "../lib/describe";
+import { importedNotice } from "../lib/recipeImport";
+import { describe } from "../state/describe";
+import { recipeImport, resetImport, setImportRow } from "../state/recipeImport";
 import { closeRecipeSheet, finishRecipeSave, openRecipeEdit, toast, ui } from "../ui";
 
 interface DraftLine {
@@ -78,7 +83,11 @@ const title = computed(() => {
   if (mode.value === "edit") return "Edit recipe";
   return fromSelection.value ? "Save as recipe" : "New recipe";
 });
-const step = ref<"form" | "search" | "amount">("form");
+const step = ref<"form" | "import" | "search" | "amount">("form");
+/** Import shows on a new recipe when Claude is set up. */
+const canImport = computed(() => mode.value === "create" && !fromSelection.value && describe.available);
+/** Where Back from the amount screen goes: the search it came from, or the import list for a row opened there. */
+const amountBack = ref<"search" | "import">("search");
 const name = ref("");
 const portionsText = ref("");
 const finishedText = ref("");
@@ -235,6 +244,8 @@ watch(() => [open.value, ui.recipeMode, ui.recipeId] as const, ([isOpen]) => {
 
 async function reset() {
   step.value = "form";
+  resetImport();
+  amountBack.value = "search";
   name.value = "";
   // A recipe always has portions: a new one starts at 1.
   portionsText.value = "1";
@@ -565,14 +576,53 @@ function foodFacts(food: CatalogFood): string {
 function backStep() {
   primeKeyboard();
   closePad();
-  step.value = step.value === "amount" ? "search" : "form";
+  const editingImport = recipeImport.editing != null;
+  if (step.value === "amount") step.value = amountBack.value;
+  else step.value = editingImport && step.value === "search" ? "import" : "form";
+  if (step.value === "import") recipeImport.editing = null;
 }
 
-async function openSearch() {
+function openImport() {
+  closePad();
+  error.value = "";
+  step.value = "import";
+}
+
+/** Use on the import list: the checked rows join the recipe, with the page's name and portions when the form has none. */
+function useImport() {
+  const chosen = chosenRows(recipeImport.rows).slice(0, Math.max(0, 100 - lines.value.length));
+  const wasEmpty = lines.value.length === 0;
+  for (const row of chosen) lines.value.push(draftFrom(row.food, fill(row.amount, row.unit)));
+  if (!name.value.trim() && recipeImport.name) name.value = recipeImport.name.slice(0, recipeNameMax);
+  if (wasEmpty && recipeImport.portions) portionsText.value = String(recipeImport.portions);
+  notice.value = importedNotice(recipeImport.site, chosen.length, recipeImport.rows.length - chosen.length);
+  resetImport();
+  step.value = "form";
+}
+
+/** A row on the import list opens on its amount screen; Use puts the new amount back on the row. */
+function openImportRow(index: number) {
+  const row = recipeImport.rows[index];
+  if (!row?.food) return;
+  recipeImport.editing = index;
+  ingredient.show(row.food, { amount: row.amount, unit: row.unit });
+  pickError.value = "";
+  pickOffline.value = false;
+  amountBack.value = "import";
+  step.value = "amount";
+}
+
+/** Search for a row Claude couldn't match, filled in with its name. */
+async function searchImportRow(seed: string, index: number) {
+  recipeImport.editing = index;
+  await openSearch(seed);
+}
+
+async function openSearch(seed = "") {
   primeKeyboard();
   closePad();
   step.value = "search";
-  q.value = "";
+  q.value = seed;
   results.value = [];
   error.value = "";
   const [own, recent] = await Promise.allSettled([listMyFoods(), listRecentFoods()]);
@@ -654,6 +704,7 @@ async function chooseFood(food: FoodSearchRow) {
   ingredient.show(current, last ?? undefined);
   pickError.value = "";
   pickOffline.value = false;
+  amountBack.value = "search";
   step.value = "amount";
 }
 
@@ -675,9 +726,15 @@ function addPicked() {
     pickError.value = problem;
     return;
   }
-  lines.value.push(draftFrom(food, fill(amount, unit)));
   ingredient.food.value = null;
   closePad();
+  if (recipeImport.editing != null) {
+    setImportRow(recipeImport.editing, food, amount, unit);
+    recipeImport.editing = null;
+    step.value = "import";
+    return;
+  }
+  lines.value.push(draftFrom(food, fill(amount, unit)));
   step.value = "form";
 }
 
@@ -775,8 +832,11 @@ async function addLog() {
           </button>
           <!-- The amount screens name the food or recipe in their body, as when logging a food. -->
           <span v-if="step === 'amount' || mode === 'log'" class="grow" />
-          <h2 v-else class="t-head grow htitle">{{ step === "search" ? "Add ingredient" : title }}</h2>
+          <h2 v-else class="t-head grow htitle">{{ step === "search" ? (recipeImport.editing != null ? "Find ingredient" : "Add ingredient") : step === "import" ? "Import a recipe" : title }}</h2>
           <TimeChip v-if="mode === 'log' && step === 'form'" v-model="time" :date="ui.foodDate" :today="foodToday" />
+          <button v-if="showForm && canImport" type="button" class="cbtn" aria-label="Import a recipe" data-recipe-import-open @click="openImport">
+            <Icon name="download" :size="18" />
+          </button>
           <button
             v-if="showForm"
             type="button"
@@ -840,6 +900,8 @@ async function addLog() {
       </template>
     </AmountScreen>
 
+    <RecipeImport v-else-if="step === 'import'" @use="useImport" @open="openImportRow" @search="searchImportRow" />
+
     <div v-else-if="step === 'search'" class="stack search">
       <label class="field row finder">
         <Icon name="search" :size="18" class="c2" />
@@ -869,7 +931,7 @@ async function addLog() {
       </template>
       <template #hint><kbd>Enter</kbd> add to recipe · <kbd>Esc</kbd> close</template>
       <template #actions>
-        <button type="button" class="btn primary block t-bodys grow" @click="addPicked">Add to recipe · {{ int(ingredient.preview.value.kcal) }} kcal</button>
+        <button type="button" class="btn primary block t-bodys grow" @click="addPicked">{{ recipeImport.editing != null ? "Use" : "Add to recipe" }} · {{ int(ingredient.preview.value.kcal) }} kcal</button>
       </template>
     </FoodAmountView>
 
@@ -901,7 +963,7 @@ async function addLog() {
         <span class="t-cap c3 section-title">Ingredients</span>
         <span v-if="lines.length" class="t-cap c3 total" data-recipe-total>{{ totalLine }}</span>
       </div>
-      <p v-if="!lines.length" class="t-label" :class="tried ? 'err' : 'c2'">Add a food. The card at the top updates as you go.</p>
+      <p v-if="!lines.length" class="t-label" :class="tried ? 'err' : 'c2'">Add a food{{ canImport ? ", or import a recipe from a link or a list" : "" }}. The card at the top updates as you go.</p>
       <div v-else class="items col">
         <div v-for="(line, index) in lines" :key="line.key" class="ing" :data-ingredient-index="index">
           <div class="ingrow">
@@ -933,8 +995,11 @@ async function addLog() {
           </div>
         </div>
       </div>
-      <button type="button" class="field add-btn t-body" @click="openSearch">
+      <button type="button" class="field add-btn t-body" @click="openSearch()">
         <Icon name="search" :size="16" /> Add ingredient
+      </button>
+      <button v-if="canImport && !lines.length" type="button" class="btn sm secondary t-label imp" @click="openImport">
+        <Icon name="download" :size="14" /><span>Import a recipe</span>
       </button>
       <button v-if="mode === 'edit'" type="button" class="btn sm secondary t-label gdel" :disabled="saving" @click="removeRecipe">
         <Icon name="trash" :size="14" /> Delete recipe
@@ -996,4 +1061,5 @@ html.dt-xl .serving { overflow: visible; text-overflow: clip; white-space: norma
 .err, .note, .need { margin: 0; }
 .add-btn { width: 100%; color: var(--text-secondary); text-align: left; }
 .gdel { align-self: flex-start; margin-top: var(--space-s); }
+.imp { align-self: flex-start; }
 </style>

@@ -57,6 +57,9 @@ public static class MealKinds
 
     /// <summary>A photo of a nutrition label read for New food. Found means the label filled the form.</summary>
     public const string Label = "label";
+
+    /// <summary>A recipe's ingredients matched for New recipe, from a link or pasted text. Found means the list came back.</summary>
+    public const string Recipe = "recipe";
 }
 
 public static class MealOutcomes
