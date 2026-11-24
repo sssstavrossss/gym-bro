@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { enqueue, frontTimer, isThrow, mergedText, type QueuedToast } from "../src/lib/toastQueue";
+import { TOAST_ACTION_LIFE, TOAST_LIFE, TOAST_SHORT, enqueue, frontTimer, isThrow, mergedText, toastLife, type QueuedToast } from "../src/lib/toastQueue";
 
 describe("mergedText", () => {
   it("counts foods and sums kcal", () => {
@@ -9,6 +9,15 @@ describe("mergedText", () => {
   });
   it("counts deleted items", () => {
     expect(mergedText({ kind: "delete", count: 4 })).toBe("Deleted 4 items");
+  });
+});
+
+describe("toastLife", () => {
+  it("gives a toast with a button longer, and a cut one a second", () => {
+    expect(toastLife({ id: 1, text: "Saved Plate" })).toBe(TOAST_LIFE);
+    expect(toastLife({ id: 1, text: "Deleted Egg", action: { label: "Undo", run: () => {} } })).toBe(TOAST_ACTION_LIFE);
+    expect(toastLife({ id: 1, text: "Saved Plate", short: true })).toBe(TOAST_SHORT);
+    expect(TOAST_ACTION_LIFE).toBeGreaterThan(TOAST_LIFE);
   });
 });
 
@@ -64,6 +73,15 @@ describe("enqueue", () => {
     expect(next.cut).toBe(true);
     expect(next.restart).toBe(false);
     expect(next.queue.map((t) => [t.id, t.short ?? false])).toEqual([[1, true], [2, true], [3, false]]);
+  });
+
+  it("an Undo arriving behind another Undo leaves it its full time", () => {
+    const undo = { label: "Undo", run: () => {} };
+    let queue = enqueue([], { text: "Copied 1 item · 70 kcal to tomorrow", action: undo }, 1).queue;
+    queue = enqueue(queue, { text: "Saved Plate" }, 2).queue;
+    const next = enqueue(queue, { text: "Deleted Egg", action: undo, merge: { kind: "delete", count: 1 } }, 3);
+    expect(next.cut).toBe(false);
+    expect(next.queue.map((t) => [t.id, t.short ?? false])).toEqual([[1, false], [2, true], [3, false]]);
   });
 
   it("a toast without Undo, or one alone, cuts nothing", () => {

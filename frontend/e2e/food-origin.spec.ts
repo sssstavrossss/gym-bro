@@ -113,7 +113,7 @@ test("another country's food: English name, country tag, after home matches, log
     await expect(sheet(page).getByRole("heading", { name: new RegExp(`${word} salad with feta`, "i") })).toBeVisible();
     await sheet(page).getByLabel("Amount in g").fill("200");
     await sheet(page).getByRole("button", { name: /Add · 360 kcal/ }).click();
-    await expect(page.getByText(new RegExp(`Added 200 g ${word} salad with feta · 360 kcal`, "i"))).toBeVisible();
+    await expect(page.locator("[data-session] button.frow").filter({ hasText: new RegExp(`${word} salad with feta`, "i") })).toContainText("200 g");
 
     const day = await page.request.get(`/api/log-entries?date=${when.today}`, { headers: headers(oid) });
     expect(day.ok(), await day.text()).toBeTruthy();

@@ -182,7 +182,7 @@ test("search, detail, multi-add, and stored-snapshot edit", async ({ page }) => 
   await sheet(page).getByLabel("Amount in g").fill("150");
   await sheet(page).getByRole("button", { name: /Add · 300 kcal/ }).click();
 
-  await expect(page.getByText(/Added 150 g Fictional chicken breast · 300 kcal/)).toBeVisible();
+  await expect(page.locator("[data-session] button.frow").filter({ hasText: "Fictional chicken breast" })).toContainText("150 g");
   await expect(sheet(page)).toBeVisible();
   const searchAfter = sheet(page).getByRole("searchbox", { name: "Search foods" });
   await expect(searchAfter).toHaveValue("chicken");
@@ -202,8 +202,7 @@ test("search, detail, multi-add, and stored-snapshot edit", async ({ page }) => 
   await sheet(page).getByRole("button", { name: /Fictional oat brick/ }).click();
   await sheet(page).getByLabel("Amount in g").fill("100");
   await sheet(page).getByRole("button", { name: /Add ·/ }).click();
-  // Within 4 s of the chicken's toast the two adds share one toast.
-  await expect(page.getByText(/Added 100 g Fictional oat brick · 100 kcal|Added 2 foods · 400 kcal/)).toBeVisible();
+  await expect(page.locator("[data-session]")).toContainText("2 added · 400 kcal");
   await expect(sheet(page).getByText(/Today · 400 kcal/)).toBeVisible();
   await page.unroute("**/api/log-entries");
 
@@ -284,7 +283,7 @@ test("a double tap on add creates one entry", async ({ page }) => {
   });
   const add = sheet(page).getByRole("button", { name: /Add · 80 kcal/ });
   await add.dblclick();
-  await expect(page.getByText(/Added 100 g Fictional tap peas/)).toBeVisible();
+  await expect(page.locator("[data-session] button.frow").filter({ hasText: "Fictional tap peas" })).toContainText("100 g");
   await sheet(page).getByRole("button", { name: "Done", exact: true }).click();
   const listed = await page.request.get(`/api/log-entries?date=${when.today}`, { headers: headers(oid) });
   expect((await listed.json()).entries).toHaveLength(1);
@@ -299,14 +298,7 @@ async function saveShot(page: Page, name: string) {
   }
 }
 
-function overlaps(
-  a: { x: number; y: number; width: number; height: number },
-  b: { x: number; y: number; width: number; height: number },
-) {
-  return a.x < b.x + b.width - 1 && a.x + a.width > b.x + 1 && a.y < b.y + b.height - 1 && a.y + a.height > b.y + 1;
-}
-
-test("fractional per-100 text, full-height search, and the add toast stays off the session bar", async ({ page }) => {
+test("fractional per-100 text, full-height search, and an add shows on the card, not in a toast", async ({ page }) => {
   const oid = `e2e-f2-polish-${Date.now()}-${test.info().project.name}`;
   const when = await clock(page);
   await putWeighIn(page.request, oid, when.today, when.zone);
@@ -343,22 +335,12 @@ test("fractional per-100 text, full-height search, and the add toast stays off t
     window.dispatchEvent(new Event("resize"));
   });
   await sheet(page).getByRole("button", { name: /Add · 165 kcal/ }).click();
-  const toast = page.locator(".toast.front:not(.toast-leave-active)");
   const session = sheet(page).locator(".session");
-  await expect(toast).toBeVisible();
   await expect(session.getByText(/1 added/)).toBeVisible();
   await expect(session.getByText(/Today · 165 kcal/)).toBeVisible();
-  // The toast floats just above the added bar at the bottom; the sheet itself doesn't move for it.
-  const closeBefore = await sheet(page).getByRole("button", { name: "Close", exact: true }).boundingBox();
-  await expect(toast).not.toHaveClass(/toast-(enter|move)/);
-  const toastBox = await toast.boundingBox();
-  const sessionBox = await session.boundingBox();
-  expect(overlaps(toastBox!, sessionBox!), JSON.stringify({ toastBox, sessionBox })).toBe(false);
-  expect(toastBox!.y + toastBox!.height).toBeLessThanOrEqual(sessionBox!.y + 1);
-  await expect(toast).toBeHidden({ timeout: 8_000 });
-  const closeAfter = await sheet(page).getByRole("button", { name: "Close", exact: true }).boundingBox();
-  expect(Math.abs(closeAfter!.y - closeBefore!.y)).toBeLessThan(1);
-  await saveShot(page, "f2-polish-toast-ax5.png");
+  await expect(session.locator("button.frow").filter({ hasText: "Fictional fraction fillet" })).toBeVisible();
+  await expect(page.locator(".toast")).toHaveCount(0);
+  await saveShot(page, "f2-polish-added-ax5.png");
 });
 
 test("desktop accepts a decimal comma and large text does not scroll sideways", async ({ page }) => {

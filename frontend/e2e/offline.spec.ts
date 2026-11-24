@@ -50,7 +50,7 @@ async function addRyeOffline(page: Page) {
   await foodSheet(page).getByRole("button", { name: /^Fictional rye bread/ }).click();
   await expect(foodSheet(page).locator("[data-offline-note]")).toContainText("This saves on your phone");
   await foodSheet(page).getByRole("button", { name: /^Add · \d+ kcal/ }).click();
-  await expect(page.getByText(/^Added .* Fictional rye bread · \d+ kcal$/)).toBeVisible();
+  await expect(page.locator("[data-session] button.frow").filter({ hasText: "Fictional rye bread" })).toBeVisible();
   await foodSheet(page).getByRole("button", { name: "Close", exact: true }).click();
 }
 

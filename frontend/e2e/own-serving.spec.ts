@@ -110,7 +110,6 @@ test("add a private serving, log with it, and keep the old gram snapshot", async
   await foodSheet(page).getByRole("textbox", { name: "Serving name" }).fill("slice");
   await foodSheet(page).getByRole("textbox", { name: "Grams in one serving" }).fill("35");
   await foodSheet(page).getByRole("button", { name: "Save", exact: true }).click();
-  await expect(page.getByText(/Saved 1 slice = 35 g/)).toBeVisible();
 
   const slice = foodSheet(page).getByRole("radio", { name: "slice · 35 g your serving" });
   await expect(slice).toBeChecked();
@@ -122,7 +121,7 @@ test("add a private serving, log with it, and keep the old gram snapshot", async
   await page.screenshot({ path: "/opt/cursor/artifacts/own-serving.png", fullPage: true });
 
   await foodSheet(page).getByRole("button", { name: /Add · 70 kcal/ }).click();
-  await expect(page.getByText(/Added 1 slice Fictional rye bread · 70 kcal/)).toBeVisible();
+  await expect(page.locator("[data-session] button.frow").filter({ hasText: "Fictional rye bread" })).toContainText("1 slice");
   await foodSheet(page).getByRole("button", { name: "Done" }).click();
   const logged = page.locator("main button.frow").filter({ hasText: "Fictional rye bread" });
   await expect(logged).toContainText("1 slice");

@@ -2,7 +2,9 @@ import { int } from "./format";
 
 /** How long the toast in front stays (4 s). The ones behind wait; their time starts when they come to the front. */
 export const TOAST_LIFE = 4000;
-/** A toast that a newer Undo is waiting behind only stays this long in front, so that Undo comes forward almost at once. */
+/** A toast with a button (Undo) stays longer (6 s), so there is time to reach it. */
+export const TOAST_ACTION_LIFE = 6000;
+/** A toast without a button that a newer Undo is waiting behind only stays this long in front, so that Undo comes forward almost at once. */
 export const TOAST_SHORT = 1000;
 /** At most this many show at once: the one in front and the edge of the next. The rest wait unseen. */
 export const TOAST_SHOWN = 2;
@@ -33,6 +35,12 @@ export interface QueuedToast extends ToastSpec {
   short?: boolean;
 }
 
+/** How long a toast stays in front: a second when a newer Undo waits behind it, 6 s with a button, else 4 s. */
+export function toastLife(toast: QueuedToast): number {
+  if (toast.short) return TOAST_SHORT;
+  return toast.action ? TOAST_ACTION_LIFE : TOAST_LIFE;
+}
+
 /** The words for merged toasts. */
 export function mergedText(merge: ToastMerge): string {
   if (merge.kind === "delete") return `Deleted ${merge.count} items`;
@@ -47,15 +55,16 @@ function both(first?: ToastAction, second?: ToastAction): ToastAction | undefine
 
 /**
  * Adds a toast to the end of the queue, or folds it into the last one when both are the same kind.
- * `restart` says the front toast is new or changed, so its 4 s start again. A toast with Undo doesn't wait out
- * the ones ahead of it: they are cut short (`cut`: the front one's clock too), so the newest Undo is quickly the
- * one on screen.
+ * `restart` says the front toast is new or changed, so its time starts again. A toast with Undo doesn't wait out
+ * plain toasts ahead of it: they are cut short (`cut`: the front one's clock too), so the newest Undo is quickly
+ * the one on screen. A toast ahead that has its own button keeps its full time, so its Undo can still be reached.
  */
 export function enqueue(queue: readonly QueuedToast[], spec: ToastSpec, id: number): { queue: QueuedToast[]; restart: boolean; cut: boolean } {
   const next = place(queue, spec, id);
   const last = next.queue.length - 1;
   if (!spec.action || last < 1) return { ...next, cut: false };
-  return { queue: next.queue.map((item, index) => (index < last ? { ...item, short: true } : item)), restart: next.restart, cut: true };
+  const cutQueue = next.queue.map((item, index) => (index < last && !item.action ? { ...item, short: true } : item));
+  return { queue: cutQueue, restart: next.restart, cut: Boolean(cutQueue[0].short) };
 }
 
 function place(queue: readonly QueuedToast[], spec: ToastSpec, id: number): { queue: QueuedToast[]; restart: boolean } {
@@ -85,7 +94,7 @@ export function frontTimer(life: number, onEnd: () => void) {
     handle = setTimeout(onEnd, left);
   };
   return {
-    /** A new front toast: a full 4 s (or `ms`), counting unless a finger is still on it. */
+    /** A new front toast: its full time (`ms`), counting unless a finger is still on it. */
     start(ms = life) {
       left = ms;
       if (!held) run();

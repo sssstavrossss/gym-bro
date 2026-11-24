@@ -171,7 +171,7 @@ test("today empty, quick add, on target, edit, undo, and no sideways scroll", as
   await macroField(page, "Fat").fill("5");
   await macroField(page, "Carbs").fill("20");
   await foodSheet(page).getByRole("button", { name: /Add · .*kcal/ }).click();
-  await expect(page.getByText(/Added Fictional bar/)).toBeVisible();
+  await expect(page.locator("[data-session] button.frow").filter({ hasText: "Fictional bar" })).toBeVisible();
   await foodSheet(page).getByRole("button", { name: "Close", exact: true }).click();
   await expect(page.getByRole("img", { name: /Calories.*on target/ })).toBeVisible();
   await expect(page.locator("main button.frow").filter({ hasText: "Fictional bar" })).toBeVisible();
@@ -239,7 +239,7 @@ test("an add the server can't take waits on the phone and goes under the same ke
   await macroField(page, "Fat").fill("8");
   await macroField(page, "Carbs").fill("12");
   await foodSheet(page).getByRole("button", { name: /Add ·/ }).click();
-  await expect(page.getByText(/Added Fictional shake/)).toBeVisible();
+  await expect(page.locator("[data-session] button.frow").filter({ hasText: "Fictional shake" })).toBeVisible();
   await foodSheet(page).getByRole("button", { name: "Close", exact: true }).click();
   const row = page.locator("main button.frow").filter({ hasText: "Fictional shake" });
   await expect(row.locator('[data-queued="waiting"]')).toBeVisible();

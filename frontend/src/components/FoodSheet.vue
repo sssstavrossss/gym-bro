@@ -572,17 +572,6 @@ async function undoFoodDelete(food: FoodSearchRow) {
   await loadMine();
   if (trimmedQuery.value && filter.value === "all") void runSearch(trimmedQuery.value);
 }
-/** Undo for adds: the entries go, and so do their rows in the "added" bar. */
-function undoAdds(entries: LogEntry[]) {
-  const keys = new Set(entries.map((entry) => entry.idempotencyKey));
-  session.value = session.value.filter((row) => !keys.has(row.idempotencyKey));
-  void removeEntries(entries, { announce: false });
-}
-/** The add toast: Undo, and back-to-back adds fold into one ("Added 2 foods · 237 kcal"). */
-function addedToast(text: string, entries: LogEntry[]) {
-  const kcal = entries.reduce((sum, entry) => sum + entry.kcal, 0);
-  toast(text, { label: "Undo", run: () => undoAdds(entries) }, { merge: { kind: "add", count: entries.length, kcal } });
-}
 async function loadRecents() {
   const gen = ++recentGen;
   try {
@@ -664,7 +653,6 @@ async function addRecent(food: RecentFood) {
     }
     recentKeys.delete(food.id);
     noteSession(result.entry);
-    addedToast(`Added ${foodAmount(result.entry.amount, result.entry.unit || picked.unit)} ${result.entry.name} · ${int(result.entry.kcal)} kcal`, [result.entry]);
     justAdded.value = food.id;
     window.clearTimeout(justTimer);
     justTimer = window.setTimeout(() => {
@@ -973,8 +961,6 @@ async function addDescribed() {
     if (result.message) describe.error = result.message;
     return;
   }
-  const count = result.added.length;
-  addedToast(`Added ${count === 1 ? "1 food" : `${count} foods`} · ${int(result.kcal)} kcal`, result.added);
   void loadRecents();
   ui.foodTab = "search";
 }
@@ -1014,16 +1000,16 @@ async function addGroup(group: SavedGroup) {
     return;
   }
   groupKeys.delete(group.id);
-  const addedKcal = result.entries.reduce((sum, entry) => sum + entry.kcal, 0);
   for (const entry of result.entries) noteSession(entry);
   justGroup.value = group.id;
   window.setTimeout(() => {
     if (justGroup.value === group.id) justGroup.value = null;
   }, 1200);
-  const text = readdToast(group.name, result.entries.length, addedKcal, result.notice);
-  // A notice (a food that is gone) stays its own toast so it isn't folded away.
-  if (result.entries.length && !result.notice.trim()) addedToast(text, result.entries);
-  else toast(text, result.entries.length ? { label: "Undo", run: () => undoAdds(result.entries) } : undefined);
+  // The card shows what was added. A toast only says what wasn't: a food that is gone, or nothing at all.
+  if (!result.entries.length || result.notice.trim()) {
+    const addedKcal = result.entries.reduce((sum, entry) => sum + entry.kcal, 0);
+    toast(readdToast(group.name, result.entries.length, addedKcal, result.notice));
+  }
 }
 async function removeGroup(group: SavedGroup) {
   if (saving.value) return;
@@ -1085,7 +1071,8 @@ async function addQuick() {
         formError.value = result.message;
         return;
       }
-      toast(`Updated ${result.entry.name} · ${int(result.entry.kcal)} kcal`);
+      // From the added card the row changes in front of you; from the log, the toast says what changed.
+      if (!ui.editFromAdded) toast(`Updated ${result.entry.name} · ${int(result.entry.kcal)} kcal`);
       doneEditing();
       return;
     }
@@ -1126,9 +1113,8 @@ async function addQuick() {
     }
     const savedMine = qSave.value;
     noteSession(result.entry);
-    addedToast(savedMine
-      ? `Added ${result.entry.name} · ${int(result.entry.kcal)} kcal · saved to My foods`
-      : `Added ${result.entry.name} · ${int(result.entry.kcal)} kcal`, [result.entry]);
+    // The card shows the add; that it also went into My foods shows nowhere else.
+    if (savedMine) toast(`Saved ${result.entry.name} to My foods`);
     if (savedMine) void loadMine();
     const held = otherDay.value ? time.value : null;
     fill(null);
@@ -1183,7 +1169,8 @@ async function addDetail() {
         formError.value = result.message;
         return;
       }
-      toast(`Updated ${result.entry.name} · ${int(result.entry.kcal)} kcal`);
+      // From the added card the row changes in front of you; from the log, the toast says what changed.
+      if (!ui.editFromAdded) toast(`Updated ${result.entry.name} · ${int(result.entry.kcal)} kcal`);
       doneEditing();
       return;
     }
@@ -1210,7 +1197,6 @@ async function addDetail() {
       return;
     }
     noteSession(result.entry);
-    addedToast(`Added ${foodAmount(result.entry.amount, result.entry.unit || unit.value)} ${result.entry.name} · ${int(result.entry.kcal)} kcal`, [result.entry]);
     const backToSearch = searchView.value;
     ui.detailFoodId = null;
     detailFood.value = null;
