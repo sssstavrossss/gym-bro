@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { wrapTurn } from "../src/lib/carousel";
+import { shortTurn, wrapTurn } from "../src/lib/carousel";
 
 const slow = [{ t: 0, x: 200 }, { t: 400, x: 170 }];
 
@@ -19,5 +19,16 @@ describe("wrapTurn", () => {
   it("a quick short flick wraps", () => {
     expect(wrapTurn("last", -18, 2, [{ t: 0, x: 200 }, { t: 40, x: 182 }])).toBe(1);
     expect(wrapTurn("last", -10, 2, [{ t: 0, x: 200 }, { t: 20, x: 190 }])).toBe(0);
+  });
+});
+
+describe("shortTurn", () => {
+  it("goes the short way round, wrapping when that is shorter", () => {
+    expect(shortTurn(0, 1, 4)).toBe(1);
+    expect(shortTurn(0, 3, 4)).toBe(-1);
+    expect(shortTurn(3, 0, 4)).toBe(1);
+    expect(shortTurn(0, 2, 4)).toBe(2);
+    expect(shortTurn(2, 2, 4)).toBe(0);
+    expect(shortTurn(0, 1, 0)).toBe(0);
   });
 });

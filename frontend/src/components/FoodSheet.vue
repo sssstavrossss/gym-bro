@@ -14,6 +14,10 @@ import OfflineNote from "./OfflineNote.vue";
 import DescribePane from "./DescribePane.vue";
 import CappedList from "./CappedList.vue";
 import LogRow from "./LogRow.vue";
+import SwipePanels from "./SwipePanels.vue";
+import PageChips from "./PageChips.vue";
+import PageAction from "./PageAction.vue";
+import { FOOD_PAGES, groupsEmptyDetail, groupsEmptyTitle, groupsNote, newFoodDetail, newRecipeDetail, searchesServer, type FoodPage } from "../lib/foodPages";
 import { sessionLines, sessionRows } from "../lib/addSession";
 import { activateMark, activateRow, type Selection } from "../lib/selection";
 import { dayMonth, todayInZone } from "../lib/dates";
@@ -53,7 +57,6 @@ import {
   recentEmptyDetail,
   recentEmptyTitle,
   recentHintKeys,
-  recentHintTouch,
   recentSubtitle,
   sameAddTap,
   typeForLocalSearch,
@@ -115,7 +118,13 @@ const fields: { key: Field; label: string; unit: string }[] = [
 ];
 
 const q = ref("");
-const filter = ref<"all" | "mine" | "recipes">("all");
+/** The Search tab's page (Recent, Recipes, My foods, Groups). It also sets what the search box looks through. */
+const pageIndex = ref(0);
+const filter = computed<FoodPage>(() => FOOD_PAGES[pageIndex.value]?.id ?? "recent");
+/** The pager's position while it moves, for the chips' sliding pill. */
+const pagePosition = ref<number | null>(null);
+const pager = ref<InstanceType<typeof SwipePanels> | null>(null);
+const pageNames = FOOD_PAGES.map((page) => page.label);
 const mine = ref<FoodSearchRow[]>([]);
 const qSave = ref(false);
 const savedFoodId = ref<string | null>(null);
@@ -136,7 +145,19 @@ let justTimer = 0;
 let recentGen = 0;
 let detailGen = 0;
 const searchEl = ref<HTMLInputElement | null>(null);
-const listEl = ref<HTMLElement | null>(null);
+/** Each page scrolls on its own; the one showing is the list the search keeps its place in. */
+const pageEls: (HTMLElement | null)[] = [];
+function setPageEl(at: number, el: unknown) {
+  pageEls[at] = el instanceof HTMLElement ? el : null;
+}
+function currentList(): HTMLElement | null {
+  return pageEls[pageIndex.value] ?? null;
+}
+/** A chip turns the pager the short way round; the pager says which page is showing. */
+function pickPage(at: number) {
+  if (pager.value) pager.value.turn(at);
+  else pageIndex.value = at;
+}
 const searchFocused = ref(false);
 /** Search chrome, kept after a result is added so the query and list come back. Not the same as the field having focus. */
 const searchView = ref(false);
@@ -169,6 +190,10 @@ const addedLines = computed(() => sessionLines(
   otherDay.value ? dayMonth(ui.foodDate) : "Today",
   foodTotals.value.kcal,
 ));
+const pageChips = computed(() => FOOD_PAGES.map((page) => ({
+  label: page.label,
+  count: page.id === "recipes" ? savedRecipes.list.length : page.id === "mine" ? mine.value.length : page.id === "groups" ? savedGroups.list.length : undefined,
+})));
 const visibleGroups = computed(() => matchingGroups(savedGroups.list, q.value));
 const visibleRecipes = computed(() => matchingRecipes(savedRecipes.list, q.value));
 const sessionRecipeCount = computed(() => recipeFoodEntries(added.value).length);
@@ -307,7 +332,8 @@ function holdSearchPlace() {
   if (!searchFocused.value && !searchView.value) return;
   keepSearch = true;
   searchView.value = true;
-  if (listEl.value) searchScroll.value = listEl.value.scrollTop;
+  const list = currentList();
+  if (list) searchScroll.value = list.scrollTop;
 }
 function pickFood(event: MouseEvent, food: FoodSearchRow, preset?: { amount: number; unit: string }) {
   clickPick(event, () => { holdSearchPlace(); void openFoodRow(food, preset); });
@@ -325,10 +351,13 @@ function restoreSearchList() {
   const top = searchScroll.value;
   void nextTick(() => {
     searchEl.value?.blur();
-    const list = listEl.value;
+    const list = currentList();
     if (!list) return;
     list.scrollTop = top;
-    requestAnimationFrame(() => { if (listEl.value) listEl.value.scrollTop = top; });
+    requestAnimationFrame(() => {
+      const again = currentList();
+      if (again) again.scrollTop = top;
+    });
   });
 }
 async function openFoodRow(food: FoodSearchRow, preset?: { amount: number; unit: string }) {
@@ -424,7 +453,7 @@ function queueSearchBlur() {
   }, 0);
 }
 function fitResults() {
-  const list = listEl.value;
+  const list = currentList();
   const viewport = window.visualViewport;
   if (!list || !searchFocused.value || !viewport) {
     resultsMax.value = "";
@@ -439,7 +468,7 @@ function outsideSearch(event: PointerEvent) {
   const target = event.target;
   if (!(target instanceof Node)) return;
   if (searchEl.value?.closest("label")?.contains(target)) return;
-  if (listEl.value?.contains(target)) return;
+  if (currentList()?.contains(target)) return;
   closeSearchKeyboard();
 }
 const trimmedQuery = computed(() => q.value.trim());
@@ -449,6 +478,7 @@ const mineListed = computed(() => {
 });
 const listed = computed(() => {
   if (filter.value === "mine") return mineListed.value;
+  if (filter.value !== "recent") return [];
   return trimmedQuery.value ? results.value : recents.value;
 });
 const offCopy = computed(() => (
@@ -467,8 +497,7 @@ const showNoMatch = computed(() => Boolean(
 ));
 const showOffButton = computed(() => !connection.offline && canAskOpenFoodFacts(q.value) && off.value.status === "idle" && !searchError.value);
 const searchPlaceholder = computed(() => {
-  if (filter.value === "mine") return "Search my foods";
-  if (filter.value === "recipes") return "Search recipes";
+  if (filter.value !== "recent") return FOOD_PAGES[pageIndex.value].search;
   return connection.offline ? "Search your foods" : "Search foods";
 });
 /** Offline, search looks through the foods kept on this phone: recents and My foods. */
@@ -555,14 +584,14 @@ async function onFoodSaved(food: FoodSearchRow, created: boolean) {
   }
   toast(`Updated ${food.name} · past entries unchanged`);
   if (ret === "detail") showFood(food);
-  else if (trimmedQuery.value && filter.value === "all") void runSearch(trimmedQuery.value);
+  else if (trimmedQuery.value && filter.value === "recent") void runSearch(trimmedQuery.value);
 }
 async function onFoodDeleted(food: FoodSearchRow) {
   ui.foodEditor = null;
   ui.detailFoodId = null;
   detailFood.value = null;
   await loadMine();
-  if (trimmedQuery.value && filter.value === "all") void runSearch(trimmedQuery.value);
+  if (trimmedQuery.value && filter.value === "recent") void runSearch(trimmedQuery.value);
   toast(`Deleted ${food.name} · past entries kept`, { label: "Undo", run: () => { void undoFoodDelete(food); } });
 }
 async function undoFoodDelete(food: FoodSearchRow) {
@@ -573,7 +602,7 @@ async function undoFoodDelete(food: FoodSearchRow) {
     return;
   }
   await loadMine();
-  if (trimmedQuery.value && filter.value === "all") void runSearch(trimmedQuery.value);
+  if (trimmedQuery.value && filter.value === "recent") void runSearch(trimmedQuery.value);
 }
 async function loadRecents() {
   const gen = ++recentGen;
@@ -771,7 +800,7 @@ onBeforeUnmount(() => {
   window.removeEventListener("pointerdown", outsideSearch, true);
 });
 watch(q, (value) => {
-  if (filter.value === "mine" || filter.value === "recipes") {
+  if (!searchesServer(filter.value)) {
     window.clearTimeout(searchTimer);
     searchGen += 1;
     searching.value = false;
@@ -784,7 +813,7 @@ watch(q, (value) => {
 });
 watch(filter, (value) => {
   hi.value = 0;
-  if (value === "mine" || value === "recipes") {
+  if (!searchesServer(value)) {
     window.clearTimeout(searchTimer);
     searchGen += 1;
     searching.value = false;
@@ -821,7 +850,9 @@ watch(open, (isOpen) => {
   addedEdit = null;
   addedCap.value = document.documentElement.classList.contains("dt-l") ? 1 : 2;
   off.value = idleOff();
-  filter.value = "all";
+  pageIndex.value = 0;
+  pagePosition.value = null;
+  pager.value?.go(0, "auto");
   detailFood.value = null;
   amount.resetServingForm();
   if (!editingFood.value) ui.detailFoodId = null;
@@ -885,7 +916,8 @@ watch(() => ui.editEntryId, (id) => {
     const entry = findEntry(id);
     if (!entry) return;
     addedEdit = { time: time.value };
-    if (listEl.value) searchScroll.value = listEl.value.scrollTop;
+    const list = currentList();
+    if (list) searchScroll.value = list.scrollTop;
     closeSearchKeyboard();
     detailFood.value = null;
     amount.resetServingForm();
@@ -941,7 +973,7 @@ function submitDetail() {
 }
 /** No match: Search with Claude's name for it. The list waits on the Describe tab. */
 function searchDescribed(query: string) {
-  filter.value = "all";
+  pageIndex.value = 0;
   ui.foodTab = "search";
   q.value = query;
 }
@@ -1326,138 +1358,171 @@ async function deleteEdited() {
         <Icon name="search" :size="18" class="c2" />
         <input ref="searchEl" v-model="q" data-no-autofocus class="t-body grow" type="search" :placeholder="searchPlaceholder" :aria-label="filter === 'recipes' ? 'Search recipes' : 'Search foods'" autocomplete="off" enterkeyhint="search" @focus="onSearchFocus" @blur="queueSearchBlur" @keydown="searchKey" />
         <button v-if="q" type="button" class="clr c2" aria-label="Clear search" @click="q = ''"><Icon name="x" :size="16" /></button>
-        <button v-else-if="filter !== 'recipes'" type="button" class="clr scanb" aria-label="Scan a barcode" @click="startScan"><Icon name="scan" :size="20" /></button>
+        <button v-else-if="filter === 'recent' || filter === 'mine'" type="button" class="clr scanb" aria-label="Scan a barcode" @click="startScan"><Icon name="scan" :size="20" /></button>
       </label>
-      <div v-show="!searchView" class="row fchips" role="group" aria-label="Show">
-        <button type="button" class="chip t-label" :class="{ on: filter === 'all' }" :aria-pressed="filter === 'all'" @click="filter = 'all'">All foods</button>
-        <button type="button" class="chip t-label" :class="{ on: filter === 'mine' }" :aria-pressed="filter === 'mine'" @click="filter = 'mine'">My foods · {{ mine.length }}</button>
-        <button type="button" class="chip t-label" :class="{ on: filter === 'recipes' }" :aria-pressed="filter === 'recipes'" @click="filter = 'recipes'">Recipes · {{ savedRecipes.list.length }}</button>
-      </div>
+      <PageChips v-show="!searchView" :pages="pageChips" :current="pageIndex" :position="pagePosition" label="Show" @pick="pickPage" />
       <p v-if="connection.offline" v-show="!searchView" class="well t-label c2 offwell" role="status" data-offline-search>
         <Icon name="cloud-off" :size="16" class="oic" />
         <span><strong class="offk">Offline.</strong> Your recent foods, My foods and Quick add work. Searching the full food list needs a connection.</span>
       </p>
-      <div ref="listEl" class="list" :class="{ compact: searchFocused }" :style="resultsMax ? { maxHeight: resultsMax } : undefined">
-        <RecipeList
-          v-if="filter === 'recipes'"
-          :recipes="visibleRecipes"
-          heading="Recipes"
-          :active-index="keyboardEntry ? hi : -1"
-          :saving="saving"
-          @add="(recipe) => pickRecipe(recipe.id)"
-          @edit="(recipe) => openRecipeEdit(recipe.id)"
-          @create="openRecipeCreate('food')"
-        />
-        <template v-if="filter !== 'mine' && filter !== 'recipes' && !searchView">
-        <SavedGroups
-          :groups="visibleGroups"
-          :note="groupNote"
-          :saving="saving"
-          :need-time="needTime"
-          :added-id="justGroup"
-          @add="addGroup"
-          @remove="removeGroup"
-        />
-        <RecipeList
-          :recipes="visibleRecipes"
-          :saving="saving"
-          @add="(recipe) => pickRecipe(recipe.id)"
-          @edit="(recipe) => openRecipeEdit(recipe.id)"
-          @create="openRecipeCreate('food')"
-        />
-        </template>
-        <template v-if="filter === 'recipes'" />
-        <template v-else-if="filter === 'mine'">
-          <div v-if="mine.length" class="row lhead">
-            <span class="t-cap c2 section-title">My foods</span>
-            <span class="grow" />
-            <button type="button" class="btn sm secondary t-label" @click="openNewFood(trimmedQuery || undefined)"><Icon name="plus" :size="14" :sw="2.4" /> New food</button>
-          </div>
-          <div v-if="!mine.length" class="col emptyc">
-            <span class="t-bodys">{{ myFoodsEmptyTitle }}</span>
-            <span class="t-label c2">{{ myFoodsEmptyDetail }}</span>
-            <button type="button" class="btn sm primary t-label" @click="openNewFood()"><Icon name="plus" :size="14" :sw="2.4" /> Create a food</button>
-          </div>
-          <div v-for="(food, index) in mineListed" :key="food.id" class="rrow row" :class="{ hl: keyboardEntry && index === hi }" @mouseenter="hi = index">
-            <button type="button" class="col grow rtext" @pointerdown="pressFood($event, food)" @click="pickFood($event, food)">
-              <span class="t-body ell">{{ food.name }}</span>
-              <span class="t-label c2 ell">{{ rowSub(food) }}</span>
-            </button>
-            <MicroRing :nutrients="food.nutrients" />
-            <button type="button" class="cbtn"  :aria-label="`Edit ${food.name}`" @click="editMine(food, 'list')"><Icon name="edit" :size="17" /></button>
-            <button type="button" class="cbtn filled"  :aria-label="needTime ? `Pick a time to add ${food.name}` : `Add ${foodAmount(Number(listedPreset(food).amount), listedPreset(food).unit)} ${food.name}`" :disabled="saving || needTime" @click="addListed(food)">
-              <Icon :name="justAdded === food.id ? 'check' : 'plus'" :size="18" :sw="2.4" />
-            </button>
-          </div>
-          <p v-if="mine.length && !mineListed.length" class="t-label c2 empty">No match in my foods.</p>
-        </template>
-        <template v-else-if="!trimmedQuery">
-          <div class="row lhead">
-            <span class="t-cap c2 section-title">Recent</span>
-            <span class="grow" />
-            <span class="t-capn c2">{{ keyboardEntry ? recentHintKeys : recentHintTouch }}</span>
-          </div>
-          <div v-for="(food, index) in recents" :key="food.id" class="rrow row" :class="{ hl: keyboardEntry && index === hi }" @mouseenter="hi = index">
-            <button type="button" class="col grow rtext" @pointerdown="pressFood($event, food, { amount: food.amount, unit: food.unit })" @click="pickFood($event, food, { amount: food.amount, unit: food.unit })">
-              <span class="row gap6 nm"><span class="t-body ell">{{ foodTitle(food, foodCountry()) }}</span><span v-if="isMyFood(food)" class="tag t-capn">my food</span><span v-else-if="countryTag(food, foodCountry())" class="tag t-capn">{{ countryTag(food, foodCountry()) }}</span></span>
-              <span class="t-label c2 ell">{{ withBrand(food.brand, recentSubtitle(food, food.amount, food.unit, foodUnit())) }}</span>
-            </button>
-            <MicroRing :nutrients="food.nutrients" />
-            <button type="button" class="cbtn filled"  :aria-label="needTime ? `Pick a time to add ${food.name}` : `Add ${foodAmount(food.amount, food.unit)} ${food.name}`" :disabled="saving || needTime" @click="addRecent(food)">
-              <Icon :name="justAdded === food.id ? 'check' : 'plus'" :size="18" :sw="2.4" />
-            </button>
-          </div>
-          <div v-if="!recents.length" class="col emptyc">
-            <span class="t-bodys">{{ recentEmptyTitle }}</span>
-            <span class="t-label c2">{{ recentEmptyDetail }}</span>
-          </div>
-        </template>
-        <template v-else>
-          <p v-if="searching" class="t-label c2" role="status">Searching…</p>
-          <div v-if="searchError" class="err col" role="alert">
-            <span class="t-label">{{ searchError }}</span>
-            <button v-if="trimmedQuery.length >= 2" type="button" class="btn sm primary t-label" @click="runSearch(trimmedQuery)"><Icon name="refresh" :size="14" /> Try again</button>
-          </div>
-          <div v-if="results.length" class="row lhead"><span class="t-cap c2 section-title">Results</span><span v-if="spelling" class="t-capn c2 ell grow spell">{{ spelling }}</span></div>
-          <button v-for="(food, index) in results" :key="food.id" type="button" class="rrow row" :class="{ hl: keyboardEntry && index === hi }" @pointerdown="pressFood($event, food)" @click="pickFood($event, food)" @mouseenter="hi = index">
-            <span class="col grow rtext">
-              <span class="row gap6 nm"><span class="t-body ell">{{ foodTitle(food, foodCountry()) }}</span><span v-if="isMyFood(food)" class="tag t-capn">my food</span><span v-else-if="countryTag(food, foodCountry())" class="tag t-capn">{{ countryTag(food, foodCountry()) }}</span></span>
-              <span class="t-label c2 ell">{{ rowSub(food) }}</span>
-            </span>
-            <MicroRing :nutrients="food.nutrients" />
-          </button>
-          <div v-if="off.results.length" class="row lhead"><span class="t-cap c2 section-title">Open Food Facts</span></div>
-          <button v-for="food in off.results" :key="food.id" type="button" class="rrow row" @pointerdown="pressFood($event, food)" @click="pickFood($event, food)">
-            <span class="col grow rtext">
-              <span class="t-body ell">{{ food.name }}</span>
-              <span class="t-label c2 ell">{{ rowSub(food) }}</span>
-            </span>
-            <MicroRing :nutrients="food.nutrients" />
-          </button>
-          <p v-if="off.status === 'loading'" class="t-capn c2 skl" role="status">Searching Open Food Facts…</p>
-          <div v-else-if="offCopy" class="err col" role="alert">
-            <div class="row gap8"><Icon name="alert" :size="18" class="c2" /><span class="t-bodys">{{ offCopy.title }}</span></div>
-            <span class="t-label c2">{{ offCopy.detail }}</span>
-            <div class="row offacts">
-              <button type="button" class="btn sm primary t-label" @click="askOff"><Icon name="refresh" :size="14" /> {{ offCopy.retry }}</button>
-              <button type="button" class="btn sm secondary t-label" @click="useQuickAdd">{{ offCopy.quickAdd }}</button>
+      <!-- Recent, Recipes, My foods and Groups, swiped like Home's cards and wrapping at the ends. A search holds the page. -->
+      <SwipePanels
+        ref="pager"
+        class="pager"
+        :count="FOOD_PAGES.length"
+        :start="pageIndex"
+        :names="pageNames"
+        label="Food lists"
+        tight
+        hide-offscreen
+        quiet-dots
+        :edges="false"
+        :hold="searchView || Boolean(trimmedQuery)"
+        @change="(at) => (pageIndex = at)"
+        @progress="(at) => (pagePosition = at)"
+      >
+        <div
+          v-for="(page, at) in FOOD_PAGES"
+          :key="page.id"
+          :ref="(el) => setPageEl(at, el)"
+          class="list"
+          :class="{ compact: searchFocused }"
+          :style="at === pageIndex && resultsMax ? { maxHeight: resultsMax } : undefined"
+          :data-food-page="page.id"
+        >
+          <template v-if="page.id === 'recipes'">
+            <PageAction title="New recipe" :detail="newRecipeDetail" @open="openRecipeCreate('food')" />
+            <RecipeList
+              :recipes="visibleRecipes"
+              heading="Recipes"
+              bare
+              :active-index="keyboardEntry ? hi : -1"
+              :saving="saving"
+              @add="(recipe) => pickRecipe(recipe.id)"
+              @edit="(recipe) => openRecipeEdit(recipe.id)"
+              @create="openRecipeCreate('food')"
+            />
+          </template>
+          <template v-else-if="page.id === 'mine'">
+            <PageAction title="New food" :detail="newFoodDetail" @open="openNewFood(trimmedQuery || undefined)" />
+            <div v-if="!mine.length" class="col emptyc">
+              <span class="t-bodys">{{ myFoodsEmptyTitle }}</span>
+              <span class="t-label c2">{{ myFoodsEmptyDetail }}</span>
             </div>
-          </div>
-          <p v-if="off.status === 'ok' && off.missingKcal > 0" class="t-label c2 miss">
-            {{ missingKcalLead }}
-            <button type="button" class="btn sm secondary t-label" @click="openMissingEditor">{{ missingKcalAction }}</button>
-          </p>
-          <div v-if="showNoMatch" class="col emptyc">
-            <span class="t-label c2">No match for “{{ trimmedQuery }}”.</span>
-            <div class="row gap8 wrapc">
-              <button type="button" class="btn sm secondary t-label" @click="openNewFood(trimmedQuery)"><Icon name="plus" :size="14" :sw="2.4" /> Create “{{ trimmedQuery }}”</button>
-              <button type="button" class="btn sm secondary t-label" @click="useQuickAdd">Quick Add</button>
+            <div v-for="(food, index) in mineListed" :key="food.id" class="rrow row" :class="{ hl: keyboardEntry && index === hi }" @mouseenter="hi = index">
+              <button type="button" class="col grow rtext" @pointerdown="pressFood($event, food)" @click="pickFood($event, food)">
+                <span class="t-body ell">{{ food.name }}</span>
+                <span class="t-label c2 ell">{{ rowSub(food) }}</span>
+              </button>
+              <MicroRing :nutrients="food.nutrients" />
+              <button type="button" class="cbtn"  :aria-label="`Edit ${food.name}`" @click="editMine(food, 'list')"><Icon name="edit" :size="17" /></button>
+              <button type="button" class="cbtn filled"  :aria-label="needTime ? `Pick a time to add ${food.name}` : `Add ${foodAmount(Number(listedPreset(food).amount), listedPreset(food).unit)} ${food.name}`" :disabled="saving || needTime" @click="addListed(food)">
+                <Icon :name="justAdded === food.id ? 'check' : 'plus'" :size="18" :sw="2.4" />
+              </button>
             </div>
-          </div>
-          <button v-if="showOffButton" type="button" class="btn sm secondary t-label offask" @click="askOff"><Icon name="search" :size="14" /> Search Open Food Facts</button>
-        </template>
-        <p v-if="formError" class="err t-label" role="alert">{{ formError }}</p>
-      </div>
+            <p v-if="mine.length && !mineListed.length" class="t-label c2 empty">No match in my foods.</p>
+          </template>
+          <template v-else-if="page.id === 'groups'">
+            <SavedGroups
+              bare
+              :groups="visibleGroups"
+              :note="groupNote"
+              :saving="saving"
+              :need-time="needTime"
+              :added-id="justGroup"
+              @add="addGroup"
+              @remove="removeGroup"
+            />
+            <div v-if="!savedGroups.list.length" class="col emptyc">
+              <span class="t-bodys">{{ groupsEmptyTitle }}</span>
+              <span class="t-label c2">{{ groupsEmptyDetail }}</span>
+            </div>
+            <p v-else-if="!visibleGroups.length" class="t-label c2 empty">No match in groups.</p>
+            <p v-else class="t-capn c2 pnote">{{ groupsNote(groupNote) }}</p>
+          </template>
+          <template v-else-if="!trimmedQuery">
+            <p v-if="keyboardEntry" class="t-capn c2 pnote">{{ recentHintKeys }}</p>
+            <div v-for="(food, index) in recents" :key="food.id" class="rrow row" :class="{ hl: keyboardEntry && index === hi }" @mouseenter="hi = index">
+              <button type="button" class="col grow rtext" @pointerdown="pressFood($event, food, { amount: food.amount, unit: food.unit })" @click="pickFood($event, food, { amount: food.amount, unit: food.unit })">
+                <span class="row gap6 nm"><span class="t-body ell">{{ foodTitle(food, foodCountry()) }}</span><span v-if="isMyFood(food)" class="tag t-capn">my food</span><span v-else-if="countryTag(food, foodCountry())" class="tag t-capn">{{ countryTag(food, foodCountry()) }}</span></span>
+                <span class="t-label c2 ell">{{ withBrand(food.brand, recentSubtitle(food, food.amount, food.unit, foodUnit())) }}</span>
+              </button>
+              <MicroRing :nutrients="food.nutrients" />
+              <button type="button" class="cbtn filled"  :aria-label="needTime ? `Pick a time to add ${food.name}` : `Add ${foodAmount(food.amount, food.unit)} ${food.name}`" :disabled="saving || needTime" @click="addRecent(food)">
+                <Icon :name="justAdded === food.id ? 'check' : 'plus'" :size="18" :sw="2.4" />
+              </button>
+            </div>
+            <div v-if="!recents.length" class="col emptyc">
+              <span class="t-bodys">{{ recentEmptyTitle }}</span>
+              <span class="t-label c2">{{ recentEmptyDetail }}</span>
+            </div>
+          </template>
+          <template v-else>
+            <!-- With the keyboard down, groups and recipes that match come first. -->
+            <template v-if="!searchView">
+              <SavedGroups
+                :groups="visibleGroups"
+                :note="groupNote"
+                :saving="saving"
+                :need-time="needTime"
+                :added-id="justGroup"
+                @add="addGroup"
+                @remove="removeGroup"
+              />
+              <RecipeList
+                :recipes="visibleRecipes"
+                :saving="saving"
+                @add="(recipe) => pickRecipe(recipe.id)"
+                @edit="(recipe) => openRecipeEdit(recipe.id)"
+                @create="openRecipeCreate('food')"
+              />
+            </template>
+            <p v-if="searching" class="t-label c2" role="status">Searching…</p>
+            <div v-if="searchError" class="err col" role="alert">
+              <span class="t-label">{{ searchError }}</span>
+              <button v-if="trimmedQuery.length >= 2" type="button" class="btn sm primary t-label" @click="runSearch(trimmedQuery)"><Icon name="refresh" :size="14" /> Try again</button>
+            </div>
+            <div v-if="results.length" class="row lhead"><span class="t-cap c2 section-title">Results</span><span v-if="spelling" class="t-capn c2 ell grow spell">{{ spelling }}</span></div>
+            <button v-for="(food, index) in results" :key="food.id" type="button" class="rrow row" :class="{ hl: keyboardEntry && index === hi }" @pointerdown="pressFood($event, food)" @click="pickFood($event, food)" @mouseenter="hi = index">
+              <span class="col grow rtext">
+                <span class="row gap6 nm"><span class="t-body ell">{{ foodTitle(food, foodCountry()) }}</span><span v-if="isMyFood(food)" class="tag t-capn">my food</span><span v-else-if="countryTag(food, foodCountry())" class="tag t-capn">{{ countryTag(food, foodCountry()) }}</span></span>
+                <span class="t-label c2 ell">{{ rowSub(food) }}</span>
+              </span>
+              <MicroRing :nutrients="food.nutrients" />
+            </button>
+            <div v-if="off.results.length" class="row lhead"><span class="t-cap c2 section-title">Open Food Facts</span></div>
+            <button v-for="food in off.results" :key="food.id" type="button" class="rrow row" @pointerdown="pressFood($event, food)" @click="pickFood($event, food)">
+              <span class="col grow rtext">
+                <span class="t-body ell">{{ food.name }}</span>
+                <span class="t-label c2 ell">{{ rowSub(food) }}</span>
+              </span>
+              <MicroRing :nutrients="food.nutrients" />
+            </button>
+            <p v-if="off.status === 'loading'" class="t-capn c2 skl" role="status">Searching Open Food Facts…</p>
+            <div v-else-if="offCopy" class="err col" role="alert">
+              <div class="row gap8"><Icon name="alert" :size="18" class="c2" /><span class="t-bodys">{{ offCopy.title }}</span></div>
+              <span class="t-label c2">{{ offCopy.detail }}</span>
+              <div class="row offacts">
+                <button type="button" class="btn sm primary t-label" @click="askOff"><Icon name="refresh" :size="14" /> {{ offCopy.retry }}</button>
+                <button type="button" class="btn sm secondary t-label" @click="useQuickAdd">{{ offCopy.quickAdd }}</button>
+              </div>
+            </div>
+            <p v-if="off.status === 'ok' && off.missingKcal > 0" class="t-label c2 miss">
+              {{ missingKcalLead }}
+              <button type="button" class="btn sm secondary t-label" @click="openMissingEditor">{{ missingKcalAction }}</button>
+            </p>
+            <div v-if="showNoMatch" class="col emptyc">
+              <span class="t-label c2">No match for “{{ trimmedQuery }}”.</span>
+              <div class="row gap8 wrapc">
+                <button type="button" class="btn sm secondary t-label" @click="openNewFood(trimmedQuery)"><Icon name="plus" :size="14" :sw="2.4" /> Create “{{ trimmedQuery }}”</button>
+                <button type="button" class="btn sm secondary t-label" @click="useQuickAdd">Quick Add</button>
+              </div>
+            </div>
+            <button v-if="showOffButton" type="button" class="btn sm secondary t-label offask" @click="askOff"><Icon name="search" :size="14" /> Search Open Food Facts</button>
+          </template>
+          <p v-if="formError && at === pageIndex" class="err t-label" role="alert">{{ formError }}</p>
+        </div>
+      </SwipePanels>
       <!-- Hidden while the search field has the keyboard: the list needs that room, and Done isn't needed mid-typing. -->
       <div v-if="added.length" v-show="!searchFocused" class="well session" role="group" aria-label="Added" data-session data-toast-floor>
         <span class="col stext" role="status">
@@ -1622,7 +1687,10 @@ html.dt-xl .hdr { flex-wrap: nowrap; }
 html.dt-xl .hdr :deep(.tchip.t-label),
 html.dt-xl .hdr :deep(.now) { font-size: 15px; line-height: 1.2; }
 .dt-xl .qgrid { grid-template-columns: 1fr; }
-.fchips { gap: var(--space-m); flex-wrap: wrap; flex: none; }
+/* The pages fill the room under the chips; each scrolls on its own. SwipePanels sizes its pages, so this overrides .list's flex. */
+.pager { flex: 1 1 auto; min-height: 0; }
+.pager .list { flex: 0 0 100%; height: 100%; overflow-x: hidden; overflow-y: auto; }
+.pnote { padding: var(--space-m) 0 var(--space-xs); }
 .offwell { display: flex; align-items: flex-start; gap: var(--space-s); margin: var(--space-s) 0 0; flex: none; }
 .offwell .oic { flex: none; margin-top: 2px; }
 .offk { color: var(--text-primary); font-weight: 600; }

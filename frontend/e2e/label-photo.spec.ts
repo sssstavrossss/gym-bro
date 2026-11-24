@@ -35,7 +35,7 @@ async function start(page: Page, prefix: string) {
   await page.keyboard.press("n");
   await sheet(page).getByRole("searchbox", { name: "Search foods" }).blur();
   await sheet(page).getByRole("button", { name: /My foods/ }).click();
-  await sheet(page).getByRole("button", { name: "Create a food" }).click();
+  await sheet(page).getByRole("button", { name: /^New food/ }).click();
   await expect(sheet(page).getByRole("heading", { name: "New food" })).toBeVisible();
   await sheet(page).getByRole("textbox", { name: "Name", exact: true }).fill("Fictional label snack");
   return oid;

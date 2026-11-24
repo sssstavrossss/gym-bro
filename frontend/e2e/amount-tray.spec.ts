@@ -44,7 +44,8 @@ async function setUp(page: Page, name: string) {
 }
 
 async function openFood(page: Page, name: string) {
-  await foodSheet(page).getByRole("button", { name: new RegExp(`^${name}`) }).click();
+  // On the My foods page: while the turn slides, Recent shows too and may list the same food.
+  await foodSheet(page).locator('[data-food-page="mine"]').getByRole("button", { name: new RegExp(`^${name}`) }).click();
   await expect(foodSheet(page).getByRole("heading", { name })).toBeVisible();
 }
 

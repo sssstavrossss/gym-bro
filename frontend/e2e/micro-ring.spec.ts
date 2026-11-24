@@ -59,7 +59,7 @@ test("food search rows show a ring for how many micronutrients the food has", as
   await expect(ring("complete bar")).toHaveAccessibleName("Micronutrients: all (29 of 29)");
 
   // The ring sits at the right end of the row, centred on its height. One read, so a sheet still settling can't skew it.
-  const place = await foodSheet(page).locator(".rrow", { hasText: "label bar" }).evaluate((row) => {
+  const place = await foodSheet(page).locator('[data-food-page="recent"] .rrow', { hasText: "label bar" }).evaluate((row) => {
     const r = row.getBoundingClientRect();
     const b = row.querySelector(".micro")!.getBoundingClientRect();
     return { rightGap: r.right - b.right, centre: b.top + b.height / 2 - (r.top + r.height / 2) };
