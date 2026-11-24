@@ -77,7 +77,7 @@ test("offline: log from kept foods, see what waits, and it sends once back", asy
   await sheet.getByRole("button", { name: "Close" }).click();
 
   await addRyeOffline(page);
-  const row = page.locator("button.frow").filter({ hasText: "Fictional rye bread" });
+  const row = page.locator("main button.frow").filter({ hasText: "Fictional rye bread" });
   await expect(row.locator('[data-queued="waiting"]')).toContainText("waiting");
   await line.click();
   await expect(sheet).toContainText("1 food waiting to send");
@@ -118,7 +118,7 @@ test("offline: an add the server refuses shows couldn't send and can be deleted"
   await context.setOffline(false);
 
   await expect(page.getByText(/1 food couldn't send/)).toBeVisible();
-  const row = page.locator("button.frow").filter({ hasText: "Fictional rye bread" });
+  const row = page.locator("main button.frow").filter({ hasText: "Fictional rye bread" });
   await expect(row.locator('[data-queued="failed"]')).toContainText("couldn't send");
   await expect(row).not.toContainText("kcal");
   await row.click();

@@ -174,15 +174,15 @@ test("today empty, quick add, on target, edit, undo, and no sideways scroll", as
   await expect(page.getByText(/Added Fictional bar/)).toBeVisible();
   await foodSheet(page).getByRole("button", { name: "Close", exact: true }).click();
   await expect(page.getByRole("img", { name: /Calories.*on target/ })).toBeVisible();
-  await expect(page.locator("button.frow").filter({ hasText: "Fictional bar" })).toBeVisible();
+  await expect(page.locator("main button.frow").filter({ hasText: "Fictional bar" })).toBeVisible();
   await expectNoSideScroll(page);
   await expectClean(page);
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(page.locator(".wbig")).toHaveCount(0);
-  await expect(page.locator("button.frow").filter({ hasText: "Fictional bar" })).toBeVisible();
+  await expect(page.locator("main button.frow").filter({ hasText: "Fictional bar" })).toBeVisible();
   await expectClean(page);
 
-  await page.locator("button.frow").filter({ hasText: "Fictional bar" }).click();
+  await page.locator("main button.frow").filter({ hasText: "Fictional bar" }).click();
   await expect(page.getByRole("heading", { name: "Edit food" })).toBeVisible();
   const deleteButton = page.getByRole("button", { name: "Delete", exact: true });
   await expectTouchTarget(deleteButton);
@@ -200,13 +200,13 @@ test("today empty, quick add, on target, edit, undo, and no sideways scroll", as
   await expect(page.getByRole("img", { name: /Calories.*, over/ })).toBeVisible();
   await expect(page.getByText(/over/).first()).toBeVisible();
 
-  await page.locator("button.frow").filter({ hasText: "Fictional bar" }).click();
+  await page.locator("main button.frow").filter({ hasText: "Fictional bar" }).click();
   await deleteButton.click();
   // Earlier toasts are cut short; wait for the delete's own Undo to come to the front.
   const undo = page.locator(".toast.front").filter({ hasText: "Deleted Fictional bar" }).getByRole("button", { name: "Undo" });
   await expect(undo).toBeVisible();
   await undo.click();
-  await expect(page.locator("button.frow").filter({ hasText: "Fictional bar" })).toBeVisible();
+  await expect(page.locator("main button.frow").filter({ hasText: "Fictional bar" })).toBeVisible();
 
   for (const width of widths) {
     await page.setViewportSize({ width, height: width >= 1024 ? 900 : 844 });
@@ -241,7 +241,7 @@ test("an add the server can't take waits on the phone and goes under the same ke
   await foodSheet(page).getByRole("button", { name: /Add ·/ }).click();
   await expect(page.getByText(/Added Fictional shake/)).toBeVisible();
   await foodSheet(page).getByRole("button", { name: "Close", exact: true }).click();
-  const row = page.locator("button.frow").filter({ hasText: "Fictional shake" });
+  const row = page.locator("main button.frow").filter({ hasText: "Fictional shake" });
   await expect(row.locator('[data-queued="waiting"]')).toBeVisible();
   await expect(page.locator("[data-offline-line]")).toBeVisible();
 
@@ -283,5 +283,5 @@ test("kcal and macro numbers stay whole at the largest text size", async ({ page
   await expect(page.getByRole("img", { name: /Calories/ })).toBeVisible();
   await expectNumbersWhole(page);
   await expectNoSideScroll(page);
-  await expectTouchTarget(page.locator("button.frow").filter({ hasText: "Quick add" }));
+  await expectTouchTarget(page.locator("main button.frow").filter({ hasText: "Quick add" }));
 });

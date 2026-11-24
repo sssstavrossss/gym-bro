@@ -86,7 +86,7 @@ test("range stays put, the safe strip is clear, rows tap cleanly, and home has n
   }
 
   await page.goto("/log");
-  const line = page.locator(".line").first();
+  const line = page.locator("main .line").first();
   await expect(line).toBeVisible();
   const list = page.locator("[data-log-entries]");
   await expect(list).toHaveCSS("border-top-width", "1px");

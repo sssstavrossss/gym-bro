@@ -88,8 +88,8 @@ test("select, copy to today, and hover-delete with undo", async ({ page }) => {
 
   await select.click();
   await expect(page.getByRole("toolbar", { name: "Selected entries" })).toContainText("0 · 0");
-  await page.locator("button.frow").filter({ hasText: "Fictional oats" }).click();
-  await page.locator("button.frow").filter({ hasText: "Fictional broth" }).click({ modifiers: ["Shift"] });
+  await page.locator("main button.frow").filter({ hasText: "Fictional oats" }).click();
+  await page.locator("main button.frow").filter({ hasText: "Fictional broth" }).click({ modifiers: ["Shift"] });
   await expect(page.getByRole("toolbar", { name: "Selected entries" })).toContainText("2 ·");
 
   await page.getByRole("button", { name: "Copy to…" }).click();
@@ -108,7 +108,7 @@ test("select, copy to today, and hover-delete with undo", async ({ page }) => {
   await sheet.getByRole("button", { name: "Copy to today" }).click();
   await expect(page.getByText(/Copied 2 items · 250 kcal to today/)).toBeVisible();
   await expect(complete).toBeChecked();
-  await expect(page.locator("button.frow").filter({ hasText: "Fictional oats" })).toHaveCount(2);
+  await expect(page.locator("main button.frow").filter({ hasText: "Fictional oats" })).toHaveCount(2);
 
   const listed = await page.request.get(`/api/log-entries?date=${when.today}`, { headers: headers(oid) });
   const body = await listed.json();
@@ -123,7 +123,7 @@ test("select, copy to today, and hover-delete with undo", async ({ page }) => {
   const day = await status.json();
   expect(day.fasting).toBe(true);
 
-  const line = page.locator(".line").filter({ hasText: "Fictional broth" }).first();
+  const line = page.locator("main .line").filter({ hasText: "Fictional broth" }).first();
   await line.hover();
   const remove = line.getByRole("button", { name: "Delete Fictional broth" });
   const removeBox = await remove.boundingBox();
@@ -132,12 +132,12 @@ test("select, copy to today, and hover-delete with undo", async ({ page }) => {
   // The copy's toast is cut short; the delete's Undo comes to the front after it.
   const undo = page.locator(".toast.front").filter({ hasText: "Deleted Fictional broth" }).getByRole("button", { name: "Undo" });
   await expect(undo).toBeVisible();
-  await expect(page.locator("button.frow").filter({ hasText: "Fictional broth" })).toHaveCount(1);
+  await expect(page.locator("main button.frow").filter({ hasText: "Fictional broth" })).toHaveCount(1);
   await undo.click();
-  await expect(page.locator("button.frow").filter({ hasText: "Fictional broth" })).toHaveCount(2);
+  await expect(page.locator("main button.frow").filter({ hasText: "Fictional broth" })).toHaveCount(2);
   await expect(complete).toBeChecked();
 
-  await page.locator("button.frow").filter({ hasText: "Fictional oats" }).first().click();
+  await page.locator("main button.frow").filter({ hasText: "Fictional oats" }).first().click();
   await expect(page.getByRole("button", { name: "Copy to another day", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Delete", exact: true })).toBeVisible();
 });

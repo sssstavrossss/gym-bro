@@ -64,7 +64,7 @@ test("food in ounces: typed in oz, saved in grams, untouched amounts kept exactl
   await expect(page.getByText(/Added 4 oz Fictional oat bowl · 227 kcal/)).toBeVisible();
   await sheet(page).getByRole("button", { name: "Done" }).click();
 
-  const logged = page.locator("button.frow").filter({ hasText: "Fictional oat bowl" });
+  const logged = page.locator("main button.frow").filter({ hasText: "Fictional oat bowl" });
   await expect(logged).toContainText("4 oz");
   const entries = async () => (await (await page.request.get(`/api/log-entries?date=${today}`, { headers })).json()).entries as { amount: number; unit: string }[];
   expect((await entries())[0]).toMatchObject({ amount: 113.4, unit: "g" });

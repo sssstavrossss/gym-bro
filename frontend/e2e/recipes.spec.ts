@@ -218,8 +218,8 @@ test("save as recipe from a selection of foods", async ({ page }) => {
   await page.goto("/log");
   await expect(page.getByRole("heading", { name: "Log" })).toBeVisible();
   await page.getByRole("button", { name: "Select", exact: true }).click();
-  await page.locator("button.frow").filter({ hasText: "Fictional select chicken" }).click();
-  await page.locator("button.frow").filter({ hasText: "Fictional quick side" }).click({ modifiers: ["Shift"] });
+  await page.locator("main button.frow").filter({ hasText: "Fictional select chicken" }).click();
+  await page.locator("main button.frow").filter({ hasText: "Fictional quick side" }).click({ modifiers: ["Shift"] });
   const saveAs = page.getByRole("button", { name: "Save as recipe" });
   const box = await saveAs.boundingBox();
   expect(box && box.width >= 44 && box.height >= 44).toBeTruthy();

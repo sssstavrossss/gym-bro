@@ -117,5 +117,8 @@ function act(kind: "copy" | "delete") {
 .act.del { background: var(--shade-off); }
 .fg { position: relative; min-width: 0; max-width: 100%; background: var(--color-bg); touch-action: pan-y; transition: transform .22s cubic-bezier(.2, .8, .2, 1); }
 .card .fg { background: var(--color-surface); }
+/* On a grey box (Add food's card) the row takes the box's grey and Copy to… steps up one shade. */
+.well .fg { background: var(--color-surface-2); }
+.well .act.copy { background: var(--btn-bg); }
 .fg.dragging { transition: none; }
 </style>

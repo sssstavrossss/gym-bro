@@ -124,7 +124,7 @@ test("add a private serving, log with it, and keep the old gram snapshot", async
   await foodSheet(page).getByRole("button", { name: /Add · 70 kcal/ }).click();
   await expect(page.getByText(/Added 1 slice Fictional rye bread · 70 kcal/)).toBeVisible();
   await foodSheet(page).getByRole("button", { name: "Done" }).click();
-  const logged = page.locator("button.frow").filter({ hasText: "Fictional rye bread" });
+  const logged = page.locator("main button.frow").filter({ hasText: "Fictional rye bread" });
   await expect(logged).toContainText("1 slice");
   await expect(logged).toContainText("70");
 

@@ -98,7 +98,7 @@ test("a later day can be picked and planned: food needs a time and stays out of 
   await sheet.getByRole("button", { name: "Close", exact: true }).click();
 
   await expect(page.getByRole("heading", { name: /^Foods tomorrow, / })).toBeVisible();
-  await expect(page.locator("button.frow").filter({ hasText: "Fictional planned bowl" })).toBeVisible();
+  await expect(page.locator("main button.frow").filter({ hasText: "Fictional planned bowl" })).toBeVisible();
   await expect(week.getByRole("button", { name: new RegExp(`^\\S+, \\w+ ${number}, planned, selected`) })).toBeVisible();
 
   const saved = await page.request.get(`/api/log-entries?date=${tomorrow}`, { headers: headers(when.oid) });
@@ -111,6 +111,6 @@ test("a later day can be picked and planned: food needs a time and stays out of 
 
   // The Log opens the planned day too, with no fasting toggle until the day comes.
   await page.goto(`/log/${tomorrow}`);
-  await expect(page.locator("button.frow").filter({ hasText: "Fictional planned bowl" })).toBeVisible();
+  await expect(page.locator("main button.frow").filter({ hasText: "Fictional planned bowl" })).toBeVisible();
   await expect(page.getByRole("checkbox", { name: /Fasting day/ })).toHaveCount(0);
 });
