@@ -14,6 +14,12 @@ public static class FoodAliasKinds
     /// above a food whose own name matches. Replaced on each import.
     /// </summary>
     public const string Category = "category";
+
+    /// <summary>
+    /// The food's own name in everyday word order, written by the table's importer (USDA's "Fish, salmon, raw" as
+    /// "salmon, Fish, raw"). It ranks half a level below the name. Replaced on each import.
+    /// </summary>
+    public const string Name = "name";
 }
 
 /// <summary>

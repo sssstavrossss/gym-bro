@@ -252,7 +252,18 @@ public sealed class FoodSearchPartialTests(ApiFactory factory)
 
             Assert.Contains("srch.accent", await Ids(client, "cafe\u0301"));
             Assert.Contains("srch.accent", await Ids(client, "crème"));
-            Assert.DoesNotContain("srch.accent", await Ids(client, "cafe"));
+
+            // The catalogue search keeps accents. The search box finds "Café" for "cafe" through spelling help.
+            await using (var scope = factory.Services.CreateAsyncScope())
+            {
+                var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                var plain = await FoodCatalog.SearchAsync(db, user, "cafe", "NO", CancellationToken.None);
+                Assert.DoesNotContain(plain, food => food.SourceId == "srch.accent");
+            }
+
+            var spelled = await client.GetFromJsonAsync<JsonElement>("/api/foods/search?q=cafe");
+            Assert.Equal("café", spelled.GetProperty("correctedQuery").GetString());
+            Assert.Contains(spelled.GetProperty("foods").EnumerateArray(), row => row.GetProperty("sourceId").GetString() == "srch.accent");
         }
         finally
         {
@@ -265,7 +276,65 @@ public sealed class FoodSearchPartialTests(ApiFactory factory)
         }
     }
 
-    private async Task Add(HttpClient client, string sourceId, string name, string nameEn, string[] phrases)
+    [Fact]
+    public async Task A_name_headed_by_the_words_ranks_before_a_longer_name_and_a_longer_word()
+    {
+        var user = TestData.NewUser("partial-head");
+        using var client = factory.AsUser(user);
+        var ids = new[] { "rank.head", "rank.short", "rank.long", "rank.compound", "rank.hyphen", "rank.last" };
+        try
+        {
+            await Clear(ids);
+            await Add(client, "rank.last", "Kylling med zqris", "Chicken with zqrice", []);
+            await Add(client, "rank.hyphen", "Zqris-kake", "Zqrice cake", []);
+            await Add(client, "rank.compound", "Zqrisgrøt", "Zqrice porridge", []);
+            await Add(client, "rank.long", "Zqris med melk og sukker, kokt", "Zqrice with milk and sugar", []);
+            await Add(client, "rank.short", "Zqris jasmin okokt", "Zqrice jasmine", []);
+            await Add(client, "rank.head", "Zqris, kokt", "Zqrice, boiled", []);
+
+            // The head of a name, then names that go on (shorter first), then a longer word or a hyphen compound,
+            // then the word last.
+            Assert.Equal(
+                ["rank.head", "rank.short", "rank.long", "rank.compound", "rank.hyphen", "rank.last"],
+                await Ids(client, "zqris"));
+        }
+        finally
+        {
+            await Clear(ids);
+        }
+    }
+
+    [Fact]
+    public async Task Another_word_order_ranks_half_a_level_and_a_keyword_one_level_below_a_name()
+    {
+        var user = TestData.NewUser("partial-kinds");
+        using var client = factory.AsUser(user);
+        var ids = new[] { "kind.name", "kind.order", "kind.phrase", "kind.keyword" };
+        try
+        {
+            await Clear(ids);
+            await Add(client, "kind.keyword", "Zqguacamole", "Zqguacamole", ["zqavocado mos"], FoodAliasKinds.Keyword);
+            await Add(client, "kind.phrase", "Zqavocado mos, fryst", "Zqavocado mash, frozen", []);
+            await Add(client, "kind.order", "Zqolje, zqavocado", "Zqoil, zqavocado", ["zqavocado, Zqolje"], FoodAliasKinds.Name);
+            await Add(client, "kind.name", "Zqavocado, rå, fra Florida", "Zqavocado, raw, Florida", []);
+
+            // A name headed by the word (level 1), the same in another word order (half a level lower), a name that
+            // goes on (level 2), and a keyword that goes on (level 2, one lower). Length does not cross the levels.
+            Assert.Equal(["kind.name", "kind.order", "kind.phrase", "kind.keyword"], await Ids(client, "zqavocado"));
+        }
+        finally
+        {
+            await Clear(ids);
+        }
+    }
+
+    private async Task Add(
+        HttpClient client,
+        string sourceId,
+        string name,
+        string nameEn,
+        string[] phrases,
+        string kind = FoodAliasKinds.Lexicon)
     {
         await using var scope = factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -291,6 +360,7 @@ public sealed class FoodSearchPartialTests(ApiFactory factory)
                 Phrase = phrase,
                 Normalized = FoodAliasCatalogue.Normalize(phrase),
                 ExpectedNameEn = nameEn,
+                Kind = kind,
             });
         }
 

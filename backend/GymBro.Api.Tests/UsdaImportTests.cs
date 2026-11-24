@@ -57,6 +57,41 @@ public sealed class UsdaImportTests(ApiFactory factory)
     }
 
     [Fact]
+    public void A_name_after_a_food_group_puts_the_food_first_and_any_other_reads_as_one_phrase()
+    {
+        // "Zqfish" starts five names, so it is a group; "Zqvinegar" starts four.
+        var foods = Enumerable.Range(0, 5).Select(i => Food(i, $"Zqfish, kind {i}, raw"))
+            .Concat(Enumerable.Range(5, 4).Select(i => Food(i, $"Zqvinegar, kind {i}")))
+            .ToList();
+        var groups = UsdaImporter.Groups(foods);
+        Assert.Equal(["Zqfish"], groups);
+
+        Assert.Equal("salmon, Zqfish, raw", UsdaImporter.WordOrder("Zqfish, salmon, raw", groups));
+        Assert.Equal("red wine Zqvinegar", UsdaImporter.WordOrder("Zqvinegar, red wine", groups));
+        Assert.Equal("dark Chocolate, 70-85% cacao", UsdaImporter.WordOrder("Chocolate, dark, 70-85% cacao", groups));
+        // A brand is no group, but the food after it is still the food. A brand second is left alone.
+        Assert.Equal("Hamburger, McDONALD'S", UsdaImporter.WordOrder("McDONALD'S, Hamburger", groups));
+        Assert.Null(UsdaImporter.WordOrder("Cereals, QUAKER, Quick Oats", groups));
+        // One part has no other order, and a comma inside brackets does not split one.
+        Assert.Null(UsdaImporter.WordOrder("Zqhummus (chickpeas, tahini)", groups));
+        Assert.Equal(
+            "cottage (large, small curd), Zqfish, lowfat",
+            UsdaImporter.WordOrder("Zqfish, cottage (large, small curd), lowfat", groups));
+
+        // The row carries it; without groups (a single row read alone) it has none.
+        Assert.Equal(["salmon, Zqfish, raw"], UsdaImporter.Row(Food(10, "Zqfish, salmon, raw"), groups)!.OtherNames);
+        Assert.Null(UsdaImporter.Row(Food(10, "Zqfish, salmon, raw"))!.OtherNames);
+    }
+
+    [Fact]
+    public void The_note_on_the_food_distribution_program_is_left_out_of_names()
+    {
+        var row = UsdaImporter.Row(Food(1, "Zqcheese, cheddar (Includes foods for USDA's Food Distribution Program)"))!;
+        Assert.Equal("Zqcheese, cheddar", row.Food.Name);
+        Assert.Equal("Zqcheese, cheddar", row.NameEn);
+    }
+
+    [Fact]
     public void Another_fooddata_central_package_names_the_one_to_use()
     {
         var stream = Zip("""{ "FoundationFoods": [] }""");
@@ -89,6 +124,7 @@ public sealed class UsdaImportTests(ApiFactory factory)
             }
 
             Assert.Equal((2, 0, 2), (result.Upserted, result.Retired, result.Skipped));
+            Assert.Equal(2, result.OtherNames);
             Assert.StartsWith("USDA FoodData Central", result.Coverage, StringComparison.Ordinal);
 
             var body = await client.GetFromJsonAsync<JsonElement>("/api/foods/search?q=zqbananas");
@@ -102,12 +138,23 @@ public sealed class UsdaImportTests(ApiFactory factory)
             Assert.Equal(["large", "cup_sliced", "cup_mashed", "piece_2"], FoodPortions.Read(stored).Select(portion => portion.Id));
             var credit = await db.FoodSourceCredits.SingleAsync(row => row.Source == "usda");
             Assert.Equal(Usda.Citation, credit.Citation);
+
+            // Each name in everyday word order is stored as a phrase of the name kind.
+            var otherNames = await db.FoodAliases
+                .Where(alias => alias.Source == "usda" && alias.Kind == FoodAliasKinds.Name && (alias.SourceId == "990001" || alias.SourceId == "990002"))
+                .OrderBy(alias => alias.SourceId)
+                .Select(alias => alias.Phrase)
+                .ToListAsync();
+            Assert.Equal(["raw Zqbananas", "whole Zqegg, cooked, hard-boiled"], otherNames);
         }
         finally
         {
             await Retire();
         }
     }
+
+    private static UsdaFood Food(int id, string name) =>
+        new(id, name, "Zq", new Dictionary<int, decimal> { [1008] = 100 }, []);
 
     /// <summary>A small package in SR Legacy's JSON shape, with the fields the importer reads and some it ignores.</summary>
     private static MemoryStream Package() => Zip("""
