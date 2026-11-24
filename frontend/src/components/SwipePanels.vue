@@ -23,7 +23,8 @@ const props = withDefaults(defineProps<{
   hold?: boolean;
   /**
    * Hides the pages that aren't showing once the track is still, so a screen reader, Tab and a
-   * test find only the page in view. They show again the moment a swipe or a turn starts.
+   * test find only the page in view. They show again the moment a swipe or a turn starts, but
+   * stay inert, so only the page being turned to can be tapped while they slide.
    */
   hideOffscreen?: boolean;
   /** The 24px tap strips at the sides that turn the page. Off where a row's buttons reach the edge. */
@@ -335,7 +336,12 @@ function markOffscreen() {
   const trackEl = track.value;
   if (!trackEl) return;
   const hide = props.hideOffscreen && still.value;
-  Array.from(trackEl.children).forEach((page, at) => page.toggleAttribute("data-offscreen", hide && at !== index.value));
+  Array.from(trackEl.children).forEach((page, at) => {
+    const away = props.hideOffscreen && at !== index.value;
+    // Inert from the moment a turn starts: the page being left still shows while it slides, but can't be tapped or read.
+    page.toggleAttribute("inert", away);
+    page.toggleAttribute("data-offscreen", hide && away);
+  });
 }
 watch([index, still, () => props.hideOffscreen, () => props.count], markOffscreen, { flush: "post" });
 
