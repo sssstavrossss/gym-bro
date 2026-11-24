@@ -11,7 +11,9 @@ function overlaps(a: Box, b: Box) {
 async function boxOf(locator: Locator): Promise<Box> {
   const box = await locator.boundingBox();
   expect(box, "element is on screen").not.toBeNull();
-  return box!;
+  // At a fractional position WebKit can report 44px as 43.99997. Sizes are compared to the hundredth.
+  const round = (value: number) => Math.round(value * 100) / 100;
+  return { ...box!, width: round(box!.width), height: round(box!.height) };
 }
 
 /** Waits for the sheet's slide-in (and any other finite animation in it) to end before measuring or clicking. */
