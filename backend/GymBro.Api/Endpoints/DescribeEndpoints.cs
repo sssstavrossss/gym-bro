@@ -66,7 +66,7 @@ public static class DescribeEndpoints
         var userId = Caller.Id(principal);
         var quota = await DescribeQuota.ReadAsync(db, userId, options.Value.DailyLimit, clock.GetUtcNow(), cancellationToken);
         var logged = await db.MealDescriptions.AsNoTracking()
-            .Where(row => row.UserId == userId && row.LoggedAt != null && row.Outcome == MealOutcomes.Found)
+            .Where(row => row.UserId == userId && row.Kind == MealKinds.Meal && row.LoggedAt != null && row.Outcome == MealOutcomes.Found)
             .OrderByDescending(row => row.LoggedAt)
             .Take(RecentLimit * 4)
             .ToListAsync(cancellationToken);
@@ -138,7 +138,7 @@ public static class DescribeEndpoints
         await users.UpsertAsync(principal, cancellationToken);
         var text = (request.Text ?? "").Trim();
         var retryOf = request.RetryOf is { } earlier
-            && await db.MealDescriptions.AnyAsync(row => row.Id == earlier && row.UserId == userId, cancellationToken)
+            && await db.MealDescriptions.AnyAsync(row => row.Id == earlier && row.UserId == userId && row.Kind == MealKinds.Meal, cancellationToken)
                 ? earlier
                 : (Guid?)null;
         var usage = new MealUsage();
@@ -208,7 +208,7 @@ public static class DescribeEndpoints
 
         var userId = Caller.Id(principal);
         var row = await db.MealDescriptions.AsNoTracking()
-            .FirstOrDefaultAsync(found => found.Id == id && found.UserId == userId && found.Outcome == MealOutcomes.Found, cancellationToken);
+            .FirstOrDefaultAsync(found => found.Id == id && found.UserId == userId && found.Kind == MealKinds.Meal && found.Outcome == MealOutcomes.Found, cancellationToken);
         if (row is null)
         {
             return ApiResults.Error(Missing, StatusCodes.Status404NotFound);
@@ -240,7 +240,7 @@ public static class DescribeEndpoints
 
         var userId = Caller.Id(principal);
         var row = await db.MealDescriptions
-            .FirstOrDefaultAsync(found => found.Id == id && found.UserId == userId && found.Outcome == MealOutcomes.Found, cancellationToken);
+            .FirstOrDefaultAsync(found => found.Id == id && found.UserId == userId && found.Kind == MealKinds.Meal && found.Outcome == MealOutcomes.Found, cancellationToken);
         if (row is null)
         {
             return ApiResults.Error(Missing, StatusCodes.Status404NotFound);

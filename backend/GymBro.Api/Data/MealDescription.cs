@@ -13,6 +13,9 @@ public sealed class MealDescription
 
     public string UserId { get; set; } = "";
 
+    /// <summary>One of <see cref="MealKinds"/>: a meal described, or a label read for New food. Both count toward the same daily limit.</summary>
+    public string Kind { get; set; } = MealKinds.Meal;
+
     /// <summary>The person's words. Empty when they sent only a photo.</summary>
     public string Text { get; set; } = "";
 
@@ -45,6 +48,15 @@ public sealed class MealDescription
 
     /// <summary>The caller's earlier description this one tries again, after editing the words.</summary>
     public Guid? RetryOf { get; set; }
+}
+
+public static class MealKinds
+{
+    /// <summary>"Describe a meal".</summary>
+    public const string Meal = "meal";
+
+    /// <summary>A photo of a nutrition label read for New food. Found means the label filled the form.</summary>
+    public const string Label = "label";
 }
 
 public static class MealOutcomes

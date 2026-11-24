@@ -13,9 +13,18 @@ export interface CustomFoodWrite {
   proteinPer100: number;
   fatPer100: number;
   carbsPer100: number;
+  saturatedFatPer100: number | null;
+  sugarsPer100: number | null;
+  fiberPer100: number | null;
+  saltPer100: number | null;
   servingQuantity: number | null;
   servingLabel: string | null;
 }
+
+/** The four a label lists under the macros. Optional: a blank one is unknown, not 0. */
+export const EXTRA_KEYS = ["saturatedFat", "sugars", "fiber", "salt"] as const;
+export type ExtraKey = (typeof EXTRA_KEYS)[number];
+export const EXTRA_LABELS: Record<ExtraKey, string> = { saturatedFat: "Saturated fat", sugars: "Sugars", fiber: "Fibre", salt: "Salt" };
 
 export interface CustomFoodForm {
   name: string;
@@ -28,6 +37,10 @@ export interface CustomFoodForm {
   protein: string;
   fat: string;
   carbs: string;
+  saturatedFat: string;
+  sugars: string;
+  fiber: string;
+  salt: string;
 }
 
 export interface CustomFoodSeed {
@@ -49,8 +62,29 @@ export interface StoredCustomFood {
   proteinPer100: number;
   fatPer100: number;
   carbsPer100: number;
+  saturatedFatPer100?: number | null;
+  sugarsPer100?: number | null;
+  fiberPer100?: number | null;
+  saltPer100?: number | null;
   servingQuantity: number | null;
   servingLabel: string | null;
+}
+
+/** What `POST /api/foods/label` read off a label photo. A null value wasn't on the label. */
+export interface LabelFill {
+  name: string;
+  brand: string;
+  basis: "100g" | "serving";
+  servingName: string;
+  servingGrams: number | null;
+  kcal: number;
+  protein: number | null;
+  fat: number | null;
+  carbs: number | null;
+  saturatedFat: number | null;
+  sugars: number | null;
+  fiber: number | null;
+  salt: number | null;
 }
 
 export interface CustomFoodPreview {
@@ -117,7 +151,38 @@ export function emptyForm(): CustomFoodForm {
     protein: "",
     fat: "",
     carbs: "",
+    saturatedFat: "",
+    sugars: "",
+    fiber: "",
+    salt: "",
   };
+}
+
+/** Whether any of the four extra values has something in it, so the editor shows them open. */
+export function hasExtras(form: CustomFoodForm): boolean {
+  return EXTRA_KEYS.some((key) => form[key].trim() !== "");
+}
+
+function text(value: number | null | undefined): string {
+  return value == null ? "" : String(value);
+}
+
+/**
+ * The form after a label photo. What the label shows replaces what was typed; what it doesn't show (a name
+ * the photo didn't catch, a barcode from a scan) is kept.
+ */
+export function formFromLabel(form: CustomFoodForm, label: LabelFill): CustomFoodForm {
+  const next: CustomFoodForm = {
+    ...form,
+    name: label.name.trim() || form.name,
+    brand: label.brand.trim() || form.brand,
+    basis: label.basis,
+    servingName: label.servingName.trim() || (label.servingGrams ? "serving" : form.servingName),
+    servingGrams: label.servingGrams ? String(label.servingGrams) : label.basis === "serving" ? "" : form.servingGrams,
+    kcal: String(label.kcal),
+  };
+  for (const key of ["protein", "fat", "carbs", ...EXTRA_KEYS] as const) next[key] = text(label[key]);
+  return next;
 }
 
 /** A quick-add seed is one serving of what was eaten. A name alone still starts on per serving, with no invented nutrients. */
@@ -147,6 +212,10 @@ export function formFromFood(food: StoredCustomFood): CustomFoodForm {
     protein: food.proteinPer100 ? String(food.proteinPer100) : "",
     fat: food.fatPer100 ? String(food.fatPer100) : "",
     carbs: food.carbsPer100 ? String(food.carbsPer100) : "",
+    saturatedFat: text(food.saturatedFatPer100),
+    sugars: text(food.sugarsPer100),
+    fiber: text(food.fiberPer100),
+    salt: text(food.saltPer100),
   };
 }
 
@@ -161,6 +230,9 @@ function per100Limits(kcal: number, protein: number, fat: number, carbs: number)
   }
   return null;
 }
+
+const extraPer100Limit = "Saturated fat, sugars, fibre, and salt per 100 should be between 0 and 100 g.";
+const extraServingLimit = "Saturated fat, sugars, fibre, and salt per serving should be between 0 and 1,000 g.";
 
 function servingLimits(kcal: number, protein: number, fat: number, carbs: number): string | null {
   if (kcal < 0 || kcal > 10000) return "Calories per serving should be between 0 and 10,000.";
@@ -200,6 +272,15 @@ export function buildCustomFood(form: CustomFoodForm, options: { editingPerServi
     return { ok: false, field: "form", message: "Protein, fat, and carbs should be numbers." };
   }
 
+  const extras = {} as Record<ExtraKey, number | null>;
+  for (const key of EXTRA_KEYS) {
+    const value = blank(form[key]) ? null : parseCustomNumber(form[key]);
+    if (value != null && (!Number.isFinite(value) || value < 0)) {
+      return { ok: false, field: "form", message: "Saturated fat, sugars, fibre, and salt should be numbers." };
+    }
+    extras[key] = value;
+  }
+
   const gramsText = form.servingGrams.trim();
   const grams = gramsText ? parseCustomNumber(form.servingGrams) : 0;
   if (gramsText && (!Number.isFinite(grams) || grams < 0 || grams > 5000)) {
@@ -215,6 +296,14 @@ export function buildCustomFood(form: CustomFoodForm, options: { editingPerServi
   const hint = macroHint(kcal, protein, fat, carbs);
   const hasWeight = grams > 0;
   const scale = (value: number) => round2((value * 100) / grams);
+  const extrasAs = (convert: (value: number) => number) => ({
+    saturatedFatPer100: extras.saturatedFat == null ? null : convert(extras.saturatedFat),
+    sugarsPer100: extras.sugars == null ? null : convert(extras.sugars),
+    fiberPer100: extras.fiber == null ? null : convert(extras.fiber),
+    saltPer100: extras.salt == null ? null : convert(extras.salt),
+  });
+  const asIs = extrasAs((value) => value);
+  const extraOver = (max: number) => EXTRA_KEYS.some((key) => (extras[key] ?? 0) > max);
   const base = {
     name,
     brand: brand || null,
@@ -222,7 +311,7 @@ export function buildCustomFood(form: CustomFoodForm, options: { editingPerServi
   };
 
   if (form.basis === "serving" && hasWeight && options.editingPerServing) {
-    const limit = servingLimits(kcal, protein, fat, carbs);
+    const limit = servingLimits(kcal, protein, fat, carbs) ?? (extraOver(1000) ? extraServingLimit : null);
     if (limit) return { ok: false, field: "form", message: limit };
     return {
       ok: true,
@@ -234,6 +323,7 @@ export function buildCustomFood(form: CustomFoodForm, options: { editingPerServi
         proteinPer100: protein,
         fatPer100: fat,
         carbsPer100: carbs,
+        ...asIs,
         servingQuantity: grams,
         servingLabel: servingName,
       },
@@ -248,7 +338,9 @@ export function buildCustomFood(form: CustomFoodForm, options: { editingPerServi
 
   if (form.basis === "serving" && hasWeight) {
     const per100 = { kcal: scale(kcal), protein: scale(protein), fat: scale(fat), carbs: scale(carbs) };
-    const limit = per100Limits(per100.kcal, per100.protein, per100.fat, per100.carbs);
+    const scaled = extrasAs(scale);
+    const over = Object.values(scaled).some((value) => (value ?? 0) > 100);
+    const limit = per100Limits(per100.kcal, per100.protein, per100.fat, per100.carbs) ?? (over ? extraPer100Limit : null);
     if (limit) return { ok: false, field: "form", message: limit };
     return {
       ok: true,
@@ -260,6 +352,7 @@ export function buildCustomFood(form: CustomFoodForm, options: { editingPerServi
         proteinPer100: per100.protein,
         fatPer100: per100.fat,
         carbsPer100: per100.carbs,
+        ...scaled,
         servingQuantity: grams,
         servingLabel: servingName,
       },
@@ -268,7 +361,7 @@ export function buildCustomFood(form: CustomFoodForm, options: { editingPerServi
   }
 
   if (form.basis === "serving") {
-    const limit = servingLimits(kcal, protein, fat, carbs);
+    const limit = servingLimits(kcal, protein, fat, carbs) ?? (extraOver(1000) ? extraServingLimit : null);
     if (limit) return { ok: false, field: "form", message: limit };
     return {
       ok: true,
@@ -280,6 +373,7 @@ export function buildCustomFood(form: CustomFoodForm, options: { editingPerServi
         proteinPer100: protein,
         fatPer100: fat,
         carbsPer100: carbs,
+        ...asIs,
         servingQuantity: null,
         servingLabel: servingName,
       },
@@ -287,7 +381,7 @@ export function buildCustomFood(form: CustomFoodForm, options: { editingPerServi
     };
   }
 
-  const limit = per100Limits(kcal, protein, fat, carbs);
+  const limit = per100Limits(kcal, protein, fat, carbs) ?? (extraOver(100) ? extraPer100Limit : null);
   if (limit) return { ok: false, field: "form", message: limit };
   return {
     ok: true,
@@ -299,6 +393,7 @@ export function buildCustomFood(form: CustomFoodForm, options: { editingPerServi
       proteinPer100: protein,
       fatPer100: fat,
       carbsPer100: carbs,
+      ...asIs,
       servingQuantity: hasWeight ? grams : null,
       servingLabel: hasWeight ? servingName : null,
     },
@@ -319,5 +414,9 @@ export function quickAddFoodWrite(input: { name: string; kcal: number; protein: 
     protein: input.protein ? String(input.protein) : "",
     fat: input.fat ? String(input.fat) : "",
     carbs: input.carbs ? String(input.carbs) : "",
+    saturatedFat: "",
+    sugars: "",
+    fiber: "",
+    salt: "",
   }, { editingPerServing: false });
 }

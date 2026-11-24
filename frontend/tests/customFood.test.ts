@@ -5,7 +5,10 @@ import {
   emptyForm,
   emptyMacroNote,
   formFromFood,
+  formFromLabel,
   formFromSeed,
+  hasExtras,
+  type LabelFill,
   kcalRequired,
   macroHint,
   mismatchCopy,
@@ -141,5 +144,54 @@ describe("custom food editor", () => {
     expect(comma.payload.proteinPer100).toBe(1.5);
     const barcode = buildCustomFood(named("Soup", "", { barcode: "12ab" }), { editingPerServing: false });
     expect(barcode.ok).toBe(false);
+  });
+});
+
+describe("label photo and the extra nutrients", () => {
+  const label: LabelFill = {
+    name: "Grovt knekkebrød", brand: "Northbar", basis: "100g", servingName: "slice", servingGrams: 13,
+    kcal: 370, protein: 12, fat: 6.5, carbs: 58, saturatedFat: 1.1, sugars: 2, fiber: 17, salt: 1,
+  };
+
+  it("fills the form from the label and keeps what it doesn't show", () => {
+    const typed = { ...emptyForm(), name: "crispbread", barcode: "7038010009457", basis: "serving" as const };
+    const filled = formFromLabel(typed, label);
+    expect(filled).toMatchObject({
+      name: "Grovt knekkebrød", brand: "Northbar", barcode: "7038010009457", basis: "100g",
+      servingName: "slice", servingGrams: "13", kcal: "370", protein: "12", fat: "6.5", carbs: "58",
+      saturatedFat: "1.1", sugars: "2", fiber: "17", salt: "1",
+    });
+    expect(hasExtras(filled)).toBe(true);
+
+    // No name or brand on the photo: the typed ones stay. A value the label lacks is left blank, not 0.
+    const bare = formFromLabel(typed, { ...label, name: "", brand: " ", servingName: "", servingGrams: null, sugars: null });
+    expect(bare.name).toBe("crispbread");
+    expect(bare.servingGrams).toBe("");
+    expect(bare.servingName).toBe("serving");
+    expect(bare.sugars).toBe("");
+  });
+
+  it("sends the extras per 100 g, scales them with a serving weight, and leaves blanks unknown", () => {
+    const per100 = buildCustomFood(named("Knekkebrød", "", { saturatedFat: "1,1", fiber: "17" }), { editingPerServing: false });
+    expect(per100.ok && per100.payload).toMatchObject({ saturatedFatPer100: 1.1, sugarsPer100: null, fiberPer100: 17, saltPer100: null });
+
+    const serving = buildCustomFood(named("Bar", "", { basis: "serving", servingGrams: "50", saturatedFat: "2", salt: "0.5" }), { editingPerServing: false });
+    expect(serving.ok && serving.payload).toMatchObject({ nutrientBasis: "per_100", saturatedFatPer100: 4, saltPer100: 1 });
+
+    const servingOnly = buildCustomFood(named("Bar", "", { basis: "serving", sugars: "30" }), { editingPerServing: false });
+    expect(servingOnly.ok && servingOnly.payload).toMatchObject({ nutrientBasis: "per_serving", sugarsPer100: 30 });
+
+    expect(buildCustomFood(named("Bar", "", { fiber: "abc" }), { editingPerServing: false })).toMatchObject({ ok: false, field: "form" });
+    expect(buildCustomFood(named("Bar", "", { sugars: "120" }), { editingPerServing: false })).toMatchObject({ ok: false, field: "form" });
+  });
+
+  it("an edit keeps the extras a food already has", () => {
+    const form = formFromFood({
+      name: "Bar", nutrientBasis: "per_100", kcalPer100: 400, proteinPer100: 10, fatPer100: 20, carbsPer100: 40,
+      saturatedFatPer100: 8, sugarsPer100: null, fiberPer100: 0, saltPer100: 0.3, servingQuantity: null, servingLabel: null,
+    });
+    expect(form).toMatchObject({ saturatedFat: "8", sugars: "", fiber: "0", salt: "0.3" });
+    const built = buildCustomFood(form, { editingPerServing: false });
+    expect(built.ok && built.payload).toMatchObject({ saturatedFatPer100: 8, sugarsPer100: null, fiberPer100: 0, saltPer100: 0.3 });
   });
 });

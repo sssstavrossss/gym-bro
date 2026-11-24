@@ -160,10 +160,10 @@ public static class ExportTables
 
     private static ExportTable Descriptions(List<MealDescription> rows) => new(
         "descriptions",
-        ["created_at", "text", "photo", "outcome", "foods", "kcal", "logged_at", "model", "input_tokens", "output_tokens"],
+        ["created_at", "kind", "text", "photo", "outcome", "foods", "kcal", "logged_at", "model", "input_tokens", "output_tokens"],
         [.. rows.Select(row => new object?[]
         {
-            row.CreatedAt.ToString("O"), row.Text, row.HasPhoto, row.Outcome, row.FoodCount, row.Kcal, row.LoggedAt?.ToString("O"),
+            row.CreatedAt.ToString("O"), row.Kind, row.Text, row.HasPhoto, row.Outcome, row.FoodCount, row.Kcal, row.LoggedAt?.ToString("O"),
             row.Model, row.InputTokens, row.OutputTokens,
         })]);
 

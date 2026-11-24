@@ -36,11 +36,14 @@ if (testing || e2e)
 {
     // Tests never call Claude. The rule model answers the same way every time.
     builder.Services.AddSingleton<IMealModel, RuleMealModel>();
+    builder.Services.AddSingleton<ILabelModel, RuleLabelModel>();
     builder.Services.AddSingleton(new DescribeSwitch(true));
 }
 else
 {
+    builder.Services.AddSingleton<ClaudeAsk>();
     builder.Services.AddSingleton<IMealModel, ClaudeMealModel>();
+    builder.Services.AddSingleton<ILabelModel, ClaudeLabelModel>();
     builder.Services.AddSingleton(new DescribeSwitch(describe.IsConfigured));
 }
 

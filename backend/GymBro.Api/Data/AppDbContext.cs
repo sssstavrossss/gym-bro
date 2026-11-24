@@ -630,6 +630,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         described.HasKey(d => d.Id);
         described.Property(d => d.Id).HasColumnName("id");
         described.Property(d => d.UserId).HasColumnName("user_id").HasMaxLength(64);
+        described.Property(d => d.Kind).HasColumnName("kind").HasMaxLength(8).HasDefaultValue(MealKinds.Meal);
         described.Property(d => d.Text).HasColumnName("text").HasMaxLength(500);
         described.Property(d => d.HasPhoto).HasColumnName("has_photo");
         described.Property(d => d.Items).HasColumnName("items");

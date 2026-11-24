@@ -144,6 +144,8 @@ const searchScroll = ref(0);
 let keepSearch = false;
 const resultsMax = ref("");
 const amountView = ref<InstanceType<typeof FoodAmountView> | null>(null);
+/** New food: its top-bar camera and barcode buttons drive the editor. */
+const editorRef = ref<InstanceType<typeof FoodEditor> | null>(null);
 const foodChanged = ref(false);
 /** Offline the food itself can't be fetched, so whether it changed is unknown: say nothing. */
 const foodUnseen = ref(false);
@@ -347,6 +349,7 @@ async function openFoodRow(food: FoodSearchRow, preset?: { amount: number; unit:
 }
 function back() {
   const editor = ui.foodEditor;
+  if (editor && editorRef.value?.leaveScan()) return;
   if (editor) {
     closeFoodLayer();
     if (editor.ret !== "detail") detailFood.value = null;
@@ -1246,6 +1249,14 @@ async function deleteEdited() {
         <h2 v-else-if="!showDetail && !showEditor && (!searchView || editing)" class="t-head">{{ editing ? "Edit food" : "Add food" }}</h2>
         <span class="grow" />
         <TimeChip v-if="!showEditor && !showScan && (showDetail || !searchView || editing)" v-model="time" :date="ui.foodDate" :today="foodToday" :allow-now="!otherDay && !editing" />
+        <template v-if="showEditor && editorRef && !editorRef.scanning">
+          <button v-if="editorRef.canLabel" type="button" class="cbtn" aria-label="Fill from a label photo" title="Fill from a label photo" :disabled="editorRef.labelState === 'reading'" @click="editorRef.pickLabel()">
+            <Icon name="camera" :size="18" />
+          </button>
+          <button type="button" class="cbtn" aria-label="Scan the barcode" title="Scan the barcode" @click="editorRef.scanBarcode()">
+            <Icon name="scan" :size="18" />
+          </button>
+        </template>
         <button type="button" class="cbtn"  aria-label="Close" @click="closeSheet">
           <Icon name="x" :size="18" />
         </button>
@@ -1258,7 +1269,7 @@ async function deleteEdited() {
     </template>
 
     <div v-if="showEditor && ui.foodEditor" class="list">
-      <FoodEditor :key="ui.foodEditor.id ?? 'new'" :edit-id="ui.foodEditor.id" :seed="ui.foodEditor.seed" :namesakes="mine" @saved="onFoodSaved" @deleted="onFoodDeleted" @cancel="back" />
+      <FoodEditor ref="editorRef" :key="ui.foodEditor.id ?? 'new'" :edit-id="ui.foodEditor.id" :seed="ui.foodEditor.seed" :namesakes="mine" @saved="onFoodSaved" @deleted="onFoodDeleted" @cancel="back" />
     </div>
 
     <div v-else-if="showScan" class="list">

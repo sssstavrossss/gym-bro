@@ -50,7 +50,7 @@ public sealed class ExportEndpointTests(ApiFactory factory)
             ["profile.csv", "weigh-ins.csv", "targets.csv", "log.csv", "fasting-days.csv", "foods.csv", "servings.csv", "recipes.csv", "groups.csv", "descriptions.csv", ExportFiles.JsonName],
             zip.Entries.Select(entry => entry.FullName));
         Assert.Equal(
-            ["created_at,text,photo,outcome,foods,kcal,logged_at,model,input_tokens,output_tokens", "2026-10-24T18:00:00.0000000+00:00,60 g fictional oats,false,found,1,228,,rule,0,0"],
+            ["created_at,kind,text,photo,outcome,foods,kcal,logged_at,model,input_tokens,output_tokens", "2026-10-24T18:00:00.0000000+00:00,meal,60 g fictional oats,false,found,1,228,,rule,0,0"],
             Lines(zip, "descriptions.csv"));
         var everything = string.Concat(zip.Entries.Select(Read));
         Assert.DoesNotContain("stranger", everything);

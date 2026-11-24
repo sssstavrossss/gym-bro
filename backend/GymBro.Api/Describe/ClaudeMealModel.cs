@@ -1,25 +1,17 @@
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
-using Anthropic;
 using Anthropic.Models.Messages;
-using Microsoft.Extensions.Options;
 
 namespace GymBro.Api.Describe;
 
 /// <summary>
-/// <see cref="IMealModel"/> on the Claude API. Both questions use structured output, so the reply is JSON that
-/// matches a schema. Effort is low: these are short lookups, not reasoning tasks. A photo goes only to the
-/// split, as an image block before the words.
+/// <see cref="IMealModel"/> on the Claude API (<see cref="ClaudeAsk"/>). A photo goes only to the split, as an
+/// image block before the words.
 /// </summary>
-public sealed class ClaudeMealModel(IOptions<DescribeOptions> options, ILogger<ClaudeMealModel> logger) : IMealModel
+public sealed class ClaudeMealModel(ClaudeAsk claude) : IMealModel
 {
-    private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(30);
-
-    // Made on first use, so a server without a key never builds a client.
-    private readonly Lazy<AnthropicClient> client = new(() => new AnthropicClient { ApiKey = options.Value.ApiKey });
-
-    public string Name => options.Value.Model;
+    public string Name => claude.Model;
 
     private const string SplitSystem = """
         You read a note of what someone ate or drank and list each food in it. The note is their words,
@@ -102,7 +94,7 @@ public sealed class ClaudeMealModel(IOptions<DescribeOptions> options, ILogger<C
 
     public async Task<IReadOnlyList<MealPart>> SplitAsync(MealNote note, MealUsage usage, CancellationToken cancellationToken)
     {
-        var json = await AskAsync(SplitSystem, SplitContent(note), SplitSchema, 2048, usage, cancellationToken);
+        var json = await claude.AskAsync(SplitSystem, SplitContent(note), SplitSchema, 2048, usage, cancellationToken);
         var parts = new List<MealPart>();
         foreach (var food in json.GetProperty("foods").EnumerateArray())
         {
@@ -127,7 +119,7 @@ public sealed class ClaudeMealModel(IOptions<DescribeOptions> options, ILogger<C
         MealUsage usage,
         CancellationToken cancellationToken)
     {
-        var json = await AskAsync(PickSystem, PickPrompt(text, choices), PickSchema, 2048, usage, cancellationToken);
+        var json = await claude.AskAsync(PickSystem, PickPrompt(text, choices), PickSchema, 2048, usage, cancellationToken);
         return ReadPicks(json);
     }
 
@@ -167,10 +159,7 @@ public sealed class ClaudeMealModel(IOptions<DescribeOptions> options, ILogger<C
 
         List<ContentBlockParam> blocks =
         [
-            new ImageBlockParam
-            {
-                Source = new Base64ImageSource { Data = Convert.ToBase64String(photo.Data), MediaType = photo.MediaType },
-            },
+            ClaudeAsk.Image(photo),
             new TextBlockParam { Text = written + (note.Text.Length > 0 ? $"Words with the photo: {note.Text}" : "No words, only the photo.") },
         ];
         return blocks;
@@ -216,65 +205,7 @@ public sealed class ClaudeMealModel(IOptions<DescribeOptions> options, ILogger<C
         ? string.Create(CultureInfo.InvariantCulture, $"{unit.Unit} (1 {unit.Label} = {grams:0.#} g)")
         : unit.Unit;
 
-    private async Task<JsonElement> AskAsync(
-        string system,
-        MessageContentParam user,
-        Dictionary<string, JsonElement> schema,
-        int maxTokens,
-        MealUsage usage,
-        CancellationToken cancellationToken)
-    {
-        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeout.CancelAfter(Timeout);
-        Message response;
-        try
-        {
-            response = await client.Value.Messages.Create(
-                new MessageCreateParams
-                {
-                    Model = options.Value.Model,
-                    MaxTokens = maxTokens,
-                    System = system,
-                    Messages = [new UserMessageParam { Content = user }],
-                    OutputConfig = new OutputConfig
-                    {
-                        Effort = Effort.Low,
-                        Format = new JsonOutputFormat { Schema = schema },
-                    },
-                },
-                timeout.Token);
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-            throw;
-        }
-        catch (Exception ex)
-        {
-            logger.LogWarning(ex, "Claude call for Describe failed");
-            throw new MealModelException("Claude didn't answer.", inner: ex);
-        }
-
-        usage.Add(response.Usage.InputTokens, response.Usage.OutputTokens);
-        if (response.StopReason == "refusal")
-        {
-            throw new MealModelException("Claude declined.", refused: true);
-        }
-
-        var text = string.Concat(response.Content.Select(block => block.Value).OfType<TextBlock>().Select(block => block.Text));
-        try
-        {
-            using var document = JsonDocument.Parse(text);
-            return document.RootElement.Clone();
-        }
-        catch (JsonException ex)
-        {
-            // A reply cut off at max tokens is not valid JSON.
-            logger.LogWarning("Describe reply was not JSON (stop reason {StopReason})", response.StopReason);
-            throw new MealModelException("Claude's answer was cut off.", inner: ex);
-        }
-    }
-
-    private static readonly Dictionary<string, JsonElement> SplitSchema = Schema("""
+    private static readonly Dictionary<string, JsonElement> SplitSchema = ClaudeAsk.Schema("""
         {
           "type": "object",
           "properties": {
@@ -300,7 +231,7 @@ public sealed class ClaudeMealModel(IOptions<DescribeOptions> options, ILogger<C
         }
         """);
 
-    private static readonly Dictionary<string, JsonElement> PickSchema = Schema("""
+    private static readonly Dictionary<string, JsonElement> PickSchema = ClaudeAsk.Schema("""
         {
           "type": "object",
           "properties": {
@@ -324,10 +255,4 @@ public sealed class ClaudeMealModel(IOptions<DescribeOptions> options, ILogger<C
           "additionalProperties": false
         }
         """);
-
-    private static Dictionary<string, JsonElement> Schema(string json)
-    {
-        using var document = JsonDocument.Parse(json);
-        return document.RootElement.EnumerateObject().ToDictionary(property => property.Name, property => property.Value.Clone());
-    }
 }

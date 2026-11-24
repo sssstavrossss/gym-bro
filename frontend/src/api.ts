@@ -1,5 +1,6 @@
 import { accessToken } from "./auth/session";
 import type { CatalogFood, OwnServing } from "./lib/foodAmount";
+import type { LabelFill } from "./lib/customFood";
 import { kg as formatKg } from "./lib/format";
 import { dispositionName } from "./lib/download";
 import type { LookupStatus } from "./lib/barcode";
@@ -782,6 +783,15 @@ export async function describeMeal(note: DescribeNote): Promise<DescribeResult> 
       ...(photo ? { photo: { mediaType: photo.mediaType, data: photo.data } } : {}),
       ...(time ? { time } : {}),
     }),
+  }));
+}
+
+/** Claude reads the nutrition table in a label photo for New food. Nothing is saved; it counts toward Describe's limit. */
+export async function readLabel(photo: DescribePhoto): Promise<LabelFill & { left: number }> {
+  return jsonOrThrow(await request("/api/foods/label", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ photo: { mediaType: photo.mediaType, data: photo.data } }),
   }));
 }
 
