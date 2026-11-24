@@ -57,7 +57,7 @@ if (arguments.Only.Count > 0)
 
 await using var db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(connection).Options);
 var references = await References.LoadAsync(db, cases);
-var trace = new TraceModel(new ClaudeMealModel(Options.Create(describeOptions), NullLogger<ClaudeMealModel>.Instance), arguments.Verbose);
+var trace = new TraceModel(new ClaudeMealModel(new ClaudeAsk(Options.Create(describeOptions), NullLogger<ClaudeAsk>.Instance)), arguments.Verbose);
 var describer = new MealDescriber(db, trace);
 
 Console.WriteLine($"{cases.Count} cases × {arguments.Runs} run(s), model {describeOptions.Model}");

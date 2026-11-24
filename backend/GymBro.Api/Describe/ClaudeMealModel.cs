@@ -94,7 +94,8 @@ public sealed class ClaudeMealModel(ClaudeAsk claude) : IMealModel
 
     public async Task<IReadOnlyList<MealPart>> SplitAsync(MealNote note, MealUsage usage, CancellationToken cancellationToken)
     {
-        var json = await claude.AskAsync(SplitSystem, SplitContent(note), SplitSchema, 2048, usage, cancellationToken);
+        // A recipe can list up to 40 ingredients, each a few lines of JSON.
+        var json = await claude.AskAsync(SplitSystem, SplitContent(note), SplitSchema, note.Recipe ? 6144 : 2048, usage, cancellationToken);
         var parts = new List<MealPart>();
         foreach (var food in json.GetProperty("foods").EnumerateArray())
         {
@@ -119,7 +120,7 @@ public sealed class ClaudeMealModel(ClaudeAsk claude) : IMealModel
         MealUsage usage,
         CancellationToken cancellationToken)
     {
-        var json = await claude.AskAsync(PickSystem, PickPrompt(text, choices), PickSchema, 2048, usage, cancellationToken);
+        var json = await claude.AskAsync(PickSystem, PickPrompt(text, choices), PickSchema, choices.Count > MealDescriber.PartsMax ? 4096 : 2048, usage, cancellationToken);
         return ReadPicks(json);
     }
 
@@ -154,7 +155,7 @@ public sealed class ClaudeMealModel(ClaudeAsk claude) : IMealModel
             + (note.Time is { } time ? $"Written at {time.ToString("HH:mm", CultureInfo.InvariantCulture)}. " : "");
         if (note.Photo is not { } photo)
         {
-            return written.Length == 0 ? note.Text : $"{written}Note: {note.Text}";
+            return written.Length == 0 ? note.Words : $"{written}Note: {note.Words}";
         }
 
         List<ContentBlockParam> blocks =

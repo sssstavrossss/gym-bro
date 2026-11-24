@@ -303,30 +303,33 @@ public static class DescribeEndpoints
         MealDescription row,
         IReadOnlyList<DescribedItem> items,
         int? left,
-        CancellationToken cancellationToken)
-    {
-        var foods = items.Where(item => item.Food is not null).Select(item => item.Food!).DistinctBy(food => food.Id).ToList();
-        var confirmed = await FoodEndpoints.ConfirmedBases(db, userId, foods, cancellationToken);
-        var servings = await ServingEndpoints.ForFoods(db, userId, foods.Select(food => food.Id), cancellationToken);
-        return new
+        CancellationToken cancellationToken) => new
         {
             id = row.Id,
             text = row.Text,
             photo = row.HasPhoto,
             seen = row.HasPhoto ? Seen(items.Select(item => item.Name)) : null,
             left,
-            items = items.Select(item => new
-            {
-                phrase = item.Phrase,
-                name = item.Name,
-                guessed = item.Guessed,
-                food = item.Food is { } food
-                    ? FoodEndpoints.ToResponse(food, confirmed.GetValueOrDefault(food.Id), servings.GetValueOrDefault(food.Id))
-                    : null,
-                amount = item.Amount,
-                unit = item.Unit,
-            }).ToList(),
+            items = await ItemsAsync(db, userId, items, cancellationToken),
         };
+
+    /// <summary>The found foods as the app reads them, with the caller's servings. Also a recipe import's list.</summary>
+    public static async Task<List<object>> ItemsAsync(AppDbContext db, string userId, IReadOnlyList<DescribedItem> items, CancellationToken cancellationToken)
+    {
+        var foods = items.Where(item => item.Food is not null).Select(item => item.Food!).DistinctBy(food => food.Id).ToList();
+        var confirmed = await FoodEndpoints.ConfirmedBases(db, userId, foods, cancellationToken);
+        var servings = await ServingEndpoints.ForFoods(db, userId, foods.Select(food => food.Id), cancellationToken);
+        return items.Select(item => (object)new
+        {
+            phrase = item.Phrase,
+            name = item.Name,
+            guessed = item.Guessed,
+            food = item.Food is { } food
+                ? FoodEndpoints.ToResponse(food, confirmed.GetValueOrDefault(food.Id), servings.GetValueOrDefault(food.Id))
+                : null,
+            amount = item.Amount,
+            unit = item.Unit,
+        }).ToList();
     }
 
     private static async Task<Dictionary<Guid, Food>> FoodsAsync(

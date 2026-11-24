@@ -20,7 +20,8 @@ public sealed partial class RuleMealModel : IMealModel
         usage.Add(0, 0);
         var text = note.Photo is null ? note.Text : string.Join(", ", new[] { PhotoMeal, note.Text }.Where(words => words.Length > 0));
         var parts = new List<MealPart>();
-        foreach (var raw in Separator().Split(text))
+        // A recipe is one ingredient a line; a meal is split on commas, "and" and "with".
+        foreach (var raw in note.Recipe ? text.Split('\n') : Separator().Split(text))
         {
             var phrase = raw.Trim(' ', '.', ';');
             if (phrase.Length == 0)
