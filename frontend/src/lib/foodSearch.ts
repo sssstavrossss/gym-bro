@@ -19,6 +19,12 @@ export function acceptSearchResult(requestGen: number, requestQuery: string, cur
   return requestGen === currentGen && currentRaw.trim() === requestQuery;
 }
 
+/** The note beside Results when the server's spelling help added foods spelt another way: "Including “kjøttdeig”". */
+export function spellingNote(correctedQuery: string | null | undefined): string | null {
+  const words = correctedQuery?.trim();
+  return words ? `Including “${words}”` : null;
+}
+
 function fold(text: string): string {
   return text.normalize("NFKD").replace(/\p{M}/gu, "").toLowerCase();
 }

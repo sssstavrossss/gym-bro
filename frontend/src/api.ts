@@ -220,6 +220,8 @@ export type FoodSearchRow = CatalogFood & { owned?: boolean; sourceId?: string; 
 export interface FoodSearchResponse {
   query: string;
   foods: FoodSearchRow[];
+  /** The spelling help's words ("kjøttdeig" for "kjottdeig") when they added foods after the ones found as typed. */
+  correctedQuery?: string | null;
 }
 
 export interface RecentFood extends FoodSearchRow {

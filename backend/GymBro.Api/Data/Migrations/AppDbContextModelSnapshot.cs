@@ -708,14 +708,14 @@ namespace GymBro.Api.Data.Migrations
 
                     b.Property<string>("Normalized")
                         .IsRequired()
-                        .HasMaxLength(80)
-                        .HasColumnType("character varying(80)")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
                         .HasColumnName("normalized");
 
                     b.Property<string>("Phrase")
                         .IsRequired()
-                        .HasMaxLength(80)
-                        .HasColumnType("character varying(80)")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
                         .HasColumnName("phrase");
 
                     b.Property<string>("Source")

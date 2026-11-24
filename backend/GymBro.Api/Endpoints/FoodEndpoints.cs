@@ -96,10 +96,15 @@ public static class FoodEndpoints
 
         var userId = Caller.Id(principal);
         var home = await FoodCountries.HomeAsync(db, userId, cancellationToken);
-        var foods = await FoodCatalog.SearchAsync(db, userId, query, home, cancellationToken);
+        var (foods, correctedQuery) = await FoodSpelling.SearchAsync(db, userId, query, home, cancellationToken);
         var confirmed = await ConfirmedBases(db, userId, foods, cancellationToken);
         var servings = await ServingEndpoints.ForFoods(db, userId, foods.Select(food => food.Id), cancellationToken);
-        return Results.Ok(new { query, foods = foods.Select(food => ToResponse(food, confirmed.GetValueOrDefault(food.Id), servings.GetValueOrDefault(food.Id))).ToList() });
+        return Results.Ok(new
+        {
+            query,
+            foods = foods.Select(food => ToResponse(food, confirmed.GetValueOrDefault(food.Id), servings.GetValueOrDefault(food.Id))).ToList(),
+            correctedQuery,
+        });
     }
 
     private static async Task<IResult> SearchOpenFoodFacts(

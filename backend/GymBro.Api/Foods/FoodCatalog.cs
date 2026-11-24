@@ -34,11 +34,15 @@ public static class FoodCatalog
         (await SearchRankedAsync(db, userId, query, home, cancellationToken)).Select(hit => hit.Food).ToList();
 
     /// <summary>
-    /// <see cref="SearchAsync"/> with each food's match rank: 0 for the exact name or phrase, 1 for a name that
-    /// starts with the text, 2 for a whole last word, 3 for a last word that starts a word, 4 otherwise. A food
-    /// found only by a word's base form ranks 5 to 9 the same way. The order is the rank's band (0–1, 2–3, 4, base forms), then country
-    /// tier for <paramref name="home"/>, then rank, then name. A table's category word (<c>fisk</c>) finds a food
-    /// but never ranks it above 4.
+    /// <see cref="SearchAsync"/> with each food's match level: 0 for the exact name or phrase, 1 for one whose head
+    /// is the text (<c>Laks, røkt</c>), 2 for one that starts with the text and goes on (<c>Laks i olje</c>), 3 for
+    /// one that starts with it inside a longer word (<c>Laksepålegg</c>), 4 for a whole last word, 5 for a last word
+    /// that starts a word, 6 otherwise. A food found only by a word's base form ranks 7 to 13 the same way. The order
+    /// is the level's band (0–3, 4–5, 6, base forms), then country tier for <paramref name="home"/>, then level, where
+    /// the name in another word order places half a level below a name and a table's keyword one level, then, for a
+    /// food found by a later word, one that is a kind of it (<c>corn grits</c> for <c>grits</c>), then the shorter
+    /// name. A table's category word
+    /// (<c>fisk</c>) finds a food but never ranks it above 6.
     /// </summary>
     public static async Task<List<RankedFood>> SearchRankedAsync(
         AppDbContext db,
@@ -94,6 +98,8 @@ public static class FoodCatalog
         const string nameBrandPad = "(' ' || coalesce(f.search_name, '') || ' ' || coalesce(f.search_brand, '') || ' ') COLLATE \"C\"";
         const string aliasOfFood = "a.source = f.source AND a.source_id = f.source_id AND a.expected_name_en = f.name_en";
         const string rankingAlias = aliasOfFood + " AND a.kind <> '" + FoodAliasKinds.Category + "'";
+        const string keywordAlias = "a.kind = '" + FoodAliasKinds.Keyword + "'";
+        const string orderAlias = "a.kind = '" + FoodAliasKinds.Name + "'";
         string Strict(string pad) => string.Join(" AND ", matchParams.Select(param => pad + " LIKE " + param));
         string Loose(string pad) => string.Join(" AND ", matchParams.Select((param, index) => stemParams[index] is { } stem
             ? "(" + pad + " LIKE " + param + " OR " + pad + " LIKE " + stem + ")"
@@ -108,41 +114,78 @@ public static class FoodCatalog
                 OR EXISTS (SELECT 1 FROM food_aliases AS a WHERE {aliasOfFood} AND {all(aliasPad)})
             """;
 
-        // Exact name or phrase, then a name that starts with the text, then a whole last word, then a last word that starts a word.
-        string Rank(string text)
+        // The level of one search text in one folded column. The text is letters, digits and single spaces
+        // (Normalize), so it is safe inside a regular expression. A plural -s or -es counts as the whole word:
+        // "apple" in "Apples, raw". A name that starts with the words is looked at as written: the head of the name
+        // ("Tortilla, maislefse") before a longer phrase ("Tortilla chips"), and a hyphen compound
+        // ("Juusto-kasviskeitto") with the longer words. ~* folds case by the database's locale, so it has no
+        // COLLATE "C".
+        string Level(string column, string written, LevelPatterns text) => $"""
+            CASE
+              WHEN {column} COLLATE "C" = {text.Exact} THEN 0
+              WHEN {column} COLLATE "C" ~ {text.WordStart} THEN
+                CASE WHEN {written} ~* {text.Head} THEN 1 WHEN {written} ~* {text.Hyphen} THEN 3 ELSE 2 END
+              WHEN {column} COLLATE "C" LIKE {text.Start} THEN 3
+              WHEN {column} COLLATE "C" ~ {text.LastWord} THEN 4
+              WHEN (' ' || {column}) COLLATE "C" LIKE {text.LastPrefix} THEN 5
+              ELSE 6
+            END
+            """;
+
+        LevelPatterns Patterns(string text)
         {
-            var exact = Add(text);
-            var prefix = Add(LikePrefix(text));
             var lastWord = text[(text.LastIndexOf(' ') + 1)..];
-            var lastWhole = Add(WholeWordPattern(lastWord));
-            var lastPrefix = Add(WordPrefixPattern(lastWord));
-            return $"""
-                CASE
-                  WHEN ({digitParam} AND f.barcode = {queryParam})
-                    OR f.search_name COLLATE "C" = {exact}
-                    OR f.search_name_en COLLATE "C" = {exact}
-                    OR f.search_brand COLLATE "C" = {exact}
-                    OR EXISTS (SELECT 1 FROM food_aliases AS a WHERE {rankingAlias} AND a.normalized COLLATE "C" = {exact}) THEN 0
-                  WHEN f.search_name COLLATE "C" LIKE {prefix}
-                    OR f.search_name_en COLLATE "C" LIKE {prefix}
-                    OR EXISTS (SELECT 1 FROM food_aliases AS a WHERE {rankingAlias} AND a.normalized COLLATE "C" LIKE {prefix}) THEN 1
-                  WHEN {namePad} LIKE {lastWhole}
-                    OR {enPad} LIKE {lastWhole}
-                    OR EXISTS (SELECT 1 FROM food_aliases AS a WHERE {rankingAlias} AND {aliasPad} LIKE {lastWhole}) THEN 2
-                  WHEN {namePad} LIKE {lastPrefix}
-                    OR {enPad} LIKE {lastPrefix}
-                    OR EXISTS (SELECT 1 FROM food_aliases AS a WHERE {rankingAlias} AND {aliasPad} LIKE {lastPrefix}) THEN 3
-                  ELSE 4
-                END
-                """;
+            // As written, the words may be apart by any run of other characters: "kylling filet" in "Kylling, filet".
+            var words = text.Replace(" ", "[^[:alnum:]]+", StringComparison.Ordinal) + "(e?s)?";
+            var written = "^" + words;
+            return new LevelPatterns(
+                Add(text),
+                Add("^" + text + "(e?s)?( |$)"),
+                Add(written + "\\s*([,(;]|$)"),
+                Add(written + "-"),
+                Add(LikePrefix(text)),
+                Add("(^| )" + lastWord + "(e?s)?( |$)"),
+                Add(WordPrefixPattern(lastWord)),
+                Add("^([[:alnum:]]+[ -])?" + words + "\\s*([,(;]|$)"));
         }
+
+        // A food's own names (and our phrases, which stand in for a name), its name in another word order, and the
+        // table's keywords are levelled apart. The other word order places half a level lower, after a name at the
+        // same level: "avocado" lists "Avocados, raw" before "Oil, avocado" (as "avocado, Oil"). A keyword places one
+        // level lower: "smør" lists the butters before the spreads whose keyword it is, and "pølse" lists the sausages
+        // it is a keyword of before "Pølsebrød". One pass over the food's phrases.
+        var typed = Patterns(normalized);
+        var stemmed = anyStem ? Patterns(string.Join(' ', tokens.Select((token, index) => stems[index] ?? token))) : null;
+        var aliasLevel = Level("a.normalized", "a.phrase", typed);
+        var lateral = $"""
+            LEFT JOIN LATERAL (
+                SELECT min(CASE WHEN {keywordAlias} OR {orderAlias} THEN {None} ELSE {aliasLevel} END) AS name_level,
+                       min(CASE WHEN {orderAlias} THEN {aliasLevel} ELSE {None} END) AS order_level,
+                       min(CASE WHEN {keywordAlias} THEN {aliasLevel} ELSE {None} END) AS keyword_level,
+                       bool_or(NOT {keywordAlias} AND a.phrase ~* {typed.KindOf}) AS kind_of{(stemmed is null ? "" : ",\n           min(" + Level("a.normalized", "a.phrase", stemmed) + ") AS stem_level")}
+                FROM food_aliases AS a
+                WHERE {rankingAlias}
+            ) AS al ON TRUE
+            """;
+        var nameLevel = $"""
+            LEAST(
+                CASE WHEN ({digitParam} AND f.barcode = {queryParam}) OR f.search_brand COLLATE "C" = {typed.Exact} THEN 0 ELSE {None} END,
+                {Level("f.search_name", "f.name", typed)},
+                {Level("f.search_name_en", "f.name_en", typed)},
+                coalesce(al.name_level, {None}))
+            """;
+        var stemLevel = stemmed is null
+            ? "0"
+            : $"LEAST({Level("f.search_name", "f.name", stemmed)}, {Level("f.search_name_en", "f.name_en", stemmed)}, coalesce(al.stem_level, {None}))";
+
+        // A food found by a later word is a kind of what was typed when a name of its opens with one word and then the
+        // words: "Cereals, corn grits" as "corn grits, Cereals" for "grits", but not "Cereals, QUAKER, hominy grits"
+        // or "Liver paste with bacon". At the same place it comes first. A table's keyword is not a name.
+        var kindOf = $"CASE WHEN f.name ~* {typed.KindOf} OR f.name_en ~* {typed.KindOf} OR al.kind_of THEN 0 ELSE 1 END";
 
         // Without a base form the query is the strict one. With one, a food that matches the words as typed
         // still comes first, and base-form matches are ranked among themselves by the base-form text.
-        var rank = anyStem
-            ? $"CASE WHEN {Matches(Strict)} THEN 0 ELSE 5 END + {Rank(normalized)}"
-            : Rank(normalized);
-        var stemRank = anyStem ? Rank(string.Join(' ', tokens.Select((token, index) => stems[index] ?? token))) : "0";
+        var baseFormOnly = anyStem ? $"CASE WHEN {Matches(Strict)} THEN 0 ELSE {Levels} END" : "0";
 
         // Home foods come first within a band: tier 0 is home and foods with no country, 1 a neighbour, 2 the rest.
         string Tier()
@@ -160,23 +203,40 @@ public static class FoodCatalog
             return cases.Count == 0 ? "0" : $"CASE {string.Join(" ", cases)} ELSE 0 END";
         }
 
-        // Ranks fall into bands: the name or phrase itself or its start (0–1), a last word (2–3), any other match
-        // (4), a match by a word's base form only. Within a band, home foods come before a neighbour's and the
-        // rest, so "Quinoa" from another country still comes before a home "Salat med quinoa". OFFSET 0 keeps
-        // Postgres from inlining the inner select: inlined, it copies each rank's alias lookups into every sort
-        // expression that reads it, and "chicken" took 2.6 s instead of 90 ms.
+        // Levels fall into bands: the name or phrase itself or its start (0–3), a last word (4–5), any other match
+        // (6), a match by a word's base form only. Within a band, home foods come before a neighbour's and the rest,
+        // so "Quinoa" from another country still comes before a home "Salat med quinoa". Then the place (the level,
+        // another word order half a level lower, a keyword one lower), a kind of what was typed, and the shorter name:
+        // "Ris jasmin okokt" before "Ris à la Malta m. grädde". OFFSET 0 keeps Postgres from inlining the inner select:
+        // inlined, it copies each level's alias lookups into every sort expression that reads it, and "chicken" took
+        // 2.6 s instead of 90 ms.
         var sql = $"""
             SELECT s."Id", s."Rank", s."Tier"
             FROM (
-                SELECT f.id AS "Id", f.name, f.source, {rank} AS "Rank", {stemRank} AS stem_rank, {Tier()} AS "Tier"
-                FROM foods AS f
-                WHERE f.retired_at IS NULL
-                  AND (f.user_id IS NULL OR f.user_id = {userParam})
-                  AND ({Matches(anyStem ? Loose : Strict)})
-                OFFSET 0
+                SELECT m."Id", m.name, m.source, m."Tier", m.stem_level,
+                       CASE WHEN LEAST(m.name_level, m.order_level, m.keyword_level) >= 4 THEN m.kind_of ELSE 0 END AS kind_of,
+                       m.base_form_only + LEAST(m.name_level, m.order_level, m.keyword_level) AS "Rank",
+                       CASE WHEN m.name_level <= LEAST(m.order_level, m.keyword_level) THEN m.name_level * 2
+                            WHEN m.order_level <= m.keyword_level THEN m.order_level * 2 + 1
+                            ELSE m.keyword_level * 2 + 3 END AS place
+                FROM (
+                    SELECT f.id AS "Id", f.name, f.source, {Tier()} AS "Tier",
+                           {baseFormOnly} AS base_form_only,
+                           {nameLevel} AS name_level,
+                           coalesce(al.order_level, {None}) AS order_level,
+                           coalesce(al.keyword_level, {None}) AS keyword_level,
+                           {stemLevel} AS stem_level,
+                           {kindOf} AS kind_of
+                    FROM foods AS f
+                    {lateral}
+                    WHERE f.retired_at IS NULL
+                      AND (f.user_id IS NULL OR f.user_id = {userParam})
+                      AND ({Matches(anyStem ? Loose : Strict)})
+                    OFFSET 0
+                ) AS m
             ) AS s
-            ORDER BY CASE WHEN s."Rank" <= 1 THEN 0 WHEN s."Rank" <= 3 THEN 1 WHEN s."Rank" = 4 THEN 2 ELSE 3 END,
-                s."Tier", s."Rank", s.stem_rank, s.name, s.source
+            ORDER BY CASE WHEN s."Rank" <= 3 THEN 0 WHEN s."Rank" <= 5 THEN 1 WHEN s."Rank" = {None} THEN 2 ELSE 3 END,
+                s."Tier", s.place, s.kind_of, s.stem_level, length(s.name), s.name, s.source
             LIMIT {SearchLimit}
             """;
 
@@ -191,6 +251,23 @@ public static class FoodCatalog
         var byId = rows.ToDictionary(food => food.Id);
         return hits.Where(hit => byId.ContainsKey(hit.Id)).Select(hit => new RankedFood(byId[hit.Id], hit.Rank, hit.Tier)).ToList();
     }
+
+    /// <summary>The level of a food that matched, but not by any of the closer kinds of match.</summary>
+    private const int None = 6;
+
+    /// <summary>How many match levels there are (0–6); a base-form-only match adds this.</summary>
+    private const int Levels = None + 1;
+
+    /// <summary>Parameter placeholders for one search text's level patterns; see <see cref="SearchRankedAsync"/>.</summary>
+    private sealed record LevelPatterns(
+        string Exact,
+        string WordStart,
+        string Head,
+        string Hyphen,
+        string Start,
+        string LastWord,
+        string LastPrefix,
+        string KindOf);
 
     private sealed class SearchHit
     {

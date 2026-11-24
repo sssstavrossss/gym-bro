@@ -110,14 +110,17 @@ public sealed class UsdaImporter(FoodTableImporter tables, ILogger<UsdaImporter>
             "SR Legacy lists {Count} foods, {Baby} of them baby foods, which are left out.",
             foods.Count,
             foods.Count(food => food.Category == Usda.BabyFoods));
-        return await tables.ImportAsync(FoodSources.Usda, foods.Select(Row), cancellationToken);
+        var groups = Groups(foods);
+        return await tables.ImportAsync(FoodSources.Usda, foods.Select(food => Row(food, groups)), cancellationToken);
     }
 
     /// <summary>
     /// A food as a <see cref="FoodTableRow"/>, or null for a baby food or one without a name or kilocalories.
     /// Values are per 100 g, as published, except carbohydrate and salt (see the README).
     /// </summary>
-    public static FoodTableRow? Row(UsdaFood food)
+    /// <param name="food">The package's food.</param>
+    /// <param name="groups">The names' first parts that are food groups (<see cref="Groups"/>), for <see cref="WordOrder"/>.</param>
+    public static FoodTableRow? Row(UsdaFood food, IReadOnlySet<string>? groups = null)
     {
         var name = Name(food.Name);
         if (name is null || food.Category == Usda.BabyFoods || !food.Nutrients.TryGetValue(Energy, out var kcal))
@@ -199,8 +202,74 @@ public sealed class UsdaImporter(FoodTableImporter tables, ILogger<UsdaImporter>
         };
 
         // The description is English; it is the food's own name and its English name.
-        return new FoodTableRow(parsed, name, measures.Portions, []);
+        var other = groups is null ? null : WordOrder(name, groups);
+        return new FoodTableRow(parsed, name, measures.Portions, [], other is null ? null : [other]);
     }
+
+    /// <summary>
+    /// A first part that starts at least this many of the package's names is a food group ("Fish", "Cheese",
+    /// "Crustaceans"). Fewer, and it is a food with a variety or use after it: "Vinegar, red wine" is vinegar and
+    /// "Pickle relish, hamburger" is relish.
+    /// </summary>
+    public const int MinGroup = 5;
+
+    /// <summary>The first parts of the names that are food groups; see <see cref="MinGroup"/>.</summary>
+    public static IReadOnlySet<string> Groups(IEnumerable<UsdaFood> foods) =>
+        foods
+            .Select(food => Name(food.Name) is { } name ? Parts(name)?.First : null)
+            .OfType<string>()
+            .GroupBy(first => first, StringComparer.Ordinal)
+            .Where(group => group.Count() >= MinGroup)
+            .Select(group => group.Key)
+            .ToHashSet(StringComparer.Ordinal);
+
+    /// <summary>
+    /// The name in everyday word order. After a food group or a brand, the second part is the food and comes first:
+    /// "Fish, salmon, raw" is "salmon, Fish, raw" and "McDONALD'S, Hamburger" is "Hamburger, McDONALD'S", so "salmon"
+    /// finds it as closely as a name that starts with the word. After a food, the two parts make one English
+    /// phrase: "Chocolate, dark, 70-85% cacao" is "dark Chocolate, 70-85% cacao" and "Vinegar, red wine" is
+    /// "red wine Vinegar", which "dark chocolate" finds as a name but "red wine" only as the start of one. Null for a
+    /// name of one part, or when the second part is a brand ("Cereals, QUAKER, …").
+    /// </summary>
+    public static string? WordOrder(string name, IReadOnlySet<string> groups)
+    {
+        if (Parts(name) is not (var first, var second, var rest) || IsBrand(second))
+        {
+            return null;
+        }
+
+        var swapped = groups.Contains(first) || IsBrand(first) ? second + ", " + first : second + " " + first;
+        return rest.Length > 0 ? swapped + ", " + rest : swapped;
+    }
+
+    /// <summary>A name's first part, second part and the rest, split at commas outside brackets; null for one part.</summary>
+    private static (string First, string Second, string Tail)? Parts(string name)
+    {
+        var parts = new List<string>();
+        var depth = 0;
+        var start = 0;
+        for (var i = 0; i < name.Length && parts.Count < 2; i++)
+        {
+            depth += name[i] switch { '(' => 1, ')' => depth > 0 ? -1 : 0, _ => 0 };
+            if (name[i] == ',' && depth == 0)
+            {
+                parts.Add(name[start..i].Trim());
+                start = i + 1;
+            }
+        }
+
+        var rest = name[start..].Trim();
+        if (parts.Count == 1)
+        {
+            parts.Add(rest);
+            rest = "";
+        }
+
+        return parts.Count < 2 || parts.Any(part => part.Length == 0) ? null : (parts[0], parts[1], rest);
+    }
+
+    /// <summary>A brand the package writes in capitals: more capitals than small letters ("QUAKER", "McDONALD'S").</summary>
+    private static bool IsBrand(string part) => part.Count(char.IsUpper) > part.Count(char.IsLower);
 
     /// <summary>
     /// The package's measures as a serving, a piece and household measures. Each is per one of its unit
@@ -343,9 +412,12 @@ public sealed class UsdaImporter(FoodTableImporter tables, ILogger<UsdaImporter>
             return null;
         }
 
-        var text = value.Trim();
+        // A note on 57 foods that the shopper does not need, and that makes the name the longest in its group.
+        var text = value.Replace(DistributionNote, "", StringComparison.OrdinalIgnoreCase).Trim();
         return text.Length <= 300 ? text : text[..300];
     }
+
+    private const string DistributionNote = " (Includes foods for USDA's Food Distribution Program)";
 
     private static decimal? Sum(params decimal?[] parts) =>
         parts.Any(part => part is null) ? null : parts.Sum(part => part!.Value);

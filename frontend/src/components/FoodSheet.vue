@@ -26,7 +26,7 @@ import {
 } from "../lib/foodAmount";
 import { amountErrorIn } from "../lib/foodUnits";
 import { countryTag, foodTitle, originLine } from "../lib/foodOrigin";
-import { acceptSearchResult, preparedSearch, searchDebounceMs, searchKept } from "../lib/foodSearch";
+import { acceptSearchResult, preparedSearch, searchDebounceMs, searchKept, spellingNote } from "../lib/foodSearch";
 import {
   addNeedsTime,
   amountForRecent,
@@ -117,6 +117,9 @@ const qSave = ref(false);
 const savedFoodId = ref<string | null>(null);
 const savedFoodSig = ref("");
 const results = ref<FoodSearchRow[]>([]);
+/** The spelling the server added foods for ("kjøttdeig" for "kjottdeig"); set with the results it came with. */
+const corrected = ref<string | null>(null);
+const spelling = computed(() => spellingNote(corrected.value));
 const recents = ref<RecentFood[]>([]);
 const off = ref(idleOff<FoodSearchRow>());
 const searching = ref(false);
@@ -641,6 +644,7 @@ async function runSearch(trimmed: string) {
   searchError.value = "";
   if (connection.offline) {
     results.value = keptResults(trimmed);
+    corrected.value = null;
     searching.value = false;
     return;
   }
@@ -648,8 +652,10 @@ async function runSearch(trimmed: string) {
     const body = await searchFoods(trimmed);
     if (!acceptSearchResult(gen, trimmed, searchGen, q.value)) return;
     results.value = body.foods;
+    corrected.value = body.correctedQuery ?? null;
   } catch (error) {
     if (gen !== searchGen) return;
+    corrected.value = null;
     if (error instanceof ServerUnreachable) {
       results.value = keptResults(trimmed);
       return;
@@ -667,6 +673,7 @@ function scheduleSearch(value: string) {
   if (plan.kind !== "query") {
     searchGen += 1;
     results.value = [];
+    corrected.value = null;
     searching.value = false;
     searchError.value = plan.kind === "hint" ? plan.message : "";
     return;
@@ -774,6 +781,7 @@ watch(open, (isOpen) => {
   void loadDescribe();
   q.value = "";
   results.value = [];
+  corrected.value = null;
   searchView.value = false;
   searchFocused.value = false;
   searchScroll.value = 0;
@@ -1289,7 +1297,7 @@ async function deleteEdited() {
             <span class="t-label">{{ searchError }}</span>
             <button v-if="trimmedQuery.length >= 2" type="button" class="btn sm primary t-label" @click="runSearch(trimmedQuery)"><Icon name="refresh" :size="14" /> Try again</button>
           </div>
-          <div v-if="results.length" class="row lhead"><span class="t-cap c2 section-title">Results</span></div>
+          <div v-if="results.length" class="row lhead"><span class="t-cap c2 section-title">Results</span><span v-if="spelling" class="t-capn c2 ell grow spell">{{ spelling }}</span></div>
           <button v-for="(food, index) in results" :key="food.id" type="button" class="rrow row" :class="{ hl: keyboardEntry && index === hi }" @pointerdown="pressFood($event, food)" @click="pickFood($event, food)" @mouseenter="hi = index">
             <span class="col grow rtext">
               <span class="row gap6 nm"><span class="t-body ell">{{ foodTitle(food, foodCountry()) }}</span><span v-if="isMyFood(food)" class="tag t-capn">my food</span><span v-else-if="countryTag(food, foodCountry())" class="tag t-capn">{{ countryTag(food, foodCountry()) }}</span></span>
@@ -1439,6 +1447,7 @@ async function deleteEdited() {
 .err.t-label { margin: 0; }
 .emptyc { gap: var(--space-s); padding: var(--space-m) 0 var(--space-xl); }
 .lhead { padding: var(--space-m) 0 var(--space-2xs); }
+.spell { text-align: right; padding-left: var(--space-m); }
 .rtext { min-height: 44px; justify-content: center; }
 .miss { margin: var(--space-s) 0; }
 .offacts { gap: var(--space-s); flex-wrap: wrap; }

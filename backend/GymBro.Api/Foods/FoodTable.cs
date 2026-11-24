@@ -5,15 +5,17 @@ namespace GymBro.Api.Foods;
 
 /// <summary>
 /// One food from a national food table, ready to store: names, per-100 g values (micronutrients in
-/// <see cref="ParsedFood.Panel"/>), household measures, and the table's own search keywords.
+/// <see cref="ParsedFood.Panel"/>), household measures, the table's own search keywords, and the name written
+/// other ways (<see cref="FoodAliasKinds.Name"/>).
 /// </summary>
 public sealed record FoodTableRow(
     ParsedFood Food,
     string? NameEn,
     IReadOnlyList<FoodPortion> Portions,
-    IReadOnlyList<string> Keywords);
+    IReadOnlyList<string> Keywords,
+    IReadOnlyList<string>? OtherNames = null);
 
-public sealed record FoodTableImportResult(int Upserted, int Retired, int Skipped, int Keywords, int Categories, string Coverage);
+public sealed record FoodTableImportResult(int Upserted, int Retired, int Skipped, int Keywords, int Categories, string Coverage, int OtherNames = 0);
 
 /// <summary>
 /// Stores a whole food table for one <see cref="FoodSource"/>: upserts every row by source id, retires rows the
@@ -87,11 +89,11 @@ public sealed class FoodTableImporter(AppDbContext db, TimeProvider clock, ILogg
 
         // Measures the table does not publish, put back on the rows the copy above just cleared.
         var measures = await FoodMeasures.ApplyAsync(db, source.Id, cancellationToken);
-        var (keywords, categories) = await ReplaceKeywordsAsync(source, seen.Values.ToList(), cancellationToken);
+        var (keywords, categories, otherNames) = await ReplacePhrasesAsync(source, seen.Values.ToList(), cancellationToken);
         // Our phrases after the keywords, so a word the table also lists ranks as ours.
         var aliases = await FoodAliasCatalogue.ApplyAsync(db, source.Id, cancellationToken);
         logger.LogInformation(
-            "{Source} import upserted {Upserted}, retired {Retired}, skipped {Skipped}; reviewed measures on {Measured} rows, {Renamed} renamed; {Keywords} keywords, {Categories} category words; lexicon phrases added {Inserted}, already present {AlreadyPresent}, seeds skipped {SeedsSkipped}.",
+            "{Source} import upserted {Upserted}, retired {Retired}, skipped {Skipped}; reviewed measures on {Measured} rows, {Renamed} renamed; {Keywords} keywords, {Categories} category words, {OtherNames} names in another word order; lexicon phrases added {Inserted}, already present {AlreadyPresent}, seeds skipped {SeedsSkipped}.",
             source.Name,
             upserted,
             retired,
@@ -100,6 +102,7 @@ public sealed class FoodTableImporter(AppDbContext db, TimeProvider clock, ILogg
             measures.Renamed,
             keywords,
             categories,
+            otherNames,
             aliases.Inserted,
             aliases.AlreadyPresent,
             aliases.Skipped);
@@ -113,16 +116,17 @@ public sealed class FoodTableImporter(AppDbContext db, TimeProvider clock, ILogg
             live.Count(food => food.FiberPer100 is not null),
             live.Count(food => food.SaltPer100 is not null))
             + " " + Micronutrients.PanelCoverage(live);
-        return new FoodTableImportResult(upserted, retired, skipped, keywords, categories, coverage);
+        return new FoodTableImportResult(upserted, retired, skipped, keywords, categories, coverage, otherNames);
     }
 
     /// <summary>
     /// The table's keywords become search phrases of kind <see cref="FoodAliasKinds.Keyword"/>, or
-    /// <see cref="FoodAliasKinds.Category"/> when more than <see cref="CategoryThreshold"/> foods share one.
-    /// Last import's keywords are replaced. Our lexicon phrases are never touched, and a keyword that is already a
-    /// lexicon phrase for that food is left to the lexicon.
+    /// <see cref="FoodAliasKinds.Category"/> when more than <see cref="CategoryThreshold"/> foods share one, and
+    /// its other names become phrases of kind <see cref="FoodAliasKinds.Name"/>. Last import's phrases are replaced.
+    /// Our lexicon phrases are never touched, and a phrase that is already a lexicon phrase for that food is left to
+    /// the lexicon.
     /// </summary>
-    private async Task<(int Keywords, int Categories)> ReplaceKeywordsAsync(
+    private async Task<(int Keywords, int Categories, int OtherNames)> ReplacePhrasesAsync(
         FoodSource source,
         IReadOnlyList<FoodTableRow> rows,
         CancellationToken cancellationToken)
@@ -138,12 +142,28 @@ public sealed class FoodTableImporter(AppDbContext db, TimeProvider clock, ILogg
             .Select(group => group.Key)
             .ToHashSet(StringComparer.Ordinal);
 
-        var wanted = new Dictionary<(string SourceId, string Normalized), (string Phrase, string NameEn)>();
+        // A name written another way comes first, so a keyword with the same words does not make it a keyword.
+        var wanted = new Dictionary<(string SourceId, string Normalized), (string Phrase, string NameEn, string Kind)>();
+        foreach (var row in rows.Where(row => !string.IsNullOrWhiteSpace(row.NameEn)))
+        {
+            foreach (var other in row.OtherNames ?? [])
+            {
+                var text = other.Length <= 300 ? other : other[..300];
+                var normalized = FoodAliasCatalogue.Normalize(text);
+                if (normalized.Length > 0)
+                {
+                    wanted.TryAdd((row.Food.SourceId, normalized), (text, row.NameEn!, FoodAliasKinds.Name));
+                }
+            }
+        }
+
+        var otherNames = wanted.Count;
         foreach (var (row, phrases) in parts)
         {
             foreach (var phrase in phrases.Where(phrase => !phrase.InName))
             {
-                wanted.TryAdd((row.Food.SourceId, phrase.Normalized), (phrase.Text, row.NameEn!));
+                var kind = shared.Contains(phrase.Normalized) ? FoodAliasKinds.Category : FoodAliasKinds.Keyword;
+                wanted.TryAdd((row.Food.SourceId, phrase.Normalized), (phrase.Text, row.NameEn!, kind));
             }
         }
 
@@ -159,9 +179,8 @@ public sealed class FoodTableImporter(AppDbContext db, TimeProvider clock, ILogg
             }
         }
 
-        foreach (var ((sourceId, normalized), (phrase, nameEn)) in wanted)
+        foreach (var ((sourceId, normalized), (phrase, nameEn, kind)) in wanted)
         {
-            var kind = shared.Contains(normalized) ? FoodAliasKinds.Category : FoodAliasKinds.Keyword;
             if (byKey.TryGetValue((sourceId, normalized), out var alias))
             {
                 if (alias.Kind != FoodAliasKinds.Lexicon)
@@ -187,8 +206,8 @@ public sealed class FoodTableImporter(AppDbContext db, TimeProvider clock, ILogg
         }
 
         await db.SaveChangesAsync(cancellationToken);
-        var categories = wanted.Keys.Count(key => shared.Contains(key.Normalized));
-        return (wanted.Count - categories, categories);
+        var categories = wanted.Values.Count(value => value.Kind == FoodAliasKinds.Category);
+        return (wanted.Count - categories - otherNames, categories, otherNames);
     }
 
     /// <summary>

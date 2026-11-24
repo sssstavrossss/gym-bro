@@ -235,8 +235,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         alias.Property(a => a.Id).HasColumnName("id");
         alias.Property(a => a.Source).HasColumnName("source").HasMaxLength(16);
         alias.Property(a => a.SourceId).HasColumnName("source_id").HasMaxLength(64);
-        alias.Property(a => a.Phrase).HasColumnName("phrase").HasMaxLength(80);
-        alias.Property(a => a.Normalized).HasColumnName("normalized").HasMaxLength(80);
+        alias.Property(a => a.Phrase).HasColumnName("phrase").HasMaxLength(300);
+        alias.Property(a => a.Normalized).HasColumnName("normalized").HasMaxLength(300);
         alias.Property(a => a.ExpectedNameEn).HasColumnName("expected_name_en").HasMaxLength(300);
         alias.Property(a => a.Kind).HasColumnName("kind").HasMaxLength(16).HasDefaultValue(FoodAliasKinds.Lexicon);
         alias.HasIndex(a => new { a.Source, a.SourceId, a.Normalized }).IsUnique();

@@ -394,3 +394,32 @@ test("desktop accepts a decimal comma and large text does not scroll sideways", 
   await expectNoSideScroll(page);
   await page.screenshot({ path: "/opt/cursor/artifacts/f2-detail-large-text.png" });
 });
+
+test("a misspelt search names the spelling it added foods for", async ({ page }) => {
+  const oid = `e2e-spell-${Date.now()}-${test.info().project.name}`;
+  const when = await clock(page);
+  await putWeighIn(page.request, oid, when.today, when.zone);
+  await putProfile(page.request, oid, when.zone);
+  await createFood(page.request, oid, {
+    name: "Zqxylofonsuppe",
+    kcalPer100: 40,
+    proteinPer100: 2,
+    fatPer100: 1,
+    carbsPer100: 6,
+    basis: "g",
+  });
+  await sign(page, oid);
+  await page.goto("/today");
+  await openAdd(page, 390);
+  const search = sheet(page).getByRole("searchbox", { name: "Search foods" });
+
+  await search.fill("zqxylofomsuppe");
+  await expect(sheet(page).getByRole("button", { name: /Zqxylofonsuppe/ })).toBeVisible();
+  await expect(sheet(page).getByText("Including “zqxylofonsuppe”")).toBeVisible();
+  await expectNoSideScroll(page);
+
+  // Spelt right, the food is found as typed and the note goes.
+  await search.fill("zqxylofonsuppe");
+  await expect(sheet(page).getByRole("button", { name: /Zqxylofonsuppe/ })).toBeVisible();
+  await expect(sheet(page).getByText(/^Including/)).toBeHidden();
+});

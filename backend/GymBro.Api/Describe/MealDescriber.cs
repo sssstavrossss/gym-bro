@@ -279,13 +279,11 @@ public sealed class MealDescriber(AppDbContext db, IMealModel model)
             .Take(SearchesPerPart);
         foreach (var query in queries)
         {
-            // The search sorts each rank by name, so "brød" lists home-made breads first. The person's own foods
-            // come first here, then the closest match ("gulost" finds "Gulost, uspesifisert" before "Edamer,
-            // gulost"), then the shortest names: in the catalogue those are the everyday ones ("Pizza, kjøpt").
+            // The person's own foods come first here, then the search's order: the closest match ("gulost" finds
+            // "Gulost, uspesifisert" before "Edamer, gulost"), names before a table's keywords, and the shortest
+            // names, which in the catalogue are the everyday ones ("Pizza, kjøpt"). OrderBy keeps that order.
             var hits = HomeOnlyWhenFound(await FoodCatalog.SearchRankedAsync(db, userId, query, home, cancellationToken))
                 .OrderBy(hit => hit.Food.UserId == userId ? 0 : 1)
-                .ThenBy(hit => hit.Rank)
-                .ThenBy(hit => hit.Food.Name.Length)
                 .Select(hit => hit.Food);
             foods.AddRange(hits.Where(hit => foods.All(food => food.Id != hit.Id)).Take(PerSearch));
             if (foods.Count >= CandidatesMax)
