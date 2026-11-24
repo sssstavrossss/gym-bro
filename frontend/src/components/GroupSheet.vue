@@ -42,7 +42,9 @@ async function save() {
     return;
   }
   const count = result.group.items.length;
-  toast(`Saved “${result.group.name}” · ${count} items. Find it under Add food → Saved groups.`);
+  // From the food sheet the list is right behind this sheet, so there is nothing to point to.
+  const where = ui.groupReturn === "food" ? "" : " · find it in Add food";
+  toast(`Saved ${result.group.name} · ${count} items${where}`);
   finishGroupSave();
 }
 </script>

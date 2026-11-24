@@ -342,20 +342,21 @@ test("fractional per-100 text, full-height search, and the add toast stays off t
     window.dispatchEvent(new Event("resize"));
   });
   await sheet(page).getByRole("button", { name: /Add · 165 kcal/ }).click();
-  const toast = page.locator(".toast");
+  const toast = page.locator(".toast.front:not(.toast-leave-active)");
   const session = sheet(page).locator(".session");
   await expect(toast).toBeVisible();
   await expect(session.getByText(/1 added/)).toBeVisible();
   await expect(session.getByText(/Today · 165 kcal/)).toBeVisible();
+  // The toast floats just above the added bar at the bottom; the sheet itself doesn't move for it.
+  const closeBefore = await sheet(page).getByRole("button", { name: "Close", exact: true }).boundingBox();
+  await expect(toast).not.toHaveClass(/toast-(enter|move)/);
   const toastBox = await toast.boundingBox();
   const sessionBox = await session.boundingBox();
-  const closeBox = await sheet(page).getByRole("button", { name: "Close", exact: true }).boundingBox();
-  const searchBox = await sheet(page).getByRole("searchbox", { name: "Search foods" }).boundingBox();
-  expect(overlaps(toastBox!, sessionBox!)).toBe(false);
-  expect(overlaps(toastBox!, closeBox!)).toBe(false);
-  expect(overlaps(toastBox!, searchBox!)).toBe(false);
-  expect(toastBox!.y + toastBox!.height).toBeLessThanOrEqual(closeBox!.y + 1);
-  expect(toastBox!.y).toBeLessThan(sessionBox!.y);
+  expect(overlaps(toastBox!, sessionBox!), JSON.stringify({ toastBox, sessionBox })).toBe(false);
+  expect(toastBox!.y + toastBox!.height).toBeLessThanOrEqual(sessionBox!.y + 1);
+  await expect(toast).toBeHidden({ timeout: 8_000 });
+  const closeAfter = await sheet(page).getByRole("button", { name: "Close", exact: true }).boundingBox();
+  expect(Math.abs(closeAfter!.y - closeBefore!.y)).toBeLessThan(1);
   await saveShot(page, "f2-polish-toast-ax5.png");
 });
 

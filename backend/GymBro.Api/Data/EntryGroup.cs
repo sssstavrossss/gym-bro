@@ -13,4 +13,7 @@ public sealed class EntryGroup
     public string Name { get; set; } = "";
 
     public DateTimeOffset CreatedAt { get; set; }
+
+    /// <summary>Set when the person deletes the group. It stays so Undo can bring it back.</summary>
+    public DateTimeOffset? DeletedAt { get; set; }
 }

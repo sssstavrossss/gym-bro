@@ -70,6 +70,7 @@ public static class FoodEndpoints
         api.MapPost("/foods/{id:guid}/basis", ConfirmBasis);
         api.MapPut("/foods/{id:guid}", Update);
         api.MapDelete("/foods/{id:guid}", Delete);
+        api.MapPost("/foods/{id:guid}/restore", Restore);
         api.MapServings();
         api.MapBarcode();
         api.MapGet("/about", About);
@@ -377,6 +378,40 @@ public static class FoodEndpoints
         food.UpdatedAt = food.RetiredAt.Value;
         await db.SaveChangesAsync(cancellationToken);
         return Results.NoContent();
+    }
+
+    /// <summary>Undo for deleting one of your own foods. A food that is not deleted is returned as it is.</summary>
+    private static async Task<IResult> Restore(
+        ClaimsPrincipal principal,
+        Guid id,
+        AppDbContext db,
+        TimeProvider clock,
+        CancellationToken cancellationToken)
+    {
+        if (Caller.MissingOid(principal) is { } denied)
+        {
+            return denied;
+        }
+
+        var userId = Caller.Id(principal);
+        var food = await db.Foods.FirstOrDefaultAsync(
+            row => row.Id == id && row.UserId == userId && row.Source == "custom",
+            cancellationToken);
+        if (food is null)
+        {
+            return ApiResults.Error("No food with that id.", StatusCodes.Status404NotFound);
+        }
+
+        if (food.RetiredAt is not null)
+        {
+            food.RetiredAt = null;
+            food.UpdatedAt = clock.GetUtcNow();
+            await db.SaveChangesAsync(cancellationToken);
+        }
+
+        var confirmed = await ConfirmedBases(db, userId, [food], cancellationToken);
+        var servings = await ServingEndpoints.ForFoods(db, userId, [food.Id], cancellationToken);
+        return Results.Ok(ToResponse(food, confirmed.GetValueOrDefault(food.Id), servings.GetValueOrDefault(food.Id)));
     }
 
     private static async Task<IResult> About(ClaimsPrincipal principal, AppDbContext db, CancellationToken cancellationToken)

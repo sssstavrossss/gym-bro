@@ -578,7 +578,7 @@ public static class LogEntryEndpoints
         if (groupId is Guid group)
         {
             var ownsGroup = await db.EntryGroups.AnyAsync(
-                row => row.Id == group && row.UserId == userId,
+                row => row.Id == group && row.UserId == userId && row.DeletedAt == null,
                 cancellationToken);
             if (!ownsGroup)
             {

@@ -153,7 +153,7 @@ for (const size of [
     await expectClean(page);
 
     await sheet.getByRole("button", { name: "Save recipe" }).click();
-    await expect(page.getByText(/Saved “Big pot”/)).toBeVisible();
+    await expect(page.getByText(/Saved Big pot/)).toBeVisible();
     const recipes = await page.request.get("/api/recipes", { headers: headers(oid) });
     const saved = (await recipes.json()).recipes as { name: string; ingredients: unknown[] }[];
     expect(saved.some((recipe) => recipe.name === "Big pot" && recipe.ingredients.length === 10)).toBeTruthy();

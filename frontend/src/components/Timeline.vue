@@ -14,7 +14,7 @@ import { removeEntries, type LogEntry } from "../state/log";
 import { loadGroups, readdSavedGroup, savedGroups } from "../state/groups";
 import { deviceTimeZone } from "../state/profile";
 import { foodAmount } from "../state/units";
-import { endSelect, openCopy, openEdit, openFood, startSelect, toast, ui } from "../ui";
+import { endSelect, openCopy, openEdit, openFood, startSelect, toast, toastError, ui } from "../ui";
 
 const props = defineProps<{ date: string; today: string; entries: LogEntry[]; compact?: boolean; showEmpty?: boolean; home?: boolean; maxRows?: number }>();
 const rows = computed(() => byTime(props.entries));
@@ -90,14 +90,14 @@ async function quickGroup(id: string, name: string) {
     idempotencyKey: crypto.randomUUID(),
   });
   if (!result.ok) {
-    toast(result.message);
+    toastError(result.message);
     return;
   }
   const kcal = result.entries.reduce((sum, entry) => sum + entry.kcal, 0);
-  toast(readdToast(name, result.entries.length, kcal, result.notice), result.entries.length ? {
-    label: "Undo",
-    run: () => { void removeEntries(result.entries, { announce: false }); },
-  } : undefined);
+  const undo = result.entries.length ? { label: "Undo", run: () => { void removeEntries(result.entries, { announce: false }); } } : undefined;
+  // A notice (a food that is gone) stays its own toast so it isn't folded away.
+  toast(readdToast(name, result.entries.length, kcal, result.notice), undo,
+    undo && !result.notice.trim() ? { merge: { kind: "add", count: result.entries.length, kcal } } : {});
 }
 
 let timer = 0;

@@ -152,7 +152,7 @@ test("create a recipe, see per-portion protein update, log it, and retire it", a
   }
 
   await sheet.getByRole("button", { name: "Save recipe" }).click();
-  await expect(page.getByText(/Saved “Chicken pot” · 50 g protein per portion/)).toBeVisible();
+  await expect(page.getByText(/Saved Chicken pot · 200 kcal per portion/)).toBeVisible();
 
   const again = page.getByRole("dialog", { name: "Add food" });
   await again.getByRole("button", { name: "Log recipe Chicken pot" }).click();
@@ -160,7 +160,7 @@ test("create a recipe, see per-portion protein update, log it, and retire it", a
   await expect(logging.locator("[data-macro='p'] [data-adding]")).toHaveText("+50");
   await expect(logging.getByRole("radio", { name: "grams" })).toBeVisible();
   await logging.getByRole("button", { name: /Add · 200 kcal/ }).click();
-  await expect(page.getByText(/Added 1 portion Chicken pot · 50 g protein/)).toBeVisible();
+  await expect(page.getByText(/Added 1 portion Chicken pot · 200 kcal/)).toBeVisible();
 
   await again.getByRole("button", { name: "Log recipe Chicken pot" }).click();
   const grams = page.getByRole("dialog", { name: "Log Chicken pot" });
@@ -168,13 +168,14 @@ test("create a recipe, see per-portion protein update, log it, and retire it", a
   await grams.getByLabel("Amount to log").fill("100");
   await expect(grams.locator("[data-macro='p'] [data-adding]")).toHaveText("+50");
   await grams.getByRole("button", { name: /Add · 200 kcal/ }).click();
-  await expect(page.getByText(/Added 100 g Chicken pot · 50 g protein/)).toBeVisible();
+  // A second add straight after the first folds into the same toast.
+  await expect(page.getByText(/Added 2 foods · 400 kcal/)).toBeVisible();
 
   // The list has no delete button; Delete is on the edit screen.
   await expect(again.getByRole("button", { name: "Delete recipe Chicken pot" })).toHaveCount(0);
   await again.getByRole("button", { name: "Edit recipe Chicken pot" }).click();
   await page.getByRole("dialog", { name: "Edit recipe" }).getByRole("button", { name: "Delete recipe" }).click();
-  await expect(page.getByText("Deleted Chicken pot · past logs kept")).toBeVisible();
+  await expect(page.getByText("Deleted Chicken pot · past entries kept")).toBeVisible();
   await expect(again.getByRole("button", { name: "Log recipe Chicken pot" })).toHaveCount(0);
 
   const listed = await page.request.get(`/api/log-entries?date=${when.today}`, { headers: headers(oid) });
@@ -234,7 +235,7 @@ test("save as recipe from a selection of foods", async ({ page }) => {
   await expect(sheet.locator("[data-recipe-portion]")).toContainText("50 g protein per portion · 6.7 g fat · 0 g carbs");
   await expectClean(page);
   await sheet.getByRole("button", { name: "Save recipe" }).click();
-  await expect(page.getByText(/Saved “Plate” · 50 g protein per portion/)).toBeVisible();
+  await expect(page.getByText(/Saved Plate · [\d,]+ kcal per portion/)).toBeVisible();
 
   const recipes = await page.request.get("/api/recipes", { headers: headers(oid) });
   const body = await recipes.json();

@@ -74,14 +74,14 @@ export async function unretireRecipe(id: string, index: number): Promise<boolean
 }
 
 /** Delete with an Undo toast. Returns false when the delete itself failed. */
-export async function deleteRecipeWithUndo(recipe: { id: string; name: string }, notify: (text: string, action?: { label: string; run: () => void }) => void): Promise<boolean> {
+export async function deleteRecipeWithUndo(recipe: { id: string; name: string }, notify: (text: string, action?: { label: string; run: () => void }, options?: { error?: boolean }) => void): Promise<boolean> {
   const index = savedRecipes.list.findIndex((row) => row.id === recipe.id);
   if (!(await retireRecipe(recipe.id))) return false;
-  notify(`Deleted ${recipe.name} · past logs kept`, {
+  notify(`Deleted ${recipe.name} · past entries kept`, {
     label: "Undo",
     run: () => {
       void unretireRecipe(recipe.id, index).then((ok) => {
-        if (!ok) notify("Couldn't restore that recipe.");
+        if (!ok) notify("Couldn't restore that recipe.", undefined, { error: true });
       });
     },
   });

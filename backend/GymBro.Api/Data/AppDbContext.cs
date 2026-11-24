@@ -365,6 +365,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         group.Property(g => g.UserId).HasColumnName("user_id").HasMaxLength(64);
         group.Property(g => g.Name).HasColumnName("name").HasMaxLength(120);
         group.Property(g => g.CreatedAt).HasColumnName("created_at");
+        group.Property(g => g.DeletedAt).HasColumnName("deleted_at");
         group.HasIndex(g => g.UserId);
         group.HasAlternateKey(g => new { g.UserId, g.Id }).HasName("ux_entry_groups_user_id");
         group.HasOne<AppUser>().WithMany().HasForeignKey(g => g.UserId).OnDelete(DeleteBehavior.Cascade);

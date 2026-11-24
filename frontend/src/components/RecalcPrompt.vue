@@ -4,7 +4,7 @@ import Icon from "./Icon.vue";
 import { dismissRecalculateBanner, getRecalculateBanner } from "../api";
 import { connection } from "../state/connection";
 import { refreshInbox } from "../state/inbox";
-import { openRecalculate, toast, ui } from "../ui";
+import { openRecalculate, toastError, ui } from "../ui";
 
 /**
  * This week's recalculate reminder, on Home while it is open. It closes itself once a
@@ -25,7 +25,7 @@ async function dismiss() {
     void refreshInbox();
   } catch {
     show.value = true;
-    toast("Couldn't dismiss it, try again.");
+    toastError("Couldn't dismiss it. Try again.");
   }
 }
 onMounted(() => { void load(); });

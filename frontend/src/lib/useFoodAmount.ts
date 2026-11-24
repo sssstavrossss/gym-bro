@@ -351,7 +351,7 @@ export function useFoodAmount(options: FoodAmountOptions) {
         fresh.value = true;
       }
       if (servingEditId.value === row.id) resetServingForm();
-      toast(`Removed serving “${row.name}”`, {
+      toast(`Deleted serving ${row.name}`, {
         label: "Undo",
         run: () => { void restoreServing({ ...shown, servings: left }, row.name, row.grams); },
       });

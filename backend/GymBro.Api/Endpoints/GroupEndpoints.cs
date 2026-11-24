@@ -16,6 +16,7 @@ public static class GroupEndpoints
         api.MapGet("/groups/{id:guid}", One);
         api.MapPost("/groups", Create);
         api.MapDelete("/groups/{id:guid}", Delete);
+        api.MapPost("/groups/{id:guid}/restore", Restore);
         api.MapPost("/groups/{id:guid}/log", Log);
         return api;
     }
@@ -137,6 +138,34 @@ public static class GroupEndpoints
         ClaimsPrincipal principal,
         Guid id,
         AppDbContext db,
+        TimeProvider clock,
+        CancellationToken cancellationToken)
+    {
+        if (Caller.MissingOid(principal) is { } denied)
+        {
+            return denied;
+        }
+
+        var userId = Caller.Id(principal);
+        var group = await db.EntryGroups.FirstOrDefaultAsync(
+            row => row.Id == id && row.UserId == userId && row.DeletedAt == null,
+            cancellationToken);
+        if (group is null)
+        {
+            return ApiResults.Error(LogEntryEndpoints.MissingGroup, StatusCodes.Status404NotFound);
+        }
+
+        // Kept, not removed, so Undo can bring it back. Entries logged from it keep their link.
+        group.DeletedAt = clock.GetUtcNow();
+        await db.SaveChangesAsync(cancellationToken);
+        return Results.NoContent();
+    }
+
+    /// <summary>Undo for a delete. A group that is not deleted is returned as it is.</summary>
+    private static async Task<IResult> Restore(
+        ClaimsPrincipal principal,
+        Guid id,
+        AppDbContext db,
         CancellationToken cancellationToken)
     {
         if (Caller.MissingOid(principal) is { } denied)
@@ -153,17 +182,14 @@ public static class GroupEndpoints
             return ApiResults.Error(LogEntryEndpoints.MissingGroup, StatusCodes.Status404NotFound);
         }
 
-        var linked = await db.LogEntries
-            .Where(row => row.UserId == userId && row.GroupId == id)
-            .ToListAsync(cancellationToken);
-        foreach (var entry in linked)
+        if (group.DeletedAt is not null)
         {
-            entry.GroupId = null;
+            group.DeletedAt = null;
+            await db.SaveChangesAsync(cancellationToken);
         }
 
-        db.EntryGroups.Remove(group);
-        await db.SaveChangesAsync(cancellationToken);
-        return Results.NoContent();
+        var groups = await LoadGroups(db, userId, id, cancellationToken);
+        return Results.Ok(groups[0]);
     }
 
     private static async Task<IResult> Log(
@@ -188,7 +214,7 @@ public static class GroupEndpoints
         var draft = body.Draft!;
         var userId = Caller.Id(principal);
         var group = await db.EntryGroups.AsNoTracking().FirstOrDefaultAsync(
-            row => row.Id == id && row.UserId == userId,
+            row => row.Id == id && row.UserId == userId && row.DeletedAt == null,
             cancellationToken);
         if (group is null)
         {
@@ -332,7 +358,7 @@ public static class GroupEndpoints
         CancellationToken cancellationToken)
     {
         var groups = await db.EntryGroups.AsNoTracking()
-            .Where(row => row.UserId == userId && (id == null || row.Id == id))
+            .Where(row => row.UserId == userId && row.DeletedAt == null && (id == null || row.Id == id))
             .OrderByDescending(row => row.CreatedAt)
             .ThenByDescending(row => row.Id)
             .ToListAsync(cancellationToken);
