@@ -226,7 +226,7 @@ function delta(next: number | undefined, prev: number | undefined): string {
 .span { grid-column: 1 / -1; margin: 0; }
 /* A quiet text button: the formula is the fallback, not the suggestion. */
 .formula { color: var(--text-secondary); }
-.formula::before { background: transparent; }
+.formula::before { background: transparent; box-shadow: none; }
 </style>
 <style>
 html.dt-xl .recalc-period { display: none; }

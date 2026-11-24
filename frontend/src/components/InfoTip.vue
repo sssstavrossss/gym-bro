@@ -64,7 +64,7 @@ onBeforeUnmount(() => {
 .pop {
   position: absolute; top: calc(100% + 4px); left: -8px; width: min(264px, calc(100vw - 32px));
   border: 1px solid var(--color-border); color: var(--text-primary);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, .5); line-height: 1.45; text-align: left;
+  box-shadow: var(--d-float); line-height: 1.45; text-align: left;
   white-space: normal; font-weight: 400; text-transform: none; letter-spacing: 0;
 }
 </style>

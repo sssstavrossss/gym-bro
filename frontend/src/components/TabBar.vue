@@ -40,6 +40,7 @@ const active = (to: string) => route.path === to || route.path.startsWith(to + "
   height: var(--tabbar-h); padding: var(--space-s) max(var(--space-m), calc(50% - 260px)) 0;
   display: flex; justify-content: space-between; align-items: flex-start;
   background: var(--color-bg); border-top: 1px solid var(--color-border);
+  box-shadow: var(--d-edge);
 }
 .tab { position: relative; min-width: 64px; min-height: 44px; padding-top: var(--space-xs); display: flex; flex-direction: column; align-items: center; gap: var(--space-xs); color: var(--text-secondary); text-decoration: none; }
 .ic { position: relative; display: inline-flex; }
@@ -47,5 +48,5 @@ const active = (to: string) => route.path === to || route.path.startsWith(to + "
 /* Tab captions stay at the default size. Dynamic Type must not enlarge them into each other. */
 .tab .t-capn { font-size: 11px; line-height: 14px; white-space: nowrap; }
 .tab.on { color: var(--text-primary); }
-.plus { width: 56px; height: 56px; border-radius: var(--radius-pill); background: var(--color-action); color: var(--color-on-action); display: flex; align-items: center; justify-content: center; }
+.plus { width: 56px; height: 56px; border-radius: var(--radius-pill); background: var(--color-action); color: var(--color-on-action); display: flex; align-items: center; justify-content: center; box-shadow: var(--d-action), 0 6px 16px -4px rgb(0 0 0 / .6); }
 </style>

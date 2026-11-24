@@ -94,7 +94,7 @@ function onAdd(event: MouseEvent, group: SavedGroup) {
 .groups { gap: 0; }
 .lhead { padding: var(--space-m) 0 var(--space-2xs); }
 .grp { gap: var(--space-xs); }
-.gic { width: 32px; height: 32px; border-radius: var(--radius-m); background: var(--color-surface-2); display: flex; align-items: center; justify-content: center; color: var(--text-secondary); flex: none; }
+.gic { width: 32px; height: 32px; border-radius: var(--radius-m); background: var(--color-surface-2); display: flex; align-items: center; justify-content: center; color: var(--text-secondary); flex: none; box-shadow: var(--d-edge); }
 .rtext { gap: var(--space-2xs); min-width: 0; min-height: 44px; align-items: flex-start; justify-content: center; text-align: left; }
 .ell { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
 .gsum { display: flex; min-width: 0; width: 100%; max-width: 100%; overflow: hidden; }

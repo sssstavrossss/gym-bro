@@ -280,6 +280,7 @@ function onMenu(event: Event) {
 .hbtn::before {
   content: ""; position: absolute; z-index: -1; width: var(--control-s); height: var(--control-s);
   border-radius: var(--radius-m); background: var(--color-surface-2);
+  box-shadow: var(--d-edge);
 }
 .hbtn > * { position: relative; }
 .hbtn:hover, .hbtn:focus-visible { color: var(--text-primary); }
@@ -290,7 +291,7 @@ function onMenu(event: Event) {
   .line:hover .mark { cursor: pointer; }
 }
 .empty { align-items: center; text-align: center; gap: var(--space-s); padding: var(--space-2xl) var(--space-l); border-radius: var(--radius-l); border: 1px dashed var(--color-border); }
-.eic { width: var(--control-s); height: var(--control-s); border-radius: 50%; background: var(--color-surface-2); display: flex; align-items: center; justify-content: center; color: var(--text-secondary); }
+.eic { width: var(--control-s); height: var(--control-s); border-radius: 50%; background: var(--color-surface-2); display: flex; align-items: center; justify-content: center; color: var(--text-secondary); box-shadow: var(--d-edge); }
 .ebtn { margin-top: var(--space-s); }
 .gchips { gap: var(--space-s); flex-wrap: wrap; justify-content: center; }
 </style>

@@ -70,7 +70,7 @@ function change(event: Event) {
 
 <style scoped>
 .tchip-wrap { position: relative; display: inline-flex; align-items: center; gap: var(--space-m); max-width: 100%; min-height: var(--control-hit); }
-.tchip { position: relative; height: var(--control-s); min-height: var(--control-s); padding: 0 var(--space-m); border-radius: calc(var(--control-s) / 2); display: inline-flex; align-items: center; gap: var(--space-s); background: var(--color-surface-2); color: var(--text-primary); }
+.tchip { position: relative; height: var(--control-s); min-height: var(--control-s); padding: 0 var(--space-m); border-radius: calc(var(--control-s) / 2); display: inline-flex; align-items: center; gap: var(--space-s); background: var(--color-surface-2); color: var(--text-primary); box-shadow: var(--d-control); }
 .tchip.need { box-shadow: none; outline: 1.5px dashed var(--text-primary); outline-offset: -1.5px; background: transparent; }
 .tchip.set { box-shadow: inset 0 0 0 1.5px var(--text-secondary); }
 /* opacity stays above 0 so WebKit will focus the control. It is still invisible. */

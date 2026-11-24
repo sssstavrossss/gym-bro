@@ -355,7 +355,7 @@ async function onSignOut() {
 .body { gap: var(--space-m); }
 /* Each group is a card: an icon title, then rows split by a line. Controls in it sit on the
    sheet colour (--btn-bg) so they still stand out from the card. */
-.group { min-width: 0; gap: 0; padding: 14px var(--space-l) var(--space-2xs); border-radius: var(--radius-l); background: var(--color-surface-2); --btn-bg: var(--color-surface); }
+.group { min-width: 0; gap: 0; padding: 14px var(--space-l) var(--space-2xs); border-radius: var(--radius-l); background: var(--color-surface-2); --btn-bg: var(--color-surface); box-shadow: var(--d-edge); }
 .gtitle { margin: 0; padding-bottom: 6px; display: flex; align-items: center; gap: var(--space-s); }
 .gtitle svg { color: var(--text-secondary); flex: none; }
 .group > :not(.gtitle) + :not(.gtitle) { border-top: 1px solid var(--color-border); }

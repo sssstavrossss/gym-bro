@@ -966,7 +966,7 @@ async function addLog() {
 .num { text-align: right; font-variant-numeric: tabular-nums; }
 .finder { position: sticky; top: 0; z-index: 1; }
 /* The same box as the amount screens' card. */
-.pcard { display: flex; flex-direction: column; height: var(--nutrient-card-height); padding: var(--space-box) var(--space-box) 0; border-radius: var(--radius-l); background: var(--color-surface-2); flex: none; box-sizing: border-box; }
+.pcard { display: flex; flex-direction: column; height: var(--nutrient-card-height); padding: var(--space-box) var(--space-box) 0; border-radius: var(--radius-l); background: var(--color-surface-2); flex: none; box-sizing: border-box; box-shadow: var(--d-edge); }
 /* The total sits at the right of the heading, and goes under it when there's no room. */
 .sec { align-items: baseline; flex-wrap: wrap; column-gap: var(--space-m); row-gap: var(--space-2xs); margin-top: var(--space-s); }
 .sec .section-title { margin: 0; }
@@ -978,7 +978,7 @@ html.dt-xl .serving { overflow: visible; text-overflow: clip; white-space: norma
 .ingrow { display: grid; grid-template-columns: minmax(0, 1fr) auto 44px; gap: var(--space-s); align-items: center; min-height: 52px; }
 .ingtext { display: flex; flex-direction: column; min-width: 0; }
 .ingtext .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.amt { display: flex; align-items: center; gap: var(--space-xs); min-height: 40px; padding: 0 var(--space-m); border-radius: var(--radius-m); background: var(--color-surface-2); }
+.amt { display: flex; align-items: center; gap: var(--space-xs); min-height: 40px; padding: 0 var(--space-m); border-radius: var(--radius-m); background: var(--color-surface-2); box-shadow: var(--d-sunk); }
 .amt input { width: 3.6rem; min-height: 40px; border: 0; outline: 0; background: transparent; padding: 0; color: var(--text-primary); }
 .amt input:focus-visible { outline: 0; }
 .amt.on, .amt:focus-within { box-shadow: inset 0 0 0 2px var(--text-primary); }

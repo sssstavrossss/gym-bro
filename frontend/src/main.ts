@@ -5,6 +5,7 @@ import { vAutofocus } from "./lib/autofocus";
 import { routes } from "./router";
 import { applyAccent, applyTheme, readAccent, readTheme } from "./lib/theme";
 import "./styles/main.css";
+import "./styles/depth.css";
 
 applyTheme(readTheme());
 applyAccent(readAccent());

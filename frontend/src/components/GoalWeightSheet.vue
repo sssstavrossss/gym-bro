@@ -136,7 +136,7 @@ async function save() {
 .m0 { margin: 0; }
 /* The same big number as the weight sheet: − and + at the edges, the number in the middle. */
 /* The same box as the amount screens, around the number and its − and + buttons. */
-.wfield { gap: var(--space-s); align-items: center; justify-content: space-between; padding: 10px var(--space-m); border-radius: var(--radius-l); background: var(--color-surface-2); }
+.wfield { gap: var(--space-s); align-items: center; justify-content: space-between; padding: 10px var(--space-m); border-radius: var(--radius-l); background: var(--color-surface-2); box-shadow: var(--d-sunk); }
 .wlabel { display: inline-flex; align-items: baseline; justify-content: center; gap: var(--space-s); min-width: 0; flex: 0 1 auto; }
 .autosize { display: inline-grid; min-height: 44px; }
 .autosize > * { grid-area: 1 / 1; }
@@ -147,6 +147,6 @@ async function save() {
   border: 0; outline: none; box-shadow: none; padding: 0 var(--space-xs); border-radius: var(--radius-m);
   caret-color: var(--text-primary); font-size: min(3rem, 64px); color: var(--text-primary);
 }
-.winput:focus, .winput:focus-visible { outline: none; border: 0; box-shadow: none; background: var(--color-surface-2); }
+.winput:focus, .winput:focus-visible { outline: none; border: 0; box-shadow: var(--d-sunk); background: var(--color-surface-2); }
 .wfoot { display: flex; flex-direction: column; gap: var(--space-m); }
 </style>

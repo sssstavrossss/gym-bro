@@ -115,6 +115,7 @@ defineExpose({ field });
   display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
   column-gap: var(--space-s); row-gap: var(--space-xs);
   padding: var(--space-s) var(--space-m); border-radius: var(--radius-l); background: var(--color-surface-2);
+  box-shadow: var(--d-sunk);
 }
 .base { min-width: 0; max-width: 100%; display: flex; align-items: baseline; column-gap: var(--space-xs); flex-wrap: wrap; }
 .autosize { display: inline-grid; min-height: 44px; min-width: 0; max-width: 100%; }
@@ -131,7 +132,7 @@ defineExpose({ field });
 .ug { color: var(--text-secondary); }
 .chip.on .ug { color: var(--color-on-action); }
 
-.preview { display: flex; flex-direction: column; height: var(--nutrient-card-height); padding: var(--space-box) var(--space-box) 0; border-radius: var(--radius-l); background: var(--color-surface-2); flex: none; width: 100%; align-self: stretch; box-sizing: border-box; }
+.preview { display: flex; flex-direction: column; height: var(--nutrient-card-height); padding: var(--space-box) var(--space-box) 0; border-radius: var(--radius-l); background: var(--color-surface-2); flex: none; width: 100%; align-self: stretch; box-sizing: border-box; box-shadow: var(--d-edge); }
 
 /* Edge to edge, so a chip that doesn't fit shows it scrolls. Equal widths when they all fit.
    `.tray` outranks the large-text rule that lets every `.row` wrap. */
