@@ -48,6 +48,8 @@ test("the + opens a fan of five, with more pages that roll in and wrap", async (
   await shown(pageOne);
   await gone(pageTwo);
   await expect(fan.getByRole("button", { name: "Page 1 of 2" })).toHaveAttribute("aria-current", "true");
+  // Measure once the buttons have finished spreading: mid-flight they are still bunched near the +.
+  await page.waitForFunction(() => document.querySelector(".fan-root.spread") && document.getAnimations().every((item) => item.playState !== "running"));
 
   // The buttons sit on a half ring above the +, first on the left, the middle one highest, all on screen.
   const plus = (await fan.getByRole("button", { name: "Close" }).boundingBox())!;
