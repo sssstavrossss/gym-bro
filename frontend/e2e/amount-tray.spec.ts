@@ -118,7 +118,7 @@ test("the first quick amount is the one logged last time", async ({ page }) => {
   // Editing an entry: the quick amounts are the plain ones.
   await sheet.getByRole("button", { name: "Back", exact: true }).click();
   await sheet.getByRole("button", { name: "Done" }).click();
-  await page.locator("button.frow").filter({ hasText: name }).click();
+  await page.locator("main button.frow").filter({ hasText: name }).click();
   await expect(page.getByRole("dialog", { name: "Edit food" })).toBeVisible();
   await expect(foodSheet(page).getByRole("button", { name: /last time/ })).toHaveCount(0);
 

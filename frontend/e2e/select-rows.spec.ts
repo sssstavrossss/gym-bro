@@ -39,8 +39,8 @@ test("select mode keeps food rows inside the list and gives the check its own sl
 
   await page.goto("/log");
   await page.evaluate(() => document.documentElement.classList.add("demo-statusbar"));
-  const oats = page.locator(".line").filter({ hasText: "Fictional select oats" });
-  const roll = page.locator(".line").filter({ hasText: "Fictional select roll" });
+  const oats = page.locator("main .line").filter({ hasText: "Fictional select oats" });
+  const roll = page.locator("main .line").filter({ hasText: "Fictional select roll" });
   await expect(oats).toBeVisible();
   const before = await edge(oats);
   const tab = page.locator("nav.tabbar");

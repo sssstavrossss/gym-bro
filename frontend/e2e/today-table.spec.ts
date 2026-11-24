@@ -84,7 +84,7 @@ test("the today log keeps its columns when a name and the calories are wide", as
   ]) {
     await page.setViewportSize(size);
     await page.goto("/today");
-    const rows = page.locator("button.frow");
+    const rows = page.locator("main button.frow");
     await expect(rows).toHaveCount(2);
     const long = rows.filter({ hasText: "Superlongcataloguename" });
     await expect(long.locator(".name")).toHaveText(longName);
@@ -166,7 +166,7 @@ test("the today log keeps its columns when a name and the calories are wide", as
     expect(overflow, `${size.width}px scrolls sideways`).toBe(true);
 
     if (size.width === 390 && test.info().project.name === "chromium") {
-      const line = page.locator(".line").filter({ hasText: "Superlongcataloguename" });
+      const line = page.locator("main .line").filter({ hasText: "Superlongcataloguename" });
       await line.evaluate((el) => el.scrollIntoView({ block: "start" }));
       await page.screenshot({ path: "/opt/cursor/artifacts/today-table-long-name-phone.png" });
       await line.screenshot({ path: "/opt/cursor/artifacts/today-row-wrapped-phone.png" });

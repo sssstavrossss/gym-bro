@@ -108,7 +108,7 @@ test("create, save from quick add, search my food, and keep past entries", async
   await foodSheet(page).getByRole("button", { name: "Done" }).click();
   await expect(page.getByRole("dialog")).toBeHidden();
 
-  const logged = page.locator("button.frow").filter({ hasText: "Fictional home shake" });
+  const logged = page.locator("main button.frow").filter({ hasText: "Fictional home shake" });
   await expect(logged).toContainText("100");
   await expect(logged).toContainText("1 serving");
 

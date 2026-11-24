@@ -245,8 +245,8 @@ for (const width of [375, 390]) {
 
       await page.goto("/log");
       await page.getByRole("button", { name: "Select", exact: true }).click();
-      await page.locator("button.frow").filter({ hasText: "Morning oats" }).click();
-      await page.locator("button.frow").filter({ hasText: "Morning broth" }).click();
+      await page.locator("main button.frow").filter({ hasText: "Morning oats" }).click();
+      await page.locator("main button.frow").filter({ hasText: "Morning broth" }).click();
       await page.getByRole("button", { name: "Save as group" }).click();
       const group = page.getByRole("dialog", { name: "Save as group" });
       await expectReplace(page, group.getByRole("textbox", { name: "Group name" }), "Morning");

@@ -71,7 +71,7 @@ function foodSheet(page: Page) {
 }
 
 function row(page: Page, name: string) {
-  return page.locator("button.frow").filter({ hasText: name });
+  return page.locator("main button.frow").filter({ hasText: name });
 }
 
 async function deleteEntry(page: Page, name: string) {
