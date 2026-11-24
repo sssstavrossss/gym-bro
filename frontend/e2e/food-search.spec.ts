@@ -202,7 +202,8 @@ test("search, detail, multi-add, and stored-snapshot edit", async ({ page }) => 
   await sheet(page).getByRole("button", { name: /Fictional oat brick/ }).click();
   await sheet(page).getByLabel("Amount in g").fill("100");
   await sheet(page).getByRole("button", { name: /Add ·/ }).click();
-  await expect(page.getByText(/Added 100 g Fictional oat brick · 100 kcal/)).toBeVisible();
+  // Within 4 s of the chicken's toast the two adds share one toast.
+  await expect(page.getByText(/Added 100 g Fictional oat brick · 100 kcal|Added 2 foods · 400 kcal/)).toBeVisible();
   await expect(sheet(page).getByText(/Today · 400 kcal/)).toBeVisible();
   await page.unroute("**/api/log-entries");
 
