@@ -201,7 +201,7 @@ test("today empty, quick add, on target, edit, undo, and no sideways scroll", as
 
   await page.locator("button.frow").filter({ hasText: "Fictional bar" }).click();
   await deleteButton.click();
-  // Earlier toasts go first, so wait for the delete's own Undo to come to the front.
+  // Earlier toasts are cut short; wait for the delete's own Undo to come to the front.
   const undo = page.locator(".toast.front").filter({ hasText: "Deleted Fictional bar" }).getByRole("button", { name: "Undo" });
   await expect(undo).toBeVisible();
   await undo.click();

@@ -55,6 +55,26 @@ describe("enqueue", () => {
     expect(next.queue.map((t) => t.text)).toEqual(["Saved Plate", "Deleted 2 items"]);
   });
 
+  it("an Undo arriving behind others cuts the ones ahead short", () => {
+    const undo = { label: "Undo", run: () => {} };
+    let queue = enqueue([], { text: "Saved Plate" }, 1).queue;
+    queue = enqueue(queue, { text: "Target saved" }, 2).queue;
+    expect(queue.some((t) => t.short)).toBe(false);
+    const next = enqueue(queue, { text: "Deleted Egg", action: undo, merge: { kind: "delete", count: 1 } }, 3);
+    expect(next.cut).toBe(true);
+    expect(next.restart).toBe(false);
+    expect(next.queue.map((t) => [t.id, t.short ?? false])).toEqual([[1, true], [2, true], [3, false]]);
+  });
+
+  it("a toast without Undo, or one alone, cuts nothing", () => {
+    const undo = { label: "Undo", run: () => {} };
+    expect(enqueue([], { text: "Deleted Egg", action: undo }, 1).cut).toBe(false);
+    const queue = enqueue([], { text: "Deleted Egg", action: undo }, 1).queue;
+    const next = enqueue(queue, { text: "Saved Plate" }, 2);
+    expect(next.cut).toBe(false);
+    expect(next.queue[0].short).toBeUndefined();
+  });
+
   it("doesn't merge different kinds, errors, or toasts that aren't back to back", () => {
     const add = { text: "Added Egg", merge: { kind: "add" as const, count: 1 } };
     const del = { text: "Deleted Egg", merge: { kind: "delete" as const, count: 1 } };
@@ -105,6 +125,39 @@ describe("frontTimer", () => {
     expect(end).not.toHaveBeenCalled();
     clock.resume();
     vi.advanceTimersByTime(4000);
+    expect(end).toHaveBeenCalledTimes(1);
+  });
+
+  it("shorten leaves at most that long, and never lengthens", () => {
+    const end = vi.fn();
+    const clock = frontTimer(4000, end);
+    clock.start();
+    vi.advanceTimersByTime(1000);
+    clock.shorten(1000);
+    vi.advanceTimersByTime(999);
+    expect(end).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1);
+    expect(end).toHaveBeenCalledTimes(1);
+
+    const late = vi.fn();
+    const other = frontTimer(4000, late);
+    other.start();
+    vi.advanceTimersByTime(3500);
+    other.shorten(1000);
+    vi.advanceTimersByTime(500);
+    expect(late).toHaveBeenCalledTimes(1);
+  });
+
+  it("a held toast that is cut short gets the short time once let go", () => {
+    const end = vi.fn();
+    const clock = frontTimer(4000, end);
+    clock.start();
+    clock.pause();
+    clock.shorten(1000);
+    vi.advanceTimersByTime(5000);
+    expect(end).not.toHaveBeenCalled();
+    clock.resume();
+    vi.advanceTimersByTime(1000);
     expect(end).toHaveBeenCalledTimes(1);
   });
 

@@ -2,6 +2,8 @@ import { int } from "./format";
 
 /** How long the toast in front stays (4 s). The ones behind wait; their time starts when they come to the front. */
 export const TOAST_LIFE = 4000;
+/** A toast that a newer Undo is waiting behind only stays this long in front, so that Undo comes forward almost at once. */
+export const TOAST_SHORT = 1000;
 /** At most this many show at once: the one in front and the edge of the next. The rest wait unseen. */
 export const TOAST_SHOWN = 2;
 
@@ -27,6 +29,8 @@ export interface ToastSpec {
 
 export interface QueuedToast extends ToastSpec {
   id: number;
+  /** A newer Undo waits behind it, so it only gets TOAST_SHORT in front. */
+  short?: boolean;
 }
 
 /** The words for merged toasts. */
@@ -43,9 +47,18 @@ function both(first?: ToastAction, second?: ToastAction): ToastAction | undefine
 
 /**
  * Adds a toast to the end of the queue, or folds it into the last one when both are the same kind.
- * `restart` says the front toast is new or changed, so its 4 s start again.
+ * `restart` says the front toast is new or changed, so its 4 s start again. A toast with Undo doesn't wait out
+ * the ones ahead of it: they are cut short (`cut`: the front one's clock too), so the newest Undo is quickly the
+ * one on screen.
  */
-export function enqueue(queue: readonly QueuedToast[], spec: ToastSpec, id: number): { queue: QueuedToast[]; restart: boolean } {
+export function enqueue(queue: readonly QueuedToast[], spec: ToastSpec, id: number): { queue: QueuedToast[]; restart: boolean; cut: boolean } {
+  const next = place(queue, spec, id);
+  const last = next.queue.length - 1;
+  if (!spec.action || last < 1) return { ...next, cut: false };
+  return { queue: next.queue.map((item, index) => (index < last ? { ...item, short: true } : item)), restart: next.restart, cut: true };
+}
+
+function place(queue: readonly QueuedToast[], spec: ToastSpec, id: number): { queue: QueuedToast[]; restart: boolean } {
   const last = queue.at(-1);
   if (last?.merge && spec.merge && last.merge.kind === spec.merge.kind && !last.error && !spec.error) {
     const merge: ToastMerge = {
@@ -72,9 +85,16 @@ export function frontTimer(life: number, onEnd: () => void) {
     handle = setTimeout(onEnd, left);
   };
   return {
-    /** A new front toast: a full 4 s, counting unless a finger is still on it. */
-    start() {
-      left = life;
+    /** A new front toast: a full 4 s (or `ms`), counting unless a finger is still on it. */
+    start(ms = life) {
+      left = ms;
+      if (!held) run();
+    },
+    /** At most `ms` left from now (a newer Undo is waiting). A held toast gets it once let go. */
+    shorten(ms: number) {
+      if (!held) left = Math.max(0, left - (Date.now() - startedAt));
+      if (left <= ms) return;
+      left = ms;
       if (!held) run();
     },
     stop() {
