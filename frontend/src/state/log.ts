@@ -779,6 +779,10 @@ function followId(local: string, server: string): void {
   if (ui.editEntryId === local) ui.editEntryId = server;
   if (ui.selected.includes(local)) ui.selected = ui.selected.map((id) => (id === local ? server : id));
   if (ui.anchor === local) ui.anchor = server;
+  const pick = ui.addedPick;
+  if (pick.selected.includes(local) || pick.anchor === local) {
+    ui.addedPick = { ...pick, selected: pick.selected.map((id) => (id === local ? server : id)), anchor: pick.anchor === local ? server : pick.anchor };
+  }
 }
 
 /** Refreshes today and the open day from the server, with what is still queued on top. */

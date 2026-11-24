@@ -12,6 +12,10 @@ import FoodAmountView from "./FoodAmountView.vue";
 import BarcodeScanner from "./BarcodeScanner.vue";
 import OfflineNote from "./OfflineNote.vue";
 import DescribePane from "./DescribePane.vue";
+import CappedList from "./CappedList.vue";
+import LogRow from "./LogRow.vue";
+import { sessionLines, sessionRows } from "../lib/addSession";
+import { activateMark, activateRow, type Selection } from "../lib/selection";
 import { dayMonth, todayInZone } from "../lib/dates";
 import { focusField, primeKeyboard } from "../lib/focusField";
 import { int } from "../lib/format";
@@ -71,7 +75,7 @@ import { deleteSavedGroup, loadGroups, readdSavedGroup, restoreSavedGroup, saved
 import { loadRecipes, savedRecipes } from "../state/recipes";
 import { foodAmount, foodUnit } from "../state/units";
 import { addChosen, describe, loadDescribe, resetDescribe, setRowAmount } from "../state/describe";
-import { closeFoodLayer, closeSheet, openCopy, openFoodScan, openGroupSheet, openRecipeCreate, openRecipeEdit, openRecipeFromEntries, openRecipeLog, toast, toastError, ui, type FoodTab } from "../ui";
+import { closeFoodLayer, closeSheet, editAdded, endAddedPick, leaveAddedEdit, openCopy, openFoodScan, openGroupSheet, openRecipeCreate, openRecipeEdit, openRecipeFromEntries, openRecipeLog, toast, toastError, ui, type FoodTab } from "../ui";
 
 const open = computed(() => ui.sheet === "food");
 const editing = computed(() => findEntry(ui.editEntryId));
@@ -143,16 +147,29 @@ const amountView = ref<InstanceType<typeof FoodAmountView> | null>(null);
 const foodChanged = ref(false);
 /** Offline the food itself can't be fetched, so whether it changed is unknown: say nothing. */
 const foodUnseen = ref(false);
-const session = ref<{ id: string; name: string; kcal: number }[]>([]);
+/** Entries added since the sheet opened, as they were added. The card shows each one's current copy (`added`). */
+const session = ref<LogEntry[]>([]);
+/** Rows the card shows before it scrolls. With large text one, so the search keeps some room (read when the sheet opens). */
+const addedCap = ref(2);
 const justGroup = ref<string | null>(null);
 const groupKeys = new Map<string, string>();
 let searchGen = 0;
 let searchTimer = 0;
 
-const sessionKcal = computed(() => session.value.reduce((sum, row) => sum + row.kcal, 0));
+const dayLoaded = computed(() => viewed.date === ui.foodDate || ui.foodDate === foodToday.value);
+const added = computed(() => sessionRows(session.value, dayLoaded.value ? foodEntries.value : null));
+const addedIds = computed(() => added.value.map((entry) => entry.id));
+const picking = computed(() => ui.addedPick.selecting);
+const picked = computed(() => added.value.filter((entry) => ui.addedPick.selected.includes(entry.id)));
+const addedLines = computed(() => sessionLines(
+  added.value,
+  picking.value ? ui.addedPick.selected : null,
+  otherDay.value ? dayMonth(ui.foodDate) : "Today",
+  foodTotals.value.kcal,
+));
 const visibleGroups = computed(() => matchingGroups(savedGroups.list, q.value));
 const visibleRecipes = computed(() => matchingRecipes(savedRecipes.list, q.value));
-const sessionRecipeCount = computed(() => recipeFoodEntries(session.value.map((row) => findEntry(row.id)).filter((entry) => entry !== null)).length);
+const sessionRecipeCount = computed(() => recipeFoodEntries(added.value).length);
 const groupNote = computed(() => groupTimeNote(needTime.value, otherDay.value, time.value));
 const foodEntries = computed(() => entriesOn(ui.foodDate, foodToday.value));
 const foodTotals = computed(() => totalsOf(foodEntries.value));
@@ -337,7 +354,7 @@ function back() {
     return;
   }
   if (editing.value) {
-    closeSheet();
+    doneEditing();
     return;
   }
   if (showScan.value) {
@@ -557,8 +574,8 @@ async function undoFoodDelete(food: FoodSearchRow) {
 }
 /** Undo for adds: the entries go, and so do their rows in the "added" bar. */
 function undoAdds(entries: LogEntry[]) {
-  const ids = new Set(entries.map((entry) => entry.id));
-  session.value = session.value.filter((row) => !ids.has(row.id));
+  const keys = new Set(entries.map((entry) => entry.idempotencyKey));
+  session.value = session.value.filter((row) => !keys.has(row.idempotencyKey));
   void removeEntries(entries, { announce: false });
 }
 /** The add toast: Undo, and back-to-back adds fold into one ("Added 2 foods · 237 kcal"). */
@@ -810,6 +827,8 @@ watch(open, (isOpen) => {
   searchError.value = "";
   searching.value = false;
   session.value = [];
+  addedEdit = null;
+  addedCap.value = document.documentElement.classList.contains("dt-l") ? 1 : 2;
   off.value = idleOff();
   filter.value = "all";
   detailFood.value = null;
@@ -827,8 +846,78 @@ watch(open, (isOpen) => {
   }
 });
 
-function noteSession(entry: { id: string; name: string; kcal: number }) {
-  session.value.push({ id: entry.id, name: entry.name, kcal: entry.kcal });
+function noteSession(entry: LogEntry) {
+  session.value.push(entry);
+}
+
+// The "added" card: Home's rows. Tap one to edit it here, swipe or hover for Copy to… and Delete, or select
+// some and use the card's own buttons. The log's select bar stays out of it.
+function applyPick(next: Selection | "edit", entry: LogEntry) {
+  if (next === "edit") {
+    editAdded(entry.id);
+    return;
+  }
+  holdButtonsHeight();
+  ui.addedPick = next;
+}
+/** The card's buttons swap in place. Their labels wrap differently, so the row keeps the height it had and the card doesn't move. */
+const buttonsEl = ref<HTMLElement | null>(null);
+const buttonsHeight = ref(0);
+function holdButtonsHeight() {
+  if (!picking.value) buttonsHeight.value = buttonsEl.value?.offsetHeight ?? 0;
+}
+function tapAdded(entry: LogEntry, event: MouseEvent) {
+  applyPick(activateRow(ui.addedPick, addedIds.value, entry.id, { shift: event.shiftKey, toggle: event.metaKey || event.ctrlKey }), entry);
+}
+function checkAdded(entry: LogEntry, event: MouseEvent) {
+  applyPick(activateMark(ui.addedPick, addedIds.value, entry.id, event.shiftKey), entry);
+}
+function holdAdded(entry: LogEntry) {
+  holdButtonsHeight();
+  ui.addedPick = { selecting: true, selected: [entry.id], anchor: entry.id };
+}
+function copyAdded(entries: LogEntry[], single: boolean) {
+  if (!entries.length) return;
+  ui.selected = entries.map((entry) => entry.id);
+  ui.anchor = entries[0].id;
+  openCopy(single, "food");
+}
+async function deleteAdded(entries: LogEntry[]) {
+  if (!entries.length) return;
+  if (await removeEntries(entries)) endAddedPick();
+}
+
+// Edit food opened from the card keeps the search behind it: the time picked for adds, and the list's place.
+let addedEdit: { time: string | null } | null = null;
+watch(() => ui.editEntryId, (id) => {
+  if (id && ui.editFromAdded && !addedEdit) {
+    const entry = findEntry(id);
+    if (!entry) return;
+    addedEdit = { time: time.value };
+    if (listEl.value) searchScroll.value = listEl.value.scrollTop;
+    closeSearchKeyboard();
+    detailFood.value = null;
+    amount.resetServingForm();
+    fill(entry);
+    if (editingFood.value) {
+      ui.detailFoodId = editingFood.value.foodId;
+      void prepareEdit(editingFood.value);
+    }
+    return;
+  }
+  if (!id && addedEdit) {
+    const kept = addedEdit;
+    addedEdit = null;
+    detailFood.value = null;
+    fill(null);
+    time.value = kept.time;
+    restoreSearchList();
+  }
+});
+/** Save, Delete and Back on an edit: back to the search when it came from the card, else the sheet closes. */
+function doneEditing() {
+  if (ui.editFromAdded) leaveAddedEdit();
+  else closeSheet();
 }
 
 // Describe: the pane lists what Claude found. Changing a row uses the usual amount screen.
@@ -890,12 +979,12 @@ async function addDescribed() {
   ui.foodTab = "search";
 }
 function saveSessionGroup() {
-  if (!canSaveGroup(session.value.length)) return;
-  openGroupSheet(session.value.map((row) => row.id), "food");
+  if (!canSaveGroup(added.value.length)) return;
+  openGroupSheet(addedIds.value, "food");
 }
 function saveSessionRecipe() {
   if (!canSaveRecipe(sessionRecipeCount.value)) return;
-  openRecipeFromEntries(session.value.map((row) => row.id), "food");
+  openRecipeFromEntries(addedIds.value, "food");
 }
 async function addGroup(group: SavedGroup) {
   closeSearchKeyboard();
@@ -997,7 +1086,7 @@ async function addQuick() {
         return;
       }
       toast(`Updated ${result.entry.name} · ${int(result.entry.kcal)} kcal`);
-      closeSheet();
+      doneEditing();
       return;
     }
     if (qSave.value) {
@@ -1095,7 +1184,7 @@ async function addDetail() {
         return;
       }
       toast(`Updated ${result.entry.name} · ${int(result.entry.kcal)} kcal`);
-      closeSheet();
+      doneEditing();
       return;
     }
     const food = detailFood.value;
@@ -1139,6 +1228,11 @@ async function addDetail() {
 function copyEdited() {
   const entry = editing.value;
   if (!entry || saving.value) return;
+  if (ui.editFromAdded) {
+    leaveAddedEdit();
+    copyAdded([entry], true);
+    return;
+  }
   ui.selected = [entry.id];
   ui.anchor = entry.id;
   openCopy(true);
@@ -1150,7 +1244,7 @@ async function deleteEdited() {
   saving.value = true;
   const removed = await removeEntry(entry);
   saving.value = false;
-  if (removed) closeSheet();
+  if (removed) doneEditing();
 }
 </script>
 
@@ -1159,13 +1253,13 @@ async function deleteEdited() {
     <template #header>
       <div class="headcol">
       <div class="row hdr">
-        <button v-if="showDetail || showEditor || showScan" type="button" class="cbtn"  aria-label="Back" @click="back">
+        <button v-if="showDetail || showEditor || showScan || ui.editFromAdded" type="button" class="cbtn"  aria-label="Back" @click="back">
           <Icon name="left" :size="18" />
         </button>
         <h2 v-if="showScan" class="t-head">Scan barcode</h2>
-        <h2 v-else-if="!showDetail && !showEditor && !searchView" class="t-head">{{ editing ? "Edit food" : "Add food" }}</h2>
+        <h2 v-else-if="!showDetail && !showEditor && (!searchView || editing)" class="t-head">{{ editing ? "Edit food" : "Add food" }}</h2>
         <span class="grow" />
-        <TimeChip v-if="!showEditor && !showScan && (showDetail || !searchView)" v-model="time" :date="ui.foodDate" :today="foodToday" :allow-now="!otherDay && !editing" />
+        <TimeChip v-if="!showEditor && !showScan && (showDetail || !searchView || editing)" v-model="time" :date="ui.foodDate" :today="foodToday" :allow-now="!otherDay && !editing" />
         <button type="button" class="cbtn"  aria-label="Close" @click="closeSheet">
           <Icon name="x" :size="18" />
         </button>
@@ -1368,13 +1462,39 @@ async function deleteEdited() {
         <p v-if="formError" class="err t-label" role="alert">{{ formError }}</p>
       </div>
       <!-- Hidden while the search field has the keyboard: the list needs that room, and Done isn't needed mid-typing. -->
-      <div v-if="session.length" v-show="!searchFocused" class="well session" role="status" data-session data-toast-floor>
-        <span class="col stext">
-          <span class="t-bodys">{{ session.length }} added · {{ int(sessionKcal) }} kcal</span>
-          <span class="t-capn c2">{{ otherDay ? dayMonth(ui.foodDate) : "Today" }} · {{ int(foodTotals.kcal) }} kcal</span>
+      <div v-if="added.length" v-show="!searchFocused" class="well session" role="group" aria-label="Added" data-session data-toast-floor>
+        <span class="col stext" role="status">
+          <span class="t-bodys">{{ addedLines.title }}</span>
+          <span class="t-capn c2">{{ addedLines.sub }}</span>
         </span>
-        <span class="sbtns">
-          <button v-if="canSaveGroup(session.length)" type="button" class="btn sm secondary t-label" @click="saveSessionGroup">
+        <!-- Home's rows: two show (one with large text), the rest scroll inside the card so the search keeps its room. -->
+        <CappedList :max-rows="addedCap" :watch-key="added.length" class="arows" data-added-rows>
+          <LogRow
+            v-for="entry in added"
+            :key="entry.idempotencyKey"
+            :entry="entry"
+            :selected="ui.addedPick.selected.includes(entry.id)"
+            :selecting="picking"
+            oneline
+            @tap="tapAdded(entry, $event)"
+            @check="checkAdded(entry, $event)"
+            @copy="copyAdded([entry], true)"
+            @delete="deleteAdded([entry])"
+            @hold="holdAdded(entry)"
+          />
+        </CappedList>
+        <!-- Selecting swaps the buttons in place: the same three spots, so nothing moves. -->
+        <span v-if="picking" class="sbtns" :style="buttonsHeight ? { minHeight: `${buttonsHeight}px` } : undefined">
+          <button type="button" class="btn sm secondary t-label" :disabled="!picked.length" @click="copyAdded(picked, false)">
+            <Icon name="copy" :size="14" /> <span>Copy to…</span>
+          </button>
+          <button type="button" class="btn sm secondary t-label" :disabled="!picked.length" @click="deleteAdded(picked)">
+            <Icon name="trash" :size="14" /> <span>Delete</span>
+          </button>
+          <button type="button" class="btn sm primary t-label" @click="endAddedPick"><Icon name="check" :size="14" :sw="2.4" /> Done</button>
+        </span>
+        <span v-else ref="buttonsEl" class="sbtns">
+          <button v-if="canSaveGroup(added.length)" type="button" class="btn sm secondary t-label" @click="saveSessionGroup">
             <Icon name="layers" :size="14" /> <span>Save as group</span>
           </button>
           <button v-if="canSaveRecipe(sessionRecipeCount)" type="button" class="btn sm secondary t-label" @click="saveSessionRecipe">
@@ -1491,6 +1611,9 @@ async function deleteEdited() {
 .headcol { display: flex; flex-direction: column; gap: var(--space-m); }
 .session { display: flex; flex-direction: column; align-items: stretch; gap: var(--space-s); flex: none; min-width: 0; max-width: 100%; box-sizing: border-box; }
 .stext { min-width: 0; }
+/* Home's dividers: a line above, between and below the rows. The list sits in the card's padding sideways. */
+.session :deep(.arows) { border-top: 1px solid var(--color-border); border-bottom: 1px solid var(--color-border); }
+.session :deep(.arows > .swipe:not(:first-child)) { border-top: 1px solid var(--color-border); }
 .sbtns { display: flex; flex-wrap: wrap; align-items: stretch; gap: var(--space-s); margin: 0; min-width: 0; max-width: 100%; }
 /* A label that wraps keeps 8px above and below it inside the pill. */
 .sbtns .btn { flex: 1 1 0; min-width: 0; padding-block: calc(var(--inset) + var(--space-s)); }

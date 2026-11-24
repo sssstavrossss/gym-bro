@@ -86,6 +86,9 @@ watch(() => props.watchKey, () => { void nextTick(measure); });
 .fade { position: absolute; left: 0; right: 0; height: 40px; pointer-events: none; z-index: 2; }
 .fade.top { top: 1px; background: linear-gradient(to top, transparent, var(--color-surface) 90%); }
 .fade.bottom { bottom: 1px; height: 52px; background: linear-gradient(to bottom, transparent, var(--color-surface) 88%); }
+/* On a grey box (Add food's card) the fades take the box's grey. */
+.well .fade.top { background: linear-gradient(to top, transparent, var(--color-surface-2) 90%); }
+.well .fade.bottom { background: linear-gradient(to bottom, transparent, var(--color-surface-2) 88%); }
 /* In the card's right padding, so it never covers a number. */
 .sbar { position: absolute; top: 6px; bottom: 6px; right: calc(var(--space-screen) / -2 - 1.5px); width: 3px; border-radius: 2px; background: var(--color-track); pointer-events: none; z-index: 3; }
 .sbar i { position: absolute; left: 0; right: 0; border-radius: 2px; background: var(--text-tertiary); }

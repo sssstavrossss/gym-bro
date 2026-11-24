@@ -4,6 +4,7 @@ import { lastPlanDate } from "./lib/dayLog";
 import { primeKeyboard, rememberOpener } from "./lib/focusField";
 import type { PageCard } from "./lib/cardPages";
 import type { SheetName } from "./lib/layout";
+import { emptySelection, type Selection } from "./lib/selection";
 import { TOAST_LIFE, TOAST_SHORT, enqueue, frontTimer, type QueuedToast, type ToastAction, type ToastMerge } from "./lib/toastQueue";
 import { deviceTimeZone } from "./state/profile";
 
@@ -40,6 +41,12 @@ export const ui = reactive({
   anchor: null as string | null,
   /** Opened from one row, so closing Copy to… also leaves select mode. */
   copySingle: false,
+  /** Copy to… was opened from Add food's "added" card, so closing it goes back there. */
+  copyReturn: null as null | "food",
+  /** Edit food was opened from a row on Add food's "added" card, so leaving it goes back to the search. */
+  editFromAdded: false,
+  /** Select mode on Add food's "added" card. The card's own buttons act on it, apart from the log's selection. */
+  addedPick: emptySelection() as Selection,
   /** Entries the group sheet will save. */
   groupEntryIds: [] as string[],
   /** Food sheet to reopen after naming a group. Null returns to the log. */
@@ -192,6 +199,14 @@ export function closeFoodLayer(): boolean {
     ui.foodScan = false;
     return true;
   }
+  if (ui.sheet === "food" && ui.editEntryId && ui.editFromAdded) {
+    leaveAddedEdit();
+    return true;
+  }
+  if (ui.sheet === "food" && ui.addedPick.selecting) {
+    endAddedPick();
+    return true;
+  }
   if (ui.sheet === "food" && ui.detailFoodId && !ui.editEntryId) {
     ui.detailFoodId = null;
     return true;
@@ -207,6 +222,26 @@ export function closeSheet(): void {
   ui.detailFoodId = null;
   ui.foodEditor = null;
   ui.foodScan = false;
+  ui.editFromAdded = false;
+  ui.addedPick = emptySelection();
+}
+
+/** A row on Add food's "added" card opens Edit food in the same sheet. Save, Delete or Back return to the search. */
+export function editAdded(id: string): void {
+  primeKeyboard();
+  ui.addedPick = emptySelection();
+  ui.editFromAdded = true;
+  ui.editEntryId = id;
+}
+
+export function leaveAddedEdit(): void {
+  ui.editFromAdded = false;
+  ui.editEntryId = null;
+  ui.detailFoodId = null;
+}
+
+export function endAddedPick(): void {
+  ui.addedPick = emptySelection();
 }
 
 export function openAdd(): void {
@@ -254,10 +289,14 @@ export function endSelect(): void {
   ui.anchor = null;
 }
 
-/** single: opened from one row's Copy to…, so closing it also leaves select mode. */
-export function openCopy(single = false): void {
+/**
+ * Copies the entries in `ui.selected`. single: opened from one row's Copy to…, so closing it also leaves select mode.
+ * returnTo "food": from Add food's card, which comes back with its search when Copy to… closes.
+ */
+export function openCopy(single = false, returnTo: "food" | null = null): void {
   primeKeyboard();
   ui.copySingle = single;
+  ui.copyReturn = returnTo;
   ui.sheet = "copy";
 }
 
@@ -354,9 +393,20 @@ export function finishGroupSave(): void {
   if (back !== "food") endSelect();
 }
 
-export function closeCopy(): void {
+/** done: the copy was made, so a selection on Add food's card ends too. */
+export function closeCopy(done = false): void {
   const single = ui.copySingle;
+  const back = ui.copyReturn;
   ui.copySingle = false;
+  ui.copyReturn = null;
+  if (back === "food") {
+    // The card lent its ids to Copy to…; its own selection stays until the copy is made.
+    endSelect();
+    if (done) endAddedPick();
+    ui.resumeFood = true;
+    ui.sheet = "food";
+    return;
+  }
   closeSheet();
   if (single) endSelect();
 }

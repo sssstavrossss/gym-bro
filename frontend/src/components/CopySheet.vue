@@ -81,27 +81,29 @@ async function copy() {
   const total = kcal.value;
   const to = target.value;
   const source = from.value;
+  // From Add food's card the sheet comes back, so the log stays where it is.
+  const toFood = ui.copyReturn === "food";
   ui.copySingle = false;
   endSelect();
-  closeCopy();
+  closeCopy(true);
   const place = inSentence(to);
   toast(`Copied ${count} item${count > 1 ? "s" : ""} · ${int(total)} kcal to ${place}`, {
     label: "Undo",
     run: () => { void discardCopies(copies); },
   });
-  if (to !== source) void router.push(to === today.value ? "/log" : `/log/${to}`);
+  if (to !== source && !toFood) void router.push(to === today.value ? "/log" : `/log/${to}`);
 }
 </script>
 
 <template>
-  <BottomSheet :open="open" label="Copy to" @close="closeCopy">
+  <BottomSheet :open="open" label="Copy to" @close="closeCopy()">
     <template #header>
       <div class="row hdr">
         <div class="col grow">
           <h2 class="t-head">Copy {{ list.length }} item{{ list.length === 1 ? "" : "s" }} to…</h2>
           <span class="t-label c2">{{ int(kcal) }} kcal · from {{ named(from) }}</span>
         </div>
-        <button type="button" class="cbtn" aria-label="Close" @click="closeCopy">
+        <button type="button" class="cbtn" aria-label="Close" @click="closeCopy()">
           <Icon name="x" :size="18" />
         </button>
       </div>
