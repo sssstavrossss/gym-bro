@@ -60,7 +60,8 @@ async function openToday(page: Page, oid: string, width: number) {
 }
 
 async function expectClean(page: Page) {
-  const results = await new AxeBuilder({ page }).analyze();
+  // A toast fading in or out is part-transparent, so axe would read its text as low contrast.
+  const results = await new AxeBuilder({ page }).exclude(".toast-enter-active").exclude(".toast-leave-active").analyze();
   const serious = results.violations.filter((item) => item.impact === "serious" || item.impact === "critical");
   expect(serious, JSON.stringify(serious.map((item) => ({
     id: item.id,

@@ -211,6 +211,8 @@ test("desktop shortcuts, escape, and the right-hand panel", async ({ page }) => 
 
   await page.keyboard.press("q");
   await expect(page.getByRole("radio", { name: "Quick Add" })).toBeChecked();
+  // With a keyboard, Quick Add opens with the focus in Calories.
+  await expect(page.getByRole("dialog", { name: "Add food" }).getByRole("textbox", { name: "Calories" })).toBeFocused();
   const name = page.getByRole("dialog", { name: "Add food" }).getByRole("textbox", { name: "Name (optional)" });
   await name.click();
   await page.keyboard.press("w");
