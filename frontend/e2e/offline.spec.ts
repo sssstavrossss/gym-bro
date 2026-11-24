@@ -62,7 +62,7 @@ test("offline: log from kept foods, see what waits, and it sends once back", asy
   await expect(page.getByRole("main", { name: "Today" })).toBeVisible();
   // Online once, so My foods is kept on the phone.
   await openAddFood(page);
-  await expect(foodSheet(page).getByRole("button", { name: /My foods · 1/ })).toBeVisible();
+  await expect(foodSheet(page).getByRole("button", { name: /My foods 1/ })).toBeVisible();
   await foodSheet(page).getByRole("button", { name: "Close", exact: true }).click();
   await expect(page.locator("[data-offline-line]")).toHaveCount(0);
 
@@ -108,7 +108,7 @@ test("offline: an add the server refuses shows couldn't send and can be deleted"
   await page.goto("/today");
   await expect(page.getByRole("main", { name: "Today" })).toBeVisible();
   await openAddFood(page);
-  await expect(foodSheet(page).getByRole("button", { name: /My foods · 1/ })).toBeVisible();
+  await expect(foodSheet(page).getByRole("button", { name: /My foods 1/ })).toBeVisible();
   await foodSheet(page).getByRole("button", { name: "Close", exact: true }).click();
 
   await context.setOffline(true);

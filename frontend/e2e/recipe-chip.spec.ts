@@ -84,9 +84,10 @@ test("recipe chip detail wraps the full macros at iPhone width", async ({ page }
   await page.goto("/today");
   await page.getByRole("button", { name: "Log your first food today" }).click();
   const food = page.getByRole("dialog", { name: "Add food" });
+  // A search lists the recipes that match above the results, with the "recipe" tag; the Recipes page leaves the tag out.
+  await food.getByRole("searchbox", { name: "Search foods" }).fill("Weeknight");
   await food.getByRole("searchbox", { name: "Search foods" }).blur();
-  // All foods lists recipes at the top with the "recipe" tag; the Recipes tab leaves the tag out.
-  const row = food.locator(".rrow").filter({ hasText: name });
+  const row = food.locator('[data-food-page="recent"] .rrow').filter({ hasText: name });
   const detail = row.locator("[data-recipe-detail]");
   await expect(detail).toHaveText(detailText);
 

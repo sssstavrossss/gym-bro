@@ -92,7 +92,7 @@ test("home, progress, pads, search, and recalculate preview on an iPhone", async
   await search.focus();
   await expect(food.getByRole("heading", { name: "Add food" })).toBeHidden();
   await expect(food.getByRole("group", { name: "Show" })).toBeHidden();
-  const list = food.locator(".list");
+  const list = food.locator('[data-food-page="recent"]');
   await list.evaluate((el) => { el.scrollTop = 40; });
   await list.dispatchEvent("wheel", { deltaY: 80 });
   await expect(search).toBeFocused();

@@ -21,3 +21,11 @@ export function wrapTurn(edge: "first" | "last", dx: number, dy: number, samples
   if (!far && !flick) return 0;
   return edge === "last" ? 1 : -1;
 }
+
+/** The short way round from one page to another: 1 → 4 of 4 is one step back, not three forward. */
+export function shortTurn(from: number, to: number, count: number): number {
+  if (count < 1) return 0;
+  let delta = (((to - from) % count) + count) % count;
+  if (delta > count / 2) delta -= count;
+  return delta;
+}

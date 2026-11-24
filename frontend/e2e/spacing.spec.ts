@@ -147,7 +147,7 @@ test("controls keep a compact face, a 44px hit, and clear gaps", async ({ page }
   const timeBox = await boxOf(time);
   expect(timeBox.height).toBeLessThanOrEqual(34);
   expect(timeBox.height).toBeGreaterThanOrEqual(28);
-  const chip = food.getByRole("button", { name: /All foods/ });
+  const chip = food.getByRole("button", { name: /^Recent/ });
   const chipBox = await boxOf(chip);
   const chipFace = await chip.evaluate((el) => Number.parseFloat(getComputedStyle(el, "::before").height));
   expect(chipBox.height).toBeGreaterThanOrEqual(44);

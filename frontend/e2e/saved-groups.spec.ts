@@ -126,7 +126,9 @@ test("save a group from a selection, expand it, and re-add it on today", async (
   await page.getByRole("button", { name: "Add food", exact: true }).click();
   const food = page.getByRole("dialog", { name: "Add food" });
   await food.getByRole("searchbox", { name: "Search foods" }).blur();
-  await expect(food.getByText("Saved groups")).toBeVisible();
+  // Groups have their own page; its chip counts them.
+  await food.getByRole("group", { name: "Show" }).getByRole("button", { name: /^Groups 1/ }).click();
+  await expect(food.getByText("+ adds every item now")).toBeVisible();
   await expect(food.getByRole("button", { name: /Usual breakfast 3 items/ })).toBeVisible();
   const remove = food.getByRole("button", { name: "Delete group Usual breakfast" });
   const removeBox = await remove.boundingBox();

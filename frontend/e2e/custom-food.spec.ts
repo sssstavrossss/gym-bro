@@ -62,6 +62,11 @@ async function openAdd(page: Page) {
 }
 
 async function expectClean(page: Page) {
+  // Add food's pages settle first: mid-turn the sliding pill sits half under a chip's label.
+  await page.waitForFunction(() => {
+    const pages = document.querySelectorAll("[data-food-page]").length;
+    return pages === 0 || document.querySelectorAll("[data-food-page][data-offscreen]").length === pages - 1;
+  });
   const results = await new AxeBuilder({ page }).analyze();
   const serious = results.violations.filter((item) => item.impact === "serious" || item.impact === "critical");
   expect(serious, JSON.stringify(serious.map((item) => ({ id: item.id, impact: item.impact, nodes: item.nodes.slice(0, 2).map((node) => node.html) })))).toEqual([]);
@@ -82,7 +87,7 @@ test("create, save from quick add, search my food, and keep past entries", async
   await expectClean(page);
   await page.screenshot({ path: "/opt/cursor/artifacts/custom-foods-empty.png", fullPage: true });
 
-  await foodSheet(page).getByRole("button", { name: "Create a food" }).click();
+  await foodSheet(page).getByRole("button", { name: /^New food/ }).click();
   await expect(foodSheet(page).getByRole("heading", { name: "New food" })).toBeVisible();
   await foodSheet(page).getByRole("radio", { name: "Per serving" }).click();
   await foodSheet(page).getByRole("textbox", { name: "Name", exact: true }).fill("Fictional home shake");

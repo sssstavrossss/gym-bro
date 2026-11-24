@@ -10,6 +10,8 @@ defineProps<{
   saving: boolean;
   heading?: string;
   activeIndex?: number;
+  /** Add food's Recipes page: no title row or empty-state button, since the page's first row is New recipe. */
+  bare?: boolean;
 }>();
 const emit = defineEmits<{ add: [recipe: Recipe]; edit: [recipe: Recipe]; create: [] }>();
 
@@ -33,7 +35,7 @@ function onEdit(event: MouseEvent, recipe: Recipe) {
 
 <template>
   <div v-if="recipes.length || heading" class="recipes col">
-    <div class="row lhead">
+    <div v-if="!bare" class="row lhead">
       <span class="t-cap c3 section-title">{{ heading || "Recipes" }}</span>
       <span class="grow" />
       <button v-if="recipes.length || !heading" type="button" class="btn sm secondary t-label" @pointerdown="beginCreate" @click="emit('create')">
@@ -62,7 +64,7 @@ function onEdit(event: MouseEvent, recipe: Recipe) {
     <div v-if="heading && !recipes.length" class="empty col">
       <span class="t-bodys">No recipes yet</span>
       <span class="t-label c2">Combine foods into one dish, then log it by the portion.</span>
-      <button type="button" class="btn sm primary t-label newbtn" @pointerdown="beginCreate" @click="emit('create')">
+      <button v-if="!bare" type="button" class="btn sm primary t-label newbtn" @pointerdown="beginCreate" @click="emit('create')">
         <Icon name="plus" :size="14" :sw="2.4" /> New recipe
       </button>
     </div>

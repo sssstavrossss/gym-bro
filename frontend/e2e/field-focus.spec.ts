@@ -148,7 +148,7 @@ for (const width of [375, 390]) {
       await expect(filters.getByRole("button", { name: "New recipe" })).toHaveCount(0);
       const search = food.getByRole("searchbox", { name: "Search foods" });
       await expect(search).not.toBeFocused();
-      await expect(filters.getByRole("button", { name: "All foods" })).toBeVisible();
+      await expect(filters.getByRole("button", { name: "Recent" })).toBeVisible();
       if (width === 390 && test.info().project.name === "chromium") {
         await page.screenshot({ path: "/opt/cursor/artifacts/add-food-chooser-phone.png" });
       }

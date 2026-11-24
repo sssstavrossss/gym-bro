@@ -14,6 +14,8 @@ defineProps<{
   saving: boolean;
   needTime: boolean;
   addedId: string | null;
+  /** Add food's Groups page, which is named by its chip: no title row. */
+  bare?: boolean;
 }>();
 const emit = defineEmits<{ add: [group: SavedGroup]; remove: [group: SavedGroup] }>();
 const openId = ref<string | null>(null);
@@ -37,7 +39,7 @@ function onAdd(event: MouseEvent, group: SavedGroup) {
 
 <template>
   <div v-if="groups.length" class="groups col">
-    <div class="row lhead">
+    <div v-if="!bare" class="row lhead">
       <span class="t-cap c3 section-title">Saved groups</span>
       <span class="grow" />
       <span class="t-capn c3">+ adds every item {{ note }}</span>
