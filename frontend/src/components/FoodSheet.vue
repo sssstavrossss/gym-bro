@@ -1387,7 +1387,7 @@ async function deleteEdited() {
 
     <div v-else class="body">
       <label class="field row">
-        <input v-autofocus v-model="qName" class="t-body grow" type="text" placeholder="Protein bar" aria-label="Name (optional)" autocomplete="off" enterkeyhint="done" @keydown.enter.prevent="keyboardEntry && addQuick()" />
+        <input v-model="qName" class="t-body grow" type="text" placeholder="Protein bar" aria-label="Name (optional)" autocomplete="off" enterkeyhint="done" @keydown.enter.prevent="keyboardEntry && addQuick()" />
         <span class="t-capn" :class="qSaveNeedsName ? '' : 'c2'">{{ qSave ? "name · needed" : "name · optional" }}</span>
       </label>
       <div class="qgrid">
@@ -1395,7 +1395,7 @@ async function deleteEdited() {
           <label v-for="field in fields" :key="'k' + field.key" class="qf" :class="{ on: active === field.key }">
             <span class="t-capm c2">{{ field.label }}</span>
             <span class="base">
-              <input :value="qa[field.key]" class="t-nm num qinput" inputmode="decimal" autocomplete="off" :aria-label="field.label"
+              <input v-autofocus="field.key === 'kcal'" :value="qa[field.key]" class="t-nm num qinput" inputmode="decimal" autocomplete="off" :aria-label="field.label"
                 :placeholder="field.key === 'kcal' && qKcalAuto ? String(qKcalAuto) : '0'"
                 @beforeinput="markWholeSelection" @input="qInput(field.key, $event)" @focus="onQuickFocus(field.key)" @blur="onQuickBlur(field.key)" @keydown.enter.prevent="addQuick" />
               <span class="t-label c2">{{ field.unit }}</span>

@@ -157,8 +157,10 @@ for (const width of [375, 390]) {
       await fieldsAtLeast16(food);
       await search.blur();
 
+      // Quick Add opens on Calories: the app keypad types into it, so the name doesn't raise the phone keyboard.
       await food.getByRole("radio", { name: "Quick Add" }).click();
-      await expectReplace(page, food.getByRole("textbox", { name: "Name (optional)" }), "Bar");
+      await expect(food.getByRole("button", { name: "Calories" })).toHaveClass(/\bon\b/);
+      await expect(food.getByRole("textbox", { name: "Name (optional)" })).not.toBeFocused();
       await fieldsAtLeast16(food);
 
       await food.getByRole("radio", { name: "Search" }).click();
