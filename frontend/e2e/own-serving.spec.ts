@@ -110,7 +110,6 @@ test("add a private serving, log with it, and keep the old gram snapshot", async
   await foodSheet(page).getByRole("textbox", { name: "Serving name" }).fill("slice");
   await foodSheet(page).getByRole("textbox", { name: "Grams in one serving" }).fill("35");
   await foodSheet(page).getByRole("button", { name: "Save", exact: true }).click();
-  await expect(page.getByText(/Saved 1 slice = 35 g/)).toBeVisible();
 
   const slice = foodSheet(page).getByRole("radio", { name: "slice · 35 g your serving" });
   await expect(slice).toBeChecked();

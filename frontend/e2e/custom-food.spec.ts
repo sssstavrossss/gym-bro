@@ -132,7 +132,7 @@ test("create, save from quick add, search my food, and keep past entries", async
   await foodSheet(page).getByLabel("Calories").fill("180");
   await foodSheet(page).getByLabel("Protein").fill("20");
   await foodSheet(page).getByRole("button", { name: /Add · 180 kcal/ }).click();
-  await expect(page.getByText(/saved to My foods/)).toBeVisible();
+  await expect(page.getByText("Saved Fictional quick oat bar to My foods")).toBeVisible();
   await foodSheet(page).getByRole("searchbox", { name: "Search foods" }).fill("quick oat");
   const found = foodSheet(page).getByRole("button", { name: /Fictional quick oat bar/ });
   await expect(found).toBeVisible();

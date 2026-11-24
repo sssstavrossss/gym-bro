@@ -1113,6 +1113,8 @@ async function addQuick() {
     }
     const savedMine = qSave.value;
     noteSession(result.entry);
+    // The card shows the add; that it also went into My foods shows nowhere else.
+    if (savedMine) toast(`Saved ${result.entry.name} to My foods`);
     if (savedMine) void loadMine();
     const held = otherDay.value ? time.value : null;
     fill(null);
