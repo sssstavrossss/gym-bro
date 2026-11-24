@@ -105,7 +105,7 @@ test.describe("phone", () => {
     await expect(sheet(page).getByRole("button", { name: "Add 1 food · 250 kcal" })).toBeVisible();
     await sheet(page).getByRole("button", { name: "Include Fictional zibble egg" }).click();
     await sheet(page).getByRole("button", { name: "Add 2 foods · 430 kcal" }).click();
-    await expect(page.getByText("Added 2 foods · 430 kcal")).toBeVisible();
+    await expect(page.locator("[data-session]")).toContainText("2 added · 430 kcal");
 
     const body = await (await page.request.get(`/api/log-entries?date=${when.today}`, { headers: headers(oid) })).json();
     const logged = body.entries.map((entry: { name: string; grams: number }) => `${entry.grams} g ${entry.name}`);
@@ -248,7 +248,7 @@ test.describe("phone", () => {
       if (!(await row.textContent())?.includes("Fictional zibble egg")) await row.locator(".chkhit").click();
     }
     await sheet(page).getByRole("button", { name: "Add 1 food · 180 kcal" }).click();
-    await expect(page.getByText("Added 1 food · 180 kcal")).toBeVisible();
+    await expect(page.locator("[data-session] button.frow").filter({ hasText: "Fictional zibble egg" })).toContainText("180");
     await sheet(page).getByRole("radio", { name: "Describe" }).click();
     const recent = sheet(page).getByRole("list", { name: "Recent descriptions" }).getByRole("button");
     await expect(recent).toHaveCount(1);

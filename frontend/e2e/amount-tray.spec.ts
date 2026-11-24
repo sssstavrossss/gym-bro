@@ -104,7 +104,7 @@ test("the first quick amount is the one logged last time", async ({ page }) => {
   for (const key of ["1", "7", "0"]) await sheet.locator(".keypad").getByRole("button", { name: key, exact: true }).click();
   await expect(field).toHaveValue("170");
   await sheet.getByRole("button", { name: /^Add · 170 kcal/ }).click();
-  await expect(page.getByText(/Added 170 g Fictional tray cottage cheese/)).toBeVisible();
+  await expect(page.locator("[data-session] button.frow").filter({ hasText: "Fictional tray cottage cheese" })).toContainText("170 g");
 
   await openFood(page, name);
   const last = chips.getByRole("button").first();

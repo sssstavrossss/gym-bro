@@ -104,7 +104,8 @@ test("create, save from quick add, search my food, and keep past entries", async
   await expect(foodSheet(page).getByRole("button", { name: /Add · 100 kcal/ })).toBeVisible();
   await page.screenshot({ path: "/opt/cursor/artifacts/custom-food-serving-only.png", fullPage: true });
   await foodSheet(page).getByRole("button", { name: /Add · 100 kcal/ }).click();
-  await expect(page.getByText(/Added 1 serving Fictional home shake · 100 kcal/)).toBeVisible();
+  await expect(page.locator("[data-session]")).toContainText("1 added · 100 kcal");
+  await expect(page.locator("[data-session] button.frow").filter({ hasText: "Fictional home shake" })).toContainText("1 serving");
   await foodSheet(page).getByRole("button", { name: "Done" }).click();
   await expect(page.getByRole("dialog")).toBeHidden();
 

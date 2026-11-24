@@ -61,7 +61,7 @@ test("food in ounces: typed in oz, saved in grams, untouched amounts kept exactl
   await sheet(page).getByRole("button", { name: "4 oz", exact: true }).click();
   await expect(sheet(page).locator("[data-metric-line]")).toHaveText("= 113 g");
   await sheet(page).getByRole("button", { name: /Add · 227 kcal/ }).click();
-  await expect(page.getByText(/Added 4 oz Fictional oat bowl · 227 kcal/)).toBeVisible();
+  await expect(page.locator("[data-session] button.frow").filter({ hasText: "Fictional oat bowl" })).toContainText("4 oz");
   await sheet(page).getByRole("button", { name: "Done" }).click();
 
   const logged = page.locator("main button.frow").filter({ hasText: "Fictional oat bowl" });

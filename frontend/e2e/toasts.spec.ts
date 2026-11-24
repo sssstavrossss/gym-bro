@@ -169,18 +169,23 @@ test("different toasts wait behind the front one, and a swipe throws the front o
   expect(overflow).toBe(true);
 });
 
-test("a new Undo doesn't wait out the toasts ahead of it", async ({ page }) => {
+async function editKcal(page: Page, name: string, kcal: string) {
+  await row(page, name).click();
+  await expect(page.getByRole("heading", { name: "Edit food" })).toBeVisible();
+  await foodSheet(page).getByRole("textbox", { name: "Calories", exact: true }).fill(kcal);
+  await foodSheet(page).getByRole("button", { name: /Save · .*kcal/ }).click();
+  await expect(foodSheet(page)).toBeHidden();
+}
+
+test("a new Undo doesn't wait out the plain toasts ahead of it", async ({ page }) => {
   await start(page, "toast-cut");
 
-  await deleteEntry(page, "Fictional oats");
-  await row(page, "Fictional pear").click();
-  await expect(page.getByRole("heading", { name: "Edit food" })).toBeVisible();
-  await foodSheet(page).getByRole("textbox", { name: "Calories", exact: true }).fill("95");
-  await foodSheet(page).getByRole("button", { name: /Save · .*kcal/ }).click();
+  await editKcal(page, "Fictional pear", "95");
+  await editKcal(page, "Fictional oats", "210");
   await expect(page.locator(".toast.back")).toHaveCount(1);
   await page.mouse.move(10, 120);
 
-  // Two toasts are ahead of this delete. Each would take 4 s; cut short, its Undo is in front within about 2 s.
+  // Two plain toasts are ahead of this delete. Each would take 4 s; cut short, its Undo is in front within about 2 s.
   const started = Date.now();
   await deleteEntry(page, "Fictional broth");
   const undo = page.locator(".toast.front").filter({ hasText: "Deleted Fictional broth" }).getByRole("button", { name: "Undo" });
@@ -188,5 +193,4 @@ test("a new Undo doesn't wait out the toasts ahead of it", async ({ page }) => {
   expect(Date.now() - started).toBeLessThan(4_000);
   await undo.click();
   await expect(row(page, "Fictional broth")).toBeVisible();
-  await expect(row(page, "Fictional oats")).toHaveCount(0);
 });

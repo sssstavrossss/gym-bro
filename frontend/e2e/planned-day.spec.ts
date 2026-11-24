@@ -68,7 +68,7 @@ test("Home's charts follow a food added today, without a reload", async ({ page 
   await page.getByRole("button", { name: /^Log your first food today/ }).click();
   await quickAdd(page, "Fictional refresh bar", 600);
   await foodSheet(page).getByRole("button", { name: /^Add/ }).last().click();
-  await expect(page.getByText(/Added Fictional refresh bar/)).toBeVisible();
+  await expect(page.locator("[data-session] button.frow").filter({ hasText: "Fictional refresh bar" })).toBeVisible();
   await foodSheet(page).getByRole("button", { name: "Close", exact: true }).click();
 
   await expect(loggedDays(page)).toHaveText("1 day");
@@ -94,7 +94,7 @@ test("a later day can be picked and planned: food needs a time and stays out of 
   await expect(sheet.getByRole("button", { name: "Pick a time to add" })).toBeVisible();
   await sheet.getByLabel(/Change time/).fill("12:30");
   await sheet.getByRole("button", { name: /^Add to .* at 12:30/ }).click();
-  await expect(page.getByText(/Added Fictional planned bowl/)).toBeVisible();
+  await expect(page.locator("[data-session] button.frow").filter({ hasText: "Fictional planned bowl" })).toBeVisible();
   await sheet.getByRole("button", { name: "Close", exact: true }).click();
 
   await expect(page.getByRole("heading", { name: /^Foods tomorrow, / })).toBeVisible();

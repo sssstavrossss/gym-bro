@@ -24,7 +24,6 @@ import {
   quickChips,
   readField,
   servingErrorIn,
-  servingLabelIn,
   shownChoices,
   shownField,
   shownWeightWord,
@@ -318,7 +317,6 @@ export function useFoodAmount(options: FoodAmountOptions) {
       amountText.value = "1";
       fresh.value = true;
       resetServingForm();
-      toast(`Saved ${servingLabelIn(saved.name, saved.grams, setting.value)} for ${shown.name} · only you see it`);
     } catch (error) {
       if (error instanceof ServerUnreachable) saveError.value = true;
       else formError.value = error instanceof ApiError ? error.message : "Couldn't save that serving.";

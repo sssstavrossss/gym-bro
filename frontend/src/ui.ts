@@ -5,7 +5,7 @@ import { primeKeyboard, rememberOpener } from "./lib/focusField";
 import type { PageCard } from "./lib/cardPages";
 import type { SheetName } from "./lib/layout";
 import { emptySelection, type Selection } from "./lib/selection";
-import { TOAST_LIFE, TOAST_SHORT, enqueue, frontTimer, type QueuedToast, type ToastAction, type ToastMerge } from "./lib/toastQueue";
+import { TOAST_LIFE, TOAST_SHORT, enqueue, frontTimer, toastLife, type QueuedToast, type ToastAction, type ToastMerge } from "./lib/toastQueue";
 import { deviceTimeZone } from "./state/profile";
 
 /** Add food tabs. Describe shows only when the server can describe meals. */
@@ -73,14 +73,15 @@ let toastSeq = 0;
 const toastClock = frontTimer(TOAST_LIFE, () => dismissToast());
 
 /**
- * Shows a toast at the bottom of the screen. It waits behind the ones already showing, and its 4 s start when
- * it reaches the front. One with Undo cuts the ones ahead of it to a second each. Toasts with the same `merge` kind arriving back to back become one.
+ * Shows a toast at the bottom of the screen. It waits behind the ones already showing, and its time (4 s, or 6 s
+ * with a button) starts when it reaches the front. One with Undo cuts plain toasts ahead of it to a second each.
+ * Toasts with the same `merge` kind arriving back to back become one.
  */
 export function toast(text: string, action?: ToastAction, options: { error?: boolean; merge?: ToastMerge } = {}): void {
   const spec = { text, ...(action ? { action } : {}), ...(options.error ? { error: true } : {}), ...(options.merge ? { merge: options.merge } : {}) };
   const next = enqueue(ui.toasts, spec, ++toastSeq);
   ui.toasts = next.queue;
-  if (next.restart) toastClock.start();
+  if (next.restart) toastClock.start(toastLife(ui.toasts[0]));
   else if (next.cut) toastClock.shorten(TOAST_SHORT);
 }
 
@@ -95,7 +96,7 @@ export function dismissToast(id?: number): void {
   if (!front || (id != null && front.id !== id)) return;
   ui.toasts = ui.toasts.slice(1);
   toastClock.stop();
-  if (ui.toasts.length) toastClock.start(ui.toasts[0].short ? TOAST_SHORT : TOAST_LIFE);
+  if (ui.toasts.length) toastClock.start(toastLife(ui.toasts[0]));
 }
 
 export function runToastAction(): void {

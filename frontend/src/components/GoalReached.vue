@@ -15,7 +15,6 @@ const trend = computed(() => profile.weight?.trendKg ?? null);
 function keep() {
   const latest = profile.weight?.latestDate;
   if (latest && goal.value != null) dismissGoal(boot.accountId, latest, String(goal.value));
-  toast("Keeping your current goal");
   void keepGoal().then(() => {
     if (profile.weight) profile.weight = { ...profile.weight, goalReached: false };
   }, () => {

@@ -99,7 +99,8 @@ test("tapping an added row edits it, and Save comes back to the search with the 
   await expect(foodSheet(page).getByRole("searchbox", { name: "Search foods" })).toBeVisible();
   await expect(addedRow(page, "Fictional added oats")).toContainText("200 g");
   await expect(card(page)).toContainText("2 added · 820 kcal");
-  await expect(front(page)).toHaveText(/Updated Fictional added oats · 760 kcal/);
+  // The row changing is the confirmation: no toast for an edit from the card, and none for the adds.
+  await expect(page.locator(".toast")).toHaveCount(0);
 
   // Back from an edit also returns to the search; Delete there takes the row out of the card.
   await addedRow(page, "Fictional added pear").click();
@@ -131,12 +132,28 @@ test("selecting on the card swaps its buttons in place, and Delete has Undo", as
   // In select mode a tap toggles instead of editing.
   await addedRow(page, "Fictional added oats").click();
   await expect(card(page)).toContainText("2 selected · 440 kcal");
+  await addedRow(page, "Fictional added oats").click();
+  await expect(card(page)).toContainText("1 selected · 60 kcal");
+  await card(page).getByRole("button", { name: "Delete", exact: true }).click();
+  await expect(card(page)).toContainText("1 added · 380 kcal");
+  // The delete's toast floats just above the card, with Undo.
+  await expect(front(page)).toHaveText(/Deleted Fictional added pear/);
+  await expect(front(page)).not.toHaveClass(/toast-(enter|move)/);
+  const toastBox = (await front(page).boundingBox())!;
+  const cardBox = (await card(page).boundingBox())!;
+  expect(toastBox.y + toastBox.height).toBeLessThanOrEqual(cardBox.y + 1);
+  await front(page).getByRole("button", { name: "Undo" }).click();
+  await expect(card(page)).toContainText("2 added · 440 kcal");
+  await expect(card(page).getByRole("button", { name: "Save as group" })).toBeVisible();
+
+  // Deleting every row hides the card; Undo brings it back.
+  await card(page).getByRole("button", { name: "Select Fictional added pear" }).click();
+  await addedRow(page, "Fictional added oats").click();
   await card(page).getByRole("button", { name: "Delete", exact: true }).click();
   await expect(card(page)).toBeHidden();
   await expect(front(page)).toHaveText(/Deleted 2 items/);
   await front(page).getByRole("button", { name: "Undo" }).click();
   await expect(card(page)).toContainText("2 added · 440 kcal");
-  await expect(card(page).getByRole("button", { name: "Save as group" })).toBeVisible();
 });
 
 test("Copy to… from the card comes back to Add food", async ({ page }) => {
