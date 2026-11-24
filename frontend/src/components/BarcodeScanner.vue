@@ -5,7 +5,9 @@ import { ApiError, lookupBarcode, type FoodSearchRow } from "../api";
 import { cameraCopy, formatBarcode, fromTyped, missCopy, type CameraProblem, type MissStatus } from "../lib/barcode";
 import { CameraError, startCameraScan, type CameraScan } from "../scanner/camera";
 
-const emit = defineEmits<{ found: [food: FoodSearchRow]; create: [code: string] }>();
+/** With `pick`, a read code is handed back as it is (New food's Barcode field) and nothing is looked up. */
+const props = defineProps<{ pick?: boolean }>();
+const emit = defineEmits<{ found: [food: FoodSearchRow]; create: [code: string]; code: [code: string] }>();
 
 type Mode = "camera" | "typing" | "looking" | "miss";
 const mode = ref<Mode>("camera");
@@ -57,6 +59,10 @@ function stopCamera() {
 
 async function look(next: string) {
   stopCamera();
+  if (props.pick) {
+    emit("code", next);
+    return;
+  }
   code.value = next;
   mode.value = "looking";
   const gen = ++lookupGen;
@@ -133,7 +139,8 @@ onBeforeUnmount(() => {
         </p>
       </div>
       <button type="button" class="btn sm secondary block t-label" @click="typeNumber">Type the number</button>
-      <p class="t-capn c2 m0">A food we know opens straight on its amount. Codes we don't have are looked up on Open Food Facts.</p>
+      <p v-if="pick" class="t-capn c2 m0">The number goes into the Barcode field, so the next scan finds this food.</p>
+      <p v-else class="t-capn c2 m0">A food we know opens straight on its amount. Codes we don't have are looked up on Open Food Facts.</p>
     </template>
 
     <form v-else-if="mode === 'typing'" class="col typing" novalidate @submit.prevent="submitTyped">
@@ -143,7 +150,7 @@ onBeforeUnmount(() => {
       <p v-if="typedError" class="t-label m0" role="alert">{{ typedError }}</p>
       <div class="row pair">
         <button type="button" class="btn sm secondary t-label" @click="startCamera">Use the camera</button>
-        <button type="submit" class="btn sm primary t-label">Look up</button>
+        <button type="submit" class="btn sm primary t-label">{{ pick ? "Use" : "Look up" }}</button>
       </div>
     </form>
 

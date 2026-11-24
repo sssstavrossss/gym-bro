@@ -1140,6 +1140,14 @@ namespace GymBro.Api.Data.Migrations
                         .HasColumnType("numeric(8,1)")
                         .HasColumnName("kcal");
 
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(8)
+                        .HasColumnType("character varying(8)")
+                        .HasDefaultValue("meal")
+                        .HasColumnName("kind");
+
                     b.Property<DateTimeOffset?>("LoggedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("logged_at");

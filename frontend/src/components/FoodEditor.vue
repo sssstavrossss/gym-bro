@@ -1,16 +1,23 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref } from "vue";
+import { computed, nextTick, onMounted, reactive, ref } from "vue";
 import {
   ApiError,
   createCustomFood,
   deleteCustomFood,
   getFood,
+  readLabel,
   ServerUnreachable,
   updateCustomFood,
   type FoodSearchRow,
 } from "../api";
+import { PHOTO_UNREADABLE, shrinkPhoto } from "../photo/mealPhoto";
+import { describe } from "../state/describe";
 import {
   buildCustomFood,
+  EXTRA_KEYS,
+  EXTRA_LABELS,
+  formFromLabel,
+  hasExtras,
   duplicateNameNote,
   emptyMacroNote,
   formFromFood,
@@ -27,6 +34,7 @@ import {
   type CustomFoodForm,
   type CustomFoodSeed,
 } from "../lib/customFood";
+import BarcodeScanner from "./BarcodeScanner.vue";
 import Icon from "./Icon.vue";
 import Segmented from "./Segmented.vue";
 
@@ -47,6 +55,9 @@ const kcal = ref("");
 const protein = ref("");
 const fat = ref("");
 const carbs = ref("");
+const extra = reactive({ saturatedFat: "", sugars: "", fiber: "", salt: "" });
+/** The four extra fields show when asked for, or when one has a value. */
+const moreOpen = ref(false);
 const storedPerServing = ref(false);
 const loaded = ref<FoodSearchRow | null>(null);
 const ready = ref(!props.editId);
@@ -65,6 +76,7 @@ const form = computed<CustomFoodForm>(() => ({
   protein: protein.value,
   fat: fat.value,
   carbs: carbs.value,
+  ...extra,
 }));
 const built = computed(() => buildCustomFood(form.value, { editingPerServing: storedPerServing.value }));
 const kcalNum = computed(() => parseCustomNumber(kcal.value));
@@ -103,8 +115,63 @@ function applyForm(next: CustomFoodForm, perServing: boolean) {
   protein.value = next.protein;
   fat.value = next.fat;
   carbs.value = next.carbs;
+  for (const key of EXTRA_KEYS) extra[key] = next[key];
+  if (hasExtras(next)) moreOpen.value = true;
   storedPerServing.value = perServing;
 }
+
+// A label photo fills the form. Claude reads it; nothing is saved until Save food.
+const labelInput = ref<HTMLInputElement | null>(null);
+const labelState = ref<"idle" | "reading" | "filled">("idle");
+const labelError = ref("");
+/** Only a new food, and only while Describe is on: the same key and the same daily limit. */
+const canLabel = computed(() => describe.available && !props.editId);
+
+function pickLabel() {
+  if (labelState.value === "reading") return;
+  labelInput.value?.click();
+}
+
+async function onLabelPicked() {
+  const file = labelInput.value?.files?.[0];
+  if (labelInput.value) labelInput.value.value = "";
+  if (!file) return;
+  labelState.value = "reading";
+  labelError.value = "";
+  try {
+    const photo = await shrinkPhoto(file).catch(() => {
+      throw new Error(PHOTO_UNREADABLE);
+    });
+    const read = await readLabel(photo);
+    describe.left = read.left;
+    applyForm(formFromLabel(form.value, read), storedPerServing.value);
+    tried.value = false;
+    formError.value = "";
+    labelState.value = "filled";
+  } catch (error) {
+    if (error instanceof ServerUnreachable) labelError.value = "Server unreachable, try again.";
+    else labelError.value = error instanceof Error && error.message ? error.message : "Couldn't read that label.";
+    labelState.value = "idle";
+  }
+}
+
+// Scanning puts the number in the Barcode field. It looks nothing up: this food is being made.
+const scanning = ref(false);
+function scanBarcode() {
+  scanning.value = true;
+}
+function onScanned(code: string) {
+  barcode.value = code;
+  scanning.value = false;
+}
+/** Back while scanning returns to the form. True when it did. */
+function leaveScan(): boolean {
+  if (!scanning.value) return false;
+  scanning.value = false;
+  return true;
+}
+
+defineExpose({ canLabel, labelState, scanning, pickLabel, scanBarcode, leaveScan });
 
 if (!props.editId) applyForm(formFromSeed(props.seed), false);
 
@@ -170,10 +237,26 @@ const fields = [
 </script>
 
 <template>
-  <form v-if="ready" class="fe col" novalidate @submit.prevent="save">
+  <div v-if="scanning" class="col fe">
+    <h3 class="t-head">Scan the barcode</h3>
+    <BarcodeScanner pick @code="onScanned" />
+  </div>
+  <form v-else-if="ready" class="fe col" novalidate @submit.prevent="save">
     <h3 class="t-head">{{ editing ? "Edit my food" : "New food" }}</h3>
     <p v-if="editing" class="well note row t-label"><Icon name="info" :size="16" class="c2" />{{ futureLogsNote }}</p>
     <p v-if="formError" class="t-capn errt m0" role="alert">{{ formError }}</p>
+    <div v-if="canLabel" class="col lbl" data-label>
+      <!-- Without capture, a phone offers both the camera and the photo library. -->
+      <input ref="labelInput" type="file" accept="image/*" hidden data-label-input @change="onLabelPicked" />
+      <div class="row lrow">
+        <button type="button" class="btn sm secondary t-label" :disabled="labelState === 'reading'" @click="pickLabel">
+          <Icon name="camera" :size="14" /><span>{{ labelState === "reading" ? "Reading the label…" : labelState === "filled" || labelError ? "Try another photo" : "Fill from a label photo" }}</span>
+        </button>
+      </div>
+      <p v-if="labelError" class="hint row t-capn" role="alert"><Icon name="alert" :size="14" class="c2" />{{ labelError }}</p>
+      <p v-else-if="labelState === 'filled'" class="t-capn c2 m0 row lnote" role="status"><Icon name="sparkle" :size="13" />Filled from the label. Check the numbers before you save.</p>
+      <p v-else class="t-capn c2 m0">Photograph the nutrition table to fill in the form.</p>
+    </div>
 
     <label class="fl col"><span class="t-capm c2">Name <span aria-hidden="true">*</span></span>
       <input v-autofocus v-model="name" class="field t-body" type="text" autocomplete="off" required :aria-invalid="errName" aria-describedby="fe-name-msg" placeholder="e.g. Lentil soup, home-made" />
@@ -213,10 +296,22 @@ const fields = [
     <p v-else-if="emptyNames.length && kcalNum > 0" class="t-capn c2 m0">{{ emptyMacroNote(emptyNames) }}</p>
     <p v-if="hint.mismatch" class="hint row t-capn" role="status"><Icon name="alert" :size="14" class="c2" />{{ mismatchCopy(hint.expectedKcal) }}</p>
     <p v-if="per100Line" class="t-capn c2 m0">{{ per100Line }}</p>
+    <div v-if="moreOpen" class="grid4" data-extras>
+      <label v-for="key in EXTRA_KEYS" :key="key" class="fl col">
+        <span class="t-capm c2">{{ EXTRA_LABELS[key] }} <span class="sub">{{ basis === "100g" ? "/100 g" : "/serving" }}</span></span>
+        <span class="field t-body">
+          <input v-model="extra[key]" class="bare grow t-body" inputmode="decimal" autocomplete="off" placeholder="optional" />
+          <span class="c2">g</span>
+        </span>
+      </label>
+    </div>
+    <div v-else class="row lrow">
+      <button type="button" class="btn sm secondary t-label" @click="moreOpen = true"><Icon name="plus" :size="14" :sw="2.4" /><span>More nutrients</span></button>
+    </div>
 
     <label class="fl col"><span class="t-capm c2">Barcode · optional</span>
       <input v-model="barcode" class="field t-body" inputmode="numeric" autocomplete="off" placeholder="Number under the barcode" />
-      <span class="t-capn c2">Scanning comes in a later version — type the digits for now.</span>
+      <span class="t-capn c2">Scan it with the barcode button at the top, so the next scan finds this food.</span>
     </label>
     <p class="t-capn c2 m0 priv"><Icon name="lock" :size="12" /> Private — only you see your foods.</p>
 
@@ -244,6 +339,10 @@ input.field { width: 100%; }
 .errt { color: var(--text-primary); }
 .note { gap: var(--space-s); margin: 0; align-items: flex-start; }
 .hint { gap: var(--space-s); margin: 0; padding: var(--space-s) var(--space-m); border: 1px dashed var(--text-tertiary); border-radius: var(--radius-m); color: var(--text-secondary); align-items: flex-start; }
+.lbl { gap: var(--space-xs); }
+/* A small button's 44px hit overhangs its 30px face, so the row stays as tall as the face. */
+.lrow { margin: calc((var(--control-chip) - var(--control-hit)) / 2) 0; }
+.lnote { gap: var(--space-xs); align-items: center; }
 .priv { display: flex; gap: var(--space-s); align-items: center; }
 .actions { position: sticky; bottom: 0; padding-top: var(--space-s); background: var(--color-surface); flex-wrap: wrap; }
 .actions .btn.primary { width: auto; flex: 1 1 140px; }
