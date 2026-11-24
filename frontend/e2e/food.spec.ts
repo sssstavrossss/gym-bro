@@ -124,7 +124,7 @@ async function openQuickAdd(page: Page, width: number) {
     await page.getByRole("button", { name: "Add food" }).click();
   } else {
     await page.getByRole("button", { name: "Add", exact: true }).click();
-    await page.getByRole("dialog", { name: "Add" }).getByRole("button", { name: /Search or quick add/ }).click();
+    await page.getByRole("dialog", { name: "Add" }).getByRole("button", { name: "Search", exact: true }).click();
   }
   await expect(page.getByRole("dialog", { name: "Add", exact: true })).toBeHidden();
   await foodSheet(page).getByRole("searchbox", { name: "Search foods" }).blur();
@@ -151,7 +151,9 @@ test("today empty, quick add, on target, edit, undo, and no sideways scroll", as
   await expectClean(page);
 
   await page.getByRole("button", { name: "Add", exact: true }).click();
-  const food = page.getByRole("dialog", { name: "Add" }).getByRole("button", { name: /Search or quick add/ });
+  const food = page.getByRole("dialog", { name: "Add" }).getByRole("button", { name: "Search", exact: true });
+  // The fan's buttons spread out from the +; measure once they've landed.
+  await page.waitForFunction(() => document.querySelector(".fan-root.spread") && document.getAnimations().every((item) => item.playState !== "running"));
   await expectTouchTarget(food);
   await food.click();
   await expect(page.getByRole("dialog", { name: "Add", exact: true })).toBeHidden();

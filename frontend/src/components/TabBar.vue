@@ -48,5 +48,5 @@ const active = (to: string) => route.path === to || route.path.startsWith(to + "
 /* Tab captions stay at the default size. Dynamic Type must not enlarge them into each other. */
 .tab .t-capn { font-size: 11px; line-height: 14px; white-space: nowrap; }
 .tab.on { color: var(--text-primary); }
-.plus { width: 56px; height: 56px; border-radius: var(--radius-pill); background: var(--color-action); color: var(--color-on-action); display: flex; align-items: center; justify-content: center; box-shadow: var(--d-action), 0 6px 16px -4px rgb(0 0 0 / .6); }
+.plus { width: var(--control-fab); height: var(--control-fab); border-radius: var(--radius-pill); background: var(--color-action); color: var(--color-on-action); display: flex; align-items: center; justify-content: center; box-shadow: var(--d-action), 0 6px 16px -4px rgb(0 0 0 / .6); }
 </style>

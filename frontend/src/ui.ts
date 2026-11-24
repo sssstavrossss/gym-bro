@@ -3,6 +3,7 @@ import { todayInZone, todayIso } from "./lib/dates";
 import { lastPlanDate } from "./lib/dayLog";
 import { primeKeyboard, rememberOpener } from "./lib/focusField";
 import type { PageCard } from "./lib/cardPages";
+import type { FoodPage } from "./lib/foodPages";
 import type { SheetName } from "./lib/layout";
 import { emptySelection, type Selection } from "./lib/selection";
 import { TOAST_LIFE, TOAST_SHORT, enqueue, frontTimer, toastLife, type QueuedToast, type ToastAction, type ToastMerge } from "./lib/toastQueue";
@@ -16,6 +17,8 @@ export type SettingsView = "main" | "home" | "country";
 export const ui = reactive({
   sheet: null as SheetName | null,
   foodTab: "search" as FoodTab,
+  /** The Add food page the Search tab opens on (the fan's Recipes, My foods and Groups open on theirs). */
+  foodPage: "recent" as FoodPage,
   /** Food open in the detail view. Null on the search list. */
   detailFoodId: null as string | null,
   /** Custom food editor. A seed may carry a name and quick-add numbers, never invented nutrients. */
@@ -250,7 +253,7 @@ export function openAdd(): void {
   ui.sheet = "chooser";
 }
 
-export function openFood(tab: FoodTab = "search", date?: string): void {
+export function openFood(tab: FoodTab = "search", date?: string, page: FoodPage = "recent"): void {
   // Search and Describe open on a list (recent foods, recent descriptions) and
   // Describe on its photo button: raising the iOS keyboard would cover them, so
   // only Quick Add primes, like the other sheets.
@@ -261,6 +264,7 @@ export function openFood(tab: FoodTab = "search", date?: string): void {
   ui.foodEditor = null;
   ui.foodScan = false;
   ui.foodTab = tab;
+  ui.foodPage = page;
   ui.foodDate = date && date <= lastPlanDate(today) ? date : today;
   ui.sheet = "food";
 }
@@ -276,6 +280,13 @@ export function openFoodScan(): void {
 export function openFoodWithScan(date?: string): void {
   openFood("search", date);
   openFoodScan();
+}
+
+/** The fan's New food: Add food on My foods, with the new food form open over it. Closing it leaves My foods showing. */
+export function openNewFoodFrom(date?: string): void {
+  openFood("search", date, "mine");
+  primeKeyboard();
+  ui.foodEditor = { ret: "list" };
 }
 
 export function startSelect(id?: string): void {

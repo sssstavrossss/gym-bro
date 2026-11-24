@@ -56,7 +56,7 @@ function foodSheet(page: Page) {
 async function openAdd(page: Page) {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.getByRole("button", { name: "Add", exact: true }).click();
-  await page.getByRole("dialog", { name: "Add" }).getByRole("button", { name: /Search or quick add/ }).click();
+  await page.getByRole("dialog", { name: "Add" }).getByRole("button", { name: "Search", exact: true }).click();
   await foodSheet(page).getByRole("searchbox", { name: "Search foods" }).blur();
   await expect(foodSheet(page).getByRole("heading", { name: "Add food" })).toBeVisible();
 }

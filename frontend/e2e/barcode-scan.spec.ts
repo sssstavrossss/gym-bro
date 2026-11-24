@@ -82,7 +82,7 @@ async function fakeCamera(page: Page, code: string | null) {
 async function openScanner(page: Page) {
   await page.goto("/today");
   await page.getByRole("button", { name: "Add", exact: true }).click();
-  await page.getByRole("dialog", { name: "Add" }).getByRole("button", { name: /Search or quick add/ }).click();
+  await page.getByRole("dialog", { name: "Add" }).getByRole("button", { name: "Search", exact: true }).click();
   const sheet = page.getByRole("dialog", { name: "Add food" });
   await sheet.getByRole("button", { name: "Scan a barcode" }).click();
   return page.getByRole("dialog", { name: "Scan barcode" });

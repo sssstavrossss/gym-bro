@@ -132,7 +132,7 @@ test("controls keep a compact face, a 44px hit, and clear gaps", async ({ page }
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/today");
   await page.getByRole("button", { name: "Add", exact: true }).click();
-  await page.getByRole("dialog", { name: "Add" }).getByRole("button", { name: /Search or quick add/ }).click();
+  await page.getByRole("dialog", { name: "Add" }).getByRole("button", { name: "Search", exact: true }).click();
   const food = page.getByRole("dialog", { name: "Add food" });
   await food.getByRole("searchbox", { name: "Search foods" }).blur();
   await expect(food.getByRole("heading", { name: "Add food" })).toBeVisible();

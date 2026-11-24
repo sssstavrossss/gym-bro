@@ -52,7 +52,7 @@ test("food in ounces: typed in oz, saved in grams, untouched amounts kept exactl
   // The amount screen types ounces and shows the grams under the field.
   await page.goto("/today");
   await page.getByRole("button", { name: "Add", exact: true }).click();
-  await page.getByRole("dialog", { name: "Add" }).getByRole("button", { name: /Search or quick add/ }).click();
+  await page.getByRole("dialog", { name: "Add" }).getByRole("button", { name: "Search", exact: true }).click();
   await sheet(page).getByRole("searchbox", { name: "Search foods" }).blur();
   await sheet(page).getByRole("button", { name: /My foods/ }).click();
   await sheet(page).getByRole("button", { name: /^Fictional oat bowl/ }).click();
@@ -81,7 +81,7 @@ test("food in ounces: typed in oz, saved in grams, untouched amounts kept exactl
 
   // A recipe saved as 150 g shows 5.3 oz, and saving it untouched keeps 150 g (5.3 oz alone would be 150.25 g).
   await page.getByRole("button", { name: "Add", exact: true }).click();
-  await page.getByRole("dialog", { name: "Add" }).getByRole("button", { name: /Search or quick add/ }).click();
+  await page.getByRole("dialog", { name: "Add" }).getByRole("button", { name: "Search", exact: true }).click();
   await sheet(page).getByRole("searchbox", { name: "Search foods" }).blur();
   await sheet(page).getByRole("button", { name: /Recipes/ }).click();
   await sheet(page).getByRole("button", { name: "Edit recipe Fictional oat pot" }).click();

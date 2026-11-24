@@ -49,7 +49,7 @@ test("food search rows show a ring for how many micronutrients the food has", as
 
   await page.goto("/today");
   await page.getByRole("button", { name: "Add", exact: true }).click();
-  await page.getByRole("dialog", { name: "Add" }).getByRole("button", { name: /Search or quick add/ }).click();
+  await page.getByRole("dialog", { name: "Add" }).getByRole("button", { name: "Search", exact: true }).click();
   const search = foodSheet(page).getByRole("searchbox", { name: "Search foods" });
   await search.fill("Fictional ring");
 

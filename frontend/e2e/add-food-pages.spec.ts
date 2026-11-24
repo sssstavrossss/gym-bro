@@ -57,7 +57,7 @@ test("Add food's lists are four swipe pages named by chips, wrapping like a caro
   await page.goto("/today");
 
   await page.getByRole("button", { name: "Add", exact: true }).click();
-  await page.getByRole("dialog", { name: "Add" }).getByRole("button", { name: /Search or quick add/ }).click();
+  await page.getByRole("dialog", { name: "Add" }).getByRole("button", { name: "Search", exact: true }).click();
   const food = page.getByRole("dialog", { name: "Add food" });
   const search = food.getByRole("searchbox", { name: "Search foods" });
   await search.blur();

@@ -116,7 +116,7 @@ async function expectReplace(page: Page, field: Locator, typed: string, mode: "s
 
 async function openAddFood(page: Page) {
   await page.getByRole("button", { name: "Add", exact: true }).click();
-  await page.getByRole("dialog", { name: "Add" }).getByRole("button", { name: /Search or quick add/ }).click();
+  await page.getByRole("dialog", { name: "Add" }).getByRole("button", { name: "Search", exact: true }).click();
   await expect(page.getByRole("dialog", { name: "Add food" })).toBeVisible();
 }
 
@@ -210,7 +210,7 @@ for (const width of [375, 390]) {
       await weight.getByRole("button", { name: "Close" }).click();
 
       await page.getByRole("button", { name: "Add", exact: true }).click();
-      await page.getByRole("dialog", { name: "Add" }).getByRole("button", { name: /Search or quick add/ }).click();
+      await page.getByRole("dialog", { name: "Add" }).getByRole("button", { name: "Search", exact: true }).click();
       await food.getByRole("searchbox", { name: "Search foods" }).blur();
       await food.getByRole("button", { name: /Recipes/ }).click();
       await expect(food.getByRole("button", { name: "New recipe" })).toBeVisible();

@@ -134,7 +134,7 @@ test("range stays put, the safe strip is clear, rows tap cleanly, and home has n
 
   await page.goto("/today");
   await page.getByRole("button", { name: "Add", exact: true }).click();
-  await page.getByRole("dialog", { name: "Add" }).getByRole("button", { name: /Search or quick add/ }).click();
+  await page.getByRole("dialog", { name: "Add" }).getByRole("button", { name: "Search", exact: true }).click();
   const food = page.getByRole("dialog", { name: "Add food" });
   await food.getByRole("searchbox", { name: "Search foods" }).fill("Fictional scroll");
   const row = food.getByRole("button", { name: /Fictional scroll apple 1/ });

@@ -220,6 +220,10 @@ html[data-accent]:not([data-accent="mono"]) {
   --control-chip: 30px;
   --control-hit: 44px;
   --control-btn: 44px;
+  /* The tab bar's + and the fan's buttons around it. */
+  --control-fab: 56px;
+  /* Text over the dark scrim, in every theme. */
+  --text-on-scrim: #fff;
 
   /* Safe areas (iPhone). In ?statusbar demo mode these are faked for screenshots.
      The tab bar includes the home-indicator inset once. Do not add --sab again. */

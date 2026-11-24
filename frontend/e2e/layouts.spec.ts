@@ -260,7 +260,7 @@ test("a tablet sheet is centred", async ({ page }) => {
   await page.setViewportSize({ width: 768, height: 900 });
   await page.goto("/today");
   await page.getByRole("button", { name: "Add", exact: true }).click();
-  await page.getByRole("dialog", { name: "Add" }).getByRole("button", { name: /Log today's weigh-in/ }).click();
+  await page.getByRole("dialog", { name: "Add" }).getByRole("button", { name: "Weight", exact: true }).click();
   const sheet = page.getByRole("dialog", { name: "Log weight" }).locator(".sheet");
   await expect(sheet).toBeVisible();
   const box = await sheet.boundingBox();
