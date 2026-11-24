@@ -377,6 +377,7 @@ onBeforeUnmount(() => {
   padding: calc(var(--space-m) - 1px) var(--space-s) var(--space-m);
   background: var(--color-surface);
   border-radius: var(--radius-l);
+  box-shadow: var(--d-card);
 }
 .day {
   width: 44px; min-height: 44px;
@@ -386,7 +387,7 @@ onBeforeUnmount(() => {
 .day:disabled { cursor: default; }
 .letter { display: block; font-size: min(0.6471rem, 15px); line-height: 1; color: var(--text-tertiary); }
 .circle { width: 36px; height: 36px; border-radius: var(--radius-pill); display: flex; align-items: center; justify-content: center; font-size: min(0.8824rem, 20px); line-height: 1; color: var(--text-primary); flex: none; }
-.circle.on { background: var(--color-action); color: var(--color-on-action); }
+.circle.on { background: var(--color-action); color: var(--color-on-action); box-shadow: var(--d-action); }
 .circle.off { color: var(--text-tertiary); opacity: 0.72; }
 .dotrow { height: 4px; display: flex; align-items: center; justify-content: center; flex: none; }
 .dot { width: 4px; height: 4px; border-radius: 2px; }
@@ -401,7 +402,7 @@ onBeforeUnmount(() => {
 .pager.face { opacity: 0; }
 .cal.face { opacity: 0; transform: translate3d(0, -6px, 0); transition: opacity 220ms ease, transform 340ms cubic-bezier(0.22, 1.05, 0.36, 1); }
 .face.on { opacity: 1; transform: none; pointer-events: auto; position: relative; }
-.cal { display: flex; flex-direction: column; gap: var(--space-s); padding: var(--space-m); background: var(--color-surface); border-radius: var(--radius-l); }
+.cal { display: flex; flex-direction: column; gap: var(--space-s); padding: var(--space-m); background: var(--color-surface); border-radius: var(--radius-l); box-shadow: var(--d-card); }
 .calrow { display: flex; gap: var(--space-xs); }
 .calrow > * { flex: 1 1 0; min-width: 0; text-align: center; }
 .letters { min-height: 16px; }

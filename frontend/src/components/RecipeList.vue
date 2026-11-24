@@ -74,7 +74,7 @@ function onEdit(event: MouseEvent, recipe: Recipe) {
 .lhead { padding: var(--space-m) 0 var(--space-2xs); gap: var(--space-s); }
 .rrow { min-height: 56px; align-items: flex-start; gap: var(--space-xs); padding: var(--space-s) 0; border-bottom: 1px solid var(--color-border); }
 .rrow.hl { background: var(--color-surface-2); border-radius: var(--radius-m); }
-.gic { width: 32px; height: 32px; margin-top: var(--space-s); border-radius: var(--radius-m); background: var(--color-surface-2); display: flex; align-items: center; justify-content: center; color: var(--text-secondary); flex: none; }
+.gic { width: 32px; height: 32px; margin-top: var(--space-s); border-radius: var(--radius-m); background: var(--color-surface-2); display: flex; align-items: center; justify-content: center; color: var(--text-secondary); flex: none; box-shadow: var(--d-edge); }
 .empty { gap: var(--space-xs); padding: var(--space-s) 0 var(--space-l); }
 .rtext { gap: var(--space-2xs); min-width: 0; min-height: var(--control-hit); align-items: flex-start; justify-content: center; text-align: left; }
 .nm { align-items: baseline; min-width: 0; max-width: 100%; }

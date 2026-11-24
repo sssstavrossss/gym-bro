@@ -305,7 +305,7 @@ function weighInOn(date: string): string {
 }
 .gap2 { gap: var(--space-2xs); }
 .stats { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-m); min-width: 0; }
-.stat { display: flex; flex-direction: column; gap: var(--space-2xs); min-width: 0; padding: var(--space-m); border-radius: var(--radius-l); background: var(--color-surface); }
+.stat { display: flex; flex-direction: column; gap: var(--space-2xs); min-width: 0; padding: var(--space-m); border-radius: var(--radius-l); background: var(--color-surface); box-shadow: var(--d-card); }
 .note { margin: 0; }
 .charts { display: flex; flex-direction: column; gap: var(--space-m); min-width: 0; }
 .chart { min-width: 0; }

@@ -420,10 +420,10 @@ const diffText = computed(() => (
 .m0 { margin: 0; }
 .daypick { position: relative; flex: 0 0 auto; min-width: 0; max-width: 100%; }
 .daymeasure { position: absolute; visibility: hidden; white-space: nowrap; height: 0; overflow: hidden; pointer-events: none; }
-.daybtn { display: inline-flex; align-items: center; gap: var(--space-xs); min-height: 44px; max-width: 100%; padding: 0 var(--space-s) 0 var(--space-m); border-radius: var(--radius-pill); background: var(--color-surface-2); color: var(--text-primary); }
+.daybtn { display: inline-flex; align-items: center; gap: var(--space-xs); min-height: 44px; max-width: 100%; padding: 0 var(--space-s) 0 var(--space-m); border-radius: var(--radius-pill); background: var(--color-surface-2); color: var(--text-primary); box-shadow: var(--d-control); }
 .dayface { white-space: nowrap; overflow: hidden; min-width: 0; }
 .daychev { flex: none; width: 8px; height: 8px; margin-right: var(--space-2xs); border-right: 1.5px solid var(--text-secondary); border-bottom: 1.5px solid var(--text-secondary); transform: translateY(-2px) rotate(45deg); }
-.daymenu { position: absolute; right: 0; top: calc(100% + 6px); z-index: 41; min-width: 220px; max-width: calc(100vw - 32px); max-height: min(70vh, 560px); overflow: auto; background: var(--color-surface-2); border: 1px solid var(--color-border); border-radius: var(--radius-l); padding: var(--space-s); box-shadow: 0 12px 32px rgba(0, 0, 0, .6); display: flex; flex-direction: column; }
+.daymenu { position: absolute; right: 0; top: calc(100% + 6px); z-index: 41; min-width: 220px; max-width: calc(100vw - 32px); max-height: min(70vh, 560px); overflow: auto; background: var(--color-surface-2); border: 1px solid var(--color-border); border-radius: var(--radius-l); padding: var(--space-s); box-shadow: var(--d-float); display: flex; flex-direction: column; }
 .dayopt { flex: none; display: flex; align-items: center; gap: var(--space-m); min-height: 44px; width: 100%; padding: 0 var(--space-m); border-radius: var(--radius-m); text-align: left; color: var(--text-primary); }
 .dayopt[aria-selected="true"] { background: transparent; }
 .dayopt:active { background: var(--color-hover); }
@@ -434,7 +434,7 @@ const diffText = computed(() => (
 .dt-xl .dayopt .grow { flex: 1 1 100%; overflow-wrap: break-word; }
 /* − and + sit at the edges, the number in the middle. */
 /* The same box as the amount screens, around the number and its − and + buttons. */
-.wfield { gap: var(--space-s); align-items: center; justify-content: space-between; padding: 10px var(--space-m); border-radius: var(--radius-l); background: var(--color-surface-2); }
+.wfield { gap: var(--space-s); align-items: center; justify-content: space-between; padding: 10px var(--space-m); border-radius: var(--radius-l); background: var(--color-surface-2); box-shadow: var(--d-sunk); }
 .wlabel { display: inline-flex; align-items: baseline; justify-content: center; gap: var(--space-s); min-width: 0; flex: 0 1 auto; }
 .autosize { display: inline-grid; min-height: 44px; }
 .autosize > * { grid-area: 1 / 1; }
@@ -450,7 +450,7 @@ const diffText = computed(() => (
 }
 .winput::placeholder { color: var(--text-tertiary); opacity: 1; }
 .winput:focus, .winput:focus-visible {
-  outline: none; border: 0; box-shadow: none;
+  outline: none; border: 0; box-shadow: var(--d-sunk);
   background: var(--color-surface-2);
 }
 .tgb { gap: var(--space-s); }

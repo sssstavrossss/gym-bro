@@ -49,7 +49,7 @@ const both = computed(() => props.countedKcal != null && props.leftOutKcal != nu
 </template>
 
 <style scoped>
-.lowcard { background: var(--color-surface-2); border-radius: var(--radius-l); padding: var(--space-m) var(--space-l); display: flex; flex-direction: column; gap: var(--space-s); --btn-bg: var(--color-surface); }
+.lowcard { background: var(--color-surface-2); border-radius: var(--radius-l); padding: var(--space-m) var(--space-l); display: flex; flex-direction: column; gap: var(--space-s); --btn-bg: var(--color-surface); box-shadow: var(--d-edge); }
 .sum { flex-direction: row; align-items: center; gap: var(--space-s); }
 .lh { display: flex; align-items: center; gap: var(--space-s); margin: 0; font-size: 15px; font-weight: 600; color: var(--text-primary); }
 .cap { margin: 0; }

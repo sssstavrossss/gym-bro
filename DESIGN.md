@@ -7,6 +7,7 @@ These are the rules the app's screens follow. Read this before you add or change
 - **Tokens, not pixels.** Spacing, corners, control sizes and colours come from the tokens in `frontend/src/styles/main.css`. New code never sets its own padding, height, corner or colour in raw numbers. If a token is missing, add it to `main.css` and use it, rather than writing the number in one place.
 - **The same kind of thing looks the same on every screen.** A box in a page has the same padding and corners wherever it is, and a card title sits the same way on every card. Don't change these per page.
 - **Reuse before you build.** Use the shared classes and components (`.btn`, `.chip`, `.card`, `.well`, `.field`, `.tag`, `.chead`, `Segmented`, `SwipePanels`, the app keypad, `AmountScreen`, `Icon`). A new control that does the job of an existing one must look like that one.
+- **Depth comes from three tiers in `styles/depth.css`, never a shadow written in place.** Medium (`--d-float`) for things that float over the page, subtle (`--d-card`, `--d-control`, `--d-action`) for things on the page or pressed, light (`--d-sunk`, `--d-edge`) for fields and panels inside a card. A new control takes the tier of the control it looks like; charts, bars, list rows and dividers stay flat.
 - **One change applies everywhere.** When a pattern changes (the amount box, the keypad, a card's title row), it changes on every screen that uses it, not only the one being worked on.
 
 ## Buttons and controls

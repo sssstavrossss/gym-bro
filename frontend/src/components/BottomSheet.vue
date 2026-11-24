@@ -96,6 +96,7 @@ const sheetStyle = computed(() => {
   display: flex; flex-direction: column; gap: var(--space-m);
   overflow: hidden; min-height: 0;
   transition: transform .3s cubic-bezier(.2, .8, .2, 1);
+  box-shadow: var(--d-edge), 0 -10px 30px rgb(0 0 0 / .45);
 }
 .sheet.dragging { transition: none; }
 .drag-zone { display: flex; flex-direction: column; gap: var(--space-m); touch-action: none; flex: none; }

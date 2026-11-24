@@ -78,7 +78,7 @@ const eaten = computed(() => `${props.review.includedDays} of ${props.review.per
 </template>
 
 <style scoped>
-.burn { background: var(--color-surface-2); border-radius: var(--radius-l); padding: var(--space-m) var(--space-l); display: flex; flex-direction: column; gap: var(--space-s); }
+.burn { background: var(--color-surface-2); border-radius: var(--radius-l); padding: var(--space-m) var(--space-l); display: flex; flex-direction: column; gap: var(--space-s); box-shadow: var(--d-edge); }
 .bh { display: flex; align-items: center; gap: var(--space-s); margin: 0; font-size: 15px; font-weight: 600; color: var(--text-primary); }
 .cap { margin: 0; }
 .list { display: flex; flex-direction: column; }

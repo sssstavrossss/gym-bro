@@ -128,7 +128,7 @@ function setFront(el: unknown, index: number) {
       @pointercancel="up"
       @pointerleave="leave($event, item.id)"
     >
-      <Icon v-if="item.error" name="alert" :size="16" class="alert" />
+      <Icon v-if="item.error" name="alert" :size="16" class="erricon" />
       <span class="t-label grow msg">{{ item.text }}</span>
       <button v-if="item.action" type="button" class="btn sm primary t-label undo" :tabindex="index > 0 ? -1 : undefined" @click="runToastAction">{{ item.action.label }}</button>
     </div>
@@ -140,12 +140,12 @@ function setFront(el: unknown, index: number) {
 .toast {
   position: absolute; left: var(--space-l); right: var(--space-l); bottom: calc(var(--tabbar-h) + var(--space-m)); z-index: 60;
   display: flex; align-items: center; gap: var(--space-m); padding: var(--space-m) var(--space-l); border-radius: var(--radius-l);
-  background: var(--color-surface); color: var(--text-primary); box-shadow: 0 10px 30px rgba(0,0,0,.5); max-width: calc(100% - 32px);
+  background: var(--color-float); color: var(--text-primary); box-shadow: var(--d-float); max-width: calc(100% - 32px);
   box-sizing: border-box; touch-action: none; user-select: none; -webkit-user-select: none; transform-origin: 50% 0;
   transition: transform .26s cubic-bezier(.2, .8, .2, 1), opacity .26s, filter .26s;
 }
 .msg { color: var(--text-primary); overflow-wrap: anywhere; }
-.alert { flex: none; color: var(--text-secondary); }
+.erricon { flex: none; color: var(--text-secondary); }
 /* The next one waits behind: only its top edge shows, a little narrower and darker. */
 .toast.back { z-index: 59; transform: translateY(calc(-1 * var(--space-s) - var(--space-2xs))) scale(.94); filter: brightness(.72); pointer-events: none; }
 .toast.back > * { visibility: hidden; }

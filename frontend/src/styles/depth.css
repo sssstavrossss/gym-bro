@@ -1,0 +1,37 @@
+/* Depth: the app's light edges and soft shadows, in one place.
+
+   Three tiers, six tokens. Every shadow in the app's surfaces comes from one of these:
+   - Medium, things that float over the page: --d-float (toast, add chooser, menus, popovers).
+   - Subtle, things that sit on the page or are pressed: --d-card (cards, the week strip),
+     --d-control (grey buttons, chips, keys) and --d-action (white or accent buttons, the chosen
+     segment, the chosen day).
+   - Light, things inside a card: --d-sunk (fields and number boxes) and --d-edge (inner panels,
+     icon discs).
+   Charts, bars, tracks, list rows and dividers stay flat.
+
+   Tune a tier here and the whole app follows. To switch a tier off, set its token to
+   `0 0 #0000` (not `none`: some rules list a token after another shadow, and `none` can't be in a list).
+   The rules below are for the shared classes in main.css. Components use the tokens in their own
+   scoped styles; DESIGN.md says which tier a new control takes. */
+:root {
+  --d-edge: inset 0 1px 0 rgb(255 255 255 / .05);
+  --d-sunk: inset 0 1px 2px rgb(0 0 0 / .32);
+  --d-card: var(--d-edge), 0 1px 2px rgb(0 0 0 / .3), 0 8px 20px -12px rgb(0 0 0 / .6);
+  --d-control: inset 0 1px 0 rgb(255 255 255 / .07), 0 1px 2px rgb(0 0 0 / .35);
+  --d-action: inset 0 1px 0 rgb(255 255 255 / .45), inset 0 -1px 0 rgb(0 0 0 / .14), 0 2px 6px -2px rgb(0 0 0 / .6);
+  --d-float: inset 0 0 0 1px color-mix(in srgb, var(--text-primary) 14%, transparent), 0 14px 34px -6px rgb(0 0 0 / .75), 0 2px 8px rgb(0 0 0 / .45);
+  /* A floating surface one step lighter than anything under it, from each palette's own colours. */
+  --color-float: color-mix(in srgb, var(--color-surface-2), var(--text-primary) 9%);
+}
+
+.card { box-shadow: var(--d-card); }
+.card.outline { box-shadow: none; }
+.well, .alert, .disc { box-shadow: var(--d-edge); }
+.disc.filled { box-shadow: var(--d-action); }
+
+/* Buttons and chips draw their face on ::before, so the shadow goes there too. */
+.btn::before, .chip::before, .cbtn::before { box-shadow: var(--d-control); }
+.btn.primary::before, .chip.on::before, .cbtn.filled::before { box-shadow: var(--d-action); }
+
+/* Fields sink a little. Focus swaps it for the ring in main.css (that rule is more specific). */
+.field { box-shadow: var(--d-sunk); }

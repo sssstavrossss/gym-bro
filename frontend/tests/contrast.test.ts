@@ -66,6 +66,18 @@ describe("contrast tokens", () => {
     }
   });
 
+  // The toast's surface (depth.css) is each theme's raised grey with a little of its text colour mixed in.
+  const floatShare = Number(readFileSync(new URL("../src/styles/depth.css", import.meta.url), "utf8")
+    .match(/--color-float: color-mix\(in srgb, var\(--color-surface-2\), var\(--text-primary\) (\d+)%\)/)?.[1]) / 100;
+  it.each(Object.keys(themes))("%s keeps text at 4.5:1 on the floating surface", (name) => {
+    const theme = themes[name];
+    expect(floatShare).toBeGreaterThan(0);
+    const float = mix(theme["text-primary"], theme["color-surface-2"], floatShare);
+    for (const text of ["text-primary", "text-secondary"]) {
+      expect(ratio(theme[text], float), `${text} on color-float`).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
   it("finds every accent", () => {
     expect(Object.keys(accents)).toEqual(["lagoon", "sunset", "berry", "meadow", "glacier"]);
   });

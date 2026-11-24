@@ -112,6 +112,15 @@ test("back-to-back deletes become one toast, and its Undo brings both back", asy
   expect(toastBox.x).toBeGreaterThanOrEqual(0);
   expect(toastBox.x + toastBox.width).toBeLessThanOrEqual(390);
 
+  // It stands out from the cards behind it: a lighter surface of its own and a drop shadow.
+  const look = await front.evaluate((toast) => {
+    const card = document.querySelector(".card");
+    return { toast: getComputedStyle(toast).backgroundColor, card: card ? getComputedStyle(card).backgroundColor : "", shadow: getComputedStyle(toast).boxShadow };
+  });
+  expect(look.card).not.toBe("");
+  expect(look.toast).not.toBe(look.card);
+  expect(look.shadow).not.toBe("none");
+
   await front.getByRole("button", { name: "Undo" }).click();
   await expect(row(page, "Fictional oats")).toBeVisible();
   await expect(row(page, "Fictional broth")).toBeVisible();

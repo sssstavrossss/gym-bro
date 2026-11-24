@@ -354,11 +354,11 @@ function onTextCommit() {
 /* Set by hand: no preset is lit, so a quiet mark says why. */
 .xmark { padding: 0 var(--space-s); border-radius: 999px; box-shadow: inset 0 0 0 1px var(--color-border-strong, var(--color-border)); color: var(--text-secondary); line-height: 1.5; }
 /* Goal weight reads as a field: a tinted box with a pencil. It opens the keypad sheet. */
-.gfield { display: inline-flex; align-items: center; gap: var(--space-xs); flex: none; margin-left: auto; min-height: 36px; padding: 0 var(--space-m); border-radius: var(--radius-m); background: var(--color-surface-2); }
+.gfield { display: inline-flex; align-items: center; gap: var(--space-xs); flex: none; margin-left: auto; min-height: 36px; padding: 0 var(--space-m); border-radius: var(--radius-m); background: var(--color-surface-2); box-shadow: var(--d-sunk); }
 .gnum { color: var(--text-primary); font-variant-numeric: tabular-nums; }
 .gfield .c3 { align-self: center; margin-left: var(--space-2xs); }
 /* What is left, how long, and when, as three figures. 16px above and below inside the card. */
-.gstats { display: grid; grid-template-columns: repeat(3, auto); justify-content: space-between; gap: var(--space-m); margin: 0; padding: var(--space-m); border-radius: var(--radius-m); background: var(--color-surface-2); }
+.gstats { display: grid; grid-template-columns: repeat(3, auto); justify-content: space-between; gap: var(--space-m); margin: 0; padding: var(--space-m); border-radius: var(--radius-m); background: var(--color-surface-2); box-shadow: var(--d-edge); }
 .gstats > div { display: flex; flex-direction: column; gap: var(--space-2xs); min-width: 0; }
 .gstats dt, .gstats dd { margin: 0; }
 .gstats dd { color: var(--text-primary); font-weight: 600; overflow-wrap: anywhere; }

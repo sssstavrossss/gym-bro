@@ -57,17 +57,22 @@ test("calendar motion, home gap, compact profile controls, and a lean notificati
   const grab = page.getByRole("button", { name: "Show the last 4 weeks" });
   const stage = page.locator(".homeweek .stage");
   const closed = (await stage.boundingBox())!.height;
+  // The calendar opens with a height transition, not a jump. This listens for the transition itself
+  // rather than measuring heights a few frames in, since frame timing on a test machine without a GPU
+  // depends on how fast it paints, not on the app.
+  const opening = stage.evaluate((node) => new Promise<string>((done) => {
+    node.addEventListener("transitionrun", (event) => {
+      if (event.target === node && event.propertyName === "height") done(getComputedStyle(node).transitionDuration);
+    });
+  }));
   await grab.click();
-  await page.waitForTimeout(50);
-  const mid = (await stage.boundingBox())!.height;
-  expect(mid).toBeGreaterThan(closed + 16);
+  expect(await opening).toBe("0.34s");
   if (test.info().project.name === "chromium") {
+    await page.waitForTimeout(50);
     await page.screenshot({ path: "/opt/cursor/artifacts/iphone43-calendar-mid.png" });
   }
-  await page.waitForTimeout(80);
-  const growing = (await stage.boundingBox())!.height;
-  expect(growing).toBeGreaterThan(mid + 8);
   await expect.poll(async () => page.locator(".homeweek .stage").evaluate((node) => node.style.height)).toBe("auto");
+  expect((await stage.boundingBox())!.height).toBeGreaterThan(closed + 100);
   const calendar = page.getByRole("group", { name: "Last 4 weeks" });
   await expect(calendar).toBeVisible();
   const legend = calendar.locator(".legend");

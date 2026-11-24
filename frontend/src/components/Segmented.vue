@@ -40,6 +40,7 @@ async function onKey(event: KeyboardEvent, index: number) {
 .seg {
   display: flex; align-items: stretch; width: 100%; max-width: 100%; box-sizing: border-box;
   border-radius: var(--radius-m); background: var(--btn-bg, var(--color-surface-2));
+  box-shadow: var(--d-edge);
 }
 .seg-btn {
   position: relative; flex: 1 1 0; min-width: 44px; white-space: nowrap; min-height: var(--control-hit);
@@ -47,7 +48,7 @@ async function onKey(event: KeyboardEvent, index: number) {
 }
 .seg-btn.on {
   background: var(--color-action); color: var(--color-on-action);
-  box-shadow: inset 0 0 0 var(--space-2xs) var(--btn-bg, var(--color-surface-2));
+  box-shadow: inset 0 0 0 var(--space-2xs) var(--btn-bg, var(--color-surface-2)), var(--d-action);
 }
 .can-hover .seg-btn:not(.on):hover { color: var(--text-primary); }
 .compact { width: auto; flex: none; margin-left: auto; align-self: center; }

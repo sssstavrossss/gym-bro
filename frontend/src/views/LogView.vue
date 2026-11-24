@@ -129,13 +129,13 @@ async function onFasting(event: Event) {
 .nav { gap: var(--space-s); }
 .nav .cbtn:disabled { opacity: 1; color: var(--text-tertiary); }
 .navlbl { min-width: 108px; text-align: center; }
-.summary { padding: var(--space-m) var(--space-l); border-radius: var(--radius-l); background: var(--color-surface); min-width: 0; }
+.summary { padding: var(--space-m) var(--space-l); border-radius: var(--radius-l); background: var(--color-surface); min-width: 0; box-shadow: var(--d-card); }
 .is-tablet .summary { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-m) var(--space-l); }
 .overv { text-decoration: underline dashed var(--over-text); text-underline-offset: 4px; }
 .missing { margin: 0 0 var(--space-s); }
 .dayline { min-height: 44px; gap: 0; padding-top: var(--space-xs); }
-.done { gap: var(--space-m); padding: var(--space-m) var(--space-l); border-radius: var(--radius-l); background: var(--color-surface); cursor: pointer; align-items: flex-start; }
+.done { gap: var(--space-m); padding: var(--space-m) var(--space-l); border-radius: var(--radius-l); background: var(--color-surface); cursor: pointer; align-items: flex-start; box-shadow: var(--d-card); }
 .done input { width: 22px; height: 22px; margin: 1px 0 0; accent-color: var(--color-action); flex: none; }
-.ask { gap: var(--space-m); padding: var(--space-l); border-radius: var(--radius-l); border: 1px solid var(--color-border); background: var(--color-surface); }
+.ask { gap: var(--space-m); padding: var(--space-l); border-radius: var(--radius-l); border: 1px solid var(--color-border); background: var(--color-surface); box-shadow: var(--d-card); }
 .askb { gap: var(--space-s); }
 </style>

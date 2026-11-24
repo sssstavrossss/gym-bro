@@ -34,6 +34,7 @@ defineProps<{
 .apill button::before {
   content: ""; position: absolute; inset: var(--inset) 0; z-index: -1;
   background: var(--color-action);
+  box-shadow: var(--d-action);
 }
 .apill button:first-child::before { border-radius: var(--radius-pill) 0 0 var(--radius-pill); }
 .apill button:last-child::before { border-radius: 0 var(--radius-pill) var(--radius-pill) 0; }

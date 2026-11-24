@@ -44,8 +44,8 @@ function addFood() {
 .chooser-root { position: absolute; inset: 0; z-index: 25; background: rgba(0,0,0,.6); display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: var(--space-xl); padding: 0 var(--space-l) calc(var(--tabbar-h) + var(--space-l)); }
 .is-tablet .chooser-root { justify-content: center; padding: var(--space-xl) var(--space-l); }
 .is-tablet .chooser { width: min(520px, 100%); }
-.chooser { width: 100%; max-width: 520px; display: flex; gap: var(--space-m); padding: var(--space-m); border-radius: var(--radius-xl); background: var(--color-surface); }
-.tile { flex: 1 1 0; min-width: 0; min-height: 128px; border-radius: var(--radius-l); padding: var(--space-l); background: var(--color-surface-2); display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-xs); text-align: left; }
+.chooser { width: 100%; max-width: 520px; display: flex; gap: var(--space-m); padding: var(--space-m); border-radius: var(--radius-xl); background: var(--color-surface); box-shadow: var(--d-float); }
+.tile { flex: 1 1 0; min-width: 0; min-height: 128px; border-radius: var(--radius-l); padding: var(--space-l); background: var(--color-surface-2); display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-xs); text-align: left; box-shadow: var(--d-control); }
 .tile:active { background: var(--color-hover); }
 .close {
   position: relative; width: var(--control-hit); height: var(--control-hit); border-radius: 50%;

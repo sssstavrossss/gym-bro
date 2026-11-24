@@ -1466,7 +1466,7 @@ async function deleteEdited() {
 .scanb { color: var(--text-primary); }
 .clr { width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center; flex: none; }
 .qgrid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-s); flex: none; min-width: 0; }
-.qf { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-2xs); padding: var(--space-m) var(--space-l); min-height: 72px; border-radius: var(--radius-m); background: var(--color-surface-2); text-align: left; min-width: 0; }
+.qf { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-2xs); padding: var(--space-m) var(--space-l); min-height: 72px; border-radius: var(--radius-m); background: var(--color-surface-2); text-align: left; min-width: 0; box-shadow: var(--d-sunk); }
 .qf.on, .qf:focus-within { box-shadow: inset 0 0 0 1.5px var(--color-action); }
 .qinput { width: 8ch; min-width: 0; max-width: 100%; background: transparent; border: 0; outline: 0; padding: 0; }
 .qinput::placeholder { color: var(--text-tertiary); }

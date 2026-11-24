@@ -30,8 +30,8 @@ const emit = defineEmits<{ toggle: [] }>();
 .srow + .srow { border-top: 1px solid var(--color-border); }
 .srow:disabled { opacity: 1; cursor: default; }
 .srow .grow { min-width: 0; }
-.switch { position: relative; width: 46px; height: 28px; border-radius: var(--radius-l); background: var(--color-track); flex: none; transition: background .15s; }
-.switch i { position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: var(--radius-m); background: var(--text-tertiary); transition: transform .15s, background .15s; }
+.switch { position: relative; width: 46px; height: 28px; border-radius: var(--radius-l); background: var(--color-track); flex: none; transition: background .15s; box-shadow: var(--d-sunk); }
+.switch i { position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: var(--radius-m); background: var(--text-tertiary); transition: transform .15s, background .15s; box-shadow: var(--d-control); }
 .switch.on { background: var(--color-action); }
 .switch.on i { transform: translateX(18px); background: var(--color-on-action); }
 .switch.lock { opacity: .45; }
