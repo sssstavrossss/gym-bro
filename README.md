@@ -59,7 +59,7 @@ Sign-in settings are not baked into the JavaScript bundle. The API reads them fr
 | `backend/GymBro.Api/Nutrition` | Mifflin-St Jeor, macro balance, the calorie floor, trend weight, the adaptive recalculate review, and local dates. |
 | `backend/GymBro.Api/Profiles` | Profile validation, the `target_history` upsert (`TargetBook`), and the weight snapshot used by targets. |
 | `backend/GymBro.Api/Logging` | Log entry, saved group and recipe rules: units, nutrient snapshots, scaling, and the setup-through-today date window. |
-| `backend/GymBro.Api/Foods` | Search, aliases, the food-table importer (`FoodTable.cs`) with the Matvaretabellen, Livsmedelsverket and Fineli tables and their countries (`FoodSources.cs`), the Kassalapp import, the Open Food Facts client and throttle, and the nutrient panel. |
+| `backend/GymBro.Api/Foods` | Search, aliases, the food-table importer (`FoodTable.cs`) with the Matvaretabellen, Livsmedelsverket, Fineli and USDA tables and their countries (`FoodSources.cs`), the Kassalapp import, the Open Food Facts client and throttle, and the nutrient panel. |
 | `backend/GymBro.Api/Progress` | Range and average maths for `GET /api/progress`. |
 | `backend/GymBro.Api/Hosting` | Startup migrations, security headers, and the Monday push reminder. |
 | `backend/GymBro.Api/Notifications` | The weekly in-app recalculate notification. |
@@ -322,7 +322,7 @@ With the Compose app image, against the Compose database:
 docker compose run --rm app --import-matvaretabellen
 ```
 
-That one-off container applies migrations, imports, prints the citation, and exits. Run it again for the yearly refresh. The command prints `Matvaretabellen 2026. Mattilsynet. www.matvaretabellen.no`, and the app shows the same line from `/api/about` and the profile payload. Label kilocalories are stored as published. USDA is not used.
+That one-off container applies migrations, imports, prints the citation, and exits. Run it again for the yearly refresh. The command prints `Matvaretabellen 2026. Mattilsynet. www.matvaretabellen.no`, and the app shows the same line from `/api/about` and the profile payload. Label kilocalories are stored as published. USDA's SR Legacy is the United States' table, used after the home table and its neighbours (see *Other countries' food tables*).
 
 The same import fills saturated fat (`Mettet`), total sugars (`Mono+Di`, not added sugar), fibre (`Fiber`), and salt (`NaCl`) on each Matvaretabellen food. A published 0 stays 0. A missing constituent stays null. Sodium is not converted into salt. Running it again updates those columns in place and does not rewrite `log_entries`, recipes, or saved groups. It prints a coverage line, for example `Matvaretabellen: 2118 foods, saturated fat 99.0% (2097), ...`. On a Mac, from the repo, with the API's database environment:
 
@@ -384,7 +384,7 @@ Run it again and it prints the phrases as already present. It does not rewrite n
 
 ### Other countries' food tables
 
-Each national table is a source with a country (`Foods/FoodSources.cs`): Matvaretabellen (`mvt`, Norway), Kassalapp (`kassalapp`, Norway), Livsmedelsverket (`slv`, Sweden), and Fineli (`fineli`, Finland). One importer stores any of them (`Foods/FoodTable.cs`): it upserts by source id, retires rows the table no longer has, replaces the table's keywords, and writes the citation, import time, and food count to `food_source_credits`. Each table's own code only reads its format.
+Each national table is a source with a country (`Foods/FoodSources.cs`): Matvaretabellen (`mvt`, Norway), Kassalapp (`kassalapp`, Norway), Livsmedelsverket (`slv`, Sweden), Fineli (`fineli`, Finland), and USDA FoodData Central's SR Legacy (`usda`, United States). One importer stores any of them (`Foods/FoodTable.cs`): it upserts by source id, retires rows the table no longer has, replaces the table's keywords, and writes the citation, import time, and food count to `food_source_credits`. Each table's own code only reads its format.
 
 Home is the person's **food country** (see *Food country* below). Search keeps its match bands (exact or phrase, start of a name, whole words, a last word that is only begun, base forms) and, inside each band, lists the home table first, then a Nordic neighbour's (Sweden, Finland, Denmark, Iceland), then any other country's. Own foods and Open Food Facts products always count as home; Kassalapp is Norway's, like Matvaretabellen. The list still stops at 25, so `chicken` shows only Norwegian rows while Matvaretabellen has 25 of them, and a Swedish dish that Matvaretabellen does not have (`kåldolmar`, `Janssons frestelse`) is found. Describe a meal offers another country's foods only for a search the home table has nothing for: given both, the model chose `Hallon` for `bringebær` and a Swedish granola over the Norwegian one, so `kåldolmar` and `semla` come from Livsmedelsverket while `granola` stays Norwegian. The prompts are written for Matvaretabellen and say Norwegian first; for any other food country the note carries one line saying which language to search first (Swedish for Sweden, Finnish for Finland, English elsewhere), in the split and in the pick's retry searches (`MealNote.HomeHint`), so the prompts themselves stay the same for everyone.
 
@@ -407,6 +407,50 @@ docker compose run --rm -v "$PWD/Fineli_Rel20__74_ravintotekij__.zip:/import/fin
 ```
 
 It prints the counts, a coverage line, and `Fineli. Finnish food composition database. Release 20. Finnish Institute for Health and Welfare (THL). CC BY 4.0. www.fineli.fi`. The package is semicolon-separated Latin-1 with decimal commas, and an empty value is unknown. It lists 4,238 foods; 4,232 have values and are stored, with every panel figure on 96–100% of them except added sugar, which Fineli does not publish. Names come in capitals and are stored in sentence case (`Karjalanpiirakka, riisipiirakka, moilas`), so brands lose their capitals. Energy is published in kJ only and stored as kJ / 4.184 kcal; carbohydrate is available carbohydrate `CHOAVL` (without fibre, as the other tables count it), fibre `FIBC`, salt `NACL` from mg, mono fat `FAMCIS`, omega-3 and omega-6 `FAPUN3` / `FAPUN6`, trans fat `FATRN`, copper `CU`, starch `STARCH`, B6 `VITPYRID`, and EPA + DHA from `F20D5N3` + `F22D6N3` in mg. Vitamin A is rebuilt as retinol equivalents (`RETOL` + `CARTB` / 6), the unit Matvaretabellen uses, because Fineli's `VITA` is retinol activity equivalents; other provitamin carotenoids are left out, which reads slightly low for some vegetables. Fineli's measures become the food's serving (medium portion, `PORTM`, "portion") and piece (`KPL_M`, "piece"), and the rest become household measures for Describe a meal: small and large portion, small and large piece, the maker's piece, decilitre, tablespoon, teaspoon. Retire `fineli` rows to take it out of search.
+
+USDA FoodData Central's SR Legacy (U.S. Department of Agriculture, CC0) is read from its JSON package. Download `https://fdc.nal.usda.gov/fdc-datasets/FoodData_Central_sr_legacy_food_json_2018-04.zip` (13 MB, sha256 `0fe8ae486a2c8eb42cb96413f058deb51863a46c8fb8eeb4b1fb45006dd338ef`) and pass it with `--file`:
+
+```bash
+dotnet run --project backend/GymBro.Api -- --import-usda --file FoodData_Central_sr_legacy_food_json_2018-04.zip
+docker compose run --rm -v "$PWD/FoodData_Central_sr_legacy_food_json_2018-04.zip:/import/usda.zip:ro" app --import-usda --file /import/usda.zip
+```
+
+It prints the counts, a coverage line, and `U.S. Department of Agriculture, Agricultural Research Service. FoodData Central: SR Legacy, April 2018. CC0 1.0. fdc.nal.usda.gov`. SR Legacy is the last release of the old Standard Reference and is no longer updated. It is still the broad one: the Foundation Foods package (October 2026) has 424 foods, and only 95 of them publish energy in kcal. Branded Foods are products, which Open Food Facts already covers. The package lists 7,793 foods. The 345 baby foods are skipped, and 7,448 are stored. Saturated fat is on 96% of them, sugars on 77%, fibre on 93%, salt on 99%, vitamin A on 67%, omega-3 on 72%, trans fat on 56% and starch on 15%. Iodine is on none.
+
+Names are stored as published, in English and in USDA's order, group first (`Fish, salmon, Atlantic, farmed, raw`). Values map by nutrient id:
+
+- energy in kcal (1008), protein and fat;
+- carbohydrate by difference less fibre (1005 − 1079), so it counts the way the other tables do;
+- total sugars (2000) and saturated fat;
+- salt as sodium × 2.5.
+
+Some values are rebuilt from parts:
+
+- Vitamin A is retinol equivalents: retinol + β-carotene / 6 + (α-carotene + β-cryptoxanthin) / 12. It is empty when both retinol and β-carotene are missing.
+- Omega-3 is 18:3 n-3 (or all 18:3 when it isn't split), EPA, DPA and DHA.
+- Omega-6 is 18:2 n-6 and 20:4 n-6, or their unsplit totals.
+
+Both omegas are set only when every part is published. Folate is total folate.
+
+USDA's household measures become three things:
+
+- The food's serving is the NLEA serving, or a measure that starts with "serving".
+- Its piece is the medium size. Without one, it is the first measure that is one whole thing (large, each, patty, link and the like).
+- Up to eight household measures for Describe a meal (cup, tablespoon, slice and the rest).
+
+A measure for several is stored per one: `0.5 cup, mashed` of 112.5 g becomes a cup of 225 g. Weights (oz, lb) are left out. 1,769 foods get a piece, 636 a serving and 4,670 measures. The table has no keywords, and the lexicon does not cover it. Retire `usda` rows to take it out of search.
+
+In Norway, Sweden and Finland, USDA rows come after the home table and its neighbours. Describe a meal offers them only when nothing nearer is found. A search of 128 everyday words with Norway as home changed the first hit for 11 of them:
+
+- Nine found nothing before: `english muffin`, `grits`, `maple syrup`, `greek yogurt`, `jerky`, `bison`, `kimchi`, `sriracha`, `cola`.
+- One new hit is wrong: `coca cola` opens with a Powerade.
+
+With the United States as home, search is weaker than in the Nordic tables, for two reasons:
+
+- USDA names lead with the group, so a longer word that starts with the query comes first. `salmon` opens with Salmonberries before `Fish, salmon, …`, `crab` with Crabapples, `beer` with Beerwurst, and `apple` with Applebee's restaurant dishes.
+- The list is alphabetical inside a band, so the plain food often comes after its canned and frozen forms.
+
+The fix is tracked in #112.
 
 #### Measures for Swedish foods
 
@@ -515,6 +559,26 @@ Add food has a Describe tab between Search and Quick Add: write what you ate the
   Seven Finnish cases test Fineli (karjalanpiirakka, mämmi, kalakukko, makaronilaatikko, lanttulaatikko, poronkäristys, ruisleipä). Over 3 runs, foods found in them went from 15 of 30 (50%) without Fineli to 28 of 30 (93%) with it, extra rows from 8 to 5, and rows with no match from 10 to 0. The other 56 cases found 95% (97% in the run before Fineli), amounts within range 92%, and the kcal error a median of 1% (mean 13%). The new misses are the gap the home-only rule leaves: when every search for a food finds only another country's row, that row is used, so "oil for frying" in three photo runs became a Finnish frying oil because the model searched `frying oil`, not `rapsolje`. Applying the rule across all of a food's searches instead was tried and dropped: foods found fell to 91%, because a dish lost its exact foreign row to a rough home one (semla became a plain bun, kladdkaka a chocolate cake, Janssons frestelse a potato gratin, in every run).
 
   Twelve cases set a `home` other than Norway (`"home": "SE"` or `"FI"` in `cases.json`, or `--home XX` for every case): six everyday English notes with Sweden as home and six with Finland (boiled eggs, coffee with milk, porridge, chicken and rice, meatballs and mash, banana, rye bread and butter), each expecting the home table's row. Over 3 runs, foods found went from 17 of 57 (30%) without the language hint to 55 of 57 (96%) with it, and extra rows from 40 to 1. Without the hint the model searched in Norwegian and took Matvaretabellen's rows (Kjøttboller, Rugbrød, Smør). The two misses are one run where `rice` found nothing, and one where the Norwegian egg was kept. Two runs logged two Swedish eggs as 200 g, because Livsmedelsverket has no piece weights.
+
+  Thirteen cases test USDA's table:
+
+  - Nine are foods none of the Nordic tables have, with Norway as home: english muffin with peanut butter, grits, maple syrup on pancakes, beef jerky, mac and cheese, kimchi, ground bison, almond butter, and fried rice with sriracha.
+  - Four set the United States as home: boiled eggs, chicken and rice, a bagel with cream cheese, and banana and apple. Each accepts USDA's row or the Nordic one.
+
+  Over 3 runs, in the nine cases:
+
+  - Foods found went from 12 of 36 (33%) without USDA to 34 of 36 (94%) with it.
+  - Extra rows went from 27 to 2, and rows with no match from 3 to 1.
+  - Without USDA, the model logged muffins, polenta, syrup, dried reindeer meat, pasta with cheese sauce, sauerkraut, beef mince and plain rice.
+
+  Three of the nine were widened after the run and run again: bison accepts USDA's `Game meat, bison` rows, almond butter accepts Matvaretabellen's almond spread, and mac and cheese expects 170 g, since USDA's own cups run 137 to 198 g.
+
+  The other 75 cases found 96% (94% before). Extra rows were 18 (17 before), rows with no match 3 (6), and the kcal error a median of 1% (mean 10%, 9% before). No USDA row was picked in any of them.
+
+  With the United States as home, 18 of 21 foods were found, against 20 of 21 with only the Nordic tables:
+
+  - Two runs took a Finnish chicken fillet, because `chicken fillet` finds no USDA row.
+  - One run took a wheat bagel from the alphabetical list.
 
 ## Custom foods and log references
 
@@ -691,7 +755,7 @@ The **bell** has a dot for unread notifications that aren't already on Home (the
 
 The **cog** opens Settings, one card per group, each with an icon and a title: Appearance (see Themes and accents below), Home (Home sections, see above), Units (Weight kg/lb, Height cm/ft·in, Food g/oz; see Units above), Region (Time zone, Food country), Your data (Export), and Account (the name, "Signed in", and Sign out on the same row). Rows in a card are split by a line. Saturated fat lives on the Macros card, not here. The build is at the bottom ("Build 421f4f3 · 16 Nov 2026", from `GIT_SHA` at build time; "Build dev" on a local dev server). The time zone follows the device by default: when the app starts somewhere else, it saves the new zone (`PUT /api/profile/settings`). Picking a zone by hand stops that until "Use this device" is picked again. The picker opens on the current zone's region and searches by city, with the UTC offset on each row. Changing the zone never writes a target row.
 
-**Food country.** Region → Food country picks the country whose foods come first in search and Describe, and keep their own names (see *Other countries' food tables*). It follows the time zone by default, so it reads "Follows the time zone" and the country, and the picker's first row is "Use the time zone" (with "Norway · from Europe/Oslo"). The list is every country the time zone database has, by English name, with what its foods come from on the right: Norway "Matvaretabellen · Kassalapp", Sweden "Livsmedelsverket", Finland "Fineli", anywhere else "Global foods" (your own foods and Open Food Facts products first, every table named in English). Picking a country by hand stops it following until "Use the time zone" is picked again. When the app starts in a new zone and that moves the country, a toast says so ("In Sweden: Swedish foods first", or "In France: foods by their English names") with **Change**, which opens the picker. The server works the country out (`Profiles/FoodCountries.cs`): a zone's country comes from the tz database's `zone.tab` (`Profiles/zone-countries.tsv`, with a few older names browsers still send, such as `Europe/Kiev`); a zone with no country (`UTC`) and a person with no profile yet get Norway (`FoodSources.DefaultHome`). The app shows it from the profile (`foodCountry()` in `state/profile.ts`, the list in `src/lib/foodCountries.ts`). Changing it never writes a target row, and entries already logged keep the name they were logged with.
+**Food country.** Region → Food country picks the country whose foods come first in search and Describe, and keep their own names (see *Other countries' food tables*). It follows the time zone by default, so it reads "Follows the time zone" and the country, and the picker's first row is "Use the time zone" (with "Norway · from Europe/Oslo"). The list is every country the time zone database has, by English name, with what its foods come from on the right: Norway "Matvaretabellen · Kassalapp", Sweden "Livsmedelsverket", Finland "Fineli", the United States "USDA FoodData Central", anywhere else "Global foods" (your own foods and Open Food Facts products first, every table named in English). Picking a country by hand stops it following until "Use the time zone" is picked again. When the app starts in a new zone and that moves the country, a toast says so ("In Sweden: Swedish foods first", "In United States: American foods first", or "In France: foods by their English names") with **Change**, which opens the picker. The server works the country out (`Profiles/FoodCountries.cs`): a zone's country comes from the tz database's `zone.tab` (`Profiles/zone-countries.tsv`, with a few older names browsers still send, such as `Europe/Kiev`); a zone with no country (`UTC`) and a person with no profile yet get Norway (`FoodSources.DefaultHome`). The app shows it from the profile (`foodCountry()` in `state/profile.ts`, the list in `src/lib/foodCountries.ts`). Changing it never writes a target row, and entries already logged keep the name they were logged with.
 
 **Export.** Settings → Your data → Export downloads `gym-bro-export-<today>.zip` (`GET /api/export`), named with today in your time zone. Safari on iPhone asks where to keep it. It holds one CSV per table and `gym-bro.json` with the same tables: `profile`, `weigh-ins`, `targets` (each target row, with its burn and reasons), `log` (every entry that isn't deleted, in date and time order, with the full nutrient snapshot), `fasting-days`, `foods` (your own foods, retired ones marked, values per 100 g or ml, or per serving when `nutrient_basis` is `per_serving`), `servings` (your own named servings, on any food), `recipes` (one row per ingredient), `groups` (one row per item) and `descriptions` (every Describe a meal attempt: the words, whether a photo was sent, outcome, foods, kcal, when it was logged, model and tokens). Column names carry the unit (`protein_g`, `sodium_mg`, `vitamin_d_ug`). The CSVs are UTF-8 with a byte order mark so a spreadsheet reads æ, ø and å, numbers use a point, and an empty cell is an unknown value. A name that starts like a formula (`=`, `+`, `-`, `@`) gets a leading apostrophe in the CSV so a spreadsheet keeps it as text; the JSON keeps names as they are. Only your own rows are read: catalogue foods, notifications and push subscriptions are left out. The tables are built in `backend/GymBro.Api/Export/` (`ExportTables` reads, `ExportFiles` writes).
 

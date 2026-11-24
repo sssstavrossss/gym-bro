@@ -30,9 +30,10 @@ const TABLES: Record<string, string> = {
   NO: "Matvaretabellen · Kassalapp",
   SE: "Livsmedelsverket",
   FI: "Fineli",
+  US: "USDA FoodData Central",
 };
 
-const ADJECTIVES: Record<string, string> = { NO: "Norwegian", SE: "Swedish", FI: "Finnish" };
+const ADJECTIVES: Record<string, string> = { NO: "Norwegian", SE: "Swedish", FI: "Finnish", US: "American" };
 
 let names: Intl.DisplayNames | null | undefined;
 
