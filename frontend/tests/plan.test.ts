@@ -1,16 +1,19 @@
 import { describe, expect, it } from "vitest";
 import {
   answersOf,
+  dayLabel,
   defaultAnswers,
   easeInFor,
   nextLine,
   targetLine,
   targetOf,
   upNext,
+  weekdayOf,
   weekLine,
   weekRir,
   weekSets,
   planLine,
+  projectDays,
   prescription,
   previewSummary,
   splitFor,
@@ -159,5 +162,39 @@ describe("up next", () => {
     expect(target).toEqual({ repMin: 6, repMax: 10, seconds: null, rir: 2, restSeconds: 120 });
     expect(targetLine(target)).toBe("6–10 reps · 2 in reserve");
     expect(targetLine({ ...target, repMin: null, repMax: null, seconds: 45 })).toBe("45 s hold");
+  });
+});
+
+describe("the plan's calendar", () => {
+  const workouts = ["Upper A", "Lower A", "Upper B", "Lower B"].map((name) => workout(name, [3]));
+  // Monday, Tuesday, Thursday, Friday. 25 Nov 2026 is a Wednesday.
+  const plan = { workouts, weekdays: [0, 1, 3, 4] };
+
+  it("reads a date's weekday from Monday", () => {
+    expect(weekdayOf("2026-11-23")).toBe(0);
+    expect(weekdayOf("2026-11-25")).toBe(2);
+    expect(weekdayOf("2026-11-29")).toBe(6);
+  });
+
+  it("puts Up next on the first training day from today, and the rest on the days after", () => {
+    const days = projectDays(plan, { position: 5 }, "2026-11-25", false, 4);
+    expect(days.map((day) => [day.date, day.workout.name, day.position])).toEqual([
+      ["2026-11-26", "Lower A", 5],
+      ["2026-11-27", "Upper B", 6],
+      ["2026-11-30", "Lower B", 7],
+      ["2026-12-01", "Upper A", 8],
+    ]);
+  });
+
+  it("starts today on a training day, and tomorrow once a plan workout is done today", () => {
+    expect(projectDays(plan, { position: 0 }, "2026-11-26", false, 1)[0].date).toBe("2026-11-26");
+    expect(projectDays(plan, { position: 1 }, "2026-11-26", true, 1)[0].date).toBe("2026-11-27");
+    expect(projectDays({ ...plan, weekdays: [] }, { position: 0 }, "2026-11-26", false, 3)).toEqual([]);
+  });
+
+  it("names the day", () => {
+    expect(dayLabel("2026-11-25", "2026-11-25")).toBe("Today");
+    expect(dayLabel("2026-11-26", "2026-11-25")).toBe("Tomorrow");
+    expect(dayLabel("2026-11-30", "2026-11-25")).toBe("Mon 30 Nov");
   });
 });

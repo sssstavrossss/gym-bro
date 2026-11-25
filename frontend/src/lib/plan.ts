@@ -1,5 +1,6 @@
 // Training plans (docs/training.md, phase 3; README → Training plans). The server makes the workouts;
 // this file holds the setup's choices, their labels and the lines the app shows.
+import { addDays, parse } from "./dates";
 
 export type PlanGoal = "muscle" | "strength" | "fitness";
 export type Experience = "new" | "some" | "experienced";
@@ -282,4 +283,49 @@ export function targetLine(target: PlanTarget): string {
   if (target.seconds != null) return `${target.seconds} s hold`;
   const reps = target.repMin != null && target.repMax != null ? `${target.repMin}–${target.repMax} reps` : "";
   return [reps, `${target.rir} in reserve`].filter(Boolean).join(" · ");
+}
+
+/** A coming plan workout on a projected day. */
+export interface PlannedDay {
+  date: string;
+  workout: PlanWorkout;
+  position: number;
+}
+
+/** 0 = Monday, as the plan's weekdays. */
+export function weekdayOf(date: string): number {
+  return (parse(date).getDay() + 6) % 7;
+}
+
+/**
+ * The coming plan workouts on your training days (docs/training.md, decision 2). The days only project
+ * dates: Up next goes on the first training day from today, or from tomorrow once a plan workout is done
+ * or skipped today, and the ones after it on the training days that follow. Training off-pattern moves
+ * the projection, never the sequence.
+ */
+export function projectDays(
+  plan: Pick<Plan, "workouts" | "weekdays">,
+  next: Pick<UpNext, "position">,
+  today: string,
+  doneToday: boolean,
+  count: number,
+): PlannedDay[] {
+  if (!plan.workouts.length || !plan.weekdays.length) return [];
+  const days: PlannedDay[] = [];
+  let date = doneToday ? addDays(today, 1) : today;
+  for (let guard = 0; days.length < count && guard < 7 * (count + 1); guard++, date = addDays(date, 1)) {
+    if (!plan.weekdays.includes(weekdayOf(date))) continue;
+    const position = next.position + days.length;
+    days.push({ date, workout: plan.workouts[position % plan.workouts.length], position });
+  }
+  return days;
+}
+
+const DAY_FORMAT = new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short" });
+
+/** "Today", "Tomorrow", "Mon 30 Nov". */
+export function dayLabel(date: string, today: string): string {
+  if (date === today) return "Today";
+  if (date === addDays(today, 1)) return "Tomorrow";
+  return DAY_FORMAT.format(parse(date));
 }

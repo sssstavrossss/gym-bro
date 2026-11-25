@@ -827,6 +827,9 @@ The service worker keeps each photo once it has been shown (`gymbro-exercise-pho
   - **Skip** saves the workout as skipped today (no sets), with the toast "Skipped Upper A" and **Undo**. It needs a connection. A skipped workout shows in History as "Skipped". Opening it and ticking off sets saves it as done.
   - While the plan workout runs, Up next says "In progress". While a free workout runs, it says "Finish the workout in progress to start this one.", and only Skip is offered.
   - Editing a past plan workout keeps its plan workout and place.
+- **The calendar.** Up next's heading carries its day: "Up next · Today", "· Tomorrow" or "· Thu 26 Nov". Under it, the rest of a week's plan workouts are listed with their days ("Lower A · Fri 27 Nov"), as many as days a week.
+  - The days only project dates (`lib/plan.ts` `projectDays`). Up next goes on the first training day from today, or from tomorrow once a plan workout is done or skipped today (or is waiting to send). The ones after it go on the training days that follow.
+  - A missed day just moves the projection on, and training on another day takes Up next. Nothing is locked to a day.
 - **New plan / Edit plan** is a sheet with the questions in order:
   - **Goal:** Muscle, Strength or Fitness.
   - **Days a week:** seven day chips; the days only date your workouts, and their count picks the split.
