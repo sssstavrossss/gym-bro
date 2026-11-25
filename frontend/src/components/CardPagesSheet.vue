@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
+import { computed, nextTick, ref, watch } from "vue";
 import BottomSheet from "./BottomSheet.vue";
 import Icon from "./Icon.vue";
 import SwitchRow from "./SwitchRow.vue";
 import { isDefaultOrder, orderPages, pageIds, pageRows } from "../lib/cardPages";
-import { dropIndex, rowShift, stepIndex, type RowBox } from "../lib/reorder";
+import { stepIndex } from "../lib/reorder";
+import { useRowDrag } from "../lib/rowDrag";
 import { cardPages, pageOrder, resetPageOrder, setPagePlace, setPageShown } from "../state/cardPages";
 import { closeCardPages, ui } from "../ui";
 
@@ -35,103 +36,19 @@ function shown(id: string) {
 }
 function flip(id: string) {
   // The press that picked a row up isn't a tap on its switch.
-  if (held) return;
+  if (wasHeld()) return;
   setPageShown(card.value, ids.value, id, !shown(id));
 }
 
-// Dragging
+// Dragging, by the handle or by holding the row.
 const list = ref<HTMLElement | null>(null);
-const drag = ref<{ from: number; to: number; dy: number; height: number } | null>(null);
-/** Just dropped: the rows take their new places without sliding back first. */
-const settling = ref(false);
-let boxes: RowBox[] = [];
-let startY = 0;
-let pointerId = -1;
-let held = false;
-let pressTimer = 0;
-let press: { x: number; y: number; index: number; id: number } | null = null;
-
-function measure() {
-  boxes = [...(list.value?.querySelectorAll<HTMLElement>("[data-page-row]") ?? [])].map((row) => ({ top: row.offsetTop, height: row.offsetHeight }));
-}
-function begin(index: number, y: number, id: number) {
-  measure();
-  startY = y;
-  pointerId = id;
-  drag.value = { from: index, to: index, dy: 0, height: boxes[index]?.height ?? 0 };
-  list.value?.setPointerCapture?.(id);
-}
-function onGrip(event: PointerEvent, index: number) {
-  if (event.button !== 0 || drag.value) return;
-  event.preventDefault();
-  begin(index, event.clientY, event.pointerId);
-}
-/** Press and hold a row to pick it up; moving first is a scroll, so it lets go. */
-function onRowDown(event: PointerEvent, index: number) {
-  if (event.button !== 0 || drag.value || (event.target as HTMLElement).closest("[data-page-grip]")) return;
-  press = { x: event.clientX, y: event.clientY, index, id: event.pointerId };
-  window.clearTimeout(pressTimer);
-  pressTimer = window.setTimeout(() => {
-    if (!press) return;
-    held = true;
-    begin(press.index, press.y, press.id);
-    navigator.vibrate?.(10);
-  }, 400);
-}
-function onMove(event: PointerEvent) {
-  if (press && !drag.value && Math.hypot(event.clientX - press.x, event.clientY - press.y) > 8) {
-    window.clearTimeout(pressTimer);
-    press = null;
-  }
-  const current = drag.value;
-  if (!current || event.pointerId !== pointerId) return;
-  const first = boxes[0];
-  const last = boxes[boxes.length - 1];
-  const own = boxes[current.from];
-  if (!first || !last || !own) return;
-  // Kept within the list, so the row can't be dragged off the sheet.
-  const dy = Math.max(first.top - own.top, Math.min(last.top + last.height - own.top - own.height, event.clientY - startY));
-  drag.value = { ...current, dy, to: dropIndex(boxes, current.from, dy) };
-}
-async function onUp(event: PointerEvent) {
-  window.clearTimeout(pressTimer);
-  press = null;
-  const current = drag.value;
-  if (!current || event.pointerId !== pointerId) return;
-  drag.value = null;
-  pointerId = -1;
-  // The click that ends a held press lands on the switch: skip it, then allow taps again.
-  window.setTimeout(() => { held = false; }, 0);
-  if (current.to === current.from) return;
-  settling.value = true;
-  setPagePlace(card.value, ids.value, rows.value[current.from].id, current.to);
-  announce(rows.value[current.to]?.title ?? "", current.to);
-  await nextTick();
-  requestAnimationFrame(() => { settling.value = false; });
-}
-function onCancel() {
-  window.clearTimeout(pressTimer);
-  press = null;
-  drag.value = null;
-  pointerId = -1;
-  held = false;
-}
-function offset(index: number) {
-  const current = drag.value;
-  if (!current) return 0;
-  return index === current.from ? current.dy : rowShift(index, current.from, current.to, current.height);
-}
-/** Stops the sheet scrolling while a held row is dragged on a touch screen. */
-function blockScroll(event: TouchEvent) {
-  if (drag.value) event.preventDefault();
-}
-watch(list, (el, old) => {
-  old?.removeEventListener("touchmove", blockScroll);
-  el?.addEventListener("touchmove", blockScroll, { passive: false });
-});
-onBeforeUnmount(() => {
-  list.value?.removeEventListener("touchmove", blockScroll);
-  window.clearTimeout(pressTimer);
+const { drag, settling, onGrip, onRowDown, onMove, onUp, onCancel, offset, wasHeld } = useRowDrag({
+  list,
+  selector: "[data-page-row]",
+  drop(from, to) {
+    setPagePlace(card.value, ids.value, rows.value[from].id, to);
+    announce(rows.value[to]?.title ?? "", to);
+  },
 });
 
 // Keyboard: ↑ and ↓ on a handle move its page one place.
@@ -169,7 +86,7 @@ function reset() {
       <p class="t-capn c2 m0">{{ hint }}</p>
       <div
         ref="list"
-        class="col list"
+        class="col drag-list"
         :class="{ dragging: drag, settling }"
         @pointermove="onMove"
         @pointerup="onUp"
@@ -178,7 +95,7 @@ function reset() {
         <div
           v-for="(row, index) in rows"
           :key="row.id"
-          class="prow"
+          class="drag-line drag-row"
           :class="{ off: !shown(row.id) && row.id !== ids[0], lifted: drag?.from === index }"
           :style="{ transform: offset(index) ? `translateY(${offset(index)}px)` : undefined }"
           :data-page-row="row.id"
@@ -190,6 +107,7 @@ function reset() {
             class="grip"
             :aria-label="`Move ${row.title}, ${index + 1} of ${rows.length}`"
             aria-keyshortcuts="ArrowUp ArrowDown"
+            data-grip
             data-page-grip
             @pointerdown="onGrip($event, index)"
             @keydown="onGripKey($event, index)"
@@ -219,20 +137,6 @@ function reset() {
 .hdr { gap: var(--space-s); align-items: center; }
 .m0 { margin: 0; }
 .body { gap: var(--space-s); }
-.list { position: relative; }
-.prow { position: relative; display: flex; align-items: center; background: var(--color-surface); transition: transform .18s cubic-bezier(.2, .8, .2, 1); -webkit-touch-callout: none; user-select: none; }
-.prow + .prow { border-top: 1px solid var(--color-border); }
-.prow .grow { flex: 1 1 auto; min-width: 0; }
-/* A 44px handle whose dots line up with the sheet's text edge. */
-.grip { display: inline-grid; place-items: center; width: var(--control-hit); height: var(--control-hit); margin-left: calc((20px - var(--control-hit)) / 2); flex: none; background: none; border: 0; padding: 0; color: var(--text-tertiary); cursor: grab; touch-action: none; border-radius: var(--radius-m); }
-.grip:focus-visible { outline: 2px solid var(--color-action); outline-offset: -2px; }
 /* Off pages keep their place, a step dimmer, so the swipe order reads at a glance. */
-.prow.off :deep(.col) { opacity: .55; }
-.dragging .prow { cursor: grabbing; }
-.prow.lifted { z-index: 2; transition: none; background: var(--color-surface-2); border-radius: var(--radius-m); box-shadow: var(--d-float); border-top-color: transparent; }
-.prow.lifted + .prow { border-top-color: transparent; }
-.settling .prow { transition: none; }
-@media (prefers-reduced-motion: reduce) {
-  .prow { transition: none; }
-}
+.drag-row.off :deep(.col) { opacity: .55; }
 </style>
