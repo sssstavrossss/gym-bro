@@ -81,3 +81,32 @@ test("Progress → Strength shows workouts, sets and each lift's estimated max, 
   await expect(page.getByRole("region", { name: "Summary" })).toBeVisible();
   await expect(page.locator("[data-strength-stats]")).toHaveCount(0);
 });
+
+test("This week counts sets per muscle against the target and names what's not worked yet", async ({ page }) => {
+  await page.goto("/");
+  const { oid, zone, today } = await setup(page);
+  const saved = await page.request.put(`/api/workouts/${crypto.randomUUID()}`, {
+    headers: headers(oid),
+    data: {
+      date: today, timeZone: zone, kind: "strength", status: "done",
+      sets: [set("barbell-squat", 60, 5, 5, "warmup"), set("barbell-squat", 100, 5, 2), set("barbell-squat", 100, 5, 2), { ...set("pullups", 0, 8, 2), kg: null }],
+    },
+  });
+  expect(saved.ok(), await saved.text()).toBeTruthy();
+
+  await page.goto("/progress");
+  await page.getByRole("radiogroup", { name: "Show" }).getByRole("radio", { name: "Strength" }).click();
+  const week = page.locator("[data-muscle-week]");
+  await expect(week).toContainText("Aim for 10–14 sets a muscle (no plan, so some experience)");
+  // Two squat sets count for quadriceps; the warm-up doesn't.
+  const quads = week.locator('[data-muscle-sets="quadriceps"]');
+  await expect(quads).toContainText("2 sets");
+  await expect(quads).toContainText("8 to go · 1 day");
+  await expect(quads).toHaveAttribute("data-status", "under");
+  // A pull-up helps the biceps: half a set.
+  await expect(week.locator('[data-muscle-sets="biceps"]')).toContainText("0.5 sets");
+  await expect(week.locator('[data-muscle-sets="biceps"]')).toContainText("helping only");
+  await expect(week.locator("[data-muscle-not-yet]")).toHaveText("Not yet this week: Chest, Shoulders, Triceps and Abdominals.");
+  await expect(week.locator('[data-muscle="quadriceps"]').first()).toHaveClass(/help/);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+});

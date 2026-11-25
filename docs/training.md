@@ -2,7 +2,7 @@
 
 Gym Bro adds training next to nutrition. This file holds the decisions, the rules and the data model. It is updated as each part is agreed or ships. The README describes behaviour once it ships, and DESIGN.md holds the UI rules.
 
-Status: **phase 4, building**.
+Status: **phase 5, building**.
 
 Shipped so far:
 - The exercise library API: `GET /api/exercises` and `/api/exercises/{id}`, with 884 exercises (free-exercise-db plus our 8 stations), each with a `measure`. See *Exercise library* in the README.
@@ -31,8 +31,9 @@ Phase 3 is done. Phase 4 (suggestions and PRs; Progress rebuilt), shipped so far
 - New bests: estimated max (Epley with RIR) per exercise, the best so far from the API, "New best" on the card once a ticked set beats it, and in the summary. See *New bests* in the README.
 
 - Strength on Progress: a Body / Strength switch; workouts, sets and lifts up in the range, and each lift's estimated max with its change and a small line. See *Strength on Progress* in the README.
+- Sets per muscle this week on Progress → Strength: the body map by target, each muscle's sets (main in full, helping as half) against the plan's weekly volume, and the big muscles not worked yet. See *This week* in the README.
 
-Next in phase 4: sets per muscle this week against volume targets.
+Phase 4 is done. Next: phase 5 (swaps, warm-ups, plate maths, build or edit your own plan).
 
 ## Decisions (agreed 2026-11-25)
 

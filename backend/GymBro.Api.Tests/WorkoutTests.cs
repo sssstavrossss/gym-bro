@@ -315,6 +315,49 @@ public sealed class WorkoutEndpointTests(ApiFactory factory)
     }
 
     [Fact]
+    public async Task Muscles_counts_this_weeks_sets_per_muscle_main_in_full_and_helping_as_half()
+    {
+        var client = factory.AsUser(TestData.NewUser("workout-muscles"));
+        var monday = Today.AddDays(-(((int)Today.DayOfWeek + 6) % 7));
+        // Last week's doesn't count, nor does a warm-up.
+        await client.PutAsJsonAsync($"/api/workouts/{Guid.NewGuid()}", Workout(monday.AddDays(-1), null, Set("barbell-squat", 100, 5)));
+        await client.PutAsJsonAsync($"/api/workouts/{Guid.NewGuid()}", Workout(monday, null,
+            Set("barbell-squat", 40, 10, type: "warmup"), Set("barbell-squat", 100, 5), Set("pullups", null, 8)));
+        await client.PutAsJsonAsync($"/api/workouts/{Guid.NewGuid()}", Workout(Today, null, Set("barbell-squat", 100, 5)));
+
+        using var json = JsonDocument.Parse(await client.GetStringAsync("/api/workouts/muscles"));
+        var root = json.RootElement;
+        Assert.Equal(monday, DateOnly.Parse(root.GetProperty("from").GetString()!));
+        Assert.Equal(Today, DateOnly.Parse(root.GetProperty("to").GetString()!));
+        Assert.Equal(2, root.GetProperty("workouts").GetInt32());
+        Assert.Equal(JsonValueKind.Null, root.GetProperty("experience").ValueKind);
+        Assert.Equal(10, root.GetProperty("target").GetProperty("low").GetInt32());
+        Assert.Equal(14, root.GetProperty("target").GetProperty("high").GetInt32());
+        var muscles = root.GetProperty("muscles").EnumerateArray()
+            .Select(item => (item.GetProperty("muscle").GetString(), item.GetProperty("sets").GetDecimal()))
+            .ToList();
+        // Two squat sets (quadriceps; calves, glutes, hamstrings and lower back help) and a pull-up (lats; biceps and middle back help).
+        Assert.Equal(
+            [("quadriceps", 2m), ("calves", 1m), ("glutes", 1m), ("hamstrings", 1m), ("lats", 1m), ("lower-back", 1m), ("biceps", 0.5m), ("middle-back", 0.5m)],
+            muscles);
+        var quads = root.GetProperty("muscles")[0];
+        Assert.Equal(monday == Today ? 1 : 2, quads.GetProperty("days").GetInt32());
+    }
+
+    [Fact]
+    public void Muscle_volume_targets_follow_experience_and_skip_cardio_and_stretches()
+    {
+        Assert.Equal(new VolumeTarget(8, 10), MuscleVolume.TargetFor(Experience.New));
+        Assert.Equal(new VolumeTarget(10, 14), MuscleVolume.TargetFor(null));
+        Assert.Equal(new VolumeTarget(14, 18), MuscleVolume.TargetFor(Experience.Experienced));
+        var library = ExerciseCatalog.Current;
+        var cardio = library.All.First(item => item.Category == "cardio" && item.PrimaryMuscles.Count > 0);
+        var stretch = library.All.First(item => item.Category == "stretching" && item.PrimaryMuscles.Count > 0);
+        var day = new DateOnly(2026, 11, 23);
+        Assert.Empty(MuscleVolume.Count([(day, cardio.Id), (day, stretch.Id), (day, "not-an-exercise")], library));
+    }
+
+    [Fact]
     public async Task Delete_removes_the_workout_and_its_sets_and_can_be_sent_twice()
     {
         var client = factory.AsUser(TestData.NewUser("workout-delete"));

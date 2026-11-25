@@ -80,6 +80,7 @@ public static class WorkoutEndpoints
         api.MapGet("/workouts", List);
         api.MapGet("/workouts/previous", Previous);
         api.MapGet("/workouts/strength", Strength);
+        api.MapGet("/workouts/muscles", Muscles);
         api.MapGet("/workouts/{id:guid}", Get);
         api.MapPut("/workouts/{id:guid}", Put);
         api.MapDelete("/workouts/{id:guid}", Delete);
@@ -253,6 +254,47 @@ public static class WorkoutEndpoints
             workouts,
             sets = sets.Count,
             lifts = StrengthProgress.Lifts(sets),
+        });
+    }
+
+    /// <summary>
+    /// Progress → Strength's This week: sets per muscle from Monday to today (the caller's day), against the
+    /// weekly target for the plan's experience (some experience with no plan).
+    /// </summary>
+    private static async Task<IResult> Muscles(
+        ClaimsPrincipal principal,
+        AppDbContext db,
+        TimeProvider clock,
+        CancellationToken cancellationToken)
+    {
+        if (Caller.MissingOid(principal) is { } denied)
+        {
+            return denied;
+        }
+
+        var userId = Caller.Id(principal);
+        var today = await ProgressEndpoints.TodayAsync(userId, db, clock, cancellationToken);
+        var monday = today.AddDays(-(((int)today.DayOfWeek + 6) % 7));
+        var inWeek = db.WorkoutSessions.AsNoTracking()
+            .Where(row => row.UserId == userId && row.Status == WorkoutStatuses.Done && row.LocalDate >= monday && row.LocalDate <= today);
+        var workouts = await inWeek.CountAsync(cancellationToken);
+        var sets = await db.WorkoutSets.AsNoTracking()
+            .Where(set => set.UserId == userId && set.Type != SetTypes.Warmup)
+            .Join(inWeek, set => set.SessionId, row => row.Id, (set, row) => new { row.LocalDate, set.ExerciseId })
+            .ToListAsync(cancellationToken);
+        var experience = await db.TrainingPlans.AsNoTracking()
+            .Where(row => row.UserId == userId)
+            .Select(row => (string?)row.Experience)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return Results.Ok(new
+        {
+            from = monday,
+            to = today,
+            workouts,
+            experience,
+            target = MuscleVolume.TargetFor(experience),
+            muscles = MuscleVolume.Count(sets.Select(set => (set.LocalDate, set.ExerciseId)), ExerciseCatalog.Current),
         });
     }
 
