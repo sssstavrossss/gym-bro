@@ -6,7 +6,7 @@ function headers(oid: string) {
 
 test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
 
-const PAGES = ["Weight", "Calories", "Protein", "Fat", "Carbs", "Fibre", "Saturated fat", "Sodium"];
+const PAGES = ["Weight", "Calories", "Protein", "Fat", "Carbs", "Fibre", "Saturated fat", "Sodium", "Burn"];
 
 /** Eight pages are too many for 44px dots on a phone, so the dot strip only shows where you are. Step with Next panel. */
 async function showPage(progress: Locator, title: string) {

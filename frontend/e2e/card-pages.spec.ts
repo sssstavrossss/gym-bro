@@ -42,7 +42,7 @@ test("the Progress cog hides pages, keeps the page you're on, and remembers the 
   const progress = page.getByRole("region", { name: "Progress", exact: true });
   const title = progress.locator("[data-progress-title]");
   await expect(title).toHaveText("Fibre");
-  // Eight pages: the dots only show where you are.
+  // Nine pages: the dots only show where you are.
   await expect(progress.locator(".strip")).toHaveClass(/halves/);
   await expect(progress.getByRole("button", { name: "Calories", exact: true })).toHaveCount(0);
 
@@ -52,7 +52,7 @@ test("the Progress cog hides pages, keeps the page you're on, and remembers the 
   const weight = sheet.getByRole("switch", { name: /Weight/ });
   await expect(weight).toBeDisabled();
   await expect(weight).toHaveAttribute("aria-checked", "true");
-  for (const name of ["Fat", "Carbs", "Saturated fat"]) {
+  for (const name of ["Fat", "Carbs", "Saturated fat", "Burn"]) {
     const toggle = sheet.getByRole("switch", { name: new RegExp(`^${name}`) });
     await toggle.click();
     await expect(toggle).toHaveAttribute("aria-checked", "false");
@@ -78,7 +78,7 @@ test("the Progress cog hides pages, keeps the page you're on, and remembers the 
   await sheet.getByRole("button", { name: "Close" }).click();
 
   const stored = await page.evaluate(() => localStorage.getItem("gymbro-home-progress-hidden"));
-  expect(JSON.parse(stored ?? "[]")).toEqual(["kcal", "fat", "carbs", "saturatedFat"]);
+  expect(JSON.parse(stored ?? "[]")).toEqual(["kcal", "fat", "carbs", "saturatedFat", "burn"]);
 
   await page.reload();
   await expect(title).toHaveText("Weight");

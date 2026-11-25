@@ -62,7 +62,7 @@ public static class ProgressEndpoints
             .OrderBy(row => row.EffectiveDate)
             .ThenBy(row => row.CreatedAt)
             .ThenBy(row => row.Id)
-            .Select(row => new { row.EffectiveDate, row.Kcal, row.ProteinGrams, row.FatGrams, row.CarbGrams })
+            .Select(row => new { row.EffectiveDate, row.Kcal, row.ProteinGrams, row.FatGrams, row.CarbGrams, row.Bmr, row.Tdee, row.FormulaTdee, row.BurnSdKcal, row.Reasons })
             .ToListAsync(cancellationToken);
 
         DateOnly? earliest = null;
@@ -76,6 +76,7 @@ public static class ProgressEndpoints
         var from = ProgressMath.WindowStart(today, normalized, earliest);
         var byLog = logged.ToDictionary(row => row.Date);
         var targetRows = targets.Select(row => (row.EffectiveDate, row.Kcal, row.ProteinGrams, row.FatGrams, row.CarbGrams)).ToList();
+        var burnRows = targets.Select(row => new BurnRow(row.EffectiveDate, row.Bmr, row.Tdee, row.FormulaTdee, row.BurnSdKcal, row.Reasons)).ToList();
         var trend = TrendWeight.Compute(weighIns.Select(row => (row.LocalDate, row.Kg)).ToList(), today);
         var trendByDate = trend.Days.ToDictionary(day => day.Date);
         var days = new List<ProgressDay>(today.DayNumber - from.DayNumber + 1);
@@ -85,22 +86,24 @@ public static class ProgressEndpoints
         for (var date = from; date <= today; date = date.AddDays(1))
         {
             var target = ProgressMath.TargetMacrosAt(targetRows, date);
+            var burn = BurnSeries.At(burnRows, date);
             var shown = trendByDate.TryGetValue(date, out var trendDay) && !trendDay.Gap ? trendDay : null;
             decimal? trendKg = shown?.TrendKg;
             if (!byLog.TryGetValue(date, out var intake))
             {
-                days.Add(new ProgressDay(date, false, null, null, target?.Kcal, target?.Protein, trendKg, null, null, target?.Fat, target?.Carbs, null, shown?.BandKg, shown?.Measured ?? false));
+                days.Add(new ProgressDay(date, false, null, null, target?.Kcal, target?.Protein, trendKg, null, null, target?.Fat, target?.Carbs, null, shown?.BandKg, shown?.Measured ?? false, null, null, burn?.Kcal, burn?.BmrKcal, burn?.SdKcal, burn?.Measured ?? false));
                 continue;
             }
 
             loggedDays++;
             kcalSum += intake.Kcal;
             proteinSum += intake.Protein;
-            days.Add(new ProgressDay(date, true, intake.Kcal, intake.Protein, target?.Kcal, target?.Protein, trendKg, intake.Fat, intake.Carbs, target?.Fat, target?.Carbs, intake.Fiber, shown?.BandKg, shown?.Measured ?? false, intake.SaturatedFat, intake.SodiumMg));
+            days.Add(new ProgressDay(date, true, intake.Kcal, intake.Protein, target?.Kcal, target?.Protein, trendKg, intake.Fat, intake.Carbs, target?.Fat, target?.Carbs, intake.Fiber, shown?.BandKg, shown?.Measured ?? false, intake.SaturatedFat, intake.SodiumMg, burn?.Kcal, burn?.BmrKcal, burn?.SdKcal, burn?.Measured ?? false));
         }
 
         var inRange = weighIns.Where(row => row.LocalDate >= from && row.LocalDate <= today).ToList();
         var current = weighIns.Count == 0 ? null : weighIns[^1];
+        var burnNow = BurnSeries.At(burnRows, today);
         return Results.Ok(new ProgressResponse(
             normalized,
             from,
@@ -120,7 +123,8 @@ public static class ProgressEndpoints
                 loggedDays,
                 ProgressMath.Average(kcalSum, loggedDays, 0),
                 ProgressMath.Average(proteinSum, loggedDays, 1)),
-            days));
+            days,
+            burnNow is null ? null : new ProgressBurn(burnNow.Kcal, burnNow.BmrKcal, burnNow.SdKcal, burnNow.Measured, burnNow.SetOn)));
     }
 
     private static async Task<DateOnly> TodayAsync(
@@ -149,7 +153,11 @@ public sealed record ProgressResponse(
     DateOnly Today,
     ProgressWeight Weight,
     ProgressIntake Intake,
-    IReadOnlyList<ProgressDay> Days);
+    IReadOnlyList<ProgressDay> Days,
+    ProgressBurn? Burn = null);
+
+/// <summary>Today's daily burn and BMR, the spread around the burn, and the day it was last set.</summary>
+public sealed record ProgressBurn(int Kcal, int BmrKcal, int SdKcal, bool Measured, DateOnly SetOn);
 
 public sealed record ProgressWeight(
     decimal? CurrentKg,
@@ -182,4 +190,8 @@ public sealed record ProgressDay(
     decimal? TrendBandKg = null,
     bool TrendMeasured = false,
     decimal? SaturatedFat = null,
-    decimal? SodiumMg = null);
+    decimal? SodiumMg = null,
+    int? BurnKcal = null,
+    int? BmrKcal = null,
+    int? BurnSdKcal = null,
+    bool BurnMeasured = false);

@@ -32,7 +32,7 @@ describe("progress card", () => {
     expect(metGoal(25, 25, "limit")).toBe(true);
     expect(metGoal(25.1, 25, "limit")).toBe(false);
     expect(metGoal(10, null, "limit")).toBe(false);
-    expect(PROGRESS_PAGES.map(goalKind)).toEqual(["target", "target", "minimum", "target", "target", "minimum", "limit", "limit"]);
+    expect(PROGRESS_PAGES.filter((page) => page !== "burn").map(goalKind)).toEqual(["target", "target", "minimum", "target", "target", "minimum", "limit", "limit"]);
     expect(fiberMinimum("male")).toBe(35);
     expect(fiberMinimum("female")).toBe(25);
     expect(fiberMinimum("")).toBeNull();

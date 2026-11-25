@@ -22,9 +22,9 @@ async function clock(page: Page) {
 
 test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
 
-const PAGES = ["Weight", "Calories", "Protein", "Fat", "Carbs", "Fibre", "Saturated fat", "Sodium"];
+const PAGES = ["Weight", "Calories", "Protein", "Fat", "Carbs", "Fibre", "Saturated fat", "Sodium", "Burn"];
 
-/** Eight pages are too many for 44px dots on a phone, so the dot strip only shows where you are. Step with Next panel. */
+/** Nine pages are too many for 44px dots on a phone, so the dot strip only shows where you are. Step with Next panel. */
 async function showPage(progress: Locator, title: string) {
   const heading = progress.locator("[data-progress-title]");
   let at = PAGES.indexOf(await heading.innerText());
@@ -221,4 +221,65 @@ test("home title, progress pickers, and remembered metric", async ({ page }) => 
   await page.reload();
   await expect(progress.locator("[data-progress-title]")).toHaveText("Protein");
   await expect(page.getByRole("radio", { name: "7d", exact: true })).toBeChecked();
+});
+
+test("the Burn page draws the daily burn over the BMR, with today's numbers", async ({ page }) => {
+  const oid = `e2e-home-burn-${Date.now()}-${test.info().project.name}`;
+  const when = await clock(page);
+  expect((await page.request.put(`/api/weigh-ins/${when.today}`, { headers: headers(oid), data: { kg: 83.6, timeZone: when.zone } })).ok()).toBeTruthy();
+  expect((await page.request.put("/api/profile", {
+    headers: headers(oid),
+    data: {
+      sex: "male", birthYear: 1990, heightCm: 180, activity: "moderate", goal: "lose",
+      rateKgPerWeek: 0.5, goalWeightKg: 80, proteinSetting: "normal", proteinGramsPerKg: 2,
+      fatSetting: "normal", fatPercent: 25, timeZone: when.zone,
+    },
+  })).ok()).toBeTruthy();
+  const progressBody = await (await page.request.get("/api/progress?range=30d", { headers: headers(oid) })).json();
+  const burn = progressBody.burn as { kcal: number; bmrKcal: number; sdKcal: number; measured: boolean };
+  // A new profile's burn is the formula's, ±350.
+  expect(burn.measured).toBe(false);
+  expect(burn.sdKcal).toBe(350);
+  expect(burn.kcal).toBeGreaterThan(burn.bmrKcal);
+  await page.addInitScript((id) => {
+    sessionStorage.setItem("gymbro-e2e", "1");
+    sessionStorage.setItem("gymbro-e2e-oid", id);
+    if (!sessionStorage.getItem("gymbro-e2e-kept")) {
+      localStorage.removeItem("gymbro-home-progress-page");
+      sessionStorage.setItem("gymbro-e2e-kept", "1");
+    }
+  }, oid);
+
+  await page.goto("/today");
+  const progress = page.getByRole("region", { name: "Progress", exact: true });
+  const title = progress.locator("[data-progress-title]");
+  await expect(title).toHaveText("Weight");
+  // Burn is the last page, so one step back from Weight wraps to it.
+  await progress.getByRole("button", { name: "Previous panel" }).last().click();
+  await expect(title).toHaveText("Burn");
+
+  const burnPage = progress.locator(".ppage[data-page='burn']");
+  await expect(burnPage.getByRole("img", { name: "Burn chart" })).toBeVisible();
+  await expect(burnPage.locator("[data-burn-line]")).toHaveCount(1);
+  await expect(burnPage.locator("[data-bmr-line]")).toHaveCount(1);
+  await expect(burnPage.locator("[data-burn-activity]")).toHaveCount(1);
+  const fmt = (value: number) => value.toLocaleString("en-US");
+  await expect(burnPage.locator("[data-burn-label]")).toHaveText(fmt(burn.kcal));
+  await expect(burnPage.locator("[data-bmr-label]")).toHaveText(`BMR ${fmt(burn.bmrKcal)}`);
+  // The burn sits above the BMR. Read from the SVG: WebKit gives SVG text the same box top.
+  const [burnY, bmrY] = await Promise.all(["[data-burn-label]", "[data-bmr-label]"].map((selector) => burnPage.locator(selector).evaluate((el) => Number(el.getAttribute("y")))));
+  expect(burnY).toBeLessThan(bmrY);
+
+  const cells = burnPage.locator(".pstats .cell");
+  await expect(cells.nth(0)).toContainText("Burn");
+  await expect(cells.nth(0)).toContainText(fmt(burn.kcal));
+  await expect(cells.nth(0)).toContainText("±350 · formula");
+  await expect(cells.nth(1)).toContainText(fmt(burn.bmrKcal));
+  await expect(cells.nth(1)).toContainText("at rest");
+  await expect(cells.nth(2)).toContainText(fmt(burn.kcal - burn.bmrKcal));
+  await expect(cells.nth(2)).toContainText("burn − BMR");
+
+  // It reopens on Burn.
+  await page.reload();
+  await expect(title).toHaveText("Burn");
 });

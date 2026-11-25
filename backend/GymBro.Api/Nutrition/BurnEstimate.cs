@@ -99,14 +99,23 @@ public static class BurnEstimate
     /// </summary>
     public static BurnStep Step(decimal prior, decimal priorSd, decimal weeks, decimal measured, decimal measuredSd)
     {
-        var variance = priorSd * priorSd + WeeklyDriftKcal * WeeklyDriftKcal * Math.Max(0m, weeks);
-        variance = Math.Min(variance, FormulaSdKcal * FormulaSdKcal);
+        var variance = DriftedVariance(priorSd, weeks);
         var noise = measuredSd * measuredSd;
         var gain = variance + noise <= 0 ? 0m : variance / (variance + noise);
         var burn = prior + gain * (measured - prior);
         var sd = (decimal)Math.Sqrt((double)((1m - gain) * variance));
         return new BurnStep(prior, (decimal)Math.Sqrt((double)variance), measured, measuredSd, burn, sd, gain);
     }
+
+    /// <summary>
+    /// How unsure a burn is after <paramref name="weeks"/> unmeasured: the same drift
+    /// <see cref="Step"/> applies before it measures, capped at the formula's spread.
+    /// </summary>
+    public static decimal SpreadAfter(decimal sd, decimal weeks) =>
+        (decimal)Math.Sqrt((double)DriftedVariance(sd, weeks));
+
+    private static decimal DriftedVariance(decimal sd, decimal weeks) =>
+        Math.Min(sd * sd + WeeklyDriftKcal * WeeklyDriftKcal * Math.Max(0m, weeks), FormulaSdKcal * FormulaSdKcal);
 
     /// <summary>
     /// The burn a target carries forward. A measured burn keeps its distance from

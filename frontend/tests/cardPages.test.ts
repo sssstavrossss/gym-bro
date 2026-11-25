@@ -18,7 +18,7 @@ afterEach(() => vi.unstubAllGlobals());
 describe("card pages", () => {
   it("shows every page but the hidden ones, and never hides the first", () => {
     expect(visiblePages(PROGRESS_PAGES, [])).toEqual([...PROGRESS_PAGES]);
-    expect(visiblePages(PROGRESS_PAGES, ["weight", "fat", "carbs"])).toEqual(["weight", "kcal", "protein", "fiber", "saturatedFat", "sodium"]);
+    expect(visiblePages(PROGRESS_PAGES, ["weight", "fat", "carbs"])).toEqual(["weight", "kcal", "protein", "fiber", "saturatedFat", "sodium", "burn"]);
     expect(visiblePages(MACRO_PAGES, ["vitamins", "minerals"])).toEqual(["macros", "fats", "carbs"]);
   });
 
@@ -59,7 +59,7 @@ describe("card pages", () => {
   it("names each page in the sheet, with the first always shown", () => {
     const progress = pageRows("progress");
     expect(progress.map((row) => row.id)).toEqual([...PROGRESS_PAGES]);
-    expect(progress.map((row) => row.caption)).toEqual(["Always shown", "Target ±10%", "Minimum", "Target ±10%", "Target ±10%", "Minimum", "Limit", "Limit"]);
+    expect(progress.map((row) => row.caption)).toEqual(["Always shown", "Target ±10%", "Minimum", "Target ±10%", "Target ±10%", "Minimum", "Limit", "Limit", "Daily burn and BMR"]);
     const macros = pageRows("macros");
     expect(macros.map((row) => row.title)).toEqual(["Macros", "Fats", "Carbs & sodium", "Vitamins", "Minerals"]);
     expect(macros.map((row) => row.caption).slice(3)).toEqual(["10 vitamins", "9 minerals"]);

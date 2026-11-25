@@ -5,9 +5,10 @@ import type { IntakeDay } from "./progressChart";
  * Pure helpers for the chart sizes, the target steps, and each page's numbers.
  */
 
-export const PROGRESS_PAGES = ["weight", "kcal", "protein", "fat", "carbs", "fiber", "saturatedFat", "sodium"] as const;
+export const PROGRESS_PAGES = ["weight", "kcal", "protein", "fat", "carbs", "fiber", "saturatedFat", "sodium", "burn"] as const;
 export type ProgressPage = (typeof PROGRESS_PAGES)[number];
-export type IntakePage = Exclude<ProgressPage, "weight">;
+/** Pages drawn as bars of what was eaten against a line. Weight and Burn are lines of their own. */
+export type IntakePage = Exclude<ProgressPage, "weight" | "burn">;
 
 export const PAGE_TITLES: Record<ProgressPage, string> = {
   weight: "Weight",
@@ -18,6 +19,7 @@ export const PAGE_TITLES: Record<ProgressPage, string> = {
   fiber: "Fibre",
   saturatedFat: "Saturated fat",
   sodium: "Sodium",
+  burn: "Burn",
 };
 
 /**
@@ -29,7 +31,7 @@ export type GoalKind = "target" | "minimum" | "limit";
 /** The word before the line's number: "target 2,200", "min 35 g", "limit 25 g". */
 export const LINE_WORDS: Record<GoalKind, string> = { target: "target", minimum: "min", limit: "limit" };
 
-export function goalKind(page: ProgressPage): GoalKind {
+export function goalKind(page: IntakePage | "weight"): GoalKind {
   if (page === "protein" || page === "fiber") return "minimum";
   if (page === "saturatedFat" || page === "sodium") return "limit";
   return "target";
