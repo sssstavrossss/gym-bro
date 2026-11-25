@@ -241,6 +241,46 @@ public sealed class ProfileSettingsTests(ApiFactory factory)
     }
 
     [Fact]
+    public async Task Fan_pages_follow_the_account_and_reject_a_bad_layout()
+    {
+        factory.Clock.UtcNow = new DateTimeOffset(2026, 11, 16, 8, 0, 0, TimeSpan.Zero);
+        var user = TestData.NewUser("settings-fan");
+        using var client = factory.AsUser(user);
+        await TestData.PutWeighIn(client, "2026-11-16", """{"kg":83.6,"timeZone":"UTC"}""");
+        var saved = await TestData.PutProfile(client, TestData.Profile());
+        Assert.Equal(JsonValueKind.Null, saved.GetProperty("profile").GetProperty("fanPages").ValueKind);
+
+        var picked = await client.PutAsJsonAsync("/api/profile/settings", new { fanPages = new[] { "search,scan,weight", "groups" } });
+        Assert.Equal(HttpStatusCode.OK, picked.StatusCode);
+        Assert.Equal("""["search,scan,weight","groups"]""", (await picked.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("fanPages").GetRawText());
+
+        // Another device reads it, and a card-order save leaves it alone.
+        using var other = factory.AsUser(user);
+        await other.PutAsJsonAsync("/api/profile/settings", new { progressOrder = new[] { "burn" } });
+        var state = await other.GetFromJsonAsync<JsonElement>("/api/profile");
+        Assert.Equal("""["search,scan,weight","groups"]""", state.GetProperty("profile").GetProperty("fanPages").GetRawText());
+        Assert.Equal(1, await HistoryCount(user));
+
+        foreach (var bad in new[]
+        {
+            new[] { "a", "b", "c", "d", "e" },
+            new[] { "a,b,c,d,e,f" },
+            new[] { "" },
+            new[] { "search", "search" },
+            new[] { "has space" },
+        })
+        {
+            var rejected = await client.PutAsJsonAsync("/api/profile/settings", new { fanPages = bad });
+            Assert.Equal(HttpStatusCode.BadRequest, rejected.StatusCode);
+            Assert.Contains("+ fan", await rejected.Content.ReadAsStringAsync());
+        }
+
+        // Empty is the default layout.
+        var reset = await client.PutAsJsonAsync("/api/profile/settings", new { fanPages = Array.Empty<string>() });
+        Assert.Equal("[]", (await reset.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("fanPages").GetRawText());
+    }
+
+    [Fact]
     public async Task Keeping_the_goal_hides_goal_reached_everywhere_until_the_goal_changes()
     {
         factory.Clock.UtcNow = new DateTimeOffset(2026, 10, 24, 8, 0, 0, TimeSpan.Zero);
