@@ -3,18 +3,21 @@ import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import ExerciseBrowser from "../components/ExerciseBrowser.vue";
 import Icon from "../components/Icon.vue";
 import OfflineLine from "../components/OfflineLine.vue";
+import { planLine, workoutLine } from "../lib/plan";
 import { historyLine, shortDay, workoutStatus, workoutTotals } from "../lib/workout";
 import { exercises, loadExercises } from "../state/exercises";
+import { loadPlan, plan } from "../state/plan";
 import { loadHistory, newPast, openPast, startWorkout, workout, workoutHistory } from "../state/workout";
-import { openExercise, openWorkout, toastError } from "../ui";
+import { openExercise, openPlan, openWorkout, toastError } from "../ui";
 
-// Training (docs/training.md): start or resume a workout, and the exercise library. Plans and the
-// calendar arrive above it in later steps.
+// Training (docs/training.md): start or resume a workout, the plan, the history and the exercise library.
+// Up next and the calendar arrive in later steps.
 const now = ref(Date.now());
 let timer: number | undefined;
 onMounted(() => {
   void loadExercises();
   void loadHistory();
+  void loadPlan();
   timer = window.setInterval(() => (now.value = Date.now()), 1000);
 });
 onBeforeUnmount(() => window.clearInterval(timer));
@@ -73,6 +76,29 @@ function logPast() {
       </p>
     </section>
 
+    <section v-if="plan.current" class="card" aria-labelledby="plan-title" data-plan-card>
+      <div class="chead">
+        <h2 id="plan-title" class="t-head section-title grow">Plan</h2>
+        <button type="button" class="btn sm secondary t-label" @click="openPlan">Edit</button>
+      </div>
+      <span class="t-body">{{ planLine(plan.current) }}</span>
+      <ol class="list pws">
+        <li v-for="item in plan.current.workouts" :key="item.id" class="col pw" :data-plan-workout="item.name">
+          <span class="row pwhead"><span class="t-bodys grow">{{ item.name }}</span><span class="t-label c2">{{ workoutLine(item) }}</span></span>
+          <span class="t-capn c2">{{ item.exercises.map((exercise) => nameOf(exercise.exerciseId)).join(" · ") }}</span>
+        </li>
+      </ol>
+    </section>
+    <section v-else-if="plan.state === 'ready'" class="card" aria-labelledby="plan-title" data-plan-card>
+      <div class="row wrow">
+        <span class="col grow g2">
+          <h2 id="plan-title" class="t-head m0">Plan</h2>
+          <span class="t-capn c2">Answer a few questions and get workouts that fit your week and your time.</span>
+        </span>
+        <button type="button" class="btn secondary t-label" @click="openPlan">Make a plan</button>
+      </div>
+    </section>
+
     <section class="col hist" aria-labelledby="history-title" data-workout-history>
       <div class="chead">
         <h2 id="history-title" class="t-cap c3 section-title grow">History</h2>
@@ -113,6 +139,10 @@ function logPast() {
 .g2 { gap: var(--space-2xs); min-width: 0; }
 .wrow { gap: var(--space-m); }
 .dt-xl .wrow .btn { flex: 1 1 100%; }
+.pws { display: flex; flex-direction: column; }
+.pw { gap: var(--space-2xs); padding-block: var(--space-s); }
+.pw + .pw { border-top: 1px solid var(--color-border); }
+.pwhead { gap: var(--space-s); }
 .hist { gap: var(--space-s); }
 .hist .chead { padding-top: var(--space-s); }
 .list { list-style: none; margin: 0; padding: 0; }

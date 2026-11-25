@@ -206,6 +206,11 @@ export function openWorkout(): void {
   ui.sheet = "workout";
 }
 
+/** New plan, or Edit plan when there is one (components/PlanSheet.vue). */
+export function openPlan(): void {
+  ui.sheet = "plan";
+}
+
 export function openRecalculate(): void {
   ui.sheet = "recalculate";
 }
