@@ -2,7 +2,7 @@
 
 Gym Bro adds training next to nutrition. This file holds the decisions, the rules and the data model. It is updated as each part is agreed or ships. The README describes behaviour once it ships, and DESIGN.md holds the UI rules.
 
-Status: **phase 2, building**.
+Status: **phase 3, building**.
 
 Shipped so far:
 - The exercise library API: `GET /api/exercises` and `/api/exercises/{id}`, with 884 exercises (free-exercise-db plus our 8 stations), each with a `measure`. See *Exercise library* in the README.
@@ -16,7 +16,9 @@ Phase 1 is done. Phase 2 (log a free workout), shipped so far:
 
 - Logging a workout in the app: Start or Resume on Train, the workout sheet with add exercise, the set table with last time and hints, the app keypad, the rest timer, Finish and the summary. A workout in progress and finished ones waiting to send live on the phone. See *Logging a workout* in the README.
 
-Next: history on Train, editing and deleting past workouts, logging a past workout, and Start workout in the + fan.
+- History on Train, editing and deleting past workouts (with Undo), logging a workout afterwards, and Start workout / Log workout as extra + fan buttons (off the fan until added). See *Logging a workout* in the README.
+
+Phase 2 is done. Next: phase 3, the plan generator, the sequence and calendar, and the Home card.
 
 ## Decisions (agreed 2026-11-25)
 

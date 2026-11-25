@@ -1,9 +1,11 @@
 import { markRaw, reactive } from "vue";
-import { ApiError, getPreviousSets, putWorkout, ServerUnreachable, type PreviousSets } from "../api";
-import { todayInZone } from "../lib/dates";
+import { ApiError, deleteWorkout, getPreviousSets, getWorkout, listWorkouts, putWorkout, ServerUnreachable, type PreviousSets, type WorkoutSummary } from "../api";
+import { addDays, todayInZone } from "../lib/dates";
 import {
+  dropUndone,
   emptySet,
   finished,
+  fromSaved,
   measureFields,
   restSeconds,
   setHints,
@@ -31,6 +33,14 @@ export const workout = reactive({
   /** The workout just finished, for the summary. */
   summary: null as DraftWorkout | null,
   saving: false,
+  /** A past workout open to edit, or a new one being logged afterwards. The sheet edits it instead of the live one. */
+  past: null as null | { draft: DraftWorkout; isNew: boolean },
+});
+
+/** Train's history: the last year of workouts, newest first. */
+export const workoutHistory = reactive({
+  state: "idle" as "idle" | "loading" | "ready" | "failed",
+  rows: [] as WorkoutSummary[],
 });
 
 let account = "";
@@ -104,7 +114,7 @@ async function loadPrevious(exerciseId: string): Promise<void> {
 
 /** Adds an exercise with as many sets as last time (3 when it is new), and loads its "last time". */
 export async function addExercise(exerciseId: string): Promise<string> {
-  const active = workout.active ?? startWorkout();
+  const active = editing() ?? startWorkout();
   await loadPrevious(exerciseId);
   const last = workout.previous[exerciseId];
   const count = last ? Math.min(Math.max(last.sets.filter((set) => set.type !== "warmup").length, 1), 10) : 3;
@@ -115,8 +125,13 @@ export async function addExercise(exerciseId: string): Promise<string> {
   return key;
 }
 
+/** The workout the sheet is editing: a past one when open, else the live one. */
+function editing(): DraftWorkout | null {
+  return workout.past?.draft ?? workout.active;
+}
+
 function find(key: string): DraftExercise | undefined {
-  return workout.active?.exercises.find((exercise) => exercise.key === key);
+  return editing()?.exercises.find((exercise) => exercise.key === key);
 }
 
 export function addSet(key: string, type: SetType = "working"): void {
@@ -140,7 +155,7 @@ export function removeSet(key: string, index: number): void {
 
 /** Takes an exercise out, and returns it with where it was, for Undo. */
 export function removeExercise(key: string): { exercise: DraftExercise; at: number } | null {
-  const active = workout.active;
+  const active = editing();
   const at = active?.exercises.findIndex((exercise) => exercise.key === key) ?? -1;
   if (!active || at < 0) return null;
   const [exercise] = active.exercises.splice(at, 1);
@@ -150,7 +165,7 @@ export function removeExercise(key: string): { exercise: DraftExercise; at: numb
 
 /** Undo for removeExercise. */
 export function restoreExercise(removed: { exercise: DraftExercise; at: number }): void {
-  const active = workout.active;
+  const active = editing();
   if (!active || active.exercises.some((exercise) => exercise.key === removed.exercise.key)) return;
   active.exercises.splice(Math.min(removed.at, active.exercises.length), 0, removed.exercise);
   save();
@@ -167,9 +182,9 @@ export function exerciseItem(exerciseId: string) {
   return exercises.items.find((item) => item.id === exerciseId) ?? null;
 }
 
-/** Ticks a set off (or back on). A ticked working set starts the rest timer for its exercise. */
+/** Ticks a set off (or back on). In the live workout a ticked working set starts the rest timer. */
 export function toggleDone(key: string, index: number, now = new Date()): void {
-  const active = workout.active;
+  const active = editing();
   const exercise = find(key);
   const set = exercise?.sets[index];
   const item = exercise ? exerciseItem(exercise.exerciseId) : null;
@@ -178,6 +193,7 @@ export function toggleDone(key: string, index: number, now = new Date()): void {
   const hints = setHints(exercise, index, workout.previous[exercise.exerciseId]?.sets ?? []);
   const next = toggleSet(set, hints, fields, now);
   exercise.sets[index] = next;
+  if (active !== workout.active) return;
   const rest = next.doneAt && item ? restSeconds(item) : 0;
   if (rest) {
     active.restFor = rest;
@@ -237,6 +253,7 @@ export async function finishWorkout(now = new Date()): Promise<"saved" | "waitin
     workout.active = null;
     save();
     for (const exercise of done.exercises) delete workout.previous[exercise.exerciseId];
+    if (outcome === "saved") void loadHistory();
   }
   return outcome;
 }
@@ -255,9 +272,104 @@ export async function sendPendingWorkouts(): Promise<number> {
     writeJson(pendingKey(), workout.pending);
     sent += 1;
   }
+  if (sent) void loadHistory();
   return sent;
 }
 
 export function closeSummary(): void {
   workout.summary = null;
+}
+
+function today(): string {
+  return todayInZone(deviceTimeZone());
+}
+
+/** Loads the last year of workouts for Train's history. Offline, the last copy shows. */
+export async function loadHistory(): Promise<void> {
+  if (workoutHistory.state === "idle" || workoutHistory.state === "failed") workoutHistory.state = "loading";
+  const to = today();
+  try {
+    workoutHistory.rows = markRaw(await listWorkouts(addDays(to, -365), to));
+    workoutHistory.state = "ready";
+  } catch {
+    if (workoutHistory.state !== "ready") workoutHistory.state = "failed";
+  }
+}
+
+/** Opens a saved workout to edit. False when it can't be loaded (offline and never opened). */
+export async function openPast(id: string): Promise<boolean> {
+  try {
+    const saved = await getWorkout(id);
+    workout.past = { draft: fromSaved(saved), isNew: false };
+    for (const exercise of workout.past.draft.exercises) void loadPrevious(exercise.exerciseId);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Starts logging a workout afterwards: on the day given (the day Today shows), else today. Never a future day. */
+export function newPast(date?: string): void {
+  const now = today();
+  workout.past = {
+    draft: { id: newId(), date: date && date <= now ? date : now, startedAt: null, endedAt: null, name: null, exercises: [], restEndsAt: null, restFor: 0 },
+    isNew: true,
+  };
+}
+
+export function closePast(): void {
+  workout.past = null;
+}
+
+export const PAST_NOTHING = "Tick off a set to save the workout.";
+export const PAST_OFFLINE = "You're offline. Saving a past workout needs a connection.";
+
+/** Saves the past workout being edited. Returns null when saved, else what went wrong. */
+export async function savePast(): Promise<string | null> {
+  const past = workout.past;
+  if (!past || workout.saving) return null;
+  const done = dropUndone(past.draft);
+  if (!done.exercises.length) return PAST_NOTHING;
+  workout.saving = true;
+  try {
+    await putWorkout(done.id, toRequest(done, deviceTimeZone()));
+  } catch (error) {
+    return error instanceof ApiError ? error.message : PAST_OFFLINE;
+  } finally {
+    workout.saving = false;
+  }
+  workout.past = null;
+  for (const exercise of done.exercises) delete workout.previous[exercise.exerciseId];
+  void loadHistory();
+  return null;
+}
+
+/** Deletes the past workout being edited. Returns it for Undo, or null with nothing done. */
+export async function deletePast(): Promise<DraftWorkout | string> {
+  const past = workout.past;
+  if (!past) return "";
+  const kept = dropUndone(past.draft);
+  if (!past.isNew) {
+    try {
+      await deleteWorkout(kept.id);
+    } catch (error) {
+      return error instanceof ApiError ? error.message : PAST_OFFLINE;
+    }
+  }
+  workout.past = null;
+  workout.previous = {};
+  void loadHistory();
+  return kept;
+}
+
+/** Undo for a delete: the same workout, under the same id. */
+export async function restorePast(kept: DraftWorkout): Promise<boolean> {
+  try {
+    await putWorkout(kept.id, toRequest(kept, deviceTimeZone()));
+    workout.previous = {};
+    void loadHistory();
+    return true;
+  } catch {
+    return false;
+  }
 }

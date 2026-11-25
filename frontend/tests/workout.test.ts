@@ -6,6 +6,9 @@ import {
   exerciseSummary,
   finished,
   formatSet,
+  fromSaved,
+  historyLine,
+  shortDay,
   measureFields,
   parseField,
   restLeft,
@@ -173,5 +176,24 @@ describe("workoutStatus", () => {
     const one = workout([exercise("e1", [{ ...emptySet(), doneAt: now.toISOString() }])]);
     expect(workoutStatus(one, now.getTime())).toBe("30:00 · 1 of 1 set");
     expect(workoutStatus(workout([exercise("e1")]), now.getTime() + 3_600_000)).toBe("1:30:00 · 0 of 2 sets");
+  });
+});
+
+describe("past workouts", () => {
+  it("turns a saved workout back into exercises by block, keeping the same exercise twice apart", () => {
+    const draft = fromSaved({
+      id: "w9", date: "2026-11-23", name: null, startedAt: null, endedAt: null,
+      sets: [saved(60, 10), saved(60, 9), { ...saved(20, 12), exerciseId: "plank", block: 1 }, { ...saved(70, 5), block: 2 }],
+    });
+    expect(draft.exercises.map((e) => [e.key, e.exerciseId, e.sets.length])).toEqual([["e1", "barbell-squat", 2], ["e2", "plank", 1], ["e3", "barbell-squat", 1]]);
+    expect(draft.exercises[0].sets[1]).toMatchObject({ kg: 60, reps: 9, type: "working", doneAt: "2026-11-23T17:00:00Z" });
+    expect(toRequest(draft, "Europe/Oslo").sets.map((set) => set.block)).toEqual([0, 0, 1, 2]);
+  });
+
+  it("names the day and sums up a history row", () => {
+    expect(shortDay("2026-11-23")).toBe("Mon 23 Nov");
+    const name = (id: string) => ({ a: "Squat", b: "Bench", c: "Row", d: "Curl" })[id] ?? id;
+    expect(historyLine({ exercises: ["a", "b", "c", "d"], sets: 12, volumeKg: 4560.5 }, name)).toBe("Squat, Bench +2 · 12 sets · 4,561 kg");
+    expect(historyLine({ exercises: ["a"], sets: 1, volumeKg: 0 }, name)).toBe("Squat · 1 set");
   });
 });

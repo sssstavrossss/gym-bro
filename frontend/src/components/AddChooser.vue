@@ -9,7 +9,8 @@ import { fanLayout } from "../state/fanPages";
 import Icon from "./Icon.vue";
 import { viewed } from "../state/log";
 import { describe, loadDescribe } from "../state/describe";
-import { closeSheet, openFanPages, openFood, openFoodWithScan, openNewFoodFrom, openRecipeCreate, openWeight, ui } from "../ui";
+import { newPast, startWorkout } from "../state/workout";
+import { closeSheet, openFanPages, openFood, openFoodWithScan, openNewFoodFrom, openRecipeCreate, openWeight, openWorkout, ui } from "../ui";
 
 /**
  * The + fan: the buttons open on a half ring around the tab bar's +, one to five to a page, as arranged
@@ -55,7 +56,13 @@ function run(id: FanActionId) {
   else if (id === "food") openNewFoodFrom(date);
   else if (id === "recipes") openFood("search", date, "recipes");
   else if (id === "mine") openFood("search", date, "mine");
-  else openFood("search", date, "groups");
+  else if (id === "workout") {
+    startWorkout();
+    openWorkout();
+  } else if (id === "log-workout") {
+    newPast(date);
+    openWorkout();
+  } else openFood("search", date, "groups");
 }
 
 /** The ring is centred on the tab bar's +, wherever the layout puts it. */

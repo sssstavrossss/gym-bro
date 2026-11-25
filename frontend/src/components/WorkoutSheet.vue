@@ -15,20 +15,27 @@ import {
   measureFields,
   parseField,
   restLeft,
+  shortDay,
   typeKey,
   undoneSets,
   workoutStatus,
   workoutTotals,
 } from "../lib/workout";
+import { todayInZone } from "../lib/dates";
 import { loadExercises } from "../state/exercises";
+import { deviceTimeZone } from "../state/profile";
 import {
   addExercise,
+  closePast,
   closeSummary,
+  deletePast,
   discardWorkout,
   exerciseItem,
   finishWorkout,
   removeExercise,
   restoreExercise,
+  restorePast,
+  savePast,
   setValue,
   shiftRest,
   workout,
@@ -36,9 +43,15 @@ import {
 import { closeSheet, toast, toastError, ui } from "../ui";
 
 // The workout being logged (docs/training.md, phase 2), and its summary once finished. Closing the sheet
-// keeps the workout going; Train shows it to resume.
+// keeps the workout going; Train shows it to resume. A past workout (opened from the history, or logged
+// afterwards) is edited in the same sheet, with Save and Delete instead of Finish and no rest timer.
 const open = computed(() => ui.sheet === "workout");
 const active = computed(() => workout.active);
+const past = computed(() => workout.past);
+/** What the set tables edit: the past workout when one is open, else the live one. */
+const current = computed(() => past.value?.draft ?? active.value);
+const pastError = ref("");
+const today = computed(() => todayInZone(deviceTimeZone(), new Date(now.value)));
 const view = ref<"log" | "add">("log");
 const confirming = ref<null | "undone" | "empty" | "discard">(null);
 const waiting = ref(false);
@@ -63,12 +76,14 @@ watch(open, (shown) => {
   if (!shown) {
     edit.key = null;
     confirming.value = null;
+    pastError.value = "";
+    closePast();
     return;
   }
   void loadExercises();
   tick();
   timer = window.setInterval(tick, 1000);
-  view.value = active.value && !active.value.exercises.length ? "add" : "log";
+  view.value = current.value && !current.value.exercises.length ? "add" : "log";
 }, { immediate: true });
 onBeforeUnmount(() => window.clearInterval(timer));
 
@@ -80,7 +95,7 @@ const left = computed(() => (active.value ? restLeft(active.value, now.value) : 
 const restShare = computed(() => (left.value == null || !active.value?.restFor ? 0 : Math.min(1, left.value / active.value.restFor)));
 const keypadShown = computed(() => edit.key != null && !keyboardEntry.value && view.value === "log");
 const editName = computed(() => {
-  const exercise = active.value?.exercises.find((entry) => entry.key === edit.key);
+  const exercise = current.value?.exercises.find((entry) => entry.key === edit.key);
   if (!exercise) return "";
   let n = 0;
   const label = exercise.sets.map((set) => (set.type === "warmup" ? "Warm-up" : set.type === "drop" ? "Drop set" : `Set ${++n}`))[edit.index];
@@ -102,7 +117,7 @@ function padKey(key: string) {
 
 /** The next cell along the row, then the next set's first; past the last set the keypad closes. */
 function nextCell() {
-  const exercise = active.value?.exercises.find((entry) => entry.key === edit.key);
+  const exercise = current.value?.exercises.find((entry) => entry.key === edit.key);
   if (!exercise) return;
   const fields = measureFields(exerciseItem(exercise.exerciseId)?.measure ?? "weight_reps");
   const at = fields.indexOf(edit.field);
@@ -167,7 +182,7 @@ function closeDone() {
 const summary = computed(() => {
   const done = workout.summary;
   if (!done) return null;
-  const minutes = done.endedAt ? Math.max(1, Math.round((Date.parse(done.endedAt) - Date.parse(done.startedAt)) / 60000)) : null;
+  const minutes = done.endedAt && done.startedAt ? Math.max(1, Math.round((Date.parse(done.endedAt) - Date.parse(done.startedAt)) / 60000)) : null;
   const totals = workoutTotals(done);
   return {
     time: minutes == null ? "—" : minutes < 60 ? `${minutes} min` : `${Math.floor(minutes / 60)} h ${minutes % 60} min`,
@@ -179,19 +194,58 @@ const summary = computed(() => {
     }),
   };
 });
-const label = computed(() => (summary.value && !active.value ? "Workout done" : view.value === "add" ? "Add exercise" : active.value?.name ?? "Workout"));
+const showSummary = computed(() => summary.value != null && !active.value && !past.value);
+const pastTitle = computed(() => (past.value?.isNew ? "Log a workout" : "Edit workout"));
+const label = computed(() => (showSummary.value ? "Workout done" : view.value === "add" ? "Add exercise" : past.value ? pastTitle.value : active.value?.name ?? "Workout"));
+
+function setPastDate(event: Event) {
+  const value = (event.target as HTMLInputElement).value;
+  if (past.value && /^\d{4}-\d{2}-\d{2}$/.test(value)) past.value.draft.date = value;
+}
+
+async function savePastNow() {
+  doneTyping();
+  const error = await savePast();
+  pastError.value = error ?? "";
+  if (error) return;
+  closeSheet();
+  toast("Workout saved");
+}
+
+async function deletePastNow() {
+  doneTyping();
+  const wasNew = past.value?.isNew;
+  const result = await deletePast();
+  if (typeof result === "string") {
+    pastError.value = result;
+    return;
+  }
+  closeSheet();
+  if (wasNew) return;
+  toast(`Workout on ${shortDay(result.date)} deleted`, {
+    label: "Undo",
+    run: () => void restorePast(result).then((ok) => { if (!ok) toastError("Couldn't bring the workout back."); }),
+  });
+}
 </script>
 
 <template>
   <BottomSheet :open="open" :label="label" full @close="closeSheet">
     <template #header>
-      <div v-if="!active && summary" class="row hdr">
+      <div v-if="showSummary" class="row hdr">
         <h2 class="t-head m0 grow">Workout done</h2>
         <button type="button" class="cbtn" aria-label="Close" @click="closeDone"><Icon name="x" :size="18" /></button>
       </div>
       <div v-else-if="view === 'add'" class="row hdr">
         <button type="button" class="cbtn" aria-label="Back to the workout" @click="view = 'log'"><Icon name="left" :size="18" /></button>
         <h2 class="t-head m0 grow">Add exercise</h2>
+      </div>
+      <div v-else-if="past" class="row hdr">
+        <span class="col grow g2">
+          <h2 class="t-head m0">{{ pastTitle }}</h2>
+          <span class="t-capn c2">{{ shortDay(past.draft.date) }}</span>
+        </span>
+        <button type="button" class="cbtn" aria-label="Close" @click="closeSheet"><Icon name="x" :size="18" /></button>
       </div>
       <div v-else-if="active" class="row hdr">
         <span class="col grow g2">
@@ -203,7 +257,7 @@ const label = computed(() => (summary.value && !active.value ? "Workout done" : 
       </div>
     </template>
 
-    <div v-if="!active && summary" class="col body" data-workout-summary>
+    <div v-if="showSummary && summary" class="col body" data-workout-summary>
       <div class="row stats">
         <div class="col stat"><span class="t-capn c2">Time</span><span class="t-head">{{ summary.time }}</span></div>
         <div class="col stat"><span class="t-capn c2">Sets</span><span class="t-head">{{ summary.sets }}</span></div>
@@ -219,6 +273,24 @@ const label = computed(() => (summary.value && !active.value ? "Workout done" : 
     </div>
 
     <ExerciseBrowser v-else-if="view === 'add'" title="Exercises" title-id="workout-add-title" action="add" @pick="pick" />
+
+    <div v-else-if="past" class="col body" data-past-workout>
+      <label class="field row day">
+        <span class="t-label c2 grow">Day</span>
+        <input class="t-body" type="date" :value="past.draft.date" :max="today" min="2000-01-01" aria-label="Day of the workout" data-no-autofocus @change="setPastDate" />
+      </label>
+      <p v-if="pastError" class="t-label m0" role="alert">{{ pastError }}</p>
+      <div v-if="!past.draft.exercises.length" class="card inset empty">
+        <span class="t-label c2">No exercises yet. Add one, then tick off each set you did.</span>
+      </div>
+      <WorkoutExercise
+        v-for="exercise in past.draft.exercises" :key="exercise.key" :exercise="exercise" open past :edit="edit"
+        @remove="remove(exercise.key)"
+      />
+      <div class="row more">
+        <button type="button" class="btn sm secondary t-label" @click="view = 'add'"><Icon name="plus" :size="14" /> Exercise</button>
+      </div>
+    </div>
 
     <div v-else-if="active" class="col body">
       <div v-if="confirming" class="card outline confirm" role="alertdialog" aria-labelledby="wc-h" aria-describedby="wc-d">
@@ -254,7 +326,7 @@ const label = computed(() => (summary.value && !active.value ? "Workout done" : 
       </div>
     </div>
 
-    <template v-if="!active && summary" #footer>
+    <template v-if="showSummary" #footer>
       <button type="button" class="btn primary block t-bodys" @click="closeDone">Done</button>
     </template>
     <template v-else-if="keypadShown" #footer>
@@ -265,6 +337,12 @@ const label = computed(() => (summary.value && !active.value ? "Workout done" : 
           <button type="button" class="btn secondary t-bodys" @click="nextCell">Next</button>
           <button type="button" class="btn primary t-bodys" @click="doneTyping">Done</button>
         </div>
+      </div>
+    </template>
+    <template v-else-if="past && view === 'log'" #footer>
+      <div class="row pastacts">
+        <button v-if="!past.isNew" type="button" class="btn secondary t-bodys" :disabled="workout.saving" @click="deletePastNow"><Icon name="trash" :size="16" /> Delete</button>
+        <button type="button" class="btn primary t-bodys grow" :disabled="workout.saving" @click="savePastNow">Save</button>
       </div>
     </template>
     <template v-else-if="active && left != null && view === 'log'" #footer>
@@ -297,6 +375,10 @@ const label = computed(() => (summary.value && !active.value ? "Workout done" : 
 .pad { gap: var(--space-s); }
 .padacts { gap: var(--space-s); flex-wrap: nowrap; }
 .padacts .btn { flex: 1 1 0; }
+.pastacts { gap: var(--space-s); flex-wrap: nowrap; }
+.pastacts .btn.grow { flex: 1 1 0; }
+.body .day.row { flex-wrap: nowrap; gap: var(--space-s); }
+.day input { flex: none; background: none; border: 0; color: var(--text-primary); color-scheme: dark; min-height: var(--control-hit); text-align: right; }
 .rest { gap: var(--space-s); flex-wrap: nowrap; }
 .restbar { display: block; height: 3px; border-radius: var(--radius-pill); background: var(--color-surface-2); margin-top: var(--space-s); overflow: hidden; }
 .restfill { display: block; width: 100%; height: 100%; background: var(--color-action); transform-origin: left; transition: transform 1s linear; }

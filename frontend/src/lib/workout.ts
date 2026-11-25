@@ -1,5 +1,6 @@
 // A workout being logged, as pure data and rules (docs/training.md, phase 2). The state module keeps it
 // on the phone while it runs; the API stores it whole when it finishes (README → Workouts).
+import { parse } from "./dates";
 import type { ExerciseItem, ExerciseMeasure } from "./exercises";
 
 export type SetType = "warmup" | "working" | "drop";
@@ -30,7 +31,8 @@ export interface DraftWorkout {
   /** The app's own id, sent with PUT /api/workouts/{id}. */
   id: string;
   date: string;
-  startedAt: string;
+  /** Null for a workout logged afterwards without times. */
+  startedAt: string | null;
   endedAt: string | null;
   name: string | null;
   exercises: DraftExercise[];
@@ -54,7 +56,7 @@ export interface WorkoutRequestBody {
   kind: "strength";
   name: string | null;
   status: "done";
-  startedAt: string;
+  startedAt: string | null;
   endedAt: string | null;
   sets: (WorkoutSetValues & { exerciseId: string; block: number; type: SetType; calories: null; doneAt: string | null })[];
 }
@@ -252,16 +254,20 @@ export function toRequest(workout: DraftWorkout, timeZone: string): WorkoutReque
   };
 }
 
-/** Drops sets that weren't ticked off, then exercises left with none. What Finish saves. */
-export function finished(workout: DraftWorkout, now: Date): DraftWorkout {
+/** Drops sets that weren't ticked off, then exercises left with none. What a save keeps. */
+export function dropUndone(workout: DraftWorkout): DraftWorkout {
   return {
     ...workout,
-    endedAt: now.toISOString(),
     restEndsAt: null,
     exercises: workout.exercises
       .map((exercise) => ({ ...exercise, sets: exercise.sets.filter((set) => set.doneAt) }))
       .filter((exercise) => exercise.sets.length),
   };
+}
+
+/** What Finish saves: the ticked sets, ending now. */
+export function finished(workout: DraftWorkout, now: Date): DraftWorkout {
+  return { ...dropUndone(workout), endedAt: now.toISOString() };
 }
 
 /** The exercise to show open: the first with a set not done, else the last one. */
@@ -288,5 +294,35 @@ export function exerciseSummary(sets: readonly DraftSet[], measure: ExerciseMeas
 /** "12:40 · 4 of 16 sets": how long it has run and the sets ticked off, for the sheet and the Train card. */
 export function workoutStatus(workout: DraftWorkout, now: number): string {
   const totals = workoutTotals(workout);
-  return `${clock((now - Date.parse(workout.startedAt)) / 1000)} · ${totals.sets} of ${totals.plannedSets} ${totals.plannedSets === 1 ? "set" : "sets"}`;
+  return `${clock(workout.startedAt ? (now - Date.parse(workout.startedAt)) / 1000 : 0)} · ${totals.sets} of ${totals.plannedSets} ${totals.plannedSets === 1 ? "set" : "sets"}`;
+}
+
+/** A saved workout back as a draft to edit: each block is one exercise, its sets in order. */
+export function fromSaved(saved: { id: string; date: string; name: string | null; startedAt: string | null; endedAt: string | null; sets: readonly SavedSet[] }): DraftWorkout {
+  const exercises: DraftExercise[] = [];
+  let last: { block: number; exerciseId: string } | null = null;
+  for (const set of saved.sets) {
+    if (!last || last.block !== set.block || last.exerciseId !== set.exerciseId) {
+      exercises.push({ key: `e${exercises.length + 1}`, exerciseId: set.exerciseId, sets: [] });
+      last = { block: set.block, exerciseId: set.exerciseId };
+    }
+    exercises[exercises.length - 1].sets.push({
+      type: set.type, kg: set.kg, reps: set.reps, rir: set.rir, seconds: set.seconds, metres: set.metres, doneAt: set.doneAt,
+    });
+  }
+  return { id: saved.id, date: saved.date, startedAt: saved.startedAt, endedAt: saved.endedAt, name: saved.name, exercises, restEndsAt: null, restFor: 0 };
+}
+
+/** "Mon 23 Nov". */
+export function shortDay(date: string): string {
+  return new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" }).format(parse(date));
+}
+
+/** A history row's second line: "Bench Press, Squat +2 · 12 sets · 4,560 kg". */
+export function historyLine(row: { exercises: readonly string[]; sets: number; volumeKg: number }, nameOf: (id: string) => string): string {
+  const names = row.exercises.slice(0, 2).map(nameOf).join(", ");
+  const more = row.exercises.length > 2 ? ` +${row.exercises.length - 2}` : "";
+  const parts = [`${names}${more}` || "No exercises", `${row.sets} ${row.sets === 1 ? "set" : "sets"}`];
+  if (row.volumeKg > 0) parts.push(`${Math.round(row.volumeKg).toLocaleString("en-GB")} kg`);
+  return parts.join(" · ");
 }

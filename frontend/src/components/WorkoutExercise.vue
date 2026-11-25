@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import Icon from "./Icon.vue";
-import { parse } from "../lib/dates";
 import { keyboardEntry } from "../lib/viewport";
 import {
   exerciseSummary,
@@ -12,6 +11,7 @@ import {
   parseField,
   secondsDigits,
   setHints,
+  shortDay,
   type DraftExercise,
   type SetField,
 } from "../lib/workout";
@@ -29,13 +29,14 @@ export interface CellEdit {
 }
 
 // One exercise in the workout: folded to a line, or open with its set table (docs/training.md, phase 2).
-const props = defineProps<{ exercise: DraftExercise; open: boolean; edit: CellEdit }>();
+/** `past`: a workout logged or edited afterwards, so "last time" (the newest workout) doesn't apply. */
+const props = defineProps<{ exercise: DraftExercise; open: boolean; edit: CellEdit; past?: boolean }>();
 const emit = defineEmits<{ expand: []; remove: [] }>();
 
 const item = computed(() => exerciseItem(props.exercise.exerciseId));
 const measure = computed(() => item.value?.measure ?? "weight_reps");
 const fields = computed(() => measureFields(measure.value));
-const last = computed(() => workout.previous[props.exercise.exerciseId] ?? null);
+const last = computed(() => (props.past ? null : workout.previous[props.exercise.exerciseId] ?? null));
 const lastSets = computed(() => last.value?.sets ?? []);
 const lastWorking = computed(() => lastSets.value.filter((set) => set.type !== "warmup"));
 const name = computed(() => item.value?.name ?? props.exercise.exerciseId);
@@ -48,9 +49,9 @@ const folded = computed(() => {
   return `${sets} ${sets === 1 ? "set" : "sets"}`;
 });
 const subtitle = computed(() => {
+  if (props.past) return "";
   if (!last.value) return "First time";
-  const day = new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" }).format(parse(last.value.date));
-  return `Last time ${day}`;
+  return `Last time ${shortDay(last.value.date)}`;
 });
 const columns = computed(() => `var(--set-n) var(--set-lt) ${fields.value.map((field) => `var(--set-${field})`).join(" ")} var(--control-hit)`);
 
@@ -115,12 +116,12 @@ function onInput(event: Event, index: number, field: SetField) {
     <div class="chead">
       <span class="col grow g2">
         <h3 class="t-bodys m0">{{ name }}</h3>
-        <span class="t-capn c2">{{ subtitle }}</span>
+        <span v-if="subtitle" class="t-capn c2">{{ subtitle }}</span>
       </span>
       <button type="button" class="cbtn" :aria-label="`How to do ${name}`" @click="openExercise(exercise.exerciseId)"><Icon name="info" :size="18" /></button>
     </div>
 
-    <div class="sets" :style="{ gridTemplateColumns: columns }" role="table" :aria-label="`${name} sets`">
+    <div class="sets" :class="{ nolast: past }" :style="{ gridTemplateColumns: columns }" role="table" :aria-label="`${name} sets`">
       <div class="srow" role="row">
         <span class="t-capn c3" role="columnheader">Set</span>
         <span class="t-capn c3 lt" role="columnheader">Last time</span>
@@ -194,7 +195,7 @@ function onInput(event: Event, index: number, field: SetField) {
 /* − and the bin stay together at the right end, also when the row wraps. */
 .acts .ends { gap: var(--space-s); margin-left: auto; flex-wrap: nowrap; }
 /* The largest text sizes drop "last time": the grey hints in each cell already show it. */
-.dt-xl .sets .lt { visibility: hidden; }
-.dt-xl .sets { --set-lt: 0px; --set-kg: minmax(0, 1fr); --set-reps: minmax(0, 1fr); --set-rir: minmax(0, 1fr); --set-seconds: minmax(0, 1fr); --set-metres: minmax(0, 1fr); }
+.dt-xl .sets .lt, .sets.nolast .lt { visibility: hidden; }
+.dt-xl .sets, .sets.nolast { --set-lt: 0px; --set-kg: minmax(0, 1fr); --set-reps: minmax(0, 1fr); --set-rir: minmax(0, 1fr); --set-seconds: minmax(0, 1fr); --set-metres: minmax(0, 1fr); }
 .dt-xl .acts { flex-wrap: wrap; }
 </style>

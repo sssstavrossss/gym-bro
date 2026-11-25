@@ -2,12 +2,14 @@
  * The + fan: the tab bar's + opens a half ring of buttons around itself, five to a page. More pages
  * sit behind dots and roll along the ring when you swipe, wrapping like every other pager in the app.
  */
-export type FanActionId = "search" | "scan" | "describe" | "quick" | "weight" | "recipe" | "food" | "recipes" | "mine" | "groups";
+export type FanActionId = "search" | "scan" | "describe" | "quick" | "weight" | "recipe" | "food" | "recipes" | "mine" | "groups" | "workout" | "log-workout";
 
 export interface FanAction {
   id: FanActionId;
   label: string;
   icon: string;
+  /** Not on the default fan: it starts under "Not in the fan", for people who want it there. */
+  extra?: true;
 }
 
 /** In order: the first five are page one. Each keeps its spot, so a thumb learns where it is. */
@@ -22,6 +24,8 @@ export const FAN_ACTIONS: readonly FanAction[] = [
   { id: "recipes", label: "Recipes", icon: "list" },
   { id: "mine", label: "My foods", icon: "user" },
   { id: "groups", label: "Groups", icon: "layers" },
+  { id: "workout", label: "Start workout", icon: "play", extra: true },
+  { id: "log-workout", label: "Log workout", icon: "dumbbell", extra: true },
 ];
 
 export const FAN_PER_PAGE = 5;
@@ -36,9 +40,9 @@ export function fanScale(radius: number): number {
   return Math.max(0.8, Math.min(1, radius / FAN_RADIUS));
 }
 
-/** The actions to show: Describe only when the server can describe meals. */
+/** The default fan's actions: Describe only when the server can describe meals, and no extras. */
 export function fanActions(describeOn: boolean): FanAction[] {
-  return FAN_ACTIONS.filter((action) => describeOn || action.id !== "describe");
+  return FAN_ACTIONS.filter((action) => !action.extra && (describeOn || action.id !== "describe"));
 }
 
 export function fanPages<T>(items: readonly T[], per = FAN_PER_PAGE): T[][] {

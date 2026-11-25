@@ -1455,3 +1455,34 @@ export async function getPreviousSets(exerciseIds: readonly string[], except?: s
   const body = await cachedJson<{ exercises: Record<string, PreviousSets> }>(`/api/workouts/previous?${query}`);
   return body.exercises;
 }
+
+/** One row of the workout history (`GET /api/workouts`). */
+export interface WorkoutSummary {
+  id: string;
+  kind: string;
+  date: string;
+  name: string | null;
+  status: string;
+  startedAt: string | null;
+  endedAt: string | null;
+  updatedAt: string;
+  exercises: string[];
+  sets: number;
+  volumeKg: number;
+}
+
+/** Workouts from one date through another (up to 366 days), newest first. Kept for offline use. */
+export async function listWorkouts(from: string, to: string): Promise<WorkoutSummary[]> {
+  const body = await cachedJson<{ workouts: WorkoutSummary[] }>(`/api/workouts?from=${from}&to=${to}`);
+  return body.workouts;
+}
+
+export async function getWorkout(id: string): Promise<WorkoutResponse> {
+  return cachedJson(`/api/workouts/${encodeURIComponent(id)}`);
+}
+
+export async function deleteWorkout(id: string): Promise<void> {
+  const response = await request(`/api/workouts/${encodeURIComponent(id)}`, { method: "DELETE" });
+  if (response.status === 204) return;
+  await jsonOrThrow(response);
+}

@@ -26,7 +26,9 @@ describe("reading and saving a fan layout", () => {
   });
 
   it("lists what isn't on a page, in the default order", () => {
-    expect(unusedActions(mine)).toEqual(["food", "recipes", "mine"]);
+    // The workout extras are never on the default fan, so they start here.
+    expect(unusedActions(mine)).toEqual(["food", "recipes", "mine", "workout", "log-workout"]);
+    expect(unusedActions(defaultFan())).toEqual(["workout", "log-workout"]);
   });
 });
 

@@ -103,3 +103,60 @@ test("A workout: start it, add an exercise, tick off sets, rest, finish, and see
   await workout.getByRole("alertdialog").getByRole("button", { name: "Discard" }).click();
   await expect(page.getByRole("button", { name: "Start", exact: true })).toBeVisible();
 });
+
+test("History: open a past workout to edit it, delete it with Undo, and log one afterwards", async ({ page }) => {
+  await page.goto("/");
+  const oid = await setup(page);
+  const { zone, today } = await page.evaluate(() => {
+    const zone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+    return { zone, today: new Intl.DateTimeFormat("en-CA", { timeZone: zone, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date()) };
+  });
+  const yesterday = new Date(Date.parse(`${today}T12:00:00Z`) - 86_400_000).toISOString().slice(0, 10);
+  // Ids are global, so each run makes its own.
+  const id = crypto.randomUUID();
+  const set = (kg: number, reps: number) => ({ exerciseId: "barbell-squat", block: 0, type: "working", kg, reps, doneAt: `${yesterday}T17:00:00Z` });
+  const put = await page.request.put(`/api/workouts/${id}`, {
+    headers: headers(oid),
+    data: { date: yesterday, timeZone: zone, sets: [set(100, 5), set(100, 5)] },
+  });
+  expect(put.status(), await put.text()).toBe(201);
+
+  await page.goto("/train");
+  const history = page.locator("[data-workout-history]");
+  const row = history.locator(`[data-workout-row="${id}"]`);
+  await expect(row).toContainText("Barbell Squat · 2 sets · 1,000 kg");
+
+  // Edit: untick a set and save.
+  await row.click();
+  const sheet = page.getByRole("dialog", { name: "Edit workout" });
+  await expect(sheet.locator("[data-past-workout]")).toBeVisible();
+  await sheet.getByRole("button", { name: "Set 2 done" }).click();
+  await sheet.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(sheet).toHaveCount(0);
+  await expect(row).toContainText("Barbell Squat · 1 set · 500 kg");
+
+  // Delete, then Undo brings it back under the same id.
+  await row.click();
+  await page.getByRole("dialog", { name: "Edit workout" }).getByRole("button", { name: "Delete" }).click();
+  await expect(row).toHaveCount(0);
+  await page.locator(".toast").getByRole("button", { name: "Undo" }).click();
+  await expect(row).toContainText("1 set");
+
+  // Log past: a new workout on a day of your choosing.
+  await history.getByRole("button", { name: "Log past" }).click();
+  const add = page.getByRole("dialog", { name: "Add exercise" });
+  await add.getByLabel("Search exercises").fill("plank");
+  await add.locator('[data-exercise="plank"]').click();
+  const log = page.getByRole("dialog", { name: "Log a workout" });
+  await log.getByLabel("Day of the workout").fill(yesterday);
+  await log.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(log.getByRole("alert")).toHaveText("Tick off a set to save the workout.");
+  await log.getByLabel("Set 1, Time").fill("100");
+  await log.getByRole("button", { name: "Set 1 done" }).click();
+  await log.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(log).toHaveCount(0);
+
+  const list = await page.request.get(`/api/workouts?from=${yesterday}&to=${today}`, { headers: headers(oid) });
+  const rows = (await list.json()).workouts;
+  expect(rows.map((w: { exercises: string[]; date: string }) => [w.date, w.exercises[0]]).sort()).toEqual([[yesterday, "barbell-squat"], [yesterday, "plank"]].sort());
+});
