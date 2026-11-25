@@ -8,6 +8,7 @@ import type { LookupStatus } from "./lib/barcode";
 import type { ExerciseItem } from "./lib/exercises";
 import type { Plan, PlanAnswers, PlanPreview } from "./lib/plan";
 import type { LiftProgress } from "./lib/strength";
+import type { MuscleSets, VolumeTarget } from "./lib/muscleVolume";
 import type { SavedSet, WorkoutRequestBody } from "./lib/workout";
 import type { FatLimitsSetting, SodiumLimitSetting } from "./lib/nutrientCards";
 import type { FoodUnit } from "./lib/foodUnits";
@@ -674,6 +675,22 @@ export interface StrengthResponse {
 /** Kept for offline use, like Progress. */
 export async function getStrength(range: string): Promise<StrengthResponse> {
   return cachedJson(`/api/workouts/strength?range=${encodeURIComponent(range)}`);
+}
+
+export interface MusclesResponse {
+  /** Monday of this week. */
+  from: string;
+  to: string;
+  workouts: number;
+  /** The plan's experience; null with no plan. */
+  experience: string | null;
+  target: VolumeTarget;
+  muscles: MuscleSets[];
+}
+
+/** Sets per muscle this week, for Progress → Strength. Kept for offline use, like Progress. */
+export async function getMuscles(): Promise<MusclesResponse> {
+  return cachedJson("/api/workouts/muscles");
 }
 
 export interface NutrientWeekResponse {

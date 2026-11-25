@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
 import Icon from "./Icon.vue";
+import MuscleWeek from "./MuscleWeek.vue";
 import { ApiError, getStrength, ServerUnreachable, type StrengthResponse } from "../api";
 import { dayMonth, spanLabel } from "../lib/dates";
 import { maxText } from "../lib/records";
@@ -105,6 +106,8 @@ const up = computed(() => liftsUp(data.value?.lifts ?? []));
         </button>
         <p v-if="lifts.length" class="t-capn c2 m0">Each day's best set, as kg × (1 + (reps + reps in reserve) / 30). The line runs from the first day in the range to the last.</p>
       </section>
+
+      <MuscleWeek />
 
       <div class="sr-only">
         <table>
