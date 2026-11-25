@@ -200,6 +200,20 @@ public sealed class PlanRulesTests
         var other = PlanGenerator.Generate(Answers(Request(days: [0, 2])), ExerciseCatalog.Current, first.Select(item => item.Id).ToList());
         Assert.DoesNotContain(other, item => first.Any(old => old.Id == item.Id));
     }
+
+    [Fact]
+    public void Swaps_leave_out_what_loads_a_go_easy_area_and_keep_lifts_to_lifts()
+    {
+        var library = ExerciseCatalog.Current;
+        var squat = library.Find("barbell-squat")!;
+        var easy = Swaps.For(squat, library, EquipmentPresets.KitOf(["gym"]), [Joints.Knees]);
+        Assert.DoesNotContain(easy, option => option.Why == Swaps.SameMovement);
+        Assert.DoesNotContain(easy, option => option.Id is "leg-press" or "hack-squat" or "goblet-squat");
+        Assert.All(easy, option => Assert.DoesNotContain(library.Find(option.Id)!.Category, new[] { "cardio", "stretching" }));
+        Assert.True(easy.Count <= Swaps.MuscleOptions);
+        Assert.Equal(Kit.Barbell, Swaps.KitOf("ez-bar"));
+        Assert.Null(Swaps.KitOf("bands"));
+    }
 }
 
 [Collection(ApiCollection.Name)]
@@ -224,6 +238,39 @@ public sealed class PlanEndpointTests(ApiFactory factory)
         split,
         timeZone = "UTC",
     };
+
+    [Fact]
+    public async Task Swaps_offer_the_same_movement_first_and_keep_to_the_plans_kit()
+    {
+        var client = factory.AsUser(TestData.NewUser("plan-swaps"));
+        using (var open = JsonDocument.Parse(await client.GetStringAsync("/api/exercises/barbell-squat/swaps")))
+        {
+            var root = open.RootElement;
+            Assert.False(root.GetProperty("planKit").GetBoolean());
+            var options = root.GetProperty("options").EnumerateArray().ToList();
+            // With no plan: every core squat, in the generator's order, then same-muscle ones.
+            Assert.Equal(["hack-squat", "leg-press", "goblet-squat"], options.Take(3).Select(item => item.GetProperty("id").GetString()));
+            Assert.Equal("movement", options[0].GetProperty("why").GetString());
+            Assert.Contains(options, item => item.GetProperty("why").GetString() == "muscle");
+        }
+
+        var made = await client.PutAsJsonAsync("/api/plan", new
+        {
+            goal = "muscle", weekdays = new[] { 0, 2, 4 }, minutes = 60, experience = "some",
+            equipment = new[] { "dumbbells" }, goEasy = Array.Empty<string>(), split = (string?)null, timeZone = "UTC",
+        });
+        Assert.Equal(HttpStatusCode.Created, made.StatusCode);
+        using var planned = JsonDocument.Parse(await client.GetStringAsync("/api/exercises/barbell-squat/swaps"));
+        Assert.True(planned.RootElement.GetProperty("planKit").GetBoolean());
+        var fitting = planned.RootElement.GetProperty("options").EnumerateArray()
+            .Select(item => (Id: item.GetProperty("id").GetString()!, Why: item.GetProperty("why").GetString()!)).ToList();
+        Assert.Equal("goblet-squat", fitting[0].Id);
+        Assert.DoesNotContain(fitting, option => option.Id == "hack-squat");
+        // Same-muscle ones need only dumbbells or body weight.
+        Assert.All(fitting.Where(option => option.Why == "muscle"), option =>
+            Assert.Contains(ExerciseCatalog.Current.Find(option.Id)!.Equipment, new[] { "dumbbell", "bodyweight", "none" }));
+        Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync("/api/exercises/not-a-lift/swaps")).StatusCode);
+    }
 
     private static Guid[] WorkoutIds(JsonElement plan) => [.. plan.GetProperty("workouts").EnumerateArray().Select(item => item.GetProperty("id").GetGuid())];
 

@@ -33,7 +33,10 @@ Phase 3 is done. Phase 4 (suggestions and PRs; Progress rebuilt), shipped so far
 - Strength on Progress: a Body / Strength switch; workouts, sets and lifts up in the range, and each lift's estimated max with its change and a small line. See *Strength on Progress* in the README.
 - Sets per muscle this week on Progress → Strength: the body map by target, each muscle's sets (main in full, helping as half) against the plan's weekly volume, and the big muscles not worked yet. See *This week* in the README.
 
-Phase 4 is done. Next: phase 5 (swaps, warm-ups, plate maths, build or edit your own plan).
+Phase 4 is done. Phase 5 (swaps, warm-ups, plate maths, build or edit your own plan), shipped so far:
+- Swap an exercise in a workout: the same movement first (the generator's alternatives), then the same main muscle, then the library; within the plan's equipment and go-easy areas. Unticked sets move, ticked ones stay. See *Swap* in the README.
+
+Next in phase 5: warm-ups, plate maths, then editing and building your own plan.
 
 ## Decisions (agreed 2026-11-25)
 

@@ -2,6 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from "vue";
 import BottomSheet from "./BottomSheet.vue";
 import ExerciseBrowser from "./ExerciseBrowser.vue";
+import SwapList from "./SwapList.vue";
 import Icon from "./Icon.vue";
 import Keypad from "./Keypad.vue";
 import WorkoutExercise, { type CellEdit } from "./WorkoutExercise.vue";
@@ -27,6 +28,7 @@ import { loadExercises } from "../state/exercises";
 import { deviceTimeZone } from "../state/profile";
 import {
   addExercise,
+  swapExercise,
   closePast,
   closeSummary,
   deletePast,
@@ -53,7 +55,9 @@ const past = computed(() => workout.past);
 const current = computed(() => past.value?.draft ?? active.value);
 const pastError = ref("");
 const today = computed(() => todayInZone(deviceTimeZone(), new Date(now.value)));
-const view = ref<"log" | "add">("log");
+const view = ref<"log" | "add" | "swap">("log");
+/** The exercise being swapped, on the swap screen. */
+const swapping = ref<{ key: string; exerciseId: string } | null>(null);
 const confirming = ref<null | "undone" | "empty" | "discard">(null);
 const waiting = ref(false);
 /** The exercise opened by tapping it. Null follows the first one with sets to do. */
@@ -141,6 +145,25 @@ async function pick(exerciseId: string) {
   document.querySelector(`[data-workout-exercise="${exerciseId}"][data-open]`)?.scrollIntoView({ block: "nearest" });
 }
 
+function startSwap(exercise: { key: string; exerciseId: string }) {
+  swapping.value = { key: exercise.key, exerciseId: exercise.exerciseId };
+  view.value = "swap";
+}
+
+async function swapTo(exerciseId: string) {
+  const from = swapping.value;
+  if (!from) return;
+  const key = await swapExercise(from.key, exerciseId);
+  swapping.value = null;
+  view.value = "log";
+  if (!key) return;
+  chosen.value = key;
+  const name = (id: string) => exerciseItem(id)?.name ?? "Exercise";
+  toast(`Swapped ${name(from.exerciseId)} for ${name(exerciseId)}`);
+  await nextTick();
+  document.querySelector(`[data-workout-exercise="${exerciseId}"][data-open]`)?.scrollIntoView({ block: "nearest" });
+}
+
 function remove(key: string) {
   const removed = removeExercise(key);
   if (!removed) return;
@@ -207,7 +230,8 @@ const summary = computed(() => {
 });
 const showSummary = computed(() => summary.value != null && !active.value && !past.value);
 const pastTitle = computed(() => (past.value?.isNew ? "Log a workout" : "Edit workout"));
-const label = computed(() => (showSummary.value ? "Workout done" : view.value === "add" ? "Add exercise" : past.value ? pastTitle.value : active.value?.name ?? "Workout"));
+const swapTitle = computed(() => `Swap ${swapping.value ? exerciseItem(swapping.value.exerciseId)?.name ?? "exercise" : "exercise"}`);
+const label = computed(() => (showSummary.value ? "Workout done" : view.value === "add" ? "Add exercise" : view.value === "swap" ? swapTitle.value : past.value ? pastTitle.value : active.value?.name ?? "Workout"));
 
 function setPastDate(event: Event) {
   const value = (event.target as HTMLInputElement).value;
@@ -251,6 +275,10 @@ async function deletePastNow() {
         <button type="button" class="cbtn" aria-label="Back to the workout" @click="view = 'log'"><Icon name="left" :size="18" /></button>
         <h2 class="t-head m0 grow">Add exercise</h2>
       </div>
+      <div v-else-if="view === 'swap'" class="row hdr">
+        <button type="button" class="cbtn" aria-label="Back to the workout" @click="view = 'log'"><Icon name="left" :size="18" /></button>
+        <h2 class="t-head m0 grow">{{ swapTitle }}</h2>
+      </div>
       <div v-else-if="past" class="row hdr">
         <span class="col grow g2">
           <h2 class="t-head m0">{{ pastTitle }}</h2>
@@ -288,6 +316,7 @@ async function deletePastNow() {
     </div>
 
     <ExerciseBrowser v-else-if="view === 'add'" title="Exercises" title-id="workout-add-title" action="add" @pick="pick" />
+    <SwapList v-else-if="view === 'swap' && swapping" :key="swapping.key" :exercise-id="swapping.exerciseId" @pick="swapTo" />
 
     <div v-else-if="past" class="col body" data-past-workout>
       <label class="field row day">
@@ -300,7 +329,7 @@ async function deletePastNow() {
       </div>
       <WorkoutExercise
         v-for="exercise in past.draft.exercises" :key="exercise.key" :exercise="exercise" open past :edit="edit"
-        @remove="remove(exercise.key)"
+        @remove="remove(exercise.key)" @swap="startSwap(exercise)"
       />
       <div class="row more">
         <button type="button" class="btn sm secondary t-label" @click="view = 'add'"><Icon name="plus" :size="14" /> Exercise</button>
@@ -332,7 +361,7 @@ async function deletePastNow() {
       </div>
       <WorkoutExercise
         v-for="exercise in active.exercises" :key="exercise.key" :exercise="exercise" :open="exercise.key === shownKey" :edit="edit"
-        @expand="chosen = exercise.key" @remove="remove(exercise.key)"
+        @expand="chosen = exercise.key" @remove="remove(exercise.key)" @swap="startSwap(exercise)"
       />
       <div class="row more">
         <button type="button" class="btn sm secondary t-label" @click="view = 'add'"><Icon name="plus" :size="14" /> Exercise</button>

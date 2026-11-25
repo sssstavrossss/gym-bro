@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { computed, reactive, ref } from "vue";
+import ExerciseRow from "./ExerciseRow.vue";
 import Icon from "./Icon.vue";
-import { EXERCISE_AREAS, exerciseLine, photoUrl, searchExercises, type ExerciseArea } from "../lib/exercises";
+import { EXERCISE_AREAS, searchExercises, type ExerciseArea } from "../lib/exercises";
 import { exercises, loadExercises } from "../state/exercises";
 
 // The exercise library: search, body-area chips and the list. Train opens the how-to from it; the
 // workout sheet adds the picked exercise.
-withDefaults(defineProps<{ title: string; titleId: string; action?: "open" | "add" }>(), { action: "open" });
+withDefaults(defineProps<{ title: string; titleId: string; action?: "open" | "add" | "swap" }>(), { action: "open" });
 const emit = defineEmits<{ pick: [string] }>();
 const query = ref("");
 const area = ref<ExerciseArea>("all");
@@ -44,20 +45,7 @@ const broken = reactive(new Set<string>());
     <p v-else-if="!found.length" class="t-label c2 m0 note">No exercises match “{{ query.trim() }}”.</p>
     <ul v-else class="list" :aria-labelledby="titleId">
       <li v-for="item in found" :key="item.id">
-        <button type="button" class="row erow" :data-exercise="item.id" :aria-label="action === 'add' ? `Add ${item.name}` : undefined" @click="emit('pick', item.id)">
-          <span class="thumb" aria-hidden="true">
-            <img
-              v-if="item.images && !broken.has(item.id)" :src="photoUrl(exercises.photos, item.id, 0)" alt=""
-              loading="lazy" decoding="async" @error="broken.add(item.id)"
-            />
-            <Icon v-else name="dumbbell" :size="16" />
-          </span>
-          <span class="col grow text">
-            <span class="t-body name">{{ item.name }}</span>
-            <span class="t-label c2 line">{{ exerciseLine(item) }}</span>
-          </span>
-          <Icon :name="action === 'add' ? 'plus' : 'right'" :size="16" class="c3" />
-        </button>
+        <ExerciseRow :item="item" :action="action" :broken="broken" @pick="emit('pick', $event)" />
       </li>
     </ul>
   </section>
@@ -77,19 +65,7 @@ const broken = reactive(new Set<string>());
 .areas::-webkit-scrollbar { display: none; }
 .areas .chip { flex: none; }
 /* The large text sizes wrap every .row (main.css); these stay on one line and shorten their text instead. */
-.lib .field, .lib .areas, .list .erow { flex-wrap: nowrap; }
+.lib .field, .lib .areas { flex-wrap: nowrap; }
 .note { padding-block: var(--space-m); gap: var(--space-s); }
 .list { list-style: none; margin: 0; padding: 0; }
-.erow {
-  width: 100%; min-height: 56px; gap: var(--space-m); padding: var(--space-s) 0;
-  background: none; border: 0; border-bottom: 1px solid var(--color-border); color: inherit; text-align: left;
-}
-.thumb {
-  width: 48px; aspect-ratio: 3 / 2; flex: none; border-radius: var(--radius-s); overflow: hidden;
-  display: flex; align-items: center; justify-content: center;
-  background: var(--color-surface-2); color: var(--text-secondary); box-shadow: var(--d-edge);
-}
-.thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.text { gap: var(--space-2xs); min-width: 0; }
-.name, .line { overflow-wrap: anywhere; }
 </style>

@@ -688,6 +688,24 @@ export interface MusclesResponse {
   muscles: MuscleSets[];
 }
 
+export interface SwapOption {
+  id: string;
+  /** "movement": a core exercise for the same movement; "muscle": the same main muscle. */
+  why: "movement" | "muscle";
+}
+
+export interface SwapsResponse {
+  exerciseId: string;
+  /** True when a plan's equipment and go-easy areas narrowed the list. */
+  planKit: boolean;
+  options: SwapOption[];
+}
+
+/** What an exercise can be swapped for in a workout. Kept for offline use. */
+export async function getSwaps(exerciseId: string): Promise<SwapsResponse> {
+  return cachedJson(`/api/exercises/${encodeURIComponent(exerciseId)}/swaps`);
+}
+
 /** Sets per muscle this week, for Progress → Strength. Kept for offline use, like Progress. */
 export async function getMuscles(): Promise<MusclesResponse> {
   return cachedJson("/api/workouts/muscles");

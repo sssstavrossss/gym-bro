@@ -15,6 +15,7 @@ import {
   restSeconds,
   secondsDigits,
   setHints,
+  swapExercise,
   toggleSet,
   toRequest,
   typeKey,
@@ -229,5 +230,29 @@ describe("past workouts", () => {
     expect(setHints(exercise, 0, last)).toMatchObject({ kg: 80, reps: 8, rir: 2 });
     const hold = { ...exercise, target: { ...exercise.target, repMin: null, repMax: null, seconds: 45 } };
     expect(setHints(hold, 0, [])).toMatchObject({ seconds: 45 });
+  });
+});
+
+describe("swapping an exercise", () => {
+  const target = { repMin: 6, repMax: 10, seconds: null, rir: 2, restSeconds: 180, easing: false };
+  const done = { ...emptySet(), kg: 100, reps: 8, doneAt: "2026-11-25T18:00:00Z" };
+
+  it("moves every set, emptied, when nothing is ticked, and keeps the target", () => {
+    const from = { key: "e1", exerciseId: "barbell-squat", target, sets: [emptySet("warmup"), { ...emptySet(), kg: 100 }, emptySet()] };
+    const { keep, next } = swapExercise(from, "leg-press", "e9");
+    expect(keep).toBeNull();
+    expect(next).toEqual({ key: "e1", exerciseId: "leg-press", target, sets: [emptySet("warmup"), emptySet(), emptySet()] });
+  });
+
+  it("leaves ticked sets with the old exercise and moves the rest", () => {
+    const from = { key: "e1", exerciseId: "barbell-squat", sets: [done, emptySet(), emptySet()] };
+    const { keep, next } = swapExercise(from, "leg-press", "e9");
+    expect(keep).toEqual({ ...from, sets: [done] });
+    expect(next).toEqual({ key: "e9", exerciseId: "leg-press", target: null, sets: [emptySet(), emptySet()] });
+  });
+
+  it("gives as many sets again when all were ticked", () => {
+    const { next } = swapExercise({ key: "e1", exerciseId: "barbell-squat", sets: [done, done] }, "leg-press", "e9");
+    expect(next.sets).toEqual([emptySet(), emptySet()]);
   });
 });
