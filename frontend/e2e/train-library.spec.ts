@@ -80,7 +80,13 @@ test("Train holds the exercise library: search, body areas, and how to do one", 
   await search.fill("barbell squat");
   await rows.first().click();
   const squat = page.getByRole("dialog", { name: "Barbell Squat" });
-  await expect(squat.getByLabel("Muscles").getByText("Quadriceps")).toBeVisible();
+  const muscles = squat.getByLabel("Muscles");
+  await expect(muscles.getByText("Quadriceps")).toBeVisible();
+  await expect(muscles.getByRole("heading", { name: "Helping" })).toBeVisible();
+  // The body map lights the main muscle and dims the helping ones, front and back.
+  await expect(muscles.locator('[data-muscle-view="front"] [data-muscle="quadriceps"]')).toHaveClass(/\bmain\b/);
+  await expect(muscles.locator('[data-muscle-view="back"] [data-muscle="glutes"]')).toHaveClass(/\bhelp\b/);
+  await expect(muscles.locator('[data-muscle-view="front"] [data-muscle="chest"]')).toHaveClass(/\bidle\b/);
   await expect(squat.locator("[data-exercise-steps] li").first()).toBeVisible();
   await expect(squat.getByText("Photos and steps: free-exercise-db, public domain")).toBeVisible();
 
