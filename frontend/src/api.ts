@@ -7,6 +7,7 @@ import { dispositionName } from "./lib/download";
 import type { LookupStatus } from "./lib/barcode";
 import type { ExerciseItem } from "./lib/exercises";
 import type { Plan, PlanAnswers, PlanPreview } from "./lib/plan";
+import type { LiftProgress } from "./lib/strength";
 import type { SavedSet, WorkoutRequestBody } from "./lib/workout";
 import type { FatLimitsSetting, SodiumLimitSetting } from "./lib/nutrientCards";
 import type { FoodUnit } from "./lib/foodUnits";
@@ -658,6 +659,21 @@ export interface ProgressResponse {
 
 export async function getProgress(range: string): Promise<ProgressResponse> {
   return cachedJson(`/api/progress?range=${encodeURIComponent(range)}`);
+}
+
+/** Progress → Strength (`GET /api/workouts/strength`): done workouts and sets in the range, and each lift's estimated max by day. */
+export interface StrengthResponse {
+  range: string;
+  from: string;
+  to: string;
+  workouts: number;
+  sets: number;
+  lifts: LiftProgress[];
+}
+
+/** Kept for offline use, like Progress. */
+export async function getStrength(range: string): Promise<StrengthResponse> {
+  return cachedJson(`/api/workouts/strength?range=${encodeURIComponent(range)}`);
 }
 
 export interface NutrientWeekResponse {

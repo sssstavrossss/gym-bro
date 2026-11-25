@@ -30,7 +30,9 @@ Phase 3 is done. Phase 4 (suggestions and PRs; Progress rebuilt), shipped so far
 
 - New bests: estimated max (Epley with RIR) per exercise, the best so far from the API, "New best" on the card once a ticked set beats it, and in the summary. See *New bests* in the README.
 
-Next in phase 4: Progress rebuilt (estimated max per lift, sets per muscle).
+- Strength on Progress: a Body / Strength switch; workouts, sets and lifts up in the range, and each lift's estimated max with its change and a small line. See *Strength on Progress* in the README.
+
+Next in phase 4: sets per muscle this week against volume targets.
 
 ## Decisions (agreed 2026-11-25)
 

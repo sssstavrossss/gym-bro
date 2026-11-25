@@ -3,6 +3,7 @@ import { computed, nextTick, onMounted, ref, watch } from "vue";
 import Icon from "../components/Icon.vue";
 import OfflineLine from "../components/OfflineLine.vue";
 import Segmented from "../components/Segmented.vue";
+import StrengthProgress from "../components/StrengthProgress.vue";
 import { ApiError, getProgress, ServerUnreachable, type ProgressDay, type ProgressResponse } from "../api";
 import { dayMonth, spanLabel } from "../lib/dates";
 import { formatDecimal, int } from "../lib/format";
@@ -20,6 +21,31 @@ const ranges = [
   { value: "all", label: "All", ariaLabel: "All" },
 ];
 const range = ref("30d");
+
+// Body (weight and food) or Strength (workouts), remembered on this device.
+type ProgressView = "body" | "strength";
+const VIEW_KEY = "gymbro-progress-view";
+const views: { value: ProgressView; label: string }[] = [
+  { value: "body", label: "Body" },
+  { value: "strength", label: "Strength" },
+];
+function savedView(): ProgressView {
+  try {
+    return localStorage.getItem(VIEW_KEY) === "strength" ? "strength" : "body";
+  } catch {
+    return "body";
+  }
+}
+const view = ref<ProgressView>(savedView());
+watch(view, (value) => {
+  try {
+    localStorage.setItem(VIEW_KEY, value);
+  } catch {
+    // Private mode: the choice lasts this visit.
+  }
+  if (value === "body") void load();
+});
+const strengthPeriod = ref("");
 const data = ref<ProgressResponse | null>(null);
 const loading = ref(true);
 const error = ref("");
@@ -54,8 +80,8 @@ async function load() {
   }
 }
 
-onMounted(() => { void load(); });
-watch(range, () => { void load(); });
+onMounted(() => { if (view.value === "body") void load(); });
+watch(range, () => { if (view.value === "body") void load(); });
 
 const weight = computed(() => data.value?.weight ?? null);
 const intake = computed(() => data.value?.intake ?? null);
@@ -154,14 +180,17 @@ function weighInOn(date: string): string {
     <header class="head">
       <div class="col gap2">
         <h1 class="t-title">Progress</h1>
-        <span v-if="data" class="t-label c2">{{ period }}</span>
+        <span v-if="view === 'strength' ? strengthPeriod : data" class="t-label c2">{{ view === "strength" ? strengthPeriod : period }}</span>
         <OfflineLine />
       </div>
+      <Segmented v-model="view" label="Show" :options="views" data-progress-view />
     </header>
     <div class="rangebar" data-range-bar>
       <Segmented v-model="range" label="Range" :options="ranges" @mousedown.prevent />
     </div>
 
+    <StrengthProgress v-if="view === 'strength'" :range="range" @period="strengthPeriod = $event" />
+    <template v-else>
     <p v-if="loading && !data" class="t-body c2" role="status">Loading…</p>
     <div v-else-if="error && !data" class="card" role="alert">
       <p class="t-body">{{ error }}</p>
@@ -292,6 +321,7 @@ function weighInOn(date: string): string {
         </tbody>
       </table>
       </div>
+    </template>
     </template>
   </main>
 </template>

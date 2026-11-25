@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using GymBro.Api.Data;
 using GymBro.Api.Logging;
+using GymBro.Api.Progress;
 using GymBro.Api.Training;
 using GymBro.Api.Users;
 using Microsoft.EntityFrameworkCore;
@@ -78,6 +79,7 @@ public static class WorkoutEndpoints
     {
         api.MapGet("/workouts", List);
         api.MapGet("/workouts/previous", Previous);
+        api.MapGet("/workouts/strength", Strength);
         api.MapGet("/workouts/{id:guid}", Get);
         api.MapPut("/workouts/{id:guid}", Put);
         api.MapDelete("/workouts/{id:guid}", Delete);
@@ -206,6 +208,52 @@ public static class WorkoutEndpoints
             .OrderByDescending(row => row.LocalDate).ThenByDescending(row => row.StartedAt ?? row.CreatedAt)
             .ToListAsync(cancellationToken);
         return Results.Ok(new { workouts = sessions.Select(ToSummary) });
+    }
+
+    /// <summary>
+    /// Progress → Strength over a range (7d, 30d, 90d, 6m or all, as Progress): done workouts, their working sets,
+    /// and each lift's estimated max per day.
+    /// </summary>
+    private static async Task<IResult> Strength(
+        ClaimsPrincipal principal,
+        string? range,
+        AppDbContext db,
+        TimeProvider clock,
+        CancellationToken cancellationToken)
+    {
+        if (Caller.MissingOid(principal) is { } denied)
+        {
+            return denied;
+        }
+
+        if (!ProgressMath.TryRange(range, out var normalized))
+        {
+            return ApiResults.Error(ProgressMath.BadRange);
+        }
+
+        var userId = Caller.Id(principal);
+        var today = await ProgressEndpoints.TodayAsync(userId, db, clock, cancellationToken);
+        var done = db.WorkoutSessions.AsNoTracking().Where(row => row.UserId == userId && row.Status == WorkoutStatuses.Done && row.LocalDate <= today);
+        var first = await done.OrderBy(row => row.LocalDate).Select(row => (DateOnly?)row.LocalDate).FirstOrDefaultAsync(cancellationToken);
+        var from = ProgressMath.WindowStart(today, normalized, first);
+
+        var inRange = done.Where(row => row.LocalDate >= from);
+        var workouts = await inRange.CountAsync(cancellationToken);
+        var sets = await db.WorkoutSets.AsNoTracking()
+            .Where(set => set.UserId == userId && set.Type != SetTypes.Warmup)
+            .Join(inRange, set => set.SessionId, row => row.Id,
+                (set, row) => new ScoredSet(row.LocalDate, set.ExerciseId, set.Type, set.Kg, set.Reps, set.Rir))
+            .ToListAsync(cancellationToken);
+
+        return Results.Ok(new
+        {
+            range = normalized,
+            from,
+            to = today,
+            workouts,
+            sets = sets.Count,
+            lifts = StrengthProgress.Lifts(sets),
+        });
     }
 
     /// <summary>
