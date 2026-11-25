@@ -33,9 +33,12 @@ async function setup(page: Page): Promise<string> {
 test("Up next: skip with Undo, start the plan workout prefilled, finish it, and the plan moves on", async ({ page }) => {
   await page.goto("/");
   const oid = await setup(page);
+  // Today and the three days after it, so the calendar starts today.
+  const weekday = await page.evaluate(() => (new Date().getDay() + 6) % 7);
+  const weekdays = [0, 1, 2, 3].map((n) => (weekday + n) % 7).sort((a, b) => a - b);
   const made = await page.request.put("/api/plan", {
     headers: headers(oid),
-    data: { goal: "muscle", weekdays: [0, 1, 3, 4], minutes: 60, experience: "some", equipment: ["gym"], goEasy: [], timeZone: "UTC" },
+    data: { goal: "muscle", weekdays, minutes: 60, experience: "some", equipment: ["gym"], goEasy: [], timeZone: "UTC" },
   });
   expect(made.status(), await made.text()).toBe(201);
   const upperA = (await made.json()).workouts[0] as { exercises: { sets: number }[] };
@@ -45,6 +48,11 @@ test("Up next: skip with Undo, start the plan workout prefilled, finish it, and 
   const next = page.locator("[data-up-next]");
   await expect(next).toContainText("Upper A");
   await expect(next).toContainText("Week 1 of 6 · 3 reps in reserve");
+  await expect(next).toContainText("Up next · Today");
+  const coming = next.locator("[data-plan-coming] li");
+  await expect(coming).toHaveCount(3);
+  await expect(coming.first()).toContainText("Lower A");
+  await expect(coming.first()).toContainText("Tomorrow");
 
   // Skip moves on, and Undo brings it back.
   await next.getByRole("button", { name: "Skip Upper A" }).click();
@@ -82,6 +90,8 @@ test("Up next: skip with Undo, start the plan workout prefilled, finish it, and 
   await page.getByRole("dialog", { name: "Workout done" }).getByRole("button", { name: "Done", exact: true }).click();
 
   await expect(next).toContainText("Lower A");
+  // Done today, so the next one goes on the next training day.
+  await expect(next).toContainText("Up next · Tomorrow");
   const plan = (await (await page.request.get("/api/plan", { headers: headers(oid) })).json()).plan;
   expect(plan.lastPosition).toBe(0);
   const today = await page.evaluate(() => new Intl.DateTimeFormat("en-CA", { year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date()));

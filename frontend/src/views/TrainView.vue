@@ -3,15 +3,16 @@ import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import ExerciseBrowser from "../components/ExerciseBrowser.vue";
 import Icon from "../components/Icon.vue";
 import OfflineLine from "../components/OfflineLine.vue";
-import { nextLine, planLine, upNext, weekLine, workoutLine } from "../lib/plan";
+import { todayInZone } from "../lib/dates";
+import { dayLabel, nextLine, planLine, projectDays, upNext, weekLine, workoutLine } from "../lib/plan";
 import { historyLine, shortDay, workoutStatus, workoutTotals } from "../lib/workout";
 import { exercises, loadExercises } from "../state/exercises";
 import { loadPlan, plan } from "../state/plan";
+import { deviceTimeZone } from "../state/profile";
 import { loadHistory, newPast, openPast, skipPlanWorkout, startPlanWorkout, startWorkout, unskipPlanWorkout, workout, workoutHistory } from "../state/workout";
 import { openExercise, openPlan, openWorkout, toast, toastError } from "../ui";
 
 // Training (docs/training.md): start or resume a workout, the plan, the history and the exercise library.
-// The calendar arrives in a later step.
 const now = ref(Date.now());
 let timer: number | undefined;
 onMounted(() => {
@@ -38,6 +39,14 @@ const next = computed(() => {
 /** The live workout is this one: Resume instead of Start, and no Skip. */
 const nextRunning = computed(() => !!next.value && workout.active?.plan?.position === next.value.position && workout.active.plan.workoutId === next.value.workout.id);
 const skipping = ref(false);
+
+// The calendar: Up next and the ones after it on your coming training days, a week's worth.
+const today = computed(() => todayInZone(deviceTimeZone(), new Date(now.value)));
+const doneToday = computed(() =>
+  workoutHistory.rows.some((row) => row.planWorkoutId != null && row.date === today.value)
+  || workout.pending.some((draft) => draft.plan && draft.date === today.value));
+const coming = computed(() => (plan.current && next.value ? projectDays(plan.current, next.value, today.value, doneToday.value, plan.current.weekdays.length) : []));
+const nextDay = computed(() => (coming.value[0] ? dayLabel(coming.value[0].date, today.value) : ""));
 
 function startNext() {
   if (!next.value) return;
@@ -117,7 +126,7 @@ function logPast() {
       </div>
       <span class="t-body">{{ planLine(plan.current) }}</span>
       <div v-if="next" class="well col g8 upnext" data-up-next :data-position="next.position">
-        <span class="t-cap c3 section-title">Up next</span>
+        <span class="t-cap c3 section-title">Up next<template v-if="nextDay"> · {{ nextDay }}</template></span>
         <span class="col g2">
           <span class="t-bodys">{{ next.workout.name }}</span>
           <span class="t-label c2">{{ nextLine(next) }}</span>
@@ -129,6 +138,12 @@ function logPast() {
           <button v-else-if="!workout.active" type="button" class="btn sm primary t-label" :aria-label="`Start ${next.workout.name}`" @click="startNext"><Icon name="play" :size="14" /> Start</button>
           <button v-if="!nextRunning" type="button" class="btn sm secondary t-label" :aria-label="`Skip ${next.workout.name}`" :disabled="skipping" @click="skipNext">Skip</button>
         </div>
+        <ul v-if="coming.length > 1" class="list col then" aria-label="Then" data-plan-coming>
+          <li v-for="day in coming.slice(1)" :key="day.position" class="row trow" :data-date="day.date">
+            <span class="t-label grow">{{ day.workout.name }}</span>
+            <span class="t-label c2">{{ dayLabel(day.date, today) }}</span>
+          </li>
+        </ul>
       </div>
       <ol class="list pws">
         <li v-for="item in plan.current.workouts" :key="item.id" class="col pw" :data-plan-workout="item.name" :aria-current="next?.workout.id === item.id ? 'step' : undefined">
@@ -193,6 +208,8 @@ function logPast() {
 .pwhead { gap: var(--space-s); }
 .g8 { gap: var(--space-s); }
 .nbtns { flex-wrap: wrap; }
+.then { border-top: 1px solid var(--color-border); padding-top: var(--space-xs); }
+.trow { gap: var(--space-s); padding-block: var(--space-2xs); }
 .hist { gap: var(--space-s); }
 .hist .chead { padding-top: var(--space-s); }
 .list { list-style: none; margin: 0; padding: 0; }
