@@ -6,6 +6,7 @@ import { kg as formatKg } from "./lib/format";
 import { dispositionName } from "./lib/download";
 import type { LookupStatus } from "./lib/barcode";
 import type { ExerciseItem } from "./lib/exercises";
+import type { SavedSet, WorkoutRequestBody } from "./lib/workout";
 import type { FatLimitsSetting, SodiumLimitSetting } from "./lib/nutrientCards";
 import type { FoodUnit } from "./lib/foodUnits";
 import { e2eSession } from "./auth/e2e";
@@ -1415,4 +1416,42 @@ export async function getExercises(): Promise<ExercisesResponse> {
 
 export async function getExercise(id: string): Promise<ExerciseDetail> {
   return cachedJson(`/api/exercises/${encodeURIComponent(id)}`);
+}
+
+/** A saved workout (README → Workouts). */
+export interface WorkoutResponse {
+  id: string;
+  kind: string;
+  date: string;
+  name: string | null;
+  status: "done" | "skipped";
+  startedAt: string | null;
+  endedAt: string | null;
+  notes: string | null;
+  updatedAt: string;
+  sets: SavedSet[];
+}
+
+export interface PreviousSets {
+  workoutId: string;
+  date: string;
+  sets: SavedSet[];
+}
+
+/** Saves a whole workout under the app's own id. Sent again, it replaces the first copy. */
+export async function putWorkout(id: string, body: WorkoutRequestBody): Promise<WorkoutResponse> {
+  return jsonOrThrow(await request(`/api/workouts/${encodeURIComponent(id)}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  }));
+}
+
+/** Each exercise's sets from the last workout that had it, for "Last time". Kept for offline use. */
+export async function getPreviousSets(exerciseIds: readonly string[], except?: string): Promise<Record<string, PreviousSets>> {
+  const query = new URLSearchParams();
+  for (const id of [...exerciseIds].sort()) query.append("exercise", id);
+  if (except) query.set("except", except);
+  const body = await cachedJson<{ exercises: Record<string, PreviousSets> }>(`/api/workouts/previous?${query}`);
+  return body.exercises;
 }

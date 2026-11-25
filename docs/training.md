@@ -14,7 +14,9 @@ Shipped so far:
 Phase 1 is done. Phase 2 (log a free workout), shipped so far:
 - The workouts API: `PUT/GET/DELETE /api/workouts/{id}`, `GET /api/workouts?from=&to=` and `GET /api/workouts/previous`, with the session and set tables below. The app makes each workout's id, so an offline workout sends safely later. See *Workouts* in the README.
 
-Next: logging a workout in the app (Start workout, the set table, rest timer, summary), then history and editing past workouts.
+- Logging a workout in the app: Start or Resume on Train, the workout sheet with add exercise, the set table with last time and hints, the app keypad, the rest timer, Finish and the summary. A workout in progress and finished ones waiting to send live on the phone. See *Logging a workout* in the README.
+
+Next: history on Train, editing and deleting past workouts, logging a past workout, and Start workout in the + fan.
 
 ## Decisions (agreed 2026-11-25)
 

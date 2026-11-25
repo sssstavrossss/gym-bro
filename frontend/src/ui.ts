@@ -66,6 +66,8 @@ export const ui = reactive({
   nutrient: null as null | { key: string; kcalTarget: number | null },
   /** Exercise open in the how-to sheet (Train → Exercises). */
   exercise: null as string | null,
+  /** The how-to is open over the workout sheet, which stays open under it. */
+  exerciseOver: false,
   /** The swipe card whose pages the card pages sheet picks. */
   cardPages: "progress" as PageCard,
   /** The card pages sheet is open over another sheet (a cog on Add food or a recipe), which stays open under it. */
@@ -182,10 +184,26 @@ export function openNutrient(key: string, kcalTarget: number | null): void {
   ui.sheet = "nutrient";
 }
 
-/** How to do one exercise: photos, muscles and steps. */
+/** How to do one exercise: photos, muscles and steps. From the workout it opens over it. */
 export function openExercise(id: string): void {
   ui.exercise = id;
+  if (ui.sheet === "workout") {
+    ui.exerciseOver = true;
+    return;
+  }
+  ui.exerciseOver = false;
   ui.sheet = "exercise";
+}
+
+export function closeExercise(): void {
+  if (ui.exerciseOver) ui.exerciseOver = false;
+  else closeSheet();
+}
+
+/** The workout being logged, full height. Starting one is up to the caller (state/workout.ts). */
+export function openWorkout(): void {
+  ui.exerciseOver = false;
+  ui.sheet = "workout";
 }
 
 export function openRecalculate(): void {

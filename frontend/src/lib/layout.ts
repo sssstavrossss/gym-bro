@@ -33,7 +33,7 @@ export function screenLayoutFromFlags(flags: LayoutFlags): ScreenLayout {
 /** Shown in the desktop sidebar. The same keys work on every width. */
 export const shortcutHint = "N or / add food · Q quick add · W weight · Esc close";
 
-export type SheetName = "weight" | "goal-weight" | "accuracy" | "chooser" | "food" | "copy" | "group" | "recipe" | "recalculate" | "settings" | "notifications" | "nutrient" | "card-pages" | "fan-pages" | "offline" | "exercise";
+export type SheetName = "weight" | "goal-weight" | "accuracy" | "chooser" | "food" | "copy" | "group" | "recipe" | "recalculate" | "settings" | "notifications" | "nutrient" | "card-pages" | "fan-pages" | "offline" | "exercise" | "workout";
 
 export interface ShortcutContext {
   key: string;
@@ -48,6 +48,8 @@ export interface ShortcutContext {
   cardPagesOver?: boolean;
   /** The + fan's editor is open over the fan. Esc closes it first, back to the fan. */
   fanPagesOver?: boolean;
+  /** An exercise's how-to is open over the workout. Esc closes it first, back to the workout. */
+  exerciseOver?: boolean;
   selecting: boolean;
   /** False on setup, before the app shell is available. */
   nav: boolean;
@@ -55,7 +57,7 @@ export interface ShortcutContext {
 
 export type ShortcutEffect =
   | { effect: "none" }
-  | { effect: "prevent"; action: "add" | "quick" | "weight" | "close-copy" | "close-group" | "close-recipe" | "close-card-pages" | "close-fan-pages" | "end-select" | "close-sheet" };
+  | { effect: "prevent"; action: "add" | "quick" | "weight" | "close-copy" | "close-group" | "close-recipe" | "close-card-pages" | "close-fan-pages" | "close-exercise" | "end-select" | "close-sheet" };
 
 /**
  * N or / opens Add food, Q opens quick add, W logs weight, Esc closes.
@@ -67,6 +69,7 @@ export function shortcutEffect(ctx: ShortcutContext): ShortcutEffect {
   if (ctx.key === "Escape") {
     if (ctx.sheet && ctx.cardPagesOver) return { effect: "prevent", action: "close-card-pages" };
     if (ctx.sheet && ctx.fanPagesOver) return { effect: "prevent", action: "close-fan-pages" };
+    if (ctx.sheet && ctx.exerciseOver) return { effect: "prevent", action: "close-exercise" };
     if (ctx.sheet === "copy") return { effect: "prevent", action: "close-copy" };
     if (ctx.sheet === "group") return { effect: "prevent", action: "close-group" };
     if (ctx.sheet === "recipe") return { effect: "prevent", action: "close-recipe" };

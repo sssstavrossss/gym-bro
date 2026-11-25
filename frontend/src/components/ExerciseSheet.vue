@@ -6,10 +6,12 @@ import MuscleMap from "./MuscleMap.vue";
 import { getExercise, type ExerciseDetail } from "../api";
 import { demoUrl, exerciseFacts, muscleLabel, photoUrl } from "../lib/exercises";
 import { exercises } from "../state/exercises";
-import { closeSheet, ui } from "../ui";
+import { closeExercise, ui } from "../ui";
 
 // How to do one exercise. What the list already knows shows at once; the steps load from the API.
-const open = computed(() => ui.sheet === "exercise" && ui.exercise != null);
+// From a workout it opens over the workout sheet, which stays open under it.
+const open = computed(() => (ui.sheet === "exercise" || (ui.exerciseOver && ui.sheet === "workout")) && ui.exercise != null);
+watch(() => ui.sheet, (sheet) => { if (sheet !== "workout") ui.exerciseOver = false; });
 const item = computed(() => exercises.items.find((entry) => entry.id === ui.exercise) ?? null);
 const detail = ref<ExerciseDetail | null>(null);
 const state = ref<"loading" | "ready" | "failed">("loading");
@@ -45,14 +47,14 @@ const credit = computed(() => (detail.value?.source === "gym-bro" ? "Steps writt
 </script>
 
 <template>
-  <BottomSheet :open="open" :label="shown?.name ?? 'Exercise'" @close="closeSheet">
+  <BottomSheet :open="open" :label="shown?.name ?? 'Exercise'" @close="closeExercise">
     <template #header>
       <div class="row hdr">
         <div class="col grow">
           <h2 class="t-head m0">{{ shown?.name }}</h2>
           <span v-if="shown" class="t-label c2">{{ exerciseFacts(shown) }}</span>
         </div>
-        <button type="button" class="cbtn" aria-label="Close" @click="closeSheet"><Icon name="x" :size="18" /></button>
+        <button type="button" class="cbtn" aria-label="Close" @click="closeExercise"><Icon name="x" :size="18" /></button>
       </div>
     </template>
     <div v-if="shown" class="col body" data-exercise-sheet>
