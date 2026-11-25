@@ -29,6 +29,7 @@ export default defineConfig(({ mode }) => {
       proxy: {
         "/api": `http://127.0.0.1:${port}`,
         "/config.json": `http://127.0.0.1:${port}`,
+        "/exercise-photos": `http://127.0.0.1:${port}`,
       },
     },
     build: {

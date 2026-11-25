@@ -13,6 +13,13 @@ ARG GIT_SHA=""
 ENV GIT_SHA=$GIT_SHA
 RUN npm run build
 
+# Exercise photos: free-exercise-db's, at the commit the exercise library is pinned to, as small
+# WebP files (about 30 MB). A stage of its own, so the layer stays cached until the script changes.
+FROM alpine:3.22 AS photos
+RUN apk add --no-cache git libwebp-tools
+COPY tools/exercise-photos/build.sh /build.sh
+RUN sh /build.sh /photos
+
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 COPY global.json Directory.Build.props ./
@@ -22,6 +29,8 @@ COPY --from=web /src/frontend/dist /app/publish/wwwroot
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
+# Before the app, so a deploy reuses the photos layer.
+COPY --from=photos /photos wwwroot/exercise-photos
 COPY --from=build /app/publish .
 # A new named volume copies this directory's ownership. Create it as root
 # and hand it to the non-root app user before switching USER, or the app
