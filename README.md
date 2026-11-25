@@ -784,7 +784,7 @@ Sheets close with an × icon, and actions use the same icon set (edit, trash, pl
 
 ## Screens
 
-Today, the food log, Train, Progress, saved groups, recipes, and recalculate are in the app. Training is being built in steps (see [docs/training.md](docs/training.md)); so far Train logs a workout and holds the exercise library. There is no meal field on a log entry.
+Today, the food log, Train, Progress, saved groups, recipes, and recalculate are in the app. Training is being built in steps (see [docs/training.md](docs/training.md)); so far Train logs a workout, makes a plan and holds the exercise library. There is no meal field on a log entry.
 
 **Tabs.** The tab bar (and the side nav on wider screens) is Today · Train · + · Progress · Profile. Train took Log's place. The Log page is still at `/log` and `/log/<date>`, and on tablet and desktop Today's food card links to it with "Open log". On a phone nothing links there any more, so its fasting switch can't be reached; nobody had used it.
 
@@ -814,6 +814,25 @@ The service worker keeps each photo once it has been shown (`gymbro-exercise-pho
 - **History** on Train, under the Workout card, lists the last year of workouts, newest first, ten at a time with **Show more**: the day ("Mon 23 Nov", after the name when it has one) and "Barbell Squat, Bench Press +2 · 12 sets · 4,560 kg" (volume only when there is some). Finished workouts still waiting to send show first, marked "· waiting", and can't be opened until they've gone. The list is kept for offline use like other screens; a workout opens offline only if it was opened before.
 - **Editing a past workout.** Tapping a row opens it in the same sheet as **Edit workout**, with the day under the title. A **Day** field moves it to another day (not after today). Every exercise is open, its sets ticked; there's no "last time" column and no rest timer. Untick a set to leave it out, or add sets and exercises as in a live workout. **Save** sends the whole workout again under its id, so it replaces the old one; **Delete** removes it with Undo, which saves it back under the same id. Both need a connection ("You're offline. Saving a past workout needs a connection."). Closing with × drops the changes.
 - **Log past** in the History heading (or Log workout in the + fan) opens **Log a workout**: Add exercise first, then the same table on today, or another day from the Day field. Only ticked sets are saved; with none, Save says "Tick off a set to save the workout." It has no start or end time. This never touches a workout in progress.
+
+**The plan on Train** (`PlanSheet.vue`; state in `state/plan.ts`, labels and lines in `lib/plan.ts`; see *Training plans*). The **Plan** card comes after the Workout card.
+- **No plan yet:** "Answer a few questions and get workouts that fit your week and your time", with **Make a plan**.
+- **With a plan:** "Plan" with **Edit**, the plan's line ("Muscle · Upper / Lower · 4 days · 60 min"), then each workout in sequence order: its name, "5 exercises · 15 sets · ~50 min", and its exercises joined by " · ".
+- **New plan / Edit plan** is a sheet with the questions in order:
+  - **Goal:** Muscle, Strength or Fitness.
+  - **Days a week:** seven day chips; the days only date your workouts, and their count picks the split.
+  - **Time per workout:** a − 55 min + stepper, 10 to 120 in fives.
+  - **Experience:** New, Some or Experienced.
+  - **Equipment:** pick all you have.
+- **Before you start:**
+  - A heart question ("Has a doctor told you about a heart condition, or do you get chest pain, faintness or dizziness when active?"). A **Yes** only shows "Check with a doctor before you start training. You can still make a plan and start gently." Nothing is stored and nothing is blocked.
+  - **Go easy on**, the seven areas.
+  - **Ease in**, a switch that turns on by itself for New or any area, until switched by hand.
+  - "Training suggestions, not medical advice."
+- **The preview** under the questions follows the answers a moment after each change (`POST /api/plan/preview`): "Upper / Lower, 4 workouts in turn", "Upper A → Lower A → Upper B → Lower B", and "About 5 exercises and 14 sets each · 6-week blocks, the last week lighter". With no day or no equipment it says what to pick, and **Create plan** is disabled.
+- **Change split** opens the four splits as chips. Picking the one the days give goes back to following the days.
+- **Saving:** **Create plan** / **Save plan** saves and closes, with the toast "Plan made" / "Plan saved". Making or changing a plan needs a connection. Offline, the last copy of the card still shows.
+- **End plan** (in Edit) asks "End your plan? Workouts you've done stay in History." first, then ends it with "Plan ended" and no Undo: a new plan would get new workout ids.
 
 On a phone, Home opens with a week strip under the title. Tap a day to see it. The header names the week shown ("16 – 22 Nov") between two round arrows, the same switcher as the Log's day nav, and the arrows turn the strip a week at a time. Swiping the strip does the same. A drag of about 56px (less on a narrow screen) turns the week, and so does a quick flick of 24px or more. A swipe up to about 50° off flat still counts as sideways. A short, slow drag springs back, and the next swipe works straight away. Paging to another week, earlier or later, picks the same weekday there. The handle under the strip opens the last four weeks as a colour-coded calendar, and the header then names those four weeks. A long day title, such as "Wed, 29 Oct" with the calendar open, shortens with an ellipsis so the arrows keep their room. At the largest text size the range text is read out but not drawn. The rules for a turn live in `frontend/src/lib/weekSwipe.ts`.
 

@@ -6,6 +6,7 @@ import { kg as formatKg } from "./lib/format";
 import { dispositionName } from "./lib/download";
 import type { LookupStatus } from "./lib/barcode";
 import type { ExerciseItem } from "./lib/exercises";
+import type { Plan, PlanAnswers, PlanPreview } from "./lib/plan";
 import type { SavedSet, WorkoutRequestBody } from "./lib/workout";
 import type { FatLimitsSetting, SodiumLimitSetting } from "./lib/nutrientCards";
 import type { FoodUnit } from "./lib/foodUnits";
@@ -1428,6 +1429,8 @@ export interface WorkoutResponse {
   startedAt: string | null;
   endedAt: string | null;
   notes: string | null;
+  planWorkoutId: string | null;
+  sequencePosition: number | null;
   updatedAt: string;
   sets: SavedSet[];
 }
@@ -1465,6 +1468,8 @@ export interface WorkoutSummary {
   status: string;
   startedAt: string | null;
   endedAt: string | null;
+  planWorkoutId: string | null;
+  sequencePosition: number | null;
   updatedAt: string;
   exercises: string[];
   sets: number;
@@ -1483,6 +1488,37 @@ export async function getWorkout(id: string): Promise<WorkoutResponse> {
 
 export async function deleteWorkout(id: string): Promise<void> {
   const response = await request(`/api/workouts/${encodeURIComponent(id)}`, { method: "DELETE" });
+  if (response.status === 204) return;
+  await jsonOrThrow(response);
+}
+
+/** Your training plan, or null. Kept for offline use. */
+export async function getPlan(): Promise<Plan | null> {
+  const body = await cachedJson<{ plan: Plan | null }>("/api/plan");
+  return body.plan;
+}
+
+/** What the answers would make, not saved. */
+export async function previewPlan(answers: PlanAnswers): Promise<PlanPreview> {
+  return jsonOrThrow(await request("/api/plan/preview", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(answers),
+  }));
+}
+
+/** Makes your plan from the answers, or remakes it. */
+export async function putPlan(answers: PlanAnswers, timeZone: string): Promise<Plan> {
+  return jsonOrThrow(await request("/api/plan", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ...answers, timeZone }),
+  }));
+}
+
+/** Ends your plan. Workouts done from it stay. */
+export async function deletePlan(): Promise<void> {
+  const response = await request("/api/plan", { method: "DELETE" });
   if (response.status === 204) return;
   await jsonOrThrow(response);
 }
