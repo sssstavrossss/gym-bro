@@ -1441,6 +1441,8 @@ export interface PreviousSets {
   sets: SavedSet[];
   /** The workout before that one with the exercise (load suggestions). Missing from copies kept before it was added. */
   earlier?: { workoutId: string; date: string; sets: SavedSet[] } | null;
+  /** The best working set so far by estimated max (personal records). Missing from copies kept before it was added. */
+  best?: { workoutId: string; date: string; kg: number; reps: number; rir: number | null; estimatedMax: number } | null;
 }
 
 /** Saves a whole workout under the app's own id. Sent again, it replaces the first copy. */

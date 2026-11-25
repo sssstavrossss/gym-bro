@@ -18,6 +18,7 @@ import {
 } from "../lib/workout";
 import { targetOf, weekSets, type UpNext } from "../lib/plan";
 import { loadTargetOf, suggestLoad, type LoadSuggestion, type LoadTarget } from "../lib/progression";
+import { newBests, type NewBest } from "../lib/records";
 import { exercises } from "./exercises";
 import { loadPlan } from "./plan";
 import { deviceTimeZone } from "./profile";
@@ -35,6 +36,8 @@ export const workout = reactive({
   previous: {} as Record<string, PreviousSets | null>,
   /** The workout just finished, for the summary. */
   summary: null as DraftWorkout | null,
+  /** The finished workout's new personal records, for the summary. */
+  bests: [] as NewBest[],
   saving: false,
   /** A past workout open to edit, or a new one being logged afterwards. The sheet edits it instead of the live one. */
   past: null as null | { draft: DraftWorkout; isNew: boolean },
@@ -91,6 +94,7 @@ function newId(): string {
 export function startWorkout(now = new Date()): DraftWorkout {
   if (workout.active) return workout.active;
   workout.summary = null;
+  workout.bests = [];
   workout.active = {
     id: newId(),
     date: todayInZone(deviceTimeZone(), now),
@@ -247,6 +251,12 @@ export function exerciseSuggestion(exercise: DraftExercise): LoadSuggestion | nu
   return suggestLoad(last.sets, last.earlier?.sets ?? null, target, exerciseItem(exercise.exerciseId)?.equipment);
 }
 
+/** A new personal record set in the live workout so far on this exercise (every card of it), or null. */
+export function exerciseNewBest(exercise: DraftExercise): NewBest | null {
+  const same = workout.active?.exercises.filter((item) => item.exerciseId === exercise.exerciseId) ?? [exercise];
+  return newBests(same, (id) => workout.previous[id]?.best)[0] ?? null;
+}
+
 /** Ticks a set off (or back on). In the live workout a ticked working set starts the rest timer. */
 export function toggleDone(key: string, index: number, now = new Date()): void {
   const active = editing();
@@ -316,6 +326,7 @@ export async function finishWorkout(now = new Date()): Promise<"saved" | "waitin
   // A refused workout stays open, so nothing typed is lost.
   if (outcome !== "failed") {
     workout.summary = done;
+    workout.bests = newBests(done.exercises, (id) => workout.previous[id]?.best);
     workout.active = null;
     save();
     for (const exercise of done.exercises) delete workout.previous[exercise.exerciseId];
@@ -344,6 +355,7 @@ export async function sendPendingWorkouts(): Promise<number> {
 
 export function closeSummary(): void {
   workout.summary = null;
+  workout.bests = [];
 }
 
 /** After a workout is saved, changed or deleted: the history, and the plan's place in its sequence. */

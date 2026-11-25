@@ -17,7 +17,8 @@ import {
 } from "../lib/workout";
 import { targetLine } from "../lib/plan";
 import { FIRST_TIME_LINE, suggestionLine } from "../lib/progression";
-import { addSet, exerciseItem, exerciseLoadTarget, exerciseSuggestion, removeSet, setValue, toggleDone, workout } from "../state/workout";
+import { maxText } from "../lib/records";
+import { addSet, exerciseItem, exerciseLoadTarget, exerciseNewBest, exerciseSuggestion, removeSet, setValue, toggleDone, workout } from "../state/workout";
 import { openExercise } from "../ui";
 
 /** The cell being typed in. The workout sheet owns it, so its keypad can type into any card. */
@@ -58,6 +59,8 @@ const subtitle = computed(() => {
 });
 const loadTarget = computed(() => exerciseLoadTarget(props.exercise));
 const suggestion = computed(() => (props.past ? null : exerciseSuggestion(props.exercise)));
+/** A best beaten in this workout: said once a ticked set does it. */
+const newBest = computed(() => (props.past ? null : exerciseNewBest(props.exercise)));
 /** What to lift: a suggestion from last time, or how to pick a weight the first time. */
 const advice = computed(() => {
   if (props.past || !loadTarget.value || !item.value) return "";
@@ -131,6 +134,7 @@ function onInput(event: Event, index: number, field: SetField) {
         <h3 class="t-bodys m0">{{ name }}</h3>
         <span v-if="subtitle" class="t-capn c2">{{ subtitle }}</span>
         <span v-if="advice" class="t-capn c2" :data-load-suggestion="suggestion?.kind ?? 'first'">{{ advice }}</span>
+        <span v-if="newBest" class="t-capn best" data-new-best><Icon name="check" :size="12" :sw="3" /><span>New best: est. max {{ maxText(newBest.estimatedMax) }}</span></span>
       </span>
       <button type="button" class="cbtn" :aria-label="`How to do ${name}`" @click="openExercise(exercise.exerciseId)"><Icon name="info" :size="18" /></button>
     </div>
@@ -185,6 +189,8 @@ function onInput(event: Event, index: number, field: SetField) {
 .okdot { width: 18px; height: 18px; border-radius: var(--radius-pill); flex: none; display: inline-flex; align-items: center; justify-content: center; background: var(--color-action); color: var(--color-on-action); }
 .exc { padding: var(--space-m); gap: var(--space-s); }
 .exc .chead { flex-wrap: nowrap; }
+.best { color: var(--color-action); display: inline-flex; align-items: baseline; gap: var(--space-2xs); }
+.best :deep(svg) { flex: none; align-self: center; }
 /* Column widths per field. The tick is a full hit target; its circle is drawn smaller inside. */
 .sets {
   --set-n: 24px; --set-lt: minmax(0, 1fr); --set-kg: 60px; --set-reps: 48px; --set-rir: 40px; --set-seconds: 64px; --set-metres: 64px;

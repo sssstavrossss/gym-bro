@@ -220,6 +220,48 @@ public sealed class WorkoutEndpointTests(ApiFactory factory)
     }
 
     [Fact]
+    public async Task Previous_gives_the_best_working_set_by_estimated_max_from_any_done_workout()
+    {
+        var client = factory.AsUser(TestData.NewUser("workout-best"));
+        var early = Guid.NewGuid();
+        var latest = Guid.NewGuid();
+        // 100 × 5 at 2 in reserve is about 123.3; 110 × 1 at 2 in reserve 121. Warm-ups, 25 reps and skipped workouts don't count.
+        await client.PutAsJsonAsync($"/api/workouts/{early}", Workout(Today.AddDays(-9), null,
+            Set("barbell-squat", 100, 5), Set("barbell-squat", 140, 3, type: "warmup"), Set("barbell-squat", 60, 25)));
+        await client.PutAsJsonAsync($"/api/workouts/{latest}", Workout(Today.AddDays(-2), null, Set("barbell-squat", 110, 1), Set("barbell-squat", 90, 8)));
+        await client.PutAsJsonAsync($"/api/workouts/{Guid.NewGuid()}", new { date = Today, timeZone = "UTC", status = "skipped", sets = new[] { Set("barbell-squat", 200, 5) } });
+
+        using var json = JsonDocument.Parse(await client.GetStringAsync("/api/workouts/previous?exercise=barbell-squat"));
+        var squat = json.RootElement.GetProperty("exercises").GetProperty("barbell-squat");
+        Assert.Equal(latest, squat.GetProperty("workoutId").GetGuid());
+        var best = squat.GetProperty("best");
+        Assert.Equal(early, best.GetProperty("workoutId").GetGuid());
+        Assert.Equal(100m, best.GetProperty("kg").GetDecimal());
+        Assert.Equal(5, best.GetProperty("reps").GetInt32());
+        Assert.Equal(123.33m, best.GetProperty("estimatedMax").GetDecimal());
+
+        using var without = JsonDocument.Parse(await client.GetStringAsync($"/api/workouts/previous?exercise=barbell-squat&except={early}"));
+        Assert.Equal(latest, without.RootElement.GetProperty("exercises").GetProperty("barbell-squat").GetProperty("best").GetProperty("workoutId").GetGuid());
+    }
+
+    [Theory]
+    [InlineData("working", 100, 5, 2, 123.33)]
+    [InlineData("working", 100, 5, null, 116.67)]
+    [InlineData("working", 100, 1, 0, 103.33)]
+    public void Estimated_max_is_Epley_with_reps_in_reserve(string type, double kg, int reps, int? rir, double expected) =>
+        Assert.Equal((decimal)expected, EstimatedMax.Of(type, (decimal)kg, reps, rir));
+
+    [Fact]
+    public void Estimated_max_leaves_out_warm_ups_no_weight_and_high_reps()
+    {
+        Assert.Null(EstimatedMax.Of("warmup", 100, 5, 2));
+        Assert.Null(EstimatedMax.Of("working", null, 5, 2));
+        Assert.Null(EstimatedMax.Of("working", 0, 5, 2));
+        Assert.Null(EstimatedMax.Of("working", 60, 21, 0));
+        Assert.Null(EstimatedMax.Of("drop", 60, 8, 0));
+    }
+
+    [Fact]
     public async Task Delete_removes_the_workout_and_its_sets_and_can_be_sent_twice()
     {
         var client = factory.AsUser(TestData.NewUser("workout-delete"));

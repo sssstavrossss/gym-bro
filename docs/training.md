@@ -28,7 +28,9 @@ Phase 2 is done. Phase 3 (plan generator, sequence and calendar, Home card), shi
 Phase 3 is done. Phase 4 (suggestions and PRs; Progress rebuilt), shipped so far:
 - Load suggestions in the workout sheet: up a step, hold, or ease off about 10% after two misses, from the last two workouts; half steps on a bar or stack when easing in or when a step is over 10%; "pick a weight that leaves about 3 reps" the first time. See *Load suggestions* in the README.
 
-Next in phase 4: personal records (estimated max), then Progress rebuilt.
+- New bests: estimated max (Epley with RIR) per exercise, the best so far from the API, "New best" on the card once a ticked set beats it, and in the summary. See *New bests* in the README.
+
+Next in phase 4: Progress rebuilt (estimated max per lift, sets per muscle).
 
 ## Decisions (agreed 2026-11-25)
 
