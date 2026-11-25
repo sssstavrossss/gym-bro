@@ -1,14 +1,21 @@
 import { parseHidden } from "./cardPages";
 
-// Home sections and card pages follow the account. Each device keeps a copy so the cards are right
+// Home sections, card pages and their order follow the account. Each device keeps a copy so the cards are right
 // before the profile loads and while offline. A change made here is "pending" until the server has
 // it, so a load that comes back first (or an offline change) doesn't lose it.
 
-export type HiddenList = "home" | "macros" | "progress";
+/** The id lists saved on the account: three hidden lists and the two cards' page orders. */
+export type HiddenList = "home" | "macros" | "progress" | "macrosOrder" | "progressOrder";
 
-export const HIDDEN_LISTS: readonly HiddenList[] = ["home", "macros", "progress"];
+export const HIDDEN_LISTS: readonly HiddenList[] = ["home", "macros", "progress", "macrosOrder", "progressOrder"];
 
-export const SETTINGS_FIELDS = { home: "homeHidden", macros: "macrosHidden", progress: "progressHidden" } as const;
+export const SETTINGS_FIELDS = {
+  home: "homeHidden",
+  macros: "macrosHidden",
+  progress: "progressHidden",
+  macrosOrder: "macrosOrder",
+  progressOrder: "progressOrder",
+} as const;
 
 export function pendingKey(accountId: string): string {
   return `gymbro-display-pending:${accountId}`;

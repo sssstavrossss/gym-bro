@@ -12,7 +12,7 @@ import { fatLimits, fatLimitsOf, sodiumLimitMg, sodiumLimitOf } from "../lib/nut
 import type { IntakeDay } from "../lib/progressChart";
 import { fiberMinimum, goalKind, intakeStats, LINE_WORDS, PAGE_TITLES, PROGRESS_PAGES, type IntakePage, type ProgressPage } from "../lib/progressCard";
 import { rateStat } from "../lib/weightTrend";
-import { cardPages } from "../state/cardPages";
+import { cardPages, pageOrder } from "../state/cardPages";
 import { connection } from "../state/connection";
 import { onLogChange } from "../state/log";
 import { profile } from "../state/profile";
@@ -66,10 +66,10 @@ function savePage(item: ProgressPage) {
 }
 
 const range = ref<Range>(readRange());
-const pages = computed(() => visiblePages(PROGRESS_PAGES, cardPages.progress));
+const pages = computed(() => visiblePages(PROGRESS_PAGES, cardPages.progress, pageOrder.progress));
 const titles = computed(() => pages.value.map((item) => PAGE_TITLES[item]));
 const page = ref<ProgressPage>(readPage());
-/** Where the card opens: the saved page, or Weight if that page is hidden. */
+/** Where the card opens: the saved page, or the first page if that one is hidden. */
 const start = computed(() => followPage(page.value, pages.value));
 const panels = ref<InstanceType<typeof SwipePanels> | null>(null);
 const data = ref<ProgressResponse | null>(null);
@@ -110,7 +110,7 @@ function onPage(index: number) {
   page.value = pages.value[index] ?? "weight";
   savePage(page.value);
 }
-// Hiding or showing a page keeps the card on the same page, or sends it to Weight if that one went.
+// Hiding, showing or moving a page keeps the card on the same page, or sends it to the first if that one went.
 watch(pages, async (next) => {
   const target = followPage(page.value, next);
   await nextTick();
@@ -224,7 +224,7 @@ function statsOf(item: ProgressPage): Stat[] {
       v-else
       ref="panels"
       :count="pages.length"
-      :lock-index="0"
+      :lock-index="pages.indexOf('weight')"
       :start="start"
       :names="titles"
       label="Progress charts"

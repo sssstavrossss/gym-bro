@@ -86,6 +86,15 @@ public sealed class Profile
     /// <summary>Progress card pages switched off. Null until the app first saves a choice.</summary>
     public string[]? ProgressHidden { get; set; }
 
+    /// <summary>
+    /// The macros card's pages in the order they swipe, as the app's ids, hidden ones included.
+    /// Null until the app first saves an order; ids it doesn't list keep their default place.
+    /// </summary>
+    public string[]? MacrosOrder { get; set; }
+
+    /// <summary>The Progress card's pages in the order they swipe, like <see cref="MacrosOrder"/>.</summary>
+    public string[]? ProgressOrder { get; set; }
+
     public DateTimeOffset CreatedAt { get; set; }
 
     public DateTimeOffset UpdatedAt { get; set; }

@@ -1,14 +1,20 @@
 import { NUTRIENT_PANELS } from "./nutrients";
 import { goalKind, PAGE_TITLES, PROGRESS_PAGES, type GoalKind } from "./progressCard";
 
-// Home's swipe cards (Macros and Progress) can hide pages. The first page of each card is
-// always shown. The choice is kept on this device, like the chart range and the theme.
+// Home's swipe cards (Macros and Progress) can hide and reorder pages. Each card's first page in
+// the default order (Macros, Weight) can move but is always shown. Both choices follow the account,
+// with a copy on each device (see hiddenSync).
 
 export type PageCard = "macros" | "progress";
 
 export const HIDDEN_KEYS: Record<PageCard, string> = {
   macros: "gymbro-home-macros-hidden",
   progress: "gymbro-home-progress-hidden",
+};
+
+export const ORDER_KEYS: Record<PageCard, string> = {
+  macros: "gymbro-home-macros-order",
+  progress: "gymbro-home-progress-order",
 };
 
 /** Reads a stored list of hidden page ids. Anything that isn't a list of strings is "none hidden". */
@@ -22,27 +28,63 @@ export function parseHidden(raw: string | null): string[] {
   }
 }
 
-export function readHidden(card: PageCard): string[] {
+/** Reads a stored id list (hidden pages, or a page order). Private mode can reject storage: then it's empty. */
+export function readIds(key: string): string[] {
   try {
-    return parseHidden(localStorage.getItem(HIDDEN_KEYS[card]));
+    return parseHidden(localStorage.getItem(key));
   } catch {
-    // Private mode can reject storage. Every page shows.
     return [];
   }
 }
 
-export function writeHidden(card: PageCard, hidden: readonly string[]): void {
+export function writeIds(key: string, ids: readonly string[]): void {
   try {
-    if (hidden.length) localStorage.setItem(HIDDEN_KEYS[card], JSON.stringify(hidden));
-    else localStorage.removeItem(HIDDEN_KEYS[card]);
+    if (ids.length) localStorage.setItem(key, JSON.stringify(ids));
+    else localStorage.removeItem(key);
   } catch {
     // The choice still applies for this visit.
   }
 }
 
-/** The pages to swipe through: all of them in order, less the hidden ones. The first never hides. */
-export function visiblePages<T extends string>(all: readonly T[], hidden: readonly string[]): T[] {
-  return all.filter((page, index) => index === 0 || !hidden.includes(page));
+export const readHidden = (card: PageCard) => readIds(HIDDEN_KEYS[card]);
+export const writeHidden = (card: PageCard, hidden: readonly string[]) => writeIds(HIDDEN_KEYS[card], hidden);
+
+/**
+ * The card's pages in the saved order. Unknown ids drop out. A page the order doesn't name (one
+ * added since it was saved) goes in right after the page before it in the default order.
+ * An empty order is the default.
+ */
+export function orderPages<T extends string>(all: readonly T[], order: readonly string[]): T[] {
+  const result = order.filter((id, index): id is T => (all as readonly string[]).includes(id) && order.indexOf(id) === index);
+  all.forEach((page, index) => {
+    if (result.includes(page)) return;
+    const after = index === 0 ? -1 : result.indexOf(all[index - 1]);
+    result.splice(after + 1, 0, page);
+  });
+  return result;
+}
+
+/**
+ * The order to save after moving a page to a place in the full list (hidden pages included).
+ * Back to the default order saves as empty, so later pages keep their default places.
+ */
+export function movePage<T extends string>(all: readonly T[], order: readonly string[], page: T, to: number): T[] {
+  const next = orderPages(all, order).filter((item) => item !== page);
+  next.splice(Math.max(0, Math.min(next.length, to)), 0, page);
+  return isDefaultOrder(all, next) ? [] : next;
+}
+
+export function isDefaultOrder(all: readonly string[], order: readonly string[]): boolean {
+  const ordered = orderPages(all, order);
+  return ordered.every((page, index) => page === all[index]);
+}
+
+/**
+ * The pages to swipe through: all of them in the saved order, less the hidden ones.
+ * The card's first default page (Macros, Weight) never hides, wherever it is.
+ */
+export function visiblePages<T extends string>(all: readonly T[], hidden: readonly string[], order: readonly string[] = []): T[] {
+  return orderPages(all, order).filter((page) => page === all[0] || !hidden.includes(page));
 }
 
 /** The hidden list after a switch. Ids stay in the card's order and the first page can't be hidden. */
@@ -50,7 +92,7 @@ export function toggleHidden<T extends string>(all: readonly T[], hidden: readon
   return all.filter((item, index) => index > 0 && (item === page ? !shown : hidden.includes(item)));
 }
 
-/** Where the card lands when its pages change: the same page if it's still shown, else the first. */
+/** Where the card lands when its pages change or move: the same page if it's still shown, else the first. */
 export function followPage<T extends string>(current: T | undefined, next: readonly T[]): number {
   const index = current == null ? -1 : next.indexOf(current);
   return index < 0 ? 0 : index;
