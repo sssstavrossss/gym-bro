@@ -86,7 +86,7 @@ test.describe("phone inputs", () => {
     const search = sheet(page).getByRole("searchbox", { name: "Search foods" });
     expect(await search.evaluate((node) => parseFloat(getComputedStyle(node).fontSize))).toBeGreaterThanOrEqual(16);
 
-    await sheet(page).getByRole("radio", { name: "Quick Add" }).click();
+    await sheet(page).getByRole("radio", { name: "Quick add" }).click();
     const name = sheet(page).getByRole("textbox", { name: "Name (optional)" });
     expect(await name.evaluate((node) => parseFloat(getComputedStyle(node).fontSize))).toBeGreaterThanOrEqual(16);
 
@@ -112,7 +112,7 @@ test.describe("phone inputs", () => {
     await sign(page, oid);
     await page.goto("/today");
     await openFood(page, 390);
-    await sheet(page).getByRole("radio", { name: "Quick Add" }).click();
+    await sheet(page).getByRole("radio", { name: "Quick add" }).click();
 
     const calories = sheet(page).getByRole("button", { name: "Calories" });
     const protein = sheet(page).getByRole("button", { name: "Protein" });
@@ -154,7 +154,7 @@ test("desktop type stays under 16px and a refocused number is replaced", async (
   const search = sheet(page).getByRole("searchbox", { name: "Search foods" });
   expect(await search.evaluate((node) => parseFloat(getComputedStyle(node).fontSize))).toBeLessThan(16);
 
-  await sheet(page).getByRole("radio", { name: "Quick Add" }).click();
+  await sheet(page).getByRole("radio", { name: "Quick add" }).click();
   const calories = sheet(page).getByRole("textbox", { name: "Calories", exact: true });
   await calories.click();
   await page.keyboard.type("25");

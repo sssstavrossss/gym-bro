@@ -201,9 +201,10 @@ const groupNote = computed(() => groupTimeNote(needTime.value, otherDay.value, t
 const foodEntries = computed(() => entriesOn(ui.foodDate, foodToday.value));
 const foodTotals = computed(() => totalsOf(foodEntries.value));
 const tabs = computed(() => {
-  const list: { value: FoodTab; label: string }[] = [{ value: "search", label: "Search" }];
-  if (describe.available || ui.foodTab === "describe") list.push({ value: "describe", label: "Describe" });
-  list.push({ value: "quick", label: "Quick Add" });
+  // The + fan's icons, so the tab and the fan button for the same thing look alike.
+  const list: { value: FoodTab; label: string; icon: string }[] = [{ value: "search", label: "Search", icon: "search" }];
+  if (describe.available || ui.foodTab === "describe") list.push({ value: "describe", label: "Describe", icon: "sparkle" });
+  list.push({ value: "quick", label: "Quick add", icon: "plus" });
   return list;
 });
 /** A row from Describe is open on the amount screen: its button says Use and goes back to the list. */
@@ -778,8 +779,7 @@ function focusFor() {
   });
 }
 function onAddTabPointer(event: PointerEvent) {
-  const label = (event.target as HTMLElement).closest("button")?.textContent?.trim();
-  const next = label === "Quick Add" ? "quick" : label === "Describe" ? "describe" : label === "Search" ? "search" : null;
+  const next = (event.target as HTMLElement).closest("button")?.dataset.value;
   if ((next === "quick" || next === "describe") && next !== ui.foodTab) primeKeyboard();
 }
 watch(searchFocused, (focused) => {
@@ -1358,7 +1358,7 @@ async function deleteEdited() {
         <Icon name="search" :size="18" class="c2" />
         <input ref="searchEl" v-model="q" data-no-autofocus class="t-body grow" type="search" :placeholder="searchPlaceholder" :aria-label="filter === 'recipes' ? 'Search recipes' : 'Search foods'" autocomplete="off" enterkeyhint="search" @focus="onSearchFocus" @blur="queueSearchBlur" @keydown="searchKey" />
         <button v-if="q" type="button" class="clr c2" aria-label="Clear search" @click="q = ''"><Icon name="x" :size="16" /></button>
-        <button v-else-if="filter === 'recent' || filter === 'mine'" type="button" class="clr scanb" aria-label="Scan a barcode" @click="startScan"><Icon name="scan" :size="20" /></button>
+        <button v-else-if="filter === 'recent' || filter === 'mine'" type="button" class="btn sm scanb" aria-label="Scan a barcode" @click="startScan"><Icon name="scan" :size="14" /><span class="t-label">Scan</span></button>
       </label>
       <PageChips v-show="!searchView" :pages="pageChips" :current="pageIndex" :position="pagePosition" label="Show" @pick="pickPage" />
       <p v-if="connection.offline" v-show="!searchView" class="well t-label c2 offwell" role="status" data-offline-search>
@@ -1515,7 +1515,7 @@ async function deleteEdited() {
               <span class="t-label c2">No match for “{{ trimmedQuery }}”.</span>
               <div class="row gap8 wrapc">
                 <button type="button" class="btn sm secondary t-label" @click="openNewFood(trimmedQuery)"><Icon name="plus" :size="14" :sw="2.4" /> Create “{{ trimmedQuery }}”</button>
-                <button type="button" class="btn sm secondary t-label" @click="useQuickAdd">Quick Add</button>
+                <button type="button" class="btn sm secondary t-label" @click="useQuickAdd">Quick add</button>
               </div>
             </div>
             <button v-if="showOffButton" type="button" class="btn sm secondary t-label offask" @click="askOff"><Icon name="search" :size="14" /> Search Open Food Facts</button>
@@ -1645,7 +1645,8 @@ async function deleteEdited() {
 .rrow.hl { background: var(--color-surface-2); border-radius: var(--radius-m); }
 .rtext { gap: var(--space-2xs); min-width: 0; align-items: flex-start; }
 .ell { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
-.scanb { color: var(--text-primary); }
+/* A labelled small button at the field's end, so it reads as a button and not as part of the field. Its face sits as far in from the field's right edge as from its top. */
+.scanb { margin-right: calc(var(--inset) - var(--space-m)); }
 .clr { width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center; flex: none; }
 .qgrid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-s); flex: none; min-width: 0; }
 .qf { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-2xs); padding: var(--space-m) var(--space-l); min-height: 72px; border-radius: var(--radius-m); background: var(--color-surface-2); text-align: left; min-width: 0; box-shadow: var(--d-sunk); }
@@ -1688,7 +1689,9 @@ html.dt-xl .hdr :deep(.tchip.t-label),
 html.dt-xl .hdr :deep(.now) { font-size: 15px; line-height: 1.2; }
 .dt-xl .qgrid { grid-template-columns: 1fr; }
 /* The pages fill the room under the chips; each scrolls on its own. SwipePanels sizes its pages, so this overrides .list's flex. */
-.pager { flex: 1 1 auto; min-height: 0; }
+/* The dots' 44px hits reach 7px below their 30px strip; the padding keeps them inside the sheet's
+   scroll box, or the whole sheet scrolls by those 7px and drags the search and chips with it. */
+.pager { flex: 1 1 auto; min-height: 0; padding-bottom: calc((var(--control-hit) - var(--control-chip)) / 2); }
 .pager .list { flex: 0 0 100%; height: 100%; overflow-x: hidden; overflow-y: auto; }
 .pnote { padding: var(--space-m) 0 var(--space-xs); }
 .offwell { display: flex; align-items: flex-start; gap: var(--space-s); margin: var(--space-s) 0 0; flex: none; }

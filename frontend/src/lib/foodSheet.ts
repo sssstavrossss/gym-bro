@@ -198,7 +198,7 @@ export function offFailureCopy(_status: "rate_limited" | "unavailable"): { title
     title: "Can't reach the food database",
     detail: "Showing foods you've used before. Packaged foods need the online database.",
     retry: "Try again",
-    quickAdd: "Quick Add instead",
+    quickAdd: "Quick add instead",
   };
 }
 
