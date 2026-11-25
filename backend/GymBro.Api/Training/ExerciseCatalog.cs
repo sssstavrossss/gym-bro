@@ -58,6 +58,15 @@ public static partial class ExerciseCatalog
     /// <summary>The free-exercise-db commit the embedded file was taken from. Photos are fetched from the same one.</summary>
     public const string FreeExerciseDbCommit = "f00c92c7dcf1216a928a52c3706c7ce8e2f71ed5";
 
+    /// <summary>Where the app serves the photos (static files, made by <c>tools/exercise-photos/build.sh</c>).</summary>
+    public const string PhotosPath = "/exercise-photos";
+
+    /// <summary>
+    /// The folder of this commit's photos: <c>{PhotoBase}/{id}/{n}.webp</c> for n below <see cref="Exercise.Images"/>.
+    /// The commit is in the path, so a photo never changes and can be kept for good.
+    /// </summary>
+    public static readonly string PhotoBase = $"{PhotosPath}/{FreeExerciseDbCommit[..7]}";
+
     private static readonly Lazy<ExerciseLibrary> Loaded = new(Load);
 
     public static ExerciseLibrary Current => Loaded.Value;

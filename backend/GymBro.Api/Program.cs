@@ -6,6 +6,7 @@ using GymBro.Api.Describe;
 using GymBro.Api.Endpoints;
 using GymBro.Api.Foods;
 using GymBro.Api.Hosting;
+using GymBro.Api.Training;
 using GymBro.Api.Users;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
@@ -208,6 +209,11 @@ app.UseStaticFiles(new StaticFileOptions
             || context.File.Name.Equals("sw.js", StringComparison.OrdinalIgnoreCase))
         {
             context.Context.Response.Headers.CacheControl = "no-cache";
+        }
+        else if (context.Context.Request.Path.StartsWithSegments(ExerciseCatalog.PhotosPath))
+        {
+            // The path names the free-exercise-db commit, so a photo at it never changes.
+            context.Context.Response.Headers.CacheControl = "public, max-age=31536000, immutable";
         }
     },
 });

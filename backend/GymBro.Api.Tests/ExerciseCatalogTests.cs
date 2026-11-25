@@ -94,6 +94,7 @@ public sealed class ExerciseEndpointTests(ApiFactory factory)
         var body = await first.Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal($"\"{body.GetProperty("version").GetString()}\"", etag.Tag);
         var exercises = body.GetProperty("exercises");
+        Assert.Equal("/exercise-photos/f00c92c", body.GetProperty("photos").GetString());
         Assert.Equal(884, exercises.GetArrayLength());
         var squat = exercises.EnumerateArray().Single(item => item.GetProperty("id").GetString() == "barbell-squat");
         Assert.Equal("weight_reps", squat.GetProperty("measure").GetString());
@@ -114,9 +115,11 @@ public sealed class ExerciseEndpointTests(ApiFactory factory)
         Assert.Equal("Barbell Squat", squat.GetProperty("name").GetString());
         Assert.True(squat.GetProperty("instructions").GetArrayLength() > 0);
         Assert.Equal("free-exercise-db", squat.GetProperty("source").GetString());
+        Assert.Equal("/exercise-photos/f00c92c", squat.GetProperty("photos").GetString());
 
         var station = await client.GetFromJsonAsync<JsonElement>("/api/exercises/skierg");
         Assert.Equal("gym-bro", station.GetProperty("source").GetString());
+        Assert.Equal(JsonValueKind.Null, station.GetProperty("photos").ValueKind);
 
         using var missing = await client.GetAsync("/api/exercises/no-such-lift");
         Assert.Equal(HttpStatusCode.NotFound, missing.StatusCode);

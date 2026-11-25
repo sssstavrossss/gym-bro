@@ -15,3 +15,5 @@
 backend/GymBro.Api.Tests
 # Design prototype. The image builds frontend/ only.
 prototype
+# Development photos. The image makes its own in the photos stage.
+backend/GymBro.Api/wwwroot/exercise-photos

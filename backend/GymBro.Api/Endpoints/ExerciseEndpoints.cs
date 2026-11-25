@@ -39,6 +39,7 @@ public static class ExerciseEndpoints
         return Results.Ok(new
         {
             version = library.Version,
+            photos = ExerciseCatalog.PhotoBase,
             exercises = library.All.Select(item => new
             {
                 item.Id,
@@ -83,6 +84,7 @@ public static class ExerciseEndpoints
             item.SecondaryMuscles,
             item.Instructions,
             item.Images,
+            photos = item.Images > 0 ? ExerciseCatalog.PhotoBase : null,
             item.Source,
             licence = item.Source == ExerciseCatalog.FreeExerciseDb ? "Unlicense (public domain)" : "Gym Bro",
         });

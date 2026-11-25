@@ -40,3 +40,6 @@ blob-report/
 # Local navigation notes for Claude
 CLAUDE.md
 CODEMAP.md
+
+# Exercise photos, made by tools/exercise-photos/build.sh for development.
+backend/GymBro.Api/wwwroot/exercise-photos/

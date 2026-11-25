@@ -6,8 +6,9 @@ Status: **phase 1, building**.
 
 Shipped so far:
 - The exercise library API: `GET /api/exercises` and `/api/exercises/{id}`, with 884 exercises (free-exercise-db plus our 8 stations), each with a `measure`. See *Exercise library* in the README.
+- Exercise photos: made in the Docker build from the pinned commit, served from `/exercise-photos/f00c92c/<id>/<n>.webp`. The API names the folder, which is where a native app would point at its own copies.
 
-Next: the photos, then the Train tab with the library, then the how-to sheet and the muscle map.
+Next: the Train tab with the library, then the how-to sheet and the muscle map.
 
 ## Decisions (agreed 2026-11-25)
 

@@ -143,8 +143,8 @@ Sign-in settings are not baked into the JavaScript bundle. The API reads them fr
 | `POST` | `/api/notifications/inbox/{id}/read` and `/api/notifications/inbox/read` | bearer | Marks one, or all, of this person's notifications read. Mark-all leaves the types shown on Home (the recalculate reminder) open; they close when acted on there. Another person's id is 404. |
 | `POST` `/DELETE` | `/api/notifications/subscription` | bearer | Stores or removes this person's push subscription. `endpoint` is unique. |
 | `GET` | `/api/export` | bearer | The caller's own data as `application/zip`: one CSV per table and `gym-bro.json`. See *Export* under Screens. |
-| `GET` | `/api/exercises` | bearer | `{ version, exercises }`: the whole exercise library without steps, by name, each `{ id, name, category, equipment, level, mechanic, force, measure, primaryMuscles, secondaryMuscles, images }`. The same for everyone. It sends `ETag: "<version>"` and `Cache-Control: private, no-cache`, and a matching `If-None-Match` gets 304. See *Exercise library*. |
-| `GET` | `/api/exercises/{id}` | bearer | One exercise in full: the list fields plus `instructions`, `source` and `licence`. An unknown id is 404 "That exercise is not known." |
+| `GET` | `/api/exercises` | bearer | `{ version, photos, exercises }`: the whole exercise library without steps, by name, each `{ id, name, category, equipment, level, mechanic, force, measure, primaryMuscles, secondaryMuscles, images }`. The same for everyone. It sends `ETag: "<version>"` and `Cache-Control: private, no-cache`, and a matching `If-None-Match` gets 304. See *Exercise library*. |
+| `GET` | `/api/exercises/{id}` | bearer | One exercise in full: the list fields plus `instructions`, `photos` (the photo folder, or null when it has none), `source` and `licence`. An unknown id is 404 "That exercise is not known." |
 | `GET` | `/api/about` | bearer | Food-data credits: the Matvaretabellen citation and “Data from Open Food Facts.”, plus `sources`: one `{ source, name, country, citation, importedAt, foodCount }` per imported food table. |
 | `GET` | `/config.json` | anonymous | Runtime Entra settings for the SPA. `Cache-Control: no-store`. |
 | other `/api/*` | | same as `/api/me` | Unknown routes are not anonymous. |
@@ -655,6 +655,11 @@ Training is being built in small steps; [docs/training.md](docs/training.md) hol
 
   Our own exercises state their measure.
 - **Version** is the first 16 hex characters of a SHA-256 of the whole list, so a phone can keep its copy until a deploy changes it.
+- **Photos.** free-exercise-db has a start and an end photo for most exercises (1,746 in all; 3 kettlebell exercises have none, and neither do ours). They aren't in git. The Docker build's `photos` stage runs `tools/exercise-photos/build.sh`, which:
+  - fetches the pinned commit with git, so every file is checked against the commit hash;
+  - writes each photo as a 600 px wide WebP at quality 70 (about 14 KB, 29 MB in all) to `/exercise-photos/f00c92c/<id>/<n>.webp`, with `n` counting from 0 up to the exercise's `images`.
+
+  The app serves them as static files, with `Cache-Control: public, max-age=31536000, immutable`, since the commit is in the path. The API gives that folder as `photos` (on the list, and on an exercise that has photos), so a native app can point it at photos it ships with. For photos in development, run `sh tools/exercise-photos/build.sh backend/GymBro.Api/wwwroot/exercise-photos` (needs git and `cwebp`); the folder is gitignored, and the Vite dev server sends `/exercise-photos` to the API.
 
 ## Offline
 
