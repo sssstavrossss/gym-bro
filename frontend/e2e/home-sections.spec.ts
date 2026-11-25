@@ -62,7 +62,7 @@ test.describe("phone", () => {
 
     const settings = await openHomeSections(page);
     const row = settings.locator("[data-home-row]");
-    await expect(row).toContainText("5 of 5");
+    await expect(row).toContainText("6 of 6");
     await row.click();
     const sections = page.getByRole("dialog", { name: "Home sections" });
     const week = sections.getByRole("switch", { name: /^Week/ });
@@ -72,8 +72,8 @@ test.describe("phone", () => {
     await foods.click();
     await expect(foods).toHaveAttribute("aria-checked", "false");
     await sections.getByRole("button", { name: "Back to settings" }).click();
-    await expect(settings.locator("[data-home-row]")).toContainText("4 of 5");
-    await expect(settings.locator("[data-home-row]")).toContainText("Week, Suggestions, Macros, Progress");
+    await expect(settings.locator("[data-home-row]")).toContainText("5 of 6");
+    await expect(settings.locator("[data-home-row]")).toContainText("Week, Suggestions, Training, Macros, Progress");
     await settings.getByRole("button", { name: "Close" }).click();
 
     await page.goto("/today");
@@ -91,14 +91,14 @@ test.describe("phone", () => {
     await other.context.close();
 
     // Everything off (saved from elsewhere): Home says so and links back to the page.
-    await putSettings(page, oid, { homeHidden: ["suggestions", "macros", "foods", "progress"] });
+    await putSettings(page, oid, { homeHidden: ["suggestions", "training", "macros", "foods", "progress"] });
     await page.reload();
     await expect(page.getByText("Home shows only the week.")).toBeVisible();
     await expect(page.getByRole("region", { name: "Today's macros" })).toHaveCount(0);
     await expect(page.getByRole("region", { name: "Progress", exact: true })).toHaveCount(0);
     await page.getByRole("button", { name: "Choose sections" }).click();
     const again = page.getByRole("dialog", { name: "Home sections" });
-    for (const name of ["Suggestions", "Macros", "Foods today", "Progress"]) {
+    for (const name of ["Suggestions", "Training", "Macros", "Foods today", "Progress"]) {
       await expect(again.getByRole("switch", { name: new RegExp(`^${name}`) })).toHaveAttribute("aria-checked", "false");
     }
     await again.getByRole("switch", { name: /^Macros/ }).click();
@@ -108,8 +108,8 @@ test.describe("phone", () => {
     await expect.poll(async () => {
       const state = await (await page.request.get("/api/profile", { headers: headers(oid) })).json();
       return state.profile.homeHidden;
-    }).toEqual(["suggestions", "foods", "progress"]);
-    expect(await page.evaluate(() => localStorage.getItem("gymbro-home-hidden"))).toBe('["suggestions","foods","progress"]');
+    }).toEqual(["suggestions", "training", "foods", "progress"]);
+    expect(await page.evaluate(() => localStorage.getItem("gymbro-home-hidden"))).toBe('["suggestions","training","foods","progress"]');
   });
 
   test("a device's earlier choice moves to the account, and card pages follow it", async ({ page, browser }) => {

@@ -2,7 +2,7 @@
 
 Gym Bro adds training next to nutrition. This file holds the decisions, the rules and the data model. It is updated as each part is agreed or ships. The README describes behaviour once it ships, and DESIGN.md holds the UI rules.
 
-Status: **phase 3, building**.
+Status: **phase 4 next**.
 
 Shipped so far:
 - The exercise library API: `GET /api/exercises` and `/api/exercises/{id}`, with 884 exercises (free-exercise-db plus our 8 stations), each with a `measure`. See *Exercise library* in the README.
@@ -23,8 +23,9 @@ Phase 2 is done. Phase 3 (plan generator, sequence and calendar, Home card), shi
 - The New plan / Edit plan sheet (questions, Before you start, a live preview, Change split, End plan) and the Plan card on Train. See *The plan on Train* in the README.
 - Up next on the Plan card: Start (the workout prefilled with this week's sets, targets and rest), Skip with Undo, the block's week and reps in reserve. See *Where the plan is* in the README.
 - The calendar: Up next's day and the rest of the week's plan workouts on your training days, projected from today. See *The calendar* in the README.
+- The training card on Today: Start today's plan workout, done or skipped with what's next, a rest day with Train anyway, or Resume while one runs; a Training switch in Home sections. See *Today's training card* in the README.
 
-Next in phase 3: the Home card.
+Phase 3 is done. Next: phase 4 (suggestions and PRs; Progress rebuilt).
 
 ## Decisions (agreed 2026-11-25)
 
