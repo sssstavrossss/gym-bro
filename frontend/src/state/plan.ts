@@ -1,6 +1,6 @@
 import { markRaw, reactive } from "vue";
-import { ApiError, deletePlan, getPlan, putPlan } from "../api";
-import type { Plan, PlanAnswers } from "../lib/plan";
+import { ApiError, deletePlan, getPlan, putPlan, putPlanWorkout } from "../api";
+import type { Plan, PlanAnswers, PlanExercise } from "../lib/plan";
 import { deviceTimeZone } from "./profile";
 
 /** The training plan (README → Training plans). Offline, the last copy shows; making or changing one needs a connection. */
@@ -30,6 +30,20 @@ export async function savePlan(answers: PlanAnswers): Promise<string | null> {
   try {
     plan.current = markRaw(await putPlan(answers, deviceTimeZone()));
     plan.state = "ready";
+    return null;
+  } catch (error) {
+    return error instanceof ApiError ? error.message : PLAN_OFFLINE;
+  } finally {
+    plan.saving = false;
+  }
+}
+
+/** Saves one workout's exercises as edited by hand. Returns null when saved, else what went wrong. */
+export async function savePlanWorkout(id: string, exercises: PlanExercise[]): Promise<string | null> {
+  if (plan.saving) return null;
+  plan.saving = true;
+  try {
+    plan.current = markRaw(await putPlanWorkout(id, exercises));
     return null;
   } catch (error) {
     return error instanceof ApiError ? error.message : PLAN_OFFLINE;

@@ -16,6 +16,7 @@ import NotificationsSheet from "./components/NotificationsSheet.vue";
 import NutrientSheet from "./components/NutrientSheet.vue";
 import ExerciseSheet from "./components/ExerciseSheet.vue";
 import PlanSheet from "./components/PlanSheet.vue";
+import PlanWorkoutSheet from "./components/PlanWorkoutSheet.vue";
 import WorkoutSheet from "./components/WorkoutSheet.vue";
 import OfflineSheet from "./components/OfflineSheet.vue";
 import AccuracySheet from "./components/AccuracySheet.vue";
@@ -163,6 +164,7 @@ function onKey(event: KeyboardEvent) {
     <NotificationsSheet />
     <NutrientSheet />
     <PlanSheet />
+    <PlanWorkoutSheet />
     <WorkoutSheet />
     <!-- After the workout: its how-to opens on top. -->
     <ExerciseSheet />

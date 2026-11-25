@@ -320,6 +320,70 @@ public sealed class PlanEndpointTests(ApiFactory factory)
     }
 
     [Fact]
+    public async Task A_plan_workout_is_edited_by_hand_and_keeps_its_place()
+    {
+        var client = factory.AsUser(TestData.NewUser("plan-edit"));
+        using var made = JsonDocument.Parse(await (await client.PutAsJsonAsync("/api/plan", Answers())).Content.ReadAsStringAsync());
+        var ids = WorkoutIds(made.RootElement);
+
+        var edit = new
+        {
+            exercises = new object[]
+            {
+                new { exerciseId = "plank", sets = 3, repMin = (int?)null, repMax = (int?)null, seconds = 45, restSeconds = 60 },
+                new { exerciseId = "barbell-squat", sets = 5, repMin = 3, repMax = 5, seconds = (int?)null, restSeconds = 180 },
+                new { exerciseId = "run", sets = 1, repMin = (int?)null, repMax = (int?)null, seconds = (int?)null, restSeconds = 0 },
+            },
+        };
+        var saved = await client.PutAsJsonAsync($"/api/plan/workouts/{ids[1]}", edit);
+        Assert.Equal(HttpStatusCode.OK, saved.StatusCode);
+        using var json = JsonDocument.Parse(await saved.Content.ReadAsStringAsync());
+        Assert.Equal(ids, WorkoutIds(json.RootElement));
+        var workout = json.RootElement.GetProperty("workouts")[1];
+        Assert.True(workout.GetProperty("edited").GetBoolean());
+        Assert.False(json.RootElement.GetProperty("workouts")[0].GetProperty("edited").GetBoolean());
+        Assert.Equal(["plank", "barbell-squat", "run"], workout.GetProperty("exercises").EnumerateArray().Select(item => item.GetProperty("exerciseId").GetString()));
+        Assert.Equal(5, workout.GetProperty("exercises")[1].GetProperty("sets").GetInt32());
+        // 5 min warm-up, 3 × (45 + 60) + 60, 5 × (40 + 180) + 60, 1 × 40 + 60: 1,935 s, so 30.
+        Assert.Equal(30, workout.GetProperty("minutes").GetInt32());
+
+        using (var read = JsonDocument.Parse(await client.GetStringAsync("/api/plan")))
+        {
+            Assert.True(read.RootElement.GetProperty("plan").GetProperty("workouts")[1].GetProperty("edited").GetBoolean());
+        }
+
+        async Task<string> Refused(object body)
+        {
+            var response = await client.PutAsJsonAsync($"/api/plan/workouts/{ids[1]}", body);
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+            return await response.Content.ReadAsStringAsync();
+        }
+
+        object One(string id, int sets = 3, int? low = 8, int? high = 12, int? seconds = null, int rest = 90) =>
+            new { exercises = new[] { new { exerciseId = id, sets, repMin = low, repMax = high, seconds, restSeconds = rest } } };
+        Assert.Contains(PlanEdits.NoExercises, await Refused(new { exercises = Array.Empty<object>() }));
+        Assert.Contains(PlanEdits.Unknown, await Refused(One("not-a-lift")));
+        Assert.Contains(PlanEdits.BadSets, await Refused(One("barbell-squat", sets: 0)));
+        Assert.Contains(PlanEdits.BadReps, await Refused(One("barbell-squat", low: 12, high: 8)));
+        Assert.Contains(PlanEdits.BadReps, await Refused(One("plank", seconds: 30)));
+        Assert.Contains(PlanEdits.BadSeconds, await Refused(One("plank", low: null, high: null)));
+        Assert.Contains(PlanEdits.BadSeconds, await Refused(One("barbell-squat", seconds: 30)));
+        Assert.Contains(PlanEdits.BadRest, await Refused(One("barbell-squat", rest: 601)));
+        var twice = new { exercises = new[] { new { exerciseId = "barbell-squat", sets = 3, repMin = 5, repMax = 8, restSeconds = 120 }, new { exerciseId = "barbell-squat", sets = 3, repMin = 5, repMax = 8, restSeconds = 120 } } };
+        Assert.Contains(PlanEdits.Twice, await Refused(twice));
+
+        // Someone else's plan, or a workout not in it, isn't there.
+        var other = factory.AsUser(TestData.NewUser("plan-edit-other"));
+        Assert.Equal(HttpStatusCode.NotFound, (await other.PutAsJsonAsync($"/api/plan/workouts/{ids[1]}", edit)).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await client.PutAsJsonAsync($"/api/plan/workouts/{Guid.NewGuid()}", edit)).StatusCode);
+
+        // Remaking the plan from the answers makes the workouts again, without the edit.
+        using var remade = JsonDocument.Parse(await (await client.PutAsJsonAsync("/api/plan", Answers())).Content.ReadAsStringAsync());
+        Assert.False(remade.RootElement.GetProperty("workouts")[1].GetProperty("edited").GetBoolean());
+        Assert.Equal(ids, WorkoutIds(remade.RootElement));
+    }
+
+    [Fact]
     public async Task A_preview_is_not_saved()
     {
         var client = factory.AsUser(TestData.NewUser("plan-preview"));

@@ -33,7 +33,7 @@ export function screenLayoutFromFlags(flags: LayoutFlags): ScreenLayout {
 /** Shown in the desktop sidebar. The same keys work on every width. */
 export const shortcutHint = "N or / add food · Q quick add · W weight · Esc close";
 
-export type SheetName = "weight" | "goal-weight" | "accuracy" | "chooser" | "food" | "copy" | "group" | "recipe" | "recalculate" | "settings" | "notifications" | "nutrient" | "card-pages" | "fan-pages" | "offline" | "exercise" | "workout" | "plan";
+export type SheetName = "weight" | "goal-weight" | "accuracy" | "chooser" | "food" | "copy" | "group" | "recipe" | "recalculate" | "settings" | "notifications" | "nutrient" | "card-pages" | "fan-pages" | "offline" | "exercise" | "workout" | "plan" | "plan-workout";
 
 export interface ShortcutContext {
   key: string;

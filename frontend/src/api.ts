@@ -6,7 +6,7 @@ import { kg as formatKg } from "./lib/format";
 import { dispositionName } from "./lib/download";
 import type { LookupStatus } from "./lib/barcode";
 import type { ExerciseItem } from "./lib/exercises";
-import type { Plan, PlanAnswers, PlanPreview } from "./lib/plan";
+import type { Plan, PlanAnswers, PlanExercise, PlanPreview } from "./lib/plan";
 import type { LiftProgress } from "./lib/strength";
 import type { MuscleSets, VolumeTarget } from "./lib/muscleVolume";
 import type { SavedSet, WorkoutRequestBody } from "./lib/workout";
@@ -1568,6 +1568,15 @@ export async function putPlan(answers: PlanAnswers, timeZone: string): Promise<P
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ ...answers, timeZone }),
+  }));
+}
+
+/** Saves one plan workout as edited by hand; the whole plan comes back. */
+export async function putPlanWorkout(id: string, exercises: PlanExercise[]): Promise<Plan> {
+  return jsonOrThrow(await request(`/api/plan/workouts/${encodeURIComponent(id)}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ exercises }),
   }));
 }
 
