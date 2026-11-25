@@ -46,6 +46,7 @@ Phase 5 is done. Next: phase 6, other kinds of training.
 
 Phase 6 (circuits, EMOM, AMRAP, for time, Hyrox and kettlebell plans, cardio, "describe a workout"), shipped so far:
 - Supersets and circuits in a workout: join an exercise to the one before; they open together and rest comes after each round. Saved as a shared `block`, no migration. See *Supersets and circuits* in the README.
+- EMOM, AMRAP and for time: a superset or circuit can be done on the clock, with Start, Round done and Stop, and keeps its score (AMRAP rounds + reps, EMOM rounds of the planned, for time the time). Saved as `workout_sessions.blocks` (migration `20261205090000_AddTimedBlocks`). See *EMOM, AMRAP and for time* in the README.
 
 ## Decisions (agreed 2026-11-25)
 
@@ -111,7 +112,7 @@ Designed so other kinds of training need no migration later.
   - AMRAP (time cap; score is rounds + reps);
   - for time (score is time).
 
-  v1 logs straight sets and supersets.
+  v1 logs straight sets and supersets. A session keeps its timed blocks' format and score (`blocks`), by block number.
 - **Session** (a workout done, or one being done):
   - `kind` (strength, cardio, hybrid, mobility, sport);
   - date, start, end;

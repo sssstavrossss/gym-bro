@@ -54,6 +54,9 @@ public sealed class WorkoutRequest
     public int? SequencePosition { get; set; }
 
     public List<WorkoutSetRequest>? Sets { get; set; }
+
+    /// <summary>Blocks done on the clock (EMOM, AMRAP, for time), by the sets' block. Left out for none.</summary>
+    public List<TimedBlockRequest?>? Blocks { get; set; }
 }
 
 public sealed class WorkoutSetRequest
@@ -90,7 +93,8 @@ public sealed record WorkoutDraft(
     string? Notes,
     Guid? PlanWorkoutId,
     int? SequencePosition,
-    IReadOnlyList<SetDraft> Sets);
+    IReadOnlyList<SetDraft> Sets,
+    IReadOnlyList<TimedBlock> Blocks);
 
 public sealed record SetDraft(
     string ExerciseId,
@@ -246,7 +250,13 @@ public static class WorkoutRules
                 set.DoneAt));
         }
 
-        return (new WorkoutDraft(kind, date, name, status, request.StartedAt, request.EndedAt, notes, request.PlanWorkoutId, request.SequencePosition, sets), null);
+        var (blocks, blockError) = TimedBlocks.Check(request.Blocks, sets.Select(set => set.Block).ToHashSet());
+        if (blocks is null)
+        {
+            return (null, blockError);
+        }
+
+        return (new WorkoutDraft(kind, date, name, status, request.StartedAt, request.EndedAt, notes, request.PlanWorkoutId, request.SequencePosition, sets, blocks), null);
     }
 
     /// <summary>
@@ -261,7 +271,7 @@ public static class WorkoutRules
 
     private static string? Clean(string? text) => string.IsNullOrWhiteSpace(text) ? null : text.Trim();
 
-    private static bool Within(int? value, int max) => value is null || (value >= 0 && value <= max);
+    internal static bool Within(int? value, int max) => value is null || (value >= 0 && value <= max);
 
     private static bool Within(decimal? value, decimal max) => value is null || (value >= 0 && value <= max);
 }

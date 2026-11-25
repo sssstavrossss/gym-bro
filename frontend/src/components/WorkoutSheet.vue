@@ -6,6 +6,7 @@ import SwapList from "./SwapList.vue";
 import Icon from "./Icon.vue";
 import Keypad from "./Keypad.vue";
 import WorkoutExercise, { type CellEdit } from "./WorkoutExercise.vue";
+import TimedBlock from "./TimedBlock.vue";
 import { keyboardEntry } from "../lib/viewport";
 import {
   clock,
@@ -48,6 +49,7 @@ import {
   workout,
 } from "../state/workout";
 import type { DraftExercise } from "../lib/workout";
+import { formatLabel, scoreLine } from "../lib/timed";
 import { closeSheet, toast, toastError, ui } from "../ui";
 
 // The workout being logged (docs/training.md, phase 2), and its summary once finished. Closing the sheet
@@ -122,8 +124,11 @@ watch(() => (active.value && chosen.value ? groupOf(active.value.exercises, chos
 const nameOf = (exercise: DraftExercise | undefined) => (exercise ? exerciseItem(exercise.exerciseId)?.name ?? "Exercise" : "");
 /** The exercise each superset button joins to: the one before. */
 const prevName = (exercises: readonly DraftExercise[], exercise: DraftExercise) => nameOf(exercises[exercises.indexOf(exercise) - 1]);
+/** A superset or circuit, or one exercise left on a clock: shown under a heading. */
+const isRun = (run: readonly DraftExercise[]) => run.length > 1 || !!run[0]?.timed;
 function runLabel(run: readonly DraftExercise[]) {
-  return `${groupName(run.length)}: ${run.map((exercise) => nameOf(exercise)).join(", ")}`;
+  const kind = run[0]?.timed ? formatLabel(run[0].timed) : groupName(run.length);
+  return `${kind}: ${run.map((exercise) => nameOf(exercise)).join(", ")}`;
 }
 
 function join(exercises: readonly DraftExercise[], key: string) {
@@ -254,6 +259,7 @@ const summary = computed(() => {
       };
     }),
     bests: workout.bests.length,
+    scores: exerciseGroups(done.exercises).flatMap((run) => (run[0].timed ? [{ key: run[0].key, line: scoreLine(run[0].timed, run) }] : [])),
   };
 });
 const showSummary = computed(() => summary.value != null && !active.value && !past.value);
@@ -330,6 +336,7 @@ async function deletePastNow() {
         <div class="col stat"><span class="t-capn c2">Sets</span><span class="t-head">{{ summary.sets }}</span></div>
         <div class="col stat"><span class="t-capn c2">Volume</span><span class="t-head">{{ summary.volume }}</span></div>
       </div>
+      <p v-for="item in summary.scores" :key="item.key" class="t-label m0" data-summary-score>{{ item.line }}</p>
       <p v-if="summary.bests" class="t-label m0" data-bests-count>{{ summary.bests === 1 ? "1 new best" : `${summary.bests} new bests` }}</p>
       <p v-if="waiting" class="t-label c2 m0" role="status">Saved on this phone. It goes to your account when you're back online.</p>
       <ul class="col done">
@@ -356,10 +363,10 @@ async function deletePastNow() {
         <span class="t-label c2">No exercises yet. Add one, then tick off each set you did.</span>
       </div>
       <div
-        v-for="run in exerciseGroups(past.draft.exercises)" :key="run[0].key" :class="run.length > 1 ? 'col ss' : 'solo'"
-        :role="run.length > 1 ? 'group' : undefined" :aria-label="run.length > 1 ? runLabel(run) : undefined" :data-superset="run.length > 1 ? run.length : undefined"
+        v-for="run in exerciseGroups(past.draft.exercises)" :key="run[0].key" :class="isRun(run) ? 'col ss' : 'solo'"
+        :role="isRun(run) ? 'group' : undefined" :aria-label="isRun(run) ? runLabel(run) : undefined" :data-superset="isRun(run) ? run.length : undefined"
       >
-        <span v-if="run.length > 1" class="row sshead t-capn c2"><Icon name="link" :size="14" />{{ groupName(run.length) }}</span>
+        <TimedBlock v-if="isRun(run)" :run="run" :live="false" :now="now" />
         <WorkoutExercise
           v-for="exercise in run" :key="exercise.key" :exercise="exercise" open past :edit="edit"
           :prev-name="prevName(past.draft.exercises, exercise)"
@@ -395,10 +402,10 @@ async function deletePastNow() {
         <span class="t-label c2">No exercises yet. Add the first one to start ticking off sets.</span>
       </div>
       <div
-        v-for="run in exerciseGroups(active.exercises)" :key="run[0].key" :class="run.length > 1 ? 'col ss' : 'solo'"
-        :role="run.length > 1 ? 'group' : undefined" :aria-label="run.length > 1 ? runLabel(run) : undefined" :data-superset="run.length > 1 ? run.length : undefined"
+        v-for="run in exerciseGroups(active.exercises)" :key="run[0].key" :class="isRun(run) ? 'col ss' : 'solo'"
+        :role="isRun(run) ? 'group' : undefined" :aria-label="isRun(run) ? runLabel(run) : undefined" :data-superset="isRun(run) ? run.length : undefined"
       >
-        <span v-if="run.length > 1" class="row sshead t-capn c2"><Icon name="link" :size="14" />{{ groupName(run.length) }} · rest after each round</span>
+        <TimedBlock v-if="isRun(run)" :run="run" :live="true" :now="now" />
         <WorkoutExercise
           v-for="exercise in run" :key="exercise.key" :exercise="exercise" :open="shownKeys.includes(exercise.key)" :edit="edit"
           :prev-name="prevName(active.exercises, exercise)"
@@ -460,7 +467,6 @@ async function deletePastNow() {
 /* A superset or circuit: its exercises under one heading, joined by a rail down the left. */
 .solo { display: contents; }
 .ss { gap: var(--space-s); padding-left: var(--space-s); border-left: var(--line-rail) solid var(--color-action); }
-.sshead { gap: var(--space-xs); flex-wrap: nowrap; }
 .more { gap: var(--space-s); padding-top: var(--space-xs); }
 .pad { gap: var(--space-s); }
 .padacts { gap: var(--space-s); flex-wrap: nowrap; }

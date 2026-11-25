@@ -39,4 +39,7 @@ public sealed class WorkoutSession
     public DateTimeOffset UpdatedAt { get; set; }
 
     public List<WorkoutSet> Sets { get; set; } = [];
+
+    /// <summary>Its blocks done on the clock, as JSON (<see cref="Training.TimedBlocks"/>): "[]" for none.</summary>
+    public string Blocks { get; set; } = "[]";
 }

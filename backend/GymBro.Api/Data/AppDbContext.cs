@@ -673,6 +673,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         session.Property(w => w.SequencePosition).HasColumnName("sequence_position");
         session.Property(w => w.CreatedAt).HasColumnName("created_at");
         session.Property(w => w.UpdatedAt).HasColumnName("updated_at");
+        session.Property(w => w.Blocks).HasColumnName("blocks").HasColumnType("jsonb").HasDefaultValueSql("'[]'::jsonb");
         session.HasIndex(w => new { w.UserId, w.LocalDate });
         session.HasOne<AppUser>().WithMany().HasForeignKey(w => w.UserId).OnDelete(DeleteBehavior.Cascade);
         session.HasMany(w => w.Sets).WithOne().HasForeignKey(s => s.SessionId).OnDelete(DeleteBehavior.Cascade);
