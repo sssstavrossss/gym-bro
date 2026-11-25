@@ -15,6 +15,7 @@ import {
   type DraftExercise,
   type SetField,
 } from "../lib/workout";
+import { targetLine } from "../lib/plan";
 import { addSet, exerciseItem, removeSet, setValue, toggleDone, workout } from "../state/workout";
 import { openExercise } from "../ui";
 
@@ -49,9 +50,9 @@ const folded = computed(() => {
   return `${sets} ${sets === 1 ? "set" : "sets"}`;
 });
 const subtitle = computed(() => {
-  if (props.past) return "";
-  if (!last.value) return "First time";
-  return `Last time ${shortDay(last.value.date)}`;
+  const target = props.exercise.target ? targetLine(props.exercise.target) : "";
+  if (props.past) return target;
+  return [target, last.value ? `Last time ${shortDay(last.value.date)}` : "First time"].filter(Boolean).join(" · ");
 });
 const columns = computed(() => `var(--set-n) var(--set-lt) ${fields.value.map((field) => `var(--set-${field})`).join(" ")} var(--control-hit)`);
 

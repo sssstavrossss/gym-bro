@@ -331,4 +331,37 @@ public sealed class PlanEndpointTests(ApiFactory factory)
         Assert.Equal(HttpStatusCode.BadRequest, half.StatusCode);
         Assert.Contains(WorkoutRules.BadSequence, await half.Content.ReadAsStringAsync());
     }
+
+    [Fact]
+    public async Task The_plan_knows_the_last_place_done_or_skipped_from_its_own_workouts()
+    {
+        var client = factory.AsUser(TestData.NewUser("plan-last"));
+        using var made = JsonDocument.Parse(await (await client.PutAsJsonAsync("/api/plan", Answers())).Content.ReadAsStringAsync());
+        Assert.Equal(JsonValueKind.Null, made.RootElement.GetProperty("lastPosition").ValueKind);
+        var ids = WorkoutIds(made.RootElement);
+
+        async Task Put(Guid planWorkoutId, int position, string status = "done", HttpClient? who = null) =>
+            Assert.True((await (who ?? client).PutAsJsonAsync($"/api/workouts/{Guid.NewGuid()}", new { date = Today, timeZone = "UTC", status, planWorkoutId, sequencePosition = position })).IsSuccessStatusCode);
+
+        await Put(ids[0], 0);
+        await Put(ids[1], 1, "skipped");
+        // Another plan's workout, or someone else's, doesn't move this plan on.
+        await Put(Guid.NewGuid(), 9);
+        await Put(ids[2], 7, who: factory.AsUser(TestData.NewUser("plan-last-other")));
+
+        async Task<int?> Last()
+        {
+            using var json = JsonDocument.Parse(await client.GetStringAsync("/api/plan"));
+            var value = json.RootElement.GetProperty("plan").GetProperty("lastPosition");
+            return value.ValueKind == JsonValueKind.Null ? null : value.GetInt32();
+        }
+
+        Assert.Equal(1, await Last());
+
+        // The same split keeps its place; a new split starts again.
+        using var kept = JsonDocument.Parse(await (await client.PutAsJsonAsync("/api/plan", Answers(minutes: 45))).Content.ReadAsStringAsync());
+        Assert.Equal(1, kept.RootElement.GetProperty("lastPosition").GetInt32());
+        await client.PutAsJsonAsync("/api/plan", Answers(split: "full_body"));
+        Assert.Null(await Last());
+    }
 }

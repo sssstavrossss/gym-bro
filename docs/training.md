@@ -21,8 +21,9 @@ Phase 1 is done. Phase 2 (log a free workout), shipped so far:
 Phase 2 is done. Phase 3 (plan generator, sequence and calendar, Home card), shipped so far:
 - The plans API and the generator: `GET/PUT/DELETE /api/plan` and `POST /api/plan/preview`, the core exercise table (`Training/CoreExercises.cs`: about 70 well-known lifts, each with the kit it needs and the areas it loads hardest), and workouts that carry their plan workout and place in the sequence. See *Training plans* in the README.
 - The New plan / Edit plan sheet (questions, Before you start, a live preview, Change split, End plan) and the Plan card on Train. See *The plan on Train* in the README.
+- Up next on the Plan card: Start (the workout prefilled with this week's sets, targets and rest), Skip with Undo, the block's week and reps in reserve. See *Where the plan is* in the README.
 
-Next in phase 3: Up next with Start and Skip, the calendar, and the Home card.
+Next in phase 3: the calendar, and the Home card.
 
 ## Decisions (agreed 2026-11-25)
 

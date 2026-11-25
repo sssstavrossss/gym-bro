@@ -196,4 +196,25 @@ describe("past workouts", () => {
     expect(historyLine({ exercises: ["a", "b", "c", "d"], sets: 12, volumeKg: 4560.5 }, name)).toBe("Squat, Bench +2 · 12 sets · 4,561 kg");
     expect(historyLine({ exercises: ["a"], sets: 1, volumeKg: 0 }, name)).toBe("Squat · 1 set");
   });
+
+  it("keeps a plan workout's link through an edit, and saves a skipped one as skipped", () => {
+    const draft = fromSaved({
+      id: "w", date: "2026-11-25", name: "Upper A", startedAt: null, endedAt: null, sets: [], status: "skipped", planWorkoutId: "p1", sequencePosition: 4,
+    });
+    expect(draft.plan).toEqual({ workoutId: "p1", position: 4 });
+    const body = toRequest(draft, "UTC");
+    expect(body).toMatchObject({ status: "skipped", planWorkoutId: "p1", sequencePosition: 4 });
+    // Sets added to a skipped workout make it done.
+    draft.exercises.push({ key: "e1", exerciseId: "a", sets: [{ ...emptySet(), reps: 5, doneAt: "2026-11-25T10:00:00Z" }] });
+    expect(toRequest(draft, "UTC").status).toBe("done");
+    expect(historyLine({ exercises: [], sets: 0, volumeKg: 0, status: "skipped" }, (id) => id)).toBe("Skipped");
+  });
+
+  it("hints this week's reps in reserve and a hold's target from the plan", () => {
+    const exercise = { key: "e1", exerciseId: "a", sets: [emptySet()], target: { repMin: 6, repMax: 10, seconds: null, rir: 2, restSeconds: 120 } };
+    const last = [{ exerciseId: "a", block: 0, type: "working" as const, kg: 80, reps: 8, rir: 3, seconds: null, metres: null, calories: null, doneAt: null }];
+    expect(setHints(exercise, 0, last)).toMatchObject({ kg: 80, reps: 8, rir: 2 });
+    const hold = { ...exercise, target: { ...exercise.target, repMin: null, repMax: null, seconds: 45 } };
+    expect(setHints(hold, 0, [])).toMatchObject({ seconds: 45 });
+  });
 });

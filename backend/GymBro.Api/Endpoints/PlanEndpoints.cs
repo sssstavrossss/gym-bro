@@ -20,7 +20,8 @@ public sealed record PlanView(
     int BlockWeeks,
     DateOnly StartDate,
     DateTimeOffset UpdatedAt,
-    IReadOnlyList<PlanWorkout> Workouts);
+    IReadOnlyList<PlanWorkout> Workouts,
+    int? LastPosition);
 
 /// <summary>What a set of answers would make, before it's saved.</summary>
 public sealed record PlanPreview(string Split, bool EaseIn, int BlockWeeks, IReadOnlyList<PlanWorkout> Workouts);
@@ -50,7 +51,7 @@ public static class PlanEndpoints
 
         var userId = Caller.Id(principal);
         var plan = await db.TrainingPlans.AsNoTracking().FirstOrDefaultAsync(row => row.UserId == userId, cancellationToken);
-        return Results.Ok(new { plan = plan is null ? null : ToView(plan) });
+        return Results.Ok(new { plan = plan is null ? null : await ViewAsync(db, plan, cancellationToken) });
     }
 
     /// <summary>The plan the answers would make, not saved, so the setup can show it before Create.</summary>
@@ -120,7 +121,7 @@ public static class PlanEndpoints
         plan.Workouts = PlanWorkouts.Serialize(workouts);
         plan.UpdatedAt = now;
         await db.SaveChangesAsync(cancellationToken);
-        return Results.Json(ToView(plan), statusCode: created ? StatusCodes.Status201Created : StatusCodes.Status200OK);
+        return Results.Json(await ViewAsync(db, plan, cancellationToken), statusCode: created ? StatusCodes.Status201Created : StatusCodes.Status200OK);
     }
 
     /// <summary>Ends the plan. Workouts done from it stay in the history.</summary>
@@ -136,7 +137,21 @@ public static class PlanEndpoints
         return Results.NoContent();
     }
 
-    private static PlanView ToView(TrainingPlan plan) => new(
+    /// <summary>
+    /// The plan with how far its sequence has got: the highest place done or skipped from one of its workouts.
+    /// A new split has new workout ids, so it starts again at the first workout.
+    /// </summary>
+    private static async Task<PlanView> ViewAsync(AppDbContext db, TrainingPlan plan, CancellationToken cancellationToken)
+    {
+        var workouts = PlanWorkouts.Parse(plan.Workouts);
+        var ids = workouts.Select(item => (Guid?)item.Id).ToList();
+        var last = await db.WorkoutSessions
+            .Where(row => row.UserId == plan.UserId && row.PlanWorkoutId != null && ids.Contains(row.PlanWorkoutId))
+            .MaxAsync(row => row.SequencePosition, cancellationToken);
+        return ToView(plan, workouts, last);
+    }
+
+    private static PlanView ToView(TrainingPlan plan, IReadOnlyList<PlanWorkout> workouts, int? lastPosition) => new(
         plan.Id,
         plan.Goal,
         plan.Weekdays,
@@ -149,5 +164,6 @@ public static class PlanEndpoints
         plan.BlockWeeks,
         plan.StartDate,
         plan.UpdatedAt,
-        PlanWorkouts.Parse(plan.Workouts));
+        workouts,
+        lastPosition);
 }
