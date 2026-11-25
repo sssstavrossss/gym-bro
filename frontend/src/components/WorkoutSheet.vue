@@ -22,6 +22,7 @@ import {
   workoutTotals,
 } from "../lib/workout";
 import { todayInZone } from "../lib/dates";
+import { newBestLine } from "../lib/records";
 import { loadExercises } from "../state/exercises";
 import { deviceTimeZone } from "../state/profile";
 import {
@@ -190,8 +191,18 @@ const summary = computed(() => {
     volume: totals.volumeKg ? `${Math.round(totals.volumeKg).toLocaleString("en-GB")} kg` : "—",
     exercises: done.exercises.map((exercise) => {
       const item = exerciseItem(exercise.exerciseId);
-      return { key: exercise.key, name: item?.name ?? exercise.exerciseId, line: exerciseSummary(exercise.sets, item?.measure ?? "weight_reps") };
+      // A new best shows on the first card of its exercise.
+      const best = done.exercises.find((other) => other.exerciseId === exercise.exerciseId) === exercise
+        ? workout.bests.find((item) => item.exerciseId === exercise.exerciseId)
+        : undefined;
+      return {
+        key: exercise.key,
+        name: item?.name ?? exercise.exerciseId,
+        line: exerciseSummary(exercise.sets, item?.measure ?? "weight_reps"),
+        best: best ? newBestLine(best) : "",
+      };
     }),
+    bests: workout.bests.length,
   };
 });
 const showSummary = computed(() => summary.value != null && !active.value && !past.value);
@@ -263,10 +274,14 @@ async function deletePastNow() {
         <div class="col stat"><span class="t-capn c2">Sets</span><span class="t-head">{{ summary.sets }}</span></div>
         <div class="col stat"><span class="t-capn c2">Volume</span><span class="t-head">{{ summary.volume }}</span></div>
       </div>
+      <p v-if="summary.bests" class="t-label m0" data-bests-count>{{ summary.bests === 1 ? "1 new best" : `${summary.bests} new bests` }}</p>
       <p v-if="waiting" class="t-label c2 m0" role="status">Saved on this phone. It goes to your account when you're back online.</p>
       <ul class="col done">
         <li v-for="exercise in summary.exercises" :key="exercise.key" class="row drow">
-          <span class="t-body grow dname">{{ exercise.name }}</span>
+          <span class="col grow dname">
+            <span class="t-body">{{ exercise.name }}</span>
+            <span v-if="exercise.best" class="t-capn best" data-new-best><Icon name="check" :size="12" :sw="3" /><span>New best: {{ exercise.best }}</span></span>
+          </span>
           <span class="t-label c2 dline">{{ exercise.line }}</span>
         </li>
       </ul>
@@ -390,4 +405,7 @@ async function deletePastNow() {
 .drow { gap: var(--space-m); padding-block: var(--space-s); border-bottom: 1px solid var(--color-border); align-items: baseline; }
 .dname, .dline { min-width: 0; overflow-wrap: anywhere; }
 .dline { text-align: right; }
+.dname { gap: var(--space-2xs); }
+.best { color: var(--color-action); display: inline-flex; align-items: baseline; gap: var(--space-2xs); }
+.best :deep(svg) { flex: none; align-self: center; }
 </style>

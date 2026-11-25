@@ -53,8 +53,14 @@ public sealed record WorkoutSummary(
 /// <summary>An exercise's sets in one earlier workout.</summary>
 public sealed record WorkoutSetsOn(Guid WorkoutId, DateOnly Date, IReadOnlyList<WorkoutSetView> Sets);
 
-/// <summary>The latest done workout with an exercise, and the one before it (load suggestions need two).</summary>
-public sealed record PreviousSets(Guid WorkoutId, DateOnly Date, IReadOnlyList<WorkoutSetView> Sets, WorkoutSetsOn? Earlier);
+/// <summary>An exercise's best set so far by estimated max (<see cref="EstimatedMax"/>).</summary>
+public sealed record BestSet(Guid WorkoutId, DateOnly Date, decimal Kg, int Reps, int? Rir, decimal EstimatedMax);
+
+/// <summary>
+/// The latest done workout with an exercise, the one before it (load suggestions need two), and the best set
+/// in any done workout (personal records).
+/// </summary>
+public sealed record PreviousSets(Guid WorkoutId, DateOnly Date, IReadOnlyList<WorkoutSetView> Sets, WorkoutSetsOn? Earlier, BestSet? Best);
 
 /// <summary>
 /// Workouts (docs/training.md, phase 2). The app makes each workout's id and sends the whole workout with
@@ -249,7 +255,21 @@ public static class WorkoutEndpoints
                 .ToListAsync(cancellationToken);
             List<WorkoutSetView> On(Guid session) => sets.Where(set => set.SessionId == session).Select(ToView).ToList();
             var earlier = latest.Count > 1 ? new WorkoutSetsOn(latest[1].Id, latest[1].LocalDate, On(latest[1].Id)) : null;
-            found[id] = new PreviousSets(latest[0].Id, latest[0].LocalDate, On(latest[0].Id), earlier);
+
+            // Ordered by kg × (30 + reps + RIR), which ranks like the estimate; the earliest wins a tie.
+            var best = await db.WorkoutSets.AsNoTracking()
+                .Where(set => set.UserId == userId && set.ExerciseId == id && set.SessionId != except && set.Type == SetTypes.Working
+                    && set.Kg > 0 && set.Reps >= 1 && set.Reps <= EstimatedMax.MaxReps)
+                .Join(db.WorkoutSessions.Where(row => row.UserId == userId && row.Status == WorkoutStatuses.Done),
+                    set => set.SessionId, row => row.Id,
+                    (set, row) => new { row.Id, row.LocalDate, Kg = set.Kg!.Value, Reps = set.Reps!.Value, set.Rir })
+                .OrderByDescending(row => row.Kg * (30 + row.Reps + (row.Rir > 0 ? row.Rir!.Value : 0)))
+                .ThenBy(row => row.LocalDate)
+                .FirstOrDefaultAsync(cancellationToken);
+            var bestSet = best is null
+                ? null
+                : new BestSet(best.Id, best.LocalDate, best.Kg, best.Reps, best.Rir, EstimatedMax.Of(SetTypes.Working, best.Kg, best.Reps, best.Rir)!.Value);
+            found[id] = new PreviousSets(latest[0].Id, latest[0].LocalDate, On(latest[0].Id), earlier, bestSet);
         }
 
         return Results.Ok(new { exercises = found });
