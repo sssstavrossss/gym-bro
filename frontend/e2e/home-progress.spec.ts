@@ -266,8 +266,8 @@ test("the Burn page draws the daily burn over the BMR, with today's numbers", as
   const fmt = (value: number) => value.toLocaleString("en-US");
   await expect(burnPage.locator("[data-burn-label]")).toHaveText(fmt(burn.kcal));
   await expect(burnPage.locator("[data-bmr-label]")).toHaveText(`BMR ${fmt(burn.bmrKcal)}`);
-  // The burn sits above the BMR.
-  const [burnY, bmrY] = await Promise.all(["[data-burn-label]", "[data-bmr-label]"].map(async (selector) => (await burnPage.locator(selector).boundingBox())!.y));
+  // The burn sits above the BMR. Read from the SVG: WebKit gives SVG text the same box top.
+  const [burnY, bmrY] = await Promise.all(["[data-burn-label]", "[data-bmr-label]"].map((selector) => burnPage.locator(selector).evaluate((el) => Number(el.getAttribute("y")))));
   expect(burnY).toBeLessThan(bmrY);
 
   const cells = burnPage.locator(".pstats .cell");
