@@ -3,14 +3,17 @@ import { computed, nextTick, ref, watch } from "vue";
 import { useRoute } from "vue-router";
 import { useDialogFocus } from "../lib/focusTrap";
 import { shortTurn } from "../lib/carousel";
-import { FAN_RADIUS, FAN_ROLL, fanActions, fanAngle, fanDim, fanDrag, fanDragSpan, fanFade, fanPages, fanRadius, fanScale, fanSettles, fanTurn, type FanActionId } from "../lib/fan";
+import { FAN_RADIUS, FAN_ROLL, fanAngle, fanDim, fanDrag, fanDragSpan, fanFade, fanRadius, fanScale, fanSettles, fanTurn, type FanActionId } from "../lib/fan";
+import { fanShown } from "../lib/fanPages";
+import { fanLayout } from "../state/fanPages";
 import Icon from "./Icon.vue";
 import { viewed } from "../state/log";
 import { describe, loadDescribe } from "../state/describe";
-import { closeSheet, openFood, openFoodWithScan, openNewFoodFrom, openRecipeCreate, openWeight, ui } from "../ui";
+import { closeSheet, openFanPages, openFood, openFoodWithScan, openNewFoodFrom, openRecipeCreate, openWeight, ui } from "../ui";
 
 /**
- * The + fan: the buttons open on a half ring around the tab bar's +, five to a page. Drag sideways
+ * The + fan: the buttons open on a half ring around the tab bar's +, one to five to a page, as arranged
+ * in the + button sheet (the cog between the dots and the ×, or Settings). Drag sideways
  * and the page rolls along the ring with the finger while the next rolls in from the other side; let go
  * and it finishes or springs back. A dot or ←/→ rolls it the whole way. Pages wrap. The + under it turns into the close button.
  */
@@ -18,8 +21,8 @@ const open = computed(() => ui.sheet === "chooser");
 const root = ref<HTMLElement | null>(null);
 const restoreFocus = useDialogFocus(() => open.value, root);
 
-const actions = computed(() => fanActions(describe.available));
-const pages = computed(() => fanPages(actions.value));
+/** Your pages (one to five buttons each, centred on the ring), without Describe when the server can't describe meals. */
+const pages = computed(() => fanShown(fanLayout.value, describe.available));
 const page = ref(0);
 /** How far round the ring each page is rolled, in degrees: 0 for the page showing. */
 const rolled = ref<number[]>([]);
@@ -255,6 +258,7 @@ function key(event: KeyboardEvent) {
           @click="pick(at)"
         ><span class="pip" :style="pip(at)" /></button>
       </div>
+      <button type="button" class="fcog" aria-label="Arrange the + button" data-fan-cog @click="openFanPages"><Icon name="cog" :size="16" /></button>
       <button type="button" class="fclose" aria-label="Close" @click="closeSheet">
         <Icon name="plus" :size="26" :sw="2.4" />
       </button>
@@ -263,7 +267,13 @@ function key(event: KeyboardEvent) {
 </template>
 
 <style scoped>
-.fan-root { position: absolute; inset: 0; z-index: 25; background: rgba(0,0,0,.6); touch-action: none; user-select: none; -webkit-user-select: none; }
+.fan-root {
+  position: absolute; inset: 0; z-index: 25; background: rgba(0,0,0,.6); touch-action: none; user-select: none; -webkit-user-select: none;
+  /* Inside the ring, straight up from the +: the dots, then the cog. Their 44px hits touch but don't
+     overlap; the cog's icon is drawn a little above its hit's middle, halfway between the dots and the ×.
+     Higher dots would meet the labels of a ring's lowest buttons. */
+  --dots-up: 98px; --cog-up: 54px; --cog-lift: 7px;
+}
 /* A zero-size point on the +; each button is placed round it by angle and distance. */
 .ring { position: absolute; left: var(--cx); top: var(--cy); width: 0; height: 0; }
 .fi {
@@ -289,7 +299,13 @@ function key(event: KeyboardEvent) {
 /* Grows with the text size up to 13px (11px normally), like the tab bar's fixed labels: a ring has no room for more. */
 .lbl { font-size: min(0.6471rem, 13px); line-height: 1.25; white-space: nowrap; text-shadow: 0 1px 4px rgb(0 0 0 / 0.7); }
 /* The dots sit inside the ring, between the + and the buttons. */
-.fdots { position: absolute; left: var(--cx); top: calc(var(--cy) - 84px); transform: translateX(-50%); display: flex; }
+.fdots { position: absolute; left: var(--cx); top: calc(var(--cy) - var(--dots-up) - var(--control-hit) / 2); transform: translateX(-50%); display: flex; }
+.fcog {
+  position: absolute; z-index: 1; left: calc(var(--cx) - var(--control-hit) / 2); top: calc(var(--cy) - var(--cog-up) - var(--control-hit) / 2);
+  width: var(--control-hit); height: var(--control-hit); display: flex; align-items: center; justify-content: center;
+  background: transparent; color: var(--text-on-scrim); opacity: 0.75; border-radius: 50%;
+}
+.fcog > :deep(svg) { translate: 0 calc(-1 * var(--cog-lift)); }
 .dot { width: var(--control-hit); height: var(--control-hit); display: flex; align-items: center; justify-content: center; background: transparent; color: var(--text-on-scrim); opacity: 0.5; }
 .dot.on { opacity: 1; }
 .pip { width: 6px; height: 6px; border-radius: var(--radius-pill); background: currentColor; transition: width 0.2s; }

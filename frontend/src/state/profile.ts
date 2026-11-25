@@ -59,6 +59,7 @@ import {
 import { isFreshStart, isLowAccuracy, profileTrendLabel } from "../lib/weightDisplay";
 import { boot } from "./boot";
 import { adoptCardPages } from "./cardPages";
+import { adoptFanPages } from "./fanPages";
 import { adoptHomeSections } from "./homeSections";
 import { openSettings, toast } from "../ui";
 
@@ -451,6 +452,7 @@ export async function loadProfile(): Promise<void> {
 function adoptDisplay(saved: ProfileResponse): void {
   adoptHomeSections(saved);
   adoptCardPages(saved);
+  adoptFanPages(saved);
 }
 
 /** Settings saved on their own (time zone, units). The form follows, so the profile never looks unsaved. */

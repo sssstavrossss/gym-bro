@@ -81,6 +81,8 @@ export interface ProfileResponse {
   /** Each card's pages in swipe order, hidden ones included. Null until the app first saves one; absent from an older server. */
   macrosOrder?: string[] | null;
   progressOrder?: string[] | null;
+  /** The + fan's pages, each its action ids joined by commas; empty is the default. Null until first saved. */
+  fanPages?: string[] | null;
 }
 
 export type TrendState = "normal" | "low_accuracy" | "fresh_start";
@@ -508,6 +510,7 @@ export interface SettingsBody {
   progressHidden?: string[];
   macrosOrder?: string[];
   progressOrder?: string[];
+  fanPages?: string[];
 }
 
 export interface SettingsResponse {
@@ -525,6 +528,8 @@ export interface SettingsResponse {
   progressHidden: string[] | null;
   macrosOrder?: string[] | null;
   progressOrder?: string[] | null;
+  /** The + fan's pages, each its action ids joined by commas; empty is the default. Null until first saved. */
+  fanPages?: string[] | null;
 }
 
 /** Display preferences. Saving one never changes the targets or adds history. */

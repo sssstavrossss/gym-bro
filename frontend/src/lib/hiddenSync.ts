@@ -4,10 +4,10 @@ import { parseHidden } from "./cardPages";
 // before the profile loads and while offline. A change made here is "pending" until the server has
 // it, so a load that comes back first (or an offline change) doesn't lose it.
 
-/** The id lists saved on the account: three hidden lists and the two cards' page orders. */
-export type HiddenList = "home" | "macros" | "progress" | "macrosOrder" | "progressOrder";
+/** The id lists saved on the account: three hidden lists, the two cards' page orders, and the + fan's pages. */
+export type HiddenList = "home" | "macros" | "progress" | "macrosOrder" | "progressOrder" | "fan";
 
-export const HIDDEN_LISTS: readonly HiddenList[] = ["home", "macros", "progress", "macrosOrder", "progressOrder"];
+export const HIDDEN_LISTS: readonly HiddenList[] = ["home", "macros", "progress", "macrosOrder", "progressOrder", "fan"];
 
 export const SETTINGS_FIELDS = {
   home: "homeHidden",
@@ -15,6 +15,7 @@ export const SETTINGS_FIELDS = {
   progress: "progressHidden",
   macrosOrder: "macrosOrder",
   progressOrder: "progressOrder",
+  fan: "fanPages",
 } as const;
 
 export function pendingKey(accountId: string): string {
