@@ -95,6 +95,12 @@ public sealed class Profile
     /// <summary>The Progress card's pages in the order they swipe, like <see cref="MacrosOrder"/>.</summary>
     public string[]? ProgressOrder { get; set; }
 
+    /// <summary>
+    /// The + fan's pages, each the app's action ids joined by commas (see <see cref="Profiles.FanPages"/>).
+    /// Null until the app first saves a layout; empty is the default layout.
+    /// </summary>
+    public string[]? FanPages { get; set; }
+
     public DateTimeOffset CreatedAt { get; set; }
 
     public DateTimeOffset UpdatedAt { get; set; }

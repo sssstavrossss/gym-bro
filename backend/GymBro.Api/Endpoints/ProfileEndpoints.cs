@@ -398,11 +398,21 @@ public static class ProfileEndpoints
             apply(clean);
         }
 
+        if (request.FanPages is not null)
+        {
+            if (FanPages.Clean(request.FanPages) is not { } pages)
+            {
+                return ApiResults.Error(FanPages.Invalid);
+            }
+
+            profile.FanPages = pages;
+        }
+
         profile.UpdatedAt = clock.GetUtcNow();
         await db.SaveChangesAsync(cancellationToken);
         return Results.Ok(new SettingsResponse(
             profile.TimeZone, profile.TimeZoneFollowsDevice, FoodCountries.Home(profile), profile.FoodCountryFollowsZone, profile.WeightUnit, profile.HeightUnit, profile.FoodUnit, profile.FatLimits, profile.SodiumLimit,
-            profile.HomeHidden, profile.MacrosHidden, profile.ProgressHidden, profile.MacrosOrder, profile.ProgressOrder));
+            profile.HomeHidden, profile.MacrosHidden, profile.ProgressHidden, profile.MacrosOrder, profile.ProgressOrder, profile.FanPages));
     }
 
     /// <summary>
@@ -516,7 +526,8 @@ public static class ProfileEndpoints
             profile.MacrosHidden,
             profile.ProgressHidden,
             profile.MacrosOrder,
-            profile.ProgressOrder);
+            profile.ProgressOrder,
+            profile.FanPages);
 
     public static WeightResponse ToWeight(WeightSnapshot weight) => new(
         weight.AsOf,
@@ -584,7 +595,8 @@ public sealed record ProfileResponse(
     string[]? MacrosHidden,
     string[]? ProgressHidden,
     string[]? MacrosOrder = null,
-    string[]? ProgressOrder = null);
+    string[]? ProgressOrder = null,
+    string[]? FanPages = null);
 
 /// <summary>
 /// Display preferences. None of them changes the targets, so saving one writes no target history.
@@ -592,12 +604,12 @@ public sealed record ProfileResponse(
 /// </summary>
 public sealed record SettingsRequest(string? TimeZone, bool? TimeZoneFollowsDevice, string? WeightUnit = null, string? HeightUnit = null, string? FatLimits = null, string? FoodUnit = null, string? SodiumLimit = null,
     string?[]? HomeHidden = null, string?[]? MacrosHidden = null, string?[]? ProgressHidden = null, string? FoodCountry = null, bool? FoodCountryFollowsZone = null,
-    string?[]? MacrosOrder = null, string?[]? ProgressOrder = null);
+    string?[]? MacrosOrder = null, string?[]? ProgressOrder = null, string?[]? FanPages = null);
 
 /// <summary>The hidden lists and page orders are null until the app first saves them. <see cref="FoodCountry"/> is the one in use.</summary>
 public sealed record SettingsResponse(
     string TimeZone, bool TimeZoneFollowsDevice, string FoodCountry, bool FoodCountryFollowsZone, string WeightUnit, string HeightUnit, string FoodUnit, string FatLimits, string SodiumLimit,
-    string[]? HomeHidden, string[]? MacrosHidden, string[]? ProgressHidden, string[]? MacrosOrder = null, string[]? ProgressOrder = null);
+    string[]? HomeHidden, string[]? MacrosHidden, string[]? ProgressHidden, string[]? MacrosOrder = null, string[]? ProgressOrder = null, string[]? FanPages = null);
 
 public sealed record WeightResponse(
     DateOnly AsOf,

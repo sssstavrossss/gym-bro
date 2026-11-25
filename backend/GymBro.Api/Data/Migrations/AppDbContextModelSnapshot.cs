@@ -1212,6 +1212,10 @@ namespace GymBro.Api.Data.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
 
+                    b.PrimitiveCollection<string[]>("FanPages")
+                        .HasColumnType("text[]")
+                        .HasColumnName("fan_pages");
+
                     b.Property<string>("FatLimits")
                         .IsRequired()
                         .ValueGeneratedOnAdd()

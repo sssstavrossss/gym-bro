@@ -22,7 +22,9 @@ import type { FoodUnit } from "../lib/foodUnits";
 import type { HeightUnit, WeightUnit } from "../lib/units";
 import { applySettings, clearAllDrafts, deviceTimeZone, foodCountry, profile, setFoodUnit, setUnits } from "../state/profile";
 import { foodUnit } from "../state/units";
-import { closeSheet, ui } from "../ui";
+import { closeSheet, openFanPages, ui } from "../ui";
+import { fanSummary as summarizeFan } from "../lib/fanPages";
+import { fanLayout } from "../state/fanPages";
 
 const open = computed(() => ui.sheet === "settings");
 const view = ref<"main" | "zone" | "home" | "country">("main");
@@ -49,6 +51,7 @@ const countryFollows = computed(() => profile.saved?.foodCountryFollowsZone !== 
 const countries = allCountries();
 const countryResults = computed(() => searchCountries(countries, query.value));
 const summary = computed(() => sectionsSummary(homeSections.hidden));
+const fanSummary = computed(() => summarizeFan(fanLayout.value));
 const sections = computed(() => sectionRows(screenLayoutFromFlags({ tablet: vp.tablet, desktop: vp.desktop, wide: vp.wide })));
 
 watch(open, (value) => {
@@ -179,6 +182,13 @@ async function onSignOut() {
             <span class="t-capn c2 hnames">{{ summary.names }}</span>
           </span>
           <span class="t-body c2 hcount">{{ summary.count }}</span>
+          <Icon name="right" :size="16" class="fchev" />
+        </button>
+        <button type="button" class="frow" data-fan-settings @click="openFanPages">
+          <span class="col grow">
+            <span class="t-body">+ button</span>
+            <span class="t-capn c2 hnames">{{ fanSummary }}</span>
+          </span>
           <Icon name="right" :size="16" class="fchev" />
         </button>
       </section>

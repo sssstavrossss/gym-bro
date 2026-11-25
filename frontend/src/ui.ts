@@ -68,6 +68,8 @@ export const ui = reactive({
   cardPages: "progress" as PageCard,
   /** The card pages sheet is open over another sheet (a cog on Add food or a recipe), which stays open under it. */
   cardPagesOver: false,
+  /** The + fan's editor is open over the fan (from its cog), which stays open under it. */
+  fanPagesOver: false,
   /** The page Settings opens on: its list, Home sections (from Home when every card is off), or the food country (from its toast). */
   settingsView: "main" as SettingsView,
 });
@@ -146,6 +148,24 @@ export function openCardPages(card: PageCard): void {
 
 export function closeCardPages(): void {
   if (ui.cardPagesOver) ui.cardPagesOver = false;
+  else closeSheet();
+}
+
+/**
+ * Arranges the + fan's pages. It opens over the fan (its cog) or Settings, so closing it goes back
+ * to what was under it.
+ */
+export function openFanPages(): void {
+  if (ui.sheet && ui.sheet !== "fan-pages") {
+    ui.fanPagesOver = true;
+    return;
+  }
+  ui.fanPagesOver = false;
+  ui.sheet = "fan-pages";
+}
+
+export function closeFanPages(): void {
+  if (ui.fanPagesOver) ui.fanPagesOver = false;
   else closeSheet();
 }
 

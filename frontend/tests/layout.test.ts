@@ -84,6 +84,8 @@ describe("shortcuts", () => {
   it("closes the card pages sheet first when it is open over another sheet", () => {
     expect(shortcutEffect({ ...base, key: "Escape", sheet: "food", cardPagesOver: true })).toEqual({ effect: "prevent", action: "close-card-pages" });
     expect(shortcutEffect({ ...base, key: "Escape", sheet: "recipe", cardPagesOver: true })).toEqual({ effect: "prevent", action: "close-card-pages" });
+    // The + button sheet over the fan closes back to the fan.
+    expect(shortcutEffect({ ...base, key: "Escape", sheet: "chooser", fanPagesOver: true })).toEqual({ effect: "prevent", action: "close-fan-pages" });
     // From Home it is its own sheet, which Esc closes the usual way.
     expect(shortcutEffect({ ...base, key: "Escape", sheet: "card-pages" })).toEqual({ effect: "prevent", action: "close-sheet" });
   });
