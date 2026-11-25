@@ -28,6 +28,8 @@ public sealed record WorkoutView(
     DateTimeOffset? StartedAt,
     DateTimeOffset? EndedAt,
     string? Notes,
+    Guid? PlanWorkoutId,
+    int? SequencePosition,
     DateTimeOffset UpdatedAt,
     IReadOnlyList<WorkoutSetView> Sets);
 
@@ -40,6 +42,8 @@ public sealed record WorkoutSummary(
     string Status,
     DateTimeOffset? StartedAt,
     DateTimeOffset? EndedAt,
+    Guid? PlanWorkoutId,
+    int? SequencePosition,
     DateTimeOffset UpdatedAt,
     IReadOnlyList<string> Exercises,
     int Sets,
@@ -124,6 +128,8 @@ public static class WorkoutEndpoints
         session.StartedAt = draft.StartedAt;
         session.EndedAt = draft.EndedAt;
         session.Notes = draft.Notes;
+        session.PlanWorkoutId = draft.PlanWorkoutId;
+        session.SequencePosition = draft.SequencePosition;
         session.UpdatedAt = now;
         for (var index = 0; index < draft.Sets.Count; index++)
         {
@@ -262,6 +268,8 @@ public static class WorkoutEndpoints
         session.StartedAt,
         session.EndedAt,
         session.Notes,
+        session.PlanWorkoutId,
+        session.SequencePosition,
         session.UpdatedAt,
         session.Sets.OrderBy(set => set.Position).Select(ToView).ToList());
 
@@ -279,6 +287,8 @@ public static class WorkoutEndpoints
             session.Status,
             session.StartedAt,
             session.EndedAt,
+            session.PlanWorkoutId,
+            session.SequencePosition,
             session.UpdatedAt,
             ordered.Select(set => set.ExerciseId).Distinct().ToList(),
             ordered.Count(WorkoutRules.Counts),

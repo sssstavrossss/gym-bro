@@ -48,6 +48,11 @@ public sealed class WorkoutRequest
 
     public string? Notes { get; set; }
 
+    /// <summary>The plan workout it was done (or skipped) from, with its place in the sequence. Null for a free workout.</summary>
+    public Guid? PlanWorkoutId { get; set; }
+
+    public int? SequencePosition { get; set; }
+
     public List<WorkoutSetRequest>? Sets { get; set; }
 }
 
@@ -83,6 +88,8 @@ public sealed record WorkoutDraft(
     DateTimeOffset? StartedAt,
     DateTimeOffset? EndedAt,
     string? Notes,
+    Guid? PlanWorkoutId,
+    int? SequencePosition,
     IReadOnlyList<SetDraft> Sets);
 
 public sealed record SetDraft(
@@ -116,6 +123,7 @@ public static class WorkoutRules
     public const int MaxCalories = 10_000;
     public static readonly TimeSpan MaxLength = TimeSpan.FromHours(24);
     public static readonly DateOnly Earliest = new(2000, 1, 1);
+    public const int MaxSequencePosition = 100_000;
 
     public const string NeedsDate = "Say which day the workout was, like 2026-11-25.";
     public const string TooEarly = "That date is too long ago.";
@@ -129,6 +137,7 @@ public static class WorkoutRules
     public const string UnknownSetType = "A set is a warm-up, working or drop set.";
     public const string BadBlock = "A set's block is a number from 0 to 99.";
     public const string OutOfRange = "A set has a number outside what the app accepts.";
+    public const string BadSequence = "A plan workout needs its place in the sequence, from 0.";
 
     public static string UnknownExercise(string? id) => $"\"{id}\" is not an exercise the app knows.";
 
@@ -187,6 +196,12 @@ public static class WorkoutRules
             }
         }
 
+        if (request.PlanWorkoutId is null != request.SequencePosition is null
+            || request.SequencePosition is < 0 or > MaxSequencePosition)
+        {
+            return (null, BadSequence);
+        }
+
         var requested = request.Sets ?? [];
         if (requested.Count > MaxSets)
         {
@@ -231,7 +246,7 @@ public static class WorkoutRules
                 set.DoneAt));
         }
 
-        return (new WorkoutDraft(kind, date, name, status, request.StartedAt, request.EndedAt, notes, sets), null);
+        return (new WorkoutDraft(kind, date, name, status, request.StartedAt, request.EndedAt, notes, request.PlanWorkoutId, request.SequencePosition, sets), null);
     }
 
     /// <summary>

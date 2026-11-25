@@ -50,6 +50,7 @@ public static class ExportTables
             .Where(row => row.UserId == userId)
             .OrderBy(row => row.LocalDate).ThenBy(row => row.StartedAt ?? row.CreatedAt)
             .ToListAsync(cancellationToken);
+        var plan = await db.TrainingPlans.AsNoTracking().FirstOrDefaultAsync(row => row.UserId == userId, cancellationToken);
 
         // A serving can be on a catalogue food, so its name is read by id. Only the ids this person used.
         var servingFoodIds = servings.Select(row => row.FoodId).Distinct().ToList();
@@ -70,6 +71,7 @@ public static class ExportTables
             Groups(groups, items),
             Descriptions(described),
             Workouts(workouts),
+            Plan(plan),
         ];
     }
 
@@ -197,4 +199,14 @@ public static class ExportTables
                 ? [[.. head, null, null, null, null, null, null, null, null, null, null]]
                 : sets.Select(row => (object?[])[.. head, row.Position + 1, row.ExerciseId, row.Type, row.Reps, row.Kg, row.Rir, row.Seconds, row.Metres, row.Calories, row.DoneAt?.ToString("O")]);
         })]);
+
+    /// <summary>The training plan, one row per exercise in each plan workout, with the plan's answers repeated.</summary>
+    private static ExportTable Plan(TrainingPlan? plan) => new(
+        "training_plan",
+        ["goal", "split", "weekdays", "minutes", "experience", "equipment", "go_easy", "ease_in", "start_date", "workout", "exercise", "sets", "rep_min", "rep_max", "seconds", "rest_seconds"],
+        plan is null ? [] : [.. Training.PlanWorkouts.Parse(plan.Workouts).SelectMany(workout => workout.Exercises.Select(item => new object?[]
+        {
+            plan.Goal, plan.Split, string.Join(' ', plan.Weekdays), plan.Minutes, plan.Experience, string.Join(' ', plan.Equipment), string.Join(' ', plan.GoEasy),
+            plan.EaseIn, plan.StartDate, workout.Name, item.ExerciseId, item.Sets, item.RepMin, item.RepMax, item.Seconds, item.RestSeconds,
+        }))]);
 }

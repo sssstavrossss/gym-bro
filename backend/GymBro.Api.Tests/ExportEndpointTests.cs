@@ -57,7 +57,7 @@ public sealed class ExportEndpointTests(ApiFactory factory)
 
         using var zip = new ZipArchive(await response.Content.ReadAsStreamAsync(), ZipArchiveMode.Read);
         Assert.Equal(
-            ["profile.csv", "weigh-ins.csv", "targets.csv", "log.csv", "fasting-days.csv", "foods.csv", "servings.csv", "recipes.csv", "groups.csv", "descriptions.csv", "workouts.csv", ExportFiles.JsonName],
+            ["profile.csv", "weigh-ins.csv", "targets.csv", "log.csv", "fasting-days.csv", "foods.csv", "servings.csv", "recipes.csv", "groups.csv", "descriptions.csv", "workouts.csv", "training-plan.csv", ExportFiles.JsonName],
             zip.Entries.Select(entry => entry.FullName));
         Assert.Equal(
             ["created_at,kind,text,photo,outcome,foods,kcal,logged_at,model,input_tokens,output_tokens", "2026-10-24T18:00:00.0000000+00:00,meal,60 g fictional oats,false,found,1,228,,rule,0,0"],

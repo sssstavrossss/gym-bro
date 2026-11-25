@@ -49,6 +49,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
 
     public DbSet<WorkoutSet> WorkoutSets => Set<WorkoutSet>();
 
+    public DbSet<TrainingPlan> TrainingPlans => Set<TrainingPlan>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         var user = modelBuilder.Entity<AppUser>();
@@ -694,5 +696,26 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         set.Property(s => s.DoneAt).HasColumnName("done_at");
         set.HasIndex(s => new { s.SessionId, s.Position });
         set.HasIndex(s => new { s.UserId, s.ExerciseId });
+
+        var plan = modelBuilder.Entity<TrainingPlan>();
+        plan.ToTable("training_plans");
+        plan.HasKey(p => p.Id);
+        plan.Property(p => p.Id).HasColumnName("id").ValueGeneratedNever();
+        plan.Property(p => p.UserId).HasColumnName("user_id").HasMaxLength(64);
+        plan.Property(p => p.Goal).HasColumnName("goal").HasMaxLength(16);
+        plan.Property(p => p.Weekdays).HasColumnName("weekdays").HasColumnType("integer[]");
+        plan.Property(p => p.Minutes).HasColumnName("minutes");
+        plan.Property(p => p.Experience).HasColumnName("experience").HasMaxLength(16);
+        plan.Property(p => p.Equipment).HasColumnName("equipment").HasColumnType("text[]");
+        plan.Property(p => p.GoEasy).HasColumnName("go_easy").HasColumnType("text[]");
+        plan.Property(p => p.EaseIn).HasColumnName("ease_in");
+        plan.Property(p => p.Split).HasColumnName("split").HasMaxLength(24);
+        plan.Property(p => p.BlockWeeks).HasColumnName("block_weeks");
+        plan.Property(p => p.StartDate).HasColumnName("start_date");
+        plan.Property(p => p.Workouts).HasColumnName("workouts").HasColumnType("jsonb");
+        plan.Property(p => p.CreatedAt).HasColumnName("created_at");
+        plan.Property(p => p.UpdatedAt).HasColumnName("updated_at");
+        plan.HasIndex(p => p.UserId).IsUnique();
+        plan.HasOne<AppUser>().WithMany().HasForeignKey(p => p.UserId).OnDelete(DeleteBehavior.Cascade);
     }
 }

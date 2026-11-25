@@ -18,7 +18,10 @@ Phase 1 is done. Phase 2 (log a free workout), shipped so far:
 
 - History on Train, editing and deleting past workouts (with Undo), logging a workout afterwards, and Start workout / Log workout as extra + fan buttons (off the fan until added). See *Logging a workout* in the README.
 
-Phase 2 is done. Next: phase 3, the plan generator, the sequence and calendar, and the Home card.
+Phase 2 is done. Phase 3 (plan generator, sequence and calendar, Home card), shipped so far:
+- The plans API and the generator: `GET/PUT/DELETE /api/plan` and `POST /api/plan/preview`, the core exercise table (`Training/CoreExercises.cs`: about 70 well-known lifts, each with the kit it needs and the areas it loads hardest), and workouts that carry their plan workout and place in the sequence. See *Training plans* in the README.
+
+Next in phase 3: the New plan sheet and the Plan card on Train, Up next with Start and Skip, the calendar, and the Home card.
 
 ## Decisions (agreed 2026-11-25)
 
@@ -64,6 +67,8 @@ Phase 2 is done. Next: phase 3, the plan generator, the sequence and calendar, a
 - **Session time:** sets × (work + rest) + changeovers.
   - Under about 20 minutes, the generator uses supersets or a circuit of 2–3 exercises.
   - Over about 90 minutes, it adds exercises rather than sets.
+- **Sequence and weeks.** The next workout is the one after the latest done or skipped plan workout (by `sequencePosition`). A block's week counts passes through the sequence, not calendar weeks: one week is as many plan workouts as days a week, so a missed day doesn't move the block on.
+- **Short sessions** take fewer exercises and at most 2 sets each for now. Supersets and circuits come with phase 6.
 - **Estimated max:** Epley with RIR, kg × (1 + (reps + RIR) / 30).
 
 ## Data model (proposed)
