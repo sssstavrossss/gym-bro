@@ -1,0 +1,140 @@
+{
+  "version": 1,
+  "exercises": [
+    {
+      "id": "skierg",
+      "name": "SkiErg",
+      "category": "cardio",
+      "equipment": "machine",
+      "level": "beginner",
+      "mechanic": "compound",
+      "force": "pull",
+      "measure": "distance_time",
+      "primaryMuscles": ["lats", "triceps"],
+      "secondaryMuscles": ["abdominals", "shoulders", "quadriceps"],
+      "instructions": [
+        "Stand facing the machine, feet hip-width, and take a handle in each hand with your arms up.",
+        "Pull the handles down past your hips, hinging at the hips and bending your knees a little as you go.",
+        "Stand back up and let your arms rise with the handles, then pull again in a steady rhythm."
+      ]
+    },
+    {
+      "id": "sled-pull",
+      "name": "Sled Pull",
+      "category": "strongman",
+      "equipment": "other",
+      "level": "intermediate",
+      "mechanic": "compound",
+      "force": "pull",
+      "measure": "weight_distance",
+      "primaryMuscles": ["lats", "middle back"],
+      "secondaryMuscles": ["biceps", "forearms", "hamstrings", "glutes"],
+      "instructions": [
+        "Stand behind the line facing the sled, holding the rope with both hands, knees bent and hips back.",
+        "Pull the rope hand over hand, driving through your legs and leaning back as the sled moves.",
+        "Keep pulling until the sled crosses the line, letting the slack rope gather beside you."
+      ]
+    },
+    {
+      "id": "wall-ball",
+      "name": "Wall Ball",
+      "category": "plyometrics",
+      "equipment": "medicine ball",
+      "level": "beginner",
+      "mechanic": "compound",
+      "force": "push",
+      "measure": "weight_reps",
+      "primaryMuscles": ["quadriceps", "shoulders"],
+      "secondaryMuscles": ["glutes", "triceps", "abdominals"],
+      "instructions": [
+        "Stand an arm's length from the wall holding the ball at your chest, feet shoulder-width.",
+        "Squat until your hips are below your knees, keeping your chest up.",
+        "Drive up and throw the ball to the target in one movement, then catch it and go straight into the next squat."
+      ]
+    },
+    {
+      "id": "burpee-broad-jump",
+      "name": "Burpee Broad Jump",
+      "category": "plyometrics",
+      "equipment": "body only",
+      "level": "intermediate",
+      "mechanic": "compound",
+      "force": "push",
+      "measure": "distance_time",
+      "primaryMuscles": ["quadriceps", "chest"],
+      "secondaryMuscles": ["glutes", "hamstrings", "triceps", "shoulders"],
+      "instructions": [
+        "Drop your chest to the floor with your hands under your shoulders.",
+        "Push up, bring your feet in under you, and jump forward with both feet as far as you can control.",
+        "Land softly with bent knees and go straight into the next burpee."
+      ]
+    },
+    {
+      "id": "sandbag-lunge",
+      "name": "Sandbag Lunge",
+      "category": "strength",
+      "equipment": "other",
+      "level": "intermediate",
+      "mechanic": "compound",
+      "force": "push",
+      "measure": "weight_distance",
+      "primaryMuscles": ["quadriceps", "glutes"],
+      "secondaryMuscles": ["hamstrings", "abdominals", "traps"],
+      "instructions": [
+        "Lift the sandbag onto your shoulders behind your neck and hold it steady.",
+        "Step forward and lower your back knee until it touches the floor lightly.",
+        "Push through your front foot to stand, bring the back foot through, and lunge with the other leg."
+      ]
+    },
+    {
+      "id": "run",
+      "name": "Run",
+      "category": "cardio",
+      "equipment": "body only",
+      "level": "beginner",
+      "mechanic": "compound",
+      "force": "push",
+      "measure": "distance_time",
+      "primaryMuscles": ["quadriceps", "hamstrings"],
+      "secondaryMuscles": ["calves", "glutes"],
+      "instructions": [
+        "Run at the planned pace, outdoors or on a track.",
+        "Stay tall, land under your hips, and keep your arms relaxed."
+      ]
+    },
+    {
+      "id": "fan-bike",
+      "name": "Fan Bike",
+      "category": "cardio",
+      "equipment": "machine",
+      "level": "beginner",
+      "mechanic": "compound",
+      "force": "push",
+      "measure": "distance_time",
+      "primaryMuscles": ["quadriceps"],
+      "secondaryMuscles": ["hamstrings", "shoulders", "chest", "lats"],
+      "instructions": [
+        "Set the seat on the air (fan) bike so your knee is slightly bent at the bottom of each stroke.",
+        "Push and pull the handles while you pedal, using your arms and legs together.",
+        "Keep a steady effort, or sprint for the planned time."
+      ]
+    },
+    {
+      "id": "kettlebell-swing",
+      "name": "Kettlebell Swing",
+      "category": "strength",
+      "equipment": "kettlebells",
+      "level": "beginner",
+      "mechanic": "compound",
+      "force": "pull",
+      "measure": "weight_reps",
+      "primaryMuscles": ["hamstrings", "glutes"],
+      "secondaryMuscles": ["lower back", "shoulders", "forearms"],
+      "instructions": [
+        "Stand with feet a little wider than shoulder-width, the kettlebell on the floor in front of you.",
+        "Hinge at the hips, grip the handle with both hands and hike it back between your legs.",
+        "Snap your hips forward to swing it to chest height, arms straight, then let it fall back between your legs and repeat."
+      ]
+    }
+  ]
+}
