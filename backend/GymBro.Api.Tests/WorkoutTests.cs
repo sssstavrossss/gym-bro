@@ -17,6 +17,21 @@ public sealed class WorkoutRulesTests
     private static (WorkoutDraft? Draft, string? Error) Check(WorkoutRequest request) =>
         WorkoutRules.Check(request, ExerciseCatalog.Current, Today, Today);
 
+    [Theory]
+    [InlineData("cardio", "run", "swim")]
+    [InlineData("hybrid", "run", "barbell-squat")]
+    [InlineData("strength", "barbell-squat", "pullups")]
+    [InlineData("mobility", "90-90-hamstring", "adductor")]
+    public void A_workout_sent_without_a_kind_takes_it_from_its_exercises(string kind, string first, string? second)
+    {
+        var sets = new[] { first, second }.OfType<string>().Select(id => new WorkoutSetRequest { ExerciseId = id }).ToArray();
+        var (draft, error) = Check(Request(sets));
+        Assert.Null(error);
+        Assert.Equal(kind, draft!.Kind);
+        // A kind that is sent is kept.
+        Assert.Equal(WorkoutKinds.Sport, Check(new WorkoutRequest { Date = Today, Kind = "sport", Sets = [.. sets] }).Draft!.Kind);
+    }
+
     [Fact]
     public void A_bare_workout_is_a_done_strength_workout()
     {
@@ -193,6 +208,45 @@ public sealed class WorkoutEndpointTests(ApiFactory factory)
     }
 
     [Fact]
+    public async Task A_run_is_saved_as_cardio_and_its_distance_is_in_the_list()
+    {
+        var client = factory.AsUser(TestData.NewUser("workout-cardio"));
+        var run = Guid.NewGuid();
+        var done = DateTimeOffset.UtcNow;
+        var body = new
+        {
+            date = Today, timeZone = "UTC",
+            sets = new object[]
+            {
+                new { exerciseId = "run", block = 0, metres = 5000m, seconds = 1500, doneAt = done },
+                new { exerciseId = "run", block = 0, metres = 1000m, seconds = 300, doneAt = (DateTimeOffset?)null },
+                new { exerciseId = "walk", block = 1, metres = 1200.5m, seconds = 900, doneAt = done },
+            },
+        };
+        Assert.Equal(HttpStatusCode.Created, (await client.PutAsJsonAsync($"/api/workouts/{run}", body)).StatusCode);
+        // A sled push's metres carry a weight: they aren't distance covered.
+        var mixed = Guid.NewGuid();
+        var hybrid = new
+        {
+            date = Today.AddDays(-1), timeZone = "UTC",
+            sets = new object[]
+            {
+                new { exerciseId = "skierg", block = 0, metres = 1000m, seconds = 240, doneAt = done },
+                new { exerciseId = "sled-pull", block = 1, kg = 100m, metres = 50m, doneAt = done },
+            },
+        };
+        Assert.Equal(HttpStatusCode.Created, (await client.PutAsJsonAsync($"/api/workouts/{mixed}", hybrid)).StatusCode);
+
+        using var json = JsonDocument.Parse(await client.GetStringAsync($"/api/workouts?from={Today.AddDays(-7):yyyy-MM-dd}&to={Today:yyyy-MM-dd}"));
+        var list = json.RootElement.GetProperty("workouts");
+        Assert.Equal("cardio", list[0].GetProperty("kind").GetString());
+        Assert.Equal(6200.5m, list[0].GetProperty("metres").GetDecimal());
+        Assert.Equal(0m, list[0].GetProperty("volumeKg").GetDecimal());
+        Assert.Equal("hybrid", list[1].GetProperty("kind").GetString());
+        Assert.Equal(1000m, list[1].GetProperty("metres").GetDecimal());
+    }
+
+    [Fact]
     public async Task Someone_elses_workout_cant_be_read_replaced_or_deleted()
     {
         var owner = factory.AsUser(TestData.NewUser("workout-owner"));
@@ -244,6 +298,8 @@ public sealed class WorkoutEndpointTests(ApiFactory factory)
         Assert.Equal(500m, list[0].GetProperty("volumeKg").GetDecimal());
         Assert.Equal(1, list[1].GetProperty("sets").GetInt32());
         Assert.Equal(640m, list[1].GetProperty("volumeKg").GetDecimal());
+
+        Assert.Equal(0m, list[0].GetProperty("metres").GetDecimal());
 
         var wide = await client.GetAsync($"/api/workouts?from={Today.AddDays(-400):yyyy-MM-dd}&to={Today:yyyy-MM-dd}");
         Assert.Equal(HttpStatusCode.BadRequest, wide.StatusCode);

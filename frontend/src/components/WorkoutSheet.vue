@@ -49,6 +49,7 @@ import {
   workout,
 } from "../state/workout";
 import type { DraftExercise } from "../lib/workout";
+import { distanceText } from "../lib/cardio";
 import { formatLabel, scoreLine } from "../lib/timed";
 import { closeSheet, toast, toastError, ui } from "../ui";
 
@@ -245,6 +246,9 @@ const summary = computed(() => {
     time: minutes == null ? "—" : minutes < 60 ? `${minutes} min` : `${Math.floor(minutes / 60)} h ${minutes % 60} min`,
     sets: totals.sets,
     volume: totals.volumeKg ? `${Math.round(totals.volumeKg).toLocaleString("en-GB")} kg` : "—",
+    // A run shows its distance where a lift shows volume; a workout with both shows both.
+    distance: totals.metres ? distanceText(totals.metres) : "",
+    showVolume: totals.volumeKg > 0 || !totals.metres,
     exercises: done.exercises.map((exercise) => {
       const item = exerciseItem(exercise.exerciseId);
       // A new best shows on the first card of its exercise.
@@ -254,7 +258,7 @@ const summary = computed(() => {
       return {
         key: exercise.key,
         name: item?.name ?? exercise.exerciseId,
-        line: exerciseSummary(exercise.sets, item?.measure ?? "weight_reps"),
+        line: exerciseSummary(exercise.sets, item?.measure ?? "weight_reps", exercise.exerciseId),
         best: best ? newBestLine(best) : "",
       };
     }),
@@ -334,7 +338,8 @@ async function deletePastNow() {
       <div class="row stats">
         <div class="col stat"><span class="t-capn c2">Time</span><span class="t-head">{{ summary.time }}</span></div>
         <div class="col stat"><span class="t-capn c2">Sets</span><span class="t-head">{{ summary.sets }}</span></div>
-        <div class="col stat"><span class="t-capn c2">Volume</span><span class="t-head">{{ summary.volume }}</span></div>
+        <div v-if="summary.showVolume" class="col stat"><span class="t-capn c2">Volume</span><span class="t-head">{{ summary.volume }}</span></div>
+        <div v-if="summary.distance" class="col stat" data-summary-distance><span class="t-capn c2">Distance</span><span class="t-head">{{ summary.distance }}</span></div>
       </div>
       <p v-for="item in summary.scores" :key="item.key" class="t-label m0" data-summary-score>{{ item.line }}</p>
       <p v-if="summary.bests" class="t-label m0" data-bests-count>{{ summary.bests === 1 ? "1 new best" : `${summary.bests} new bests` }}</p>

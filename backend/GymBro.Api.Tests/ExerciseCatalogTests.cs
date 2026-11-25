@@ -13,7 +13,7 @@ public sealed class ExerciseCatalogTests
     public void Holds_every_source_exercise_and_ours_under_unique_ids()
     {
         var library = ExerciseCatalog.Current;
-        Assert.Equal(884, library.All.Count);
+        Assert.Equal(886, library.All.Count);
         Assert.Equal(876, library.All.Count(item => item.Source == ExerciseCatalog.FreeExerciseDb));
         Assert.Equal(library.All.Count, library.All.Select(item => item.Id).Distinct().Count());
         Assert.All(library.All, item =>
@@ -95,7 +95,7 @@ public sealed class ExerciseEndpointTests(ApiFactory factory)
         Assert.Equal($"\"{body.GetProperty("version").GetString()}\"", etag.Tag);
         var exercises = body.GetProperty("exercises");
         Assert.Equal("/exercise-photos/f00c92c", body.GetProperty("photos").GetString());
-        Assert.Equal(884, exercises.GetArrayLength());
+        Assert.Equal(886, exercises.GetArrayLength());
         var squat = exercises.EnumerateArray().Single(item => item.GetProperty("id").GetString() == "barbell-squat");
         Assert.Equal("weight_reps", squat.GetProperty("measure").GetString());
         Assert.False(squat.TryGetProperty("instructions", out _));

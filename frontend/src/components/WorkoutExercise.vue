@@ -18,6 +18,7 @@ import {
 import { targetLine } from "../lib/plan";
 import { FIRST_TIME_LINE, suggestionLine } from "../lib/progression";
 import { maxText } from "../lib/records";
+import { paceLine } from "../lib/cardio";
 import { plateLine } from "../lib/plates";
 import { addSet, addWarmups, exerciseItem, exerciseLoadTarget, exerciseNewBest, exerciseSuggestion, removeSet, setValue, toggleDone, workout } from "../state/workout";
 import { openExercise, toast } from "../ui";
@@ -46,7 +47,7 @@ const lastSets = computed(() => last.value?.sets ?? []);
 const lastWorking = computed(() => lastSets.value.filter((set) => set.type !== "warmup"));
 const name = computed(() => item.value?.name ?? props.exercise.exerciseId);
 const done = computed(() => props.exercise.sets.length > 0 && props.exercise.sets.every((set) => set.doneAt));
-const summary = computed(() => exerciseSummary(props.exercise.sets, measure.value));
+const summary = computed(() => exerciseSummary(props.exercise.sets, measure.value, props.exercise.exerciseId));
 const ticked = computed(() => props.exercise.sets.filter((set) => set.doneAt).length);
 const folded = computed(() => {
   if (summary.value) return done.value ? summary.value : `${ticked.value} of ${props.exercise.sets.length} · ${summary.value}`;
@@ -104,6 +105,8 @@ const plates = computed(() => {
   const row = rows.value[at >= 0 ? at : rows.value.length - 1];
   return plateLine(row ? row.set.kg ?? row.hints.kg : null);
 });
+/** A run, ride, row or swim says its pace for the set being typed in, else the last with a distance and a time. */
+const pace = computed(() => (measure.value === "distance_time" ? paceLine(props.exercise, props.edit.key === props.exercise.key ? props.edit.index : null) : ""));
 const canRemoveSet = computed(() => props.exercise.sets.length > 1 && !props.exercise.sets[props.exercise.sets.length - 1].doneAt);
 
 const editing = (index: number, field: SetField) => props.edit.key === props.exercise.key && props.edit.index === index && props.edit.field === field;
@@ -195,6 +198,7 @@ function onInput(event: Event, index: number, field: SetField) {
     </div>
 
     <p v-if="plates" class="t-capn c2 m0" data-plates>{{ plates }}</p>
+    <p v-if="pace" class="t-capn c2 m0" data-pace>{{ pace }}</p>
 
     <div class="row acts">
       <button type="button" class="btn sm secondary t-label" @click="addSet(exercise.key)"><Icon name="plus" :size="14" /> Set</button>

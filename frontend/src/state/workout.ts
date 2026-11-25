@@ -174,12 +174,12 @@ async function loadPrevious(exerciseId: string): Promise<void> {
   }
 }
 
-/** Adds an exercise with as many sets as last time (3 when it is new), and loads its "last time". */
+/** Adds an exercise with as many sets as last time (3 when it is new, 1 for cardio: one run), and loads its "last time". */
 export async function addExercise(exerciseId: string): Promise<string> {
   const active = editing() ?? startWorkout();
   await loadPrevious(exerciseId);
   const last = workout.previous[exerciseId];
-  const count = last ? Math.min(Math.max(last.sets.filter((set) => set.type !== "warmup").length, 1), 10) : 3;
+  const count = last ? Math.min(Math.max(last.sets.filter((set) => set.type !== "warmup").length, 1), 10) : exerciseItem(exerciseId)?.category === "cardio" ? 1 : 3;
   const sets = Array.from({ length: count }, () => emptySet());
   const key = `e${++keySeq}`;
   active.exercises.push({ key, exerciseId, sets });

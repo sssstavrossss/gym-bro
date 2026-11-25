@@ -1,6 +1,7 @@
 // A workout being logged, as pure data and rules (docs/training.md, phase 2). The state module keeps it
 // on the phone while it runs; the API stores it whole when it finishes (README → Workouts).
 import { parse } from "./dates";
+import { cardioSet, distanceText, paceUnit } from "./cardio";
 import type { ExerciseItem, ExerciseMeasure } from "./exercises";
 import type { PlanTarget } from "./plan";
 import type { LoadSuggestion } from "./progression";
@@ -66,7 +67,8 @@ export interface SavedSet extends WorkoutSetValues {
 export interface WorkoutRequestBody {
   date: string;
   timeZone: string;
-  kind: "strength";
+  /** Left to the server, which takes it from the exercises (cardio, hybrid, strength). */
+  kind: null;
   name: string | null;
   status: "done" | "skipped";
   startedAt: string | null;
@@ -147,13 +149,15 @@ export function setCounts(set: DraftSet): boolean {
   return set.doneAt != null && set.type !== "warmup";
 }
 
-export function workoutTotals(workout: DraftWorkout): { sets: number; plannedSets: number; volumeKg: number } {
+/** Sets that count, the sets planned, kg × reps, and the distance covered (metres of sets with no weight: a run, not a sled push). */
+export function workoutTotals(workout: DraftWorkout): { sets: number; plannedSets: number; volumeKg: number; metres: number } {
   const sets = workout.exercises.flatMap((exercise) => exercise.sets);
   const counted = sets.filter(setCounts);
   return {
     sets: counted.length,
     plannedSets: sets.filter((set) => set.type !== "warmup").length,
     volumeKg: Math.round(counted.reduce((sum, set) => sum + (set.kg ?? 0) * (set.reps ?? 0), 0) * 100) / 100,
+    metres: Math.round(counted.reduce((sum, set) => sum + (set.kg == null ? set.metres ?? 0 : 0), 0) * 10) / 10,
   };
 }
 
@@ -194,8 +198,11 @@ function number(value: number): string {
   return String(Math.round(value * 100) / 100);
 }
 
-/** One set in words, for "last time" and the done summary: "80 × 8", "12 reps", "1:30", "500 m · 2:10", "40 kg · 20 m". */
-export function formatSet(set: WorkoutSetValues, measure: ExerciseMeasure): string {
+/**
+ * One set in words, for "last time" and the done summary: "80 × 8", "12 reps", "1:30", "40 kg · 20 m", and with the
+ * exercise's id a cardio set gets its pace, "5 km · 25:00 · 5:00 /km" (lib/cardio.ts).
+ */
+export function formatSet(set: WorkoutSetValues, measure: ExerciseMeasure, exerciseId?: string): string {
   switch (measure) {
     case "weight_reps":
       if (set.kg == null) return set.reps == null ? "—" : `${set.reps} reps`;
@@ -205,7 +212,7 @@ export function formatSet(set: WorkoutSetValues, measure: ExerciseMeasure): stri
     case "time":
       return set.seconds == null ? "—" : clock(set.seconds);
     case "distance_time":
-      return [set.metres != null ? `${number(set.metres)} m` : null, set.seconds != null ? clock(set.seconds) : null].filter(Boolean).join(" · ") || "—";
+      return cardioSet(set, exerciseId ? paceUnit(exerciseId) : null);
     case "weight_distance":
       return [set.kg != null ? `${number(set.kg)} kg` : null, set.metres != null ? `${number(set.metres)} m` : null].filter(Boolean).join(" · ") || "—";
   }
@@ -263,7 +270,7 @@ export function toRequest(workout: DraftWorkout, timeZone: string): WorkoutReque
   return {
     date: workout.date,
     timeZone,
-    kind: "strength",
+    kind: null,
     name: workout.name,
     status: workout.skipped && !workout.exercises.some((exercise) => exercise.sets.length) ? "skipped" : "done",
     startedAt: workout.startedAt,
@@ -326,14 +333,14 @@ export function currentExercise(workout: DraftWorkout): string | null {
  * An exercise's done sets in one line, for its folded row and the summary: "80 kg × 10, 10, 9" when the
  * weight held, else each set ("80 × 10, 82.5 × 8"). Warm-ups are left out. Empty when nothing is done.
  */
-export function exerciseSummary(sets: readonly DraftSet[], measure: ExerciseMeasure): string {
+export function exerciseSummary(sets: readonly DraftSet[], measure: ExerciseMeasure, exerciseId?: string): string {
   const done = sets.filter(setCounts);
   if (!done.length) return "";
   const kg = done[0].kg;
   if (measure === "weight_reps" && kg != null && done.every((set) => set.kg === kg && set.reps != null)) {
     return `${number(kg)} kg × ${done.map((set) => set.reps).join(", ")}`;
   }
-  return done.map((set) => formatSet(set, measure)).join(", ");
+  return done.map((set) => formatSet(set, measure, exerciseId)).join(", ");
 }
 
 
@@ -376,13 +383,14 @@ export function shortDay(date: string): string {
   return new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" }).format(parse(date));
 }
 
-/** A history row's second line: "Bench Press, Squat +2 · 12 sets · 4,560 kg". */
-export function historyLine(row: { exercises: readonly string[]; sets: number; volumeKg: number; status?: string }, nameOf: (id: string) => string): string {
+/** A history row's second line: "Bench Press, Squat +2 · 12 sets · 4,560 kg", and a run's "Run · 1 set · 5 km". */
+export function historyLine(row: { exercises: readonly string[]; sets: number; volumeKg: number; metres?: number; status?: string }, nameOf: (id: string) => string): string {
   if (row.status === "skipped" && !row.sets) return "Skipped";
   const names = row.exercises.slice(0, 2).map(nameOf).join(", ");
   const more = row.exercises.length > 2 ? ` +${row.exercises.length - 2}` : "";
   const parts = [`${names}${more}` || "No exercises", `${row.sets} ${row.sets === 1 ? "set" : "sets"}`];
   if (row.volumeKg > 0) parts.push(`${Math.round(row.volumeKg).toLocaleString("en-GB")} kg`);
+  if (row.metres) parts.push(distanceText(row.metres));
   return parts.join(" · ");
 }
 

@@ -82,7 +82,7 @@ const waitingRows = computed(() => workout.pending.map((draft) => ({
 })));
 function totalsOf(draft: (typeof workout.pending)[number]) {
   const totals = workoutTotals(draft);
-  return { sets: totals.sets, volumeKg: totals.volumeKg };
+  return { sets: totals.sets, volumeKg: totals.volumeKg, metres: totals.metres };
 }
 const rows = computed(() => workoutHistory.rows.slice(0, shown.value));
 
