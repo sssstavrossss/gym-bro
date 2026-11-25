@@ -4,6 +4,7 @@ import { parse } from "./dates";
 import type { ExerciseItem, ExerciseMeasure } from "./exercises";
 import type { PlanTarget } from "./plan";
 import type { LoadSuggestion } from "./progression";
+import { fromBlockBody, stopped, toBlockBody, type TimedBlockBody, type TimedState } from "./timed";
 
 export type SetType = "warmup" | "working" | "drop";
 export type SetField = "kg" | "reps" | "rir" | "seconds" | "metres";
@@ -31,6 +32,8 @@ export interface DraftExercise {
   target?: PlanTarget | null;
   /** Done together with the exercise before it (a superset, or a circuit of three or more): rest comes after each round. */
   superset?: boolean;
+  /** On the first exercise of a run done on the clock: its format, clock and score (lib/timed.ts). */
+  timed?: TimedState | null;
 }
 
 export interface DraftWorkout {
@@ -71,6 +74,7 @@ export interface WorkoutRequestBody {
   planWorkoutId: string | null;
   sequencePosition: number | null;
   sets: (WorkoutSetValues & { exerciseId: string; block: number; type: SetType; calories: null; doneAt: string | null })[];
+  blocks: TimedBlockBody[];
 }
 
 /** The fields a set records for each measure, in the order they are typed. */
@@ -255,6 +259,7 @@ export function typeKey(text: string, key: string, field: SetField): string {
 /** The whole workout as `PUT /api/workouts/{id}` takes it. Each exercise is its own block, except that a superset shares one. */
 export function toRequest(workout: DraftWorkout, timeZone: string): WorkoutRequestBody {
   let block = -1;
+  const blocks = exerciseGroups(workout.exercises).flatMap((run, index) => (run[0].timed ? [toBlockBody(run[0].timed, run, index)] : []));
   return {
     date: workout.date,
     timeZone,
@@ -280,23 +285,35 @@ export function toRequest(workout: DraftWorkout, timeZone: string): WorkoutReque
       doneAt: set.doneAt,
     }));
     }),
+    blocks,
   };
 }
 
-/** Drops sets that weren't ticked off, then exercises left with none. What a save keeps. */
+/**
+ * Drops sets that weren't ticked off, then exercises left with none. What a save keeps. A superset stays one: when
+ * its first exercise goes, the next one left leads it and keeps its clock.
+ */
 export function dropUndone(workout: DraftWorkout): DraftWorkout {
   return {
     ...workout,
     restEndsAt: null,
-    exercises: workout.exercises
-      .map((exercise) => ({ ...exercise, sets: exercise.sets.filter((set) => set.doneAt) }))
-      .filter((exercise) => exercise.sets.length),
+    exercises: exerciseGroups(workout.exercises).flatMap((run) => {
+      const kept = run
+        .map((exercise) => ({ ...exercise, sets: exercise.sets.filter((set) => set.doneAt) }))
+        .filter((exercise) => exercise.sets.length);
+      return kept.map((exercise, index) => {
+        const { superset: _joined, timed: _timed, ...rest } = exercise;
+        if (index > 0) return { ...rest, superset: true };
+        return run[0].timed ? { ...rest, timed: run[0].timed } : rest;
+      });
+    }),
   };
 }
 
-/** What Finish saves: the ticked sets, ending now. */
+/** What Finish saves: the ticked sets, ending now, with any clock still running stopped. */
 export function finished(workout: DraftWorkout, now: Date): DraftWorkout {
-  return { ...dropUndone(workout), endedAt: now.toISOString() };
+  const exercises = workout.exercises.map((exercise) => (exercise.timed ? { ...exercise, timed: stopped(exercise.timed, now) } : exercise));
+  return { ...dropUndone({ ...workout, exercises }), endedAt: now.toISOString() };
 }
 
 /** The exercise to show open: the first with a set not done, else the last one. */
@@ -329,14 +346,18 @@ export function workoutStatus(workout: DraftWorkout, now: number): string {
 /** A saved workout back as a draft to edit: each run of one exercise's sets is an exercise; a block that holds more than one exercise is a superset. */
 export function fromSaved(saved: {
   id: string; date: string; name: string | null; startedAt: string | null; endedAt: string | null; sets: readonly SavedSet[];
-  status?: string; planWorkoutId?: string | null; sequencePosition?: number | null;
+  status?: string; planWorkoutId?: string | null; sequencePosition?: number | null; blocks?: readonly TimedBlockBody[];
 }): DraftWorkout {
   const exercises: DraftExercise[] = [];
   let last: { block: number; exerciseId: string } | null = null;
   for (const set of saved.sets) {
     if (!last || last.block !== set.block || last.exerciseId !== set.exerciseId) {
       const joined = last?.block === set.block;
-      exercises.push({ key: `e${exercises.length + 1}`, exerciseId: set.exerciseId, sets: [], ...(joined ? { superset: true } : {}) });
+      const timed = joined ? undefined : saved.blocks?.find((block) => block.block === set.block);
+      exercises.push({
+        key: `e${exercises.length + 1}`, exerciseId: set.exerciseId, sets: [],
+        ...(joined ? { superset: true } : {}), ...(timed ? { timed: fromBlockBody(timed) } : {}),
+      });
       last = { block: set.block, exerciseId: set.exerciseId };
     }
     exercises[exercises.length - 1].sets.push({
@@ -413,16 +434,17 @@ export function roundDone(exercises: readonly DraftExercise[], key: string, inde
 export function toggleSuperset(exercises: readonly DraftExercise[], key: string): DraftExercise[] {
   const at = exercises.findIndex((exercise) => exercise.key === key);
   if (at < 1) return [...exercises];
-  return exercises.map((exercise, index) => (index === at ? { ...exercise, superset: !exercise.superset } : exercise));
+  // Joined, it follows its new run's clock; a clock it led goes.
+  return exercises.map((exercise, index) => (index === at ? { ...exercise, superset: !exercise.superset, timed: null } : exercise));
 }
 
 /**
- * Takes an exercise out. When it started a superset, the one after it starts the run instead, so the rest stay
- * together and don't join the run before. `led` says so, for Undo.
+ * Takes an exercise out. When it started a superset, the one after it starts the run instead (with its clock), so
+ * the rest stay together and don't join the run before. `led` says so, for Undo.
  */
 export function withoutExercise(exercises: readonly DraftExercise[], at: number): { exercises: DraftExercise[]; led: boolean } {
   const rest = exercises.filter((_, index) => index !== at);
   const led = !exercises[at]?.superset && !!exercises[at + 1]?.superset;
-  if (led) rest[at] = { ...rest[at], superset: false };
+  if (led) rest[at] = { ...rest[at], superset: false, timed: exercises[at].timed ?? null };
   return { exercises: rest, led };
 }

@@ -77,6 +77,36 @@ public sealed class WorkoutRulesTests
     }
 
     [Fact]
+    public void Timed_blocks_name_a_block_of_the_sets_and_carry_only_their_formats_fields()
+    {
+        WorkoutRequest Timed(params TimedBlockRequest[] blocks) => new()
+        {
+            Date = Today,
+            Sets = [new() { ExerciseId = "pullups", Block = 0, Reps = 5 }, new() { ExerciseId = "pushups", Block = 0, Reps = 10 }, new() { ExerciseId = "barbell-squat", Block = 1, Reps = 5 }],
+            Blocks = [.. blocks],
+        };
+
+        var (draft, error) = Check(Timed(
+            new TimedBlockRequest { Block = 0, Format = "amrap", Minutes = 12, Rounds = 5, Reps = 3 },
+            new TimedBlockRequest { Block = 1, Format = "emom", Minutes = 10 }));
+        Assert.Null(error);
+        Assert.Equal([new TimedBlock(0, "amrap", 12, null, 5, 3, null), new TimedBlock(1, "emom", 10, 1, null, null, null)], draft!.Blocks);
+        Assert.Equal(new TimedBlock(1, "for_time", null, null, null, null, 512), Check(Timed(new TimedBlockRequest { Block = 1, Format = "for_time", Seconds = 512 })).Draft!.Blocks.Single());
+        Assert.Empty(Check(Timed()).Draft!.Blocks);
+
+        Assert.Equal(TimedBlocks.NoSets, Check(Timed(new TimedBlockRequest { Block = 4, Format = "emom", Minutes = 10 })).Error);
+        Assert.Equal(TimedBlocks.NoSets, Check(Timed(new TimedBlockRequest { Block = 0, Format = "emom", Minutes = 10 }, new TimedBlockRequest { Block = 0, Format = "amrap", Minutes = 5 })).Error);
+        Assert.Equal(TimedBlocks.UnknownFormat, Check(Timed(new TimedBlockRequest { Block = 0, Format = "tabata", Minutes = 4 })).Error);
+        Assert.Equal(TimedBlocks.BadMinutes, Check(Timed(new TimedBlockRequest { Block = 0, Format = "amrap" })).Error);
+        Assert.Equal(TimedBlocks.BadMinutes, Check(Timed(new TimedBlockRequest { Block = 0, Format = "emom", Minutes = 121 })).Error);
+        Assert.Equal(TimedBlocks.BadMinutes, Check(Timed(new TimedBlockRequest { Block = 0, Format = "emom", Minutes = 10, Every = 11 })).Error);
+        Assert.Equal(TimedBlocks.BadMinutes, Check(Timed(new TimedBlockRequest { Block = 0, Format = "for_time", Minutes = 10 })).Error);
+        Assert.Equal(TimedBlocks.BadScore, Check(Timed(new TimedBlockRequest { Block = 0, Format = "emom", Minutes = 10, Seconds = 30 })).Error);
+        Assert.Equal(TimedBlocks.BadScore, Check(Timed(new TimedBlockRequest { Block = 0, Format = "for_time", Rounds = 3 })).Error);
+        Assert.Equal(TimedBlocks.BadScore, Check(Timed(new TimedBlockRequest { Block = 0, Format = "amrap", Minutes = 12, Reps = -1 })).Error);
+    }
+
+    [Fact]
     public void Volume_counts_done_sets_that_are_not_warm_ups()
     {
         var done = DateTimeOffset.UtcNow;
@@ -132,6 +162,34 @@ public sealed class WorkoutEndpointTests(ApiFactory factory)
         Assert.Equal("romanian-deadlift", sets[2].GetProperty("exerciseId").GetString());
         Assert.Equal(1, sets[2].GetProperty("block").GetInt32());
         Assert.Equal(85m, sets[1].GetProperty("kg").GetDecimal());
+    }
+
+    [Fact]
+    public async Task A_timed_blocks_score_is_saved_with_the_workout()
+    {
+        var client = factory.AsUser(TestData.NewUser("workout-timed"));
+        var id = Guid.NewGuid();
+        var body = new
+        {
+            date = Today, timeZone = "UTC",
+            sets = new[] { Set("pullups", null, 5), Set("pushups", null, 10), Set("barbell-squat", 80, 5, block: 1) },
+            blocks = new object[] { new { block = 0, format = "amrap", minutes = 12, rounds = 1, reps = 4 } },
+        };
+        Assert.Equal(HttpStatusCode.Created, (await client.PutAsJsonAsync($"/api/workouts/{id}", body)).StatusCode);
+
+        using var json = JsonDocument.Parse(await client.GetStringAsync($"/api/workouts/{id}"));
+        var block = Assert.Single(json.RootElement.GetProperty("blocks").EnumerateArray());
+        Assert.Equal("amrap", block.GetProperty("format").GetString());
+        Assert.Equal(12, block.GetProperty("minutes").GetInt32());
+        Assert.Equal(4, block.GetProperty("reps").GetInt32());
+
+        // Sent again without blocks, it has none; one with no sets for its block is refused.
+        Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync($"/api/workouts/{id}", Workout(Today, null, Set("barbell-squat", 80, 5)))).StatusCode);
+        using var plain = JsonDocument.Parse(await client.GetStringAsync($"/api/workouts/{id}"));
+        Assert.Equal(0, plain.RootElement.GetProperty("blocks").GetArrayLength());
+        var bad = await client.PutAsJsonAsync($"/api/workouts/{id}", new { date = Today, timeZone = "UTC", sets = new[] { Set("barbell-squat", 80, 5) }, blocks = new[] { new { block = 3, format = "emom", minutes = 10 } } });
+        Assert.Equal(HttpStatusCode.BadRequest, bad.StatusCode);
+        Assert.Contains(TimedBlocks.NoSets, await bad.Content.ReadAsStringAsync());
     }
 
     [Fact]

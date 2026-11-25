@@ -32,7 +32,8 @@ public sealed record WorkoutView(
     Guid? PlanWorkoutId,
     int? SequencePosition,
     DateTimeOffset UpdatedAt,
-    IReadOnlyList<WorkoutSetView> Sets);
+    IReadOnlyList<WorkoutSetView> Sets,
+    IReadOnlyList<TimedBlock> Blocks);
 
 /// <summary>One row of the history: what was trained, and how much.</summary>
 public sealed record WorkoutSummary(
@@ -143,6 +144,7 @@ public static class WorkoutEndpoints
         session.Notes = draft.Notes;
         session.PlanWorkoutId = draft.PlanWorkoutId;
         session.SequencePosition = draft.SequencePosition;
+        session.Blocks = TimedBlocks.Serialize(draft.Blocks);
         session.UpdatedAt = now;
         for (var index = 0; index < draft.Sets.Count; index++)
         {
@@ -390,7 +392,8 @@ public static class WorkoutEndpoints
         session.PlanWorkoutId,
         session.SequencePosition,
         session.UpdatedAt,
-        session.Sets.OrderBy(set => set.Position).Select(ToView).ToList());
+        session.Sets.OrderBy(set => set.Position).Select(ToView).ToList(),
+        TimedBlocks.Deserialize(session.Blocks));
 
     private static WorkoutSetView ToView(WorkoutSet set) => new(
         set.ExerciseId, set.Block, set.Type, set.Reps, set.Kg, set.Rir, set.Seconds, set.Metres, set.Calories, set.DoneAt);

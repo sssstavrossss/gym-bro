@@ -25,6 +25,7 @@ import { targetOf, weekSets, type UpNext } from "../lib/plan";
 import { loadTargetOf, suggestLoad, type LoadSuggestion, type LoadTarget } from "../lib/progression";
 import { newBests, type NewBest } from "../lib/records";
 import { warmupRamp, workingKg } from "../lib/warmup";
+import { fitSets, MAX_EVERY, MAX_EXTRA_REPS, MAX_MINUTES, MIN_MINUTES, newTimed, nextRoundSet, plannedRounds, stopped, type BlockFormat, type TimedState } from "../lib/timed";
 import { exercises } from "./exercises";
 import { loadPlan } from "./plan";
 import { deviceTimeZone } from "./profile";
@@ -278,8 +279,102 @@ export function restoreExercise(removed: RemovedExercise): void {
   const at = Math.min(removed.at, active.exercises.length);
   active.exercises.splice(at, 0, removed.exercise);
   const after = active.exercises[at + 1];
-  if (removed.led && after) active.exercises[at + 1] = { ...after, superset: true };
+  if (removed.led && after) active.exercises[at + 1] = { ...after, superset: true, timed: null };
   save();
+}
+
+/** The run that `key` leads, with its index in the workout; null when it doesn't lead one. */
+function runAt(active: DraftWorkout, key: string): { at: number; run: DraftExercise[] } | null {
+  const at = active.exercises.findIndex((exercise) => exercise.key === key);
+  if (at < 0 || active.exercises[at].superset) return null;
+  return { at, run: groupOf(active.exercises, key) };
+}
+
+function changeTimed(key: string, change: (timed: TimedState) => TimedState | null): void {
+  const active = editing();
+  const found = active ? runAt(active, key) : null;
+  const timed = found?.run[0].timed;
+  if (!active || !found || !timed) return;
+  active.exercises[found.at] = { ...found.run[0], timed: change(timed) };
+  fitEmom(active, key);
+  save();
+}
+
+/** An EMOM has one round each interval, so each exercise in it gets that many working sets. */
+function fitEmom(active: DraftWorkout, key: string): void {
+  const run = groupOf(active.exercises, key);
+  const timed = run[0]?.timed;
+  if (timed?.format !== "emom") return;
+  const rounds = plannedRounds(timed, run) ?? 1;
+  for (const exercise of run) {
+    const at = active.exercises.indexOf(exercise);
+    active.exercises[at] = fitSets(exercise, rounds);
+  }
+}
+
+/** Does the run `key` leads on the clock in `format`, or as plain rounds (null). */
+export function setBlockFormat(key: string, format: BlockFormat | null): void {
+  const active = editing();
+  const found = active ? runAt(active, key) : null;
+  if (!active || !found) return;
+  const head = found.run[0];
+  if ((head.timed?.format ?? null) === format) return;
+  active.exercises[found.at] = { ...head, timed: format ? newTimed(format, head.timed) : null };
+  fitEmom(active, key);
+  save();
+}
+
+export function stepBlockMinutes(key: string, delta: number): void {
+  changeTimed(key, (timed) => ({ ...timed, minutes: Math.min(MAX_MINUTES, Math.max(MIN_MINUTES, timed.minutes + delta)) }));
+}
+
+export function stepBlockEvery(key: string, delta: number): void {
+  changeTimed(key, (timed) => {
+    const every = Math.min(MAX_EVERY, Math.max(1, timed.every + delta));
+    return { ...timed, every, minutes: Math.max(every, timed.minutes) };
+  });
+}
+
+export function stepExtraReps(key: string, delta: number): void {
+  changeTimed(key, (timed) => {
+    const reps = Math.min(MAX_EXTRA_REPS, Math.max(0, (timed.reps ?? 0) + delta));
+    return { ...timed, reps: reps || null };
+  });
+}
+
+/** Starts the run's clock. A rest still running ends: the clock is the rest now. */
+export function startClock(key: string, now = new Date()): void {
+  const active = workout.active;
+  if (!active) return;
+  active.restEndsAt = null;
+  const found = runAt(active, key);
+  const timed = found?.run[0].timed;
+  if (!found || !timed || timed.startedAt) return;
+  active.exercises[found.at] = { ...found.run[0], timed: { ...timed, startedAt: now.toISOString(), endedAt: null, seconds: null } };
+  save();
+}
+
+export function stopClock(key: string, now = new Date()): void {
+  const active = workout.active;
+  const found = active ? runAt(active, key) : null;
+  const timed = found?.run[0].timed;
+  if (!active || !found || !timed) return;
+  active.exercises[found.at] = { ...found.run[0], timed: stopped(timed, now) };
+  save();
+}
+
+/** Round done: ticks the next set of each exercise in the run. An AMRAP adds a set like the last when it runs out. */
+export function tickRound(key: string, now = new Date()): void {
+  const active = workout.active;
+  const found = active ? runAt(active, key) : null;
+  const format = found?.run[0].timed?.format;
+  if (!active || !found || !format) return;
+  for (const exercise of found.run) {
+    const next = nextRoundSet(exercise, format);
+    if (!next) continue;
+    if (next.exercise !== exercise) active.exercises[active.exercises.indexOf(exercise)] = next.exercise;
+    toggleDone(next.exercise.key, next.index, now);
+  }
 }
 
 /** Joins an exercise to the one before it as a superset, or splits it off. */
@@ -335,13 +430,18 @@ export function toggleDone(key: string, index: number, now = new Date()): void {
   exercise.sets[index] = next;
   if (!live) return;
   // In a superset the rest comes after the round, the longest any of its exercises asks for; between them there is none.
+  // A block on the clock has no rest timer: the clock is the rest. For time stops once every round is ticked.
   const group = groupOf(active.exercises, key);
+  const timed = group[0]?.timed;
+  if (timed?.format === "for_time" && timed.startedAt && !timed.endedAt && group.every((each) => each.sets.every((one) => one.doneAt))) {
+    active.exercises[active.exercises.indexOf(group[0])] = { ...group[0], timed: stopped(timed, now) };
+  }
   const endsRound = roundDone(active.exercises, key, index);
-  const rest = next.doneAt && endsRound ? Math.max(0, ...group.map(restOf)) : 0;
+  const rest = next.doneAt && endsRound && !timed ? Math.max(0, ...group.map(restOf)) : 0;
   if (rest) {
     active.restFor = rest;
     active.restEndsAt = new Date(now.getTime() + rest * 1000).toISOString();
-  } else if (!next.doneAt || group.length > 1) {
+  } else if (!next.doneAt || group.length > 1 || timed) {
     active.restEndsAt = null;
   }
   save();

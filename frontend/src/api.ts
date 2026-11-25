@@ -8,6 +8,7 @@ import type { LookupStatus } from "./lib/barcode";
 import type { ExerciseItem } from "./lib/exercises";
 import type { Plan, PlanAnswers, PlanExercise, PlanPreview } from "./lib/plan";
 import type { LiftProgress } from "./lib/strength";
+import type { TimedBlockBody } from "./lib/timed";
 import type { MuscleSets, VolumeTarget } from "./lib/muscleVolume";
 import type { SavedSet, WorkoutRequestBody } from "./lib/workout";
 import type { FatLimitsSetting, SodiumLimitSetting } from "./lib/nutrientCards";
@@ -1484,6 +1485,8 @@ export interface WorkoutResponse {
   sequencePosition: number | null;
   updatedAt: string;
   sets: SavedSet[];
+  /** Blocks done on the clock, with their scores (lib/timed.ts). Missing from a workout saved before they existed. */
+  blocks?: TimedBlockBody[];
 }
 
 export interface PreviousSets {
