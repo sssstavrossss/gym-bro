@@ -14,6 +14,7 @@ import GoalWeightSheet from "./components/GoalWeightSheet.vue";
 import SettingsSheet from "./components/SettingsSheet.vue";
 import NotificationsSheet from "./components/NotificationsSheet.vue";
 import NutrientSheet from "./components/NutrientSheet.vue";
+import ExerciseSheet from "./components/ExerciseSheet.vue";
 import OfflineSheet from "./components/OfflineSheet.vue";
 import AccuracySheet from "./components/AccuracySheet.vue";
 import CardPagesSheet from "./components/CardPagesSheet.vue";
@@ -157,6 +158,7 @@ function onKey(event: KeyboardEvent) {
     <SettingsSheet />
     <NotificationsSheet />
     <NutrientSheet />
+    <ExerciseSheet />
     <OfflineSheet />
     <AddChooser />
     <FoodSheet />

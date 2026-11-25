@@ -751,7 +751,24 @@ Sheets close with an × icon, and actions use the same icon set (edit, trash, pl
 
 ## Screens
 
-Today, the food log, Progress, saved groups, recipes, and recalculate are in the app. Workouts are out of scope. There is no meal field on a log entry.
+Today, the food log, Train, Progress, saved groups, recipes, and recalculate are in the app. Training is being built in steps (see [docs/training.md](docs/training.md)); so far Train holds the exercise library. There is no meal field on a log entry.
+
+**Tabs.** The tab bar (and the side nav on wider screens) is Today · Train · + · Progress · Profile. Train took Log's place. The Log page is still at `/log` and `/log/<date>`, and on tablet and desktop Today's food card links to it with "Open log". On a phone nothing links there any more, so its fasting switch can't be reached; nobody had used it.
+
+**Train** (`TrainView.vue`) has one line saying plans and workout logging come next, then **Exercises**, the library from `GET /api/exercises` (see *Exercise library*), with the number shown on the right:
+- **Search** matches every word you type against the start of a word in the name, the equipment or a main muscle ("barb squ", "dumbbell", "biceps"). Names that start with what you typed come first, then names that hold every word, then matches on equipment or muscle, each by name (`searchExercises` in `lib/exercises.ts`).
+- **Area chips**, in one row that scrolls sideways: All, Chest, Back, Shoulders, Arms, Legs, Core, Cardio and Stretching. A body area matches the exercise's main muscles; Cardio and Stretching match its category, so a hamstring stretch shows only under Stretching.
+- **Rows** show a small first photo, the name, and the equipment with the main muscles ("Barbell · Quadriceps"). One without photos shows the dumbbell icon instead.
+
+The list is kept on the device, and an unchanged library costs a 304 on the next visit. Tapping a row opens **how to** (`ExerciseSheet.vue`, `openExercise` in `ui.ts`):
+- the name and "Barbell · compound · beginner";
+- the start and end photos side by side;
+- the main muscles as tags, with the others dimmed;
+- the numbered steps;
+- a credit line ("Photos and steps: free-exercise-db, public domain", or "Steps written for Gym Bro");
+- **Watch a demo**, which opens a YouTube search for the exercise in a new tab. No video is hosted.
+
+The service worker keeps each photo once it has been shown (`gymbro-exercise-photos`), so it shows offline after that. At the largest text sizes the search field, the chips and the rows stay on one line.
 
 On a phone, Home opens with a week strip under the title. Tap a day to see it. The header names the week shown ("16 – 22 Nov") between two round arrows, the same switcher as the Log's day nav, and the arrows turn the strip a week at a time. Swiping the strip does the same. A drag of about 56px (less on a narrow screen) turns the week, and so does a quick flick of 24px or more. A swipe up to about 50° off flat still counts as sideways. A short, slow drag springs back, and the next swipe works straight away. Paging to another week, earlier or later, picks the same weekday there. The handle under the strip opens the last four weeks as a colour-coded calendar, and the header then names those four weeks. A long day title, such as "Wed, 29 Oct" with the calendar open, shortens with an ellipsis so the arrows keep their room. At the largest text size the range text is read out but not drawn. The rules for a turn live in `frontend/src/lib/weekSwipe.ts`.
 

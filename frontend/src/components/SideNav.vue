@@ -12,7 +12,7 @@ import { openFood, openWeight } from "../ui";
 const route = useRoute();
 const items = [
   { to: "/today", label: "Today", icon: "sun" },
-  { to: "/log", label: "Log", icon: "list" },
+  { to: "/train", label: "Train", icon: "dumbbell" },
   { to: "/progress", label: "Progress", icon: "cal" },
   { to: "/profile", label: "Profile", icon: "user" },
 ];

@@ -5,6 +5,7 @@ import type { ImportSource, RecipeImportResult } from "./lib/recipeImport";
 import { kg as formatKg } from "./lib/format";
 import { dispositionName } from "./lib/download";
 import type { LookupStatus } from "./lib/barcode";
+import type { ExerciseItem } from "./lib/exercises";
 import type { FatLimitsSetting, SodiumLimitSetting } from "./lib/nutrientCards";
 import type { FoodUnit } from "./lib/foodUnits";
 import { e2eSession } from "./auth/e2e";
@@ -1375,4 +1376,43 @@ export async function deleteLogEntry(id: string): Promise<void> {
 
 export async function restoreLogEntry(id: string): Promise<LogEntryResponse> {
   return jsonOrThrow(await request(`/api/log-entries/${id}/restore`, { method: "POST" }));
+}
+
+export interface ExercisesResponse {
+  /** Changes only with a deploy that changes the library. */
+  version: string;
+  /** The photo folder: `{photos}/{id}/{n}.webp`. */
+  photos: string;
+  exercises: ExerciseItem[];
+}
+
+export interface ExerciseDetail extends ExerciseItem {
+  instructions: string[];
+  /** The photo folder, or null when the exercise has no photos. */
+  photos: string | null;
+  source: string;
+  licence: string;
+}
+
+/**
+ * The exercise library. The kept copy (offline/cache) is sent back as If-None-Match, so an unchanged
+ * library costs a 304 and no download; with no connection the kept copy is used.
+ */
+export async function getExercises(): Promise<ExercisesResponse> {
+  const path = "/api/exercises";
+  const kept = await recallAnswer<ExercisesResponse>(path);
+  try {
+    const response = await request(path, kept ? { headers: { "If-None-Match": `"${kept.version}"` } } : undefined);
+    if (response.status === 304 && kept) return kept;
+    const body = await jsonOrThrow<ExercisesResponse>(response);
+    void rememberAnswer(path, body);
+    return body;
+  } catch (error) {
+    if (!(error instanceof ServerUnreachable) || !kept) throw error;
+    return kept;
+  }
+}
+
+export async function getExercise(id: string): Promise<ExerciseDetail> {
+  return cachedJson(`/api/exercises/${encodeURIComponent(id)}`);
 }

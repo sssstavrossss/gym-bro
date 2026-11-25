@@ -10,6 +10,8 @@ const SHELL = /*__SHELL__*/ [];
  */
 const SERVES_APP = SHELL.length > 0;
 const SHELL_CACHE = `gymbro-shell-${VERSION}`;
+/** Exercise photos opened so far. Not tied to a version: the photo path names its free-exercise-db commit. */
+const PHOTO_CACHE = "gymbro-exercise-photos";
 /** A slow network still wins if it answers within this; after that the kept app opens. */
 const NAVIGATION_WAIT_MS = 3000;
 
@@ -37,6 +39,10 @@ if (SERVES_APP) self.addEventListener("fetch", (event) => {
   if (url.origin !== self.location.origin) return;
   // API answers are the app's business (src/api.ts keeps them for offline).
   if (url.pathname.startsWith("/api/") || url.pathname === "/config.json") return;
+  if (url.pathname.startsWith("/exercise-photos/")) {
+    event.respondWith(keptPhoto(request));
+    return;
+  }
   if (request.mode === "navigate") {
     event.respondWith(openApp(request));
     return;
@@ -70,6 +76,16 @@ async function keptFile(request, keep) {
     const copy = response.clone();
     void caches.open(SHELL_CACHE).then((cache) => cache.put(request, copy));
   }
+  return response;
+}
+
+/** A photo never changes at its path, so the kept copy is right; one opened once shows offline after. */
+async function keptPhoto(request) {
+  const cache = await caches.open(PHOTO_CACHE);
+  const kept = await cache.match(request);
+  if (kept) return kept;
+  const response = await fetch(request);
+  if (response.ok) void cache.put(request, response.clone());
   return response;
 }
 
