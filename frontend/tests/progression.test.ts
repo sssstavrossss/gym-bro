@@ -8,8 +8,9 @@ describe("load steps", () => {
   it("steps by the kit's smallest change, and not at all for body weight", () => {
     expect(loadStep("barbell")).toBe(2.5);
     expect(loadStep("dumbbell")).toBe(2);
-    expect(loadStep("kettlebells")).toBe(4);
-    expect(loadStep("body only")).toBeNull();
+    expect(loadStep("kettlebell")).toBe(4);
+    expect(loadStep("ez-bar")).toBe(2.5);
+    expect(loadStep("bodyweight")).toBeNull();
     expect(loadStep(null)).toBeNull();
   });
 
@@ -67,7 +68,7 @@ describe("load suggestions", () => {
     expect(suggestLoad([set(60, 10)], null, { ...range, easing: true }, "barbell")!.kg).toBe(61.25);
     expect(suggestLoad([set(20, 10)], null, range, "cable")!.kg).toBe(21.25);
     expect(suggestLoad([set(10, 10)], null, { ...range, easing: true }, "dumbbell")!.kg).toBe(12);
-    expect(suggestLoad([set(16, 15)], null, { ...range, repMax: 15 }, "kettlebells")!.kg).toBe(20);
+    expect(suggestLoad([set(16, 15)], null, { ...range, repMax: 15 }, "kettlebell")!.kg).toBe(20);
   });
 
   it("has nothing to say without weighted working sets, or for kit that doesn't step", () => {

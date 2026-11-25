@@ -18,8 +18,8 @@ import {
 import { targetLine } from "../lib/plan";
 import { FIRST_TIME_LINE, suggestionLine } from "../lib/progression";
 import { maxText } from "../lib/records";
-import { addSet, exerciseItem, exerciseLoadTarget, exerciseNewBest, exerciseSuggestion, removeSet, setValue, toggleDone, workout } from "../state/workout";
-import { openExercise } from "../ui";
+import { addSet, addWarmups, exerciseItem, exerciseLoadTarget, exerciseNewBest, exerciseSuggestion, removeSet, setValue, toggleDone, workout } from "../state/workout";
+import { openExercise, toast } from "../ui";
 
 /** The cell being typed in. The workout sheet owns it, so its keypad can type into any card. */
 export interface CellEdit {
@@ -58,6 +58,11 @@ const subtitle = computed(() => {
   return [target, last.value ? `Last time ${shortDay(last.value.date)}` : first].filter(Boolean).join(" · ");
 });
 const loadTarget = computed(() => exerciseLoadTarget(props.exercise));
+
+function warmUp() {
+  const added = addWarmups(props.exercise.key);
+  if (added) toast(`${added.count} warm-up ${added.count === 1 ? "set" : "sets"}, building to ${added.workKg} kg`);
+}
 const suggestion = computed(() => (props.past ? null : exerciseSuggestion(props.exercise)));
 /** A best beaten in this workout: said once a ticked set does it. */
 const newBest = computed(() => (props.past ? null : exerciseNewBest(props.exercise)));
@@ -93,7 +98,14 @@ const canRemoveSet = computed(() => props.exercise.sets.length > 1 && !props.exe
 
 const editing = (index: number, field: SetField) => props.edit.key === props.exercise.key && props.edit.index === index && props.edit.field === field;
 const cellText = (index: number, field: SetField) => (editing(index, field) ? props.edit.text : fieldText(field, props.exercise.sets[index][field]));
-const setName = (index: number) => (labels.value[index] === "W" ? "Warm-up set" : labels.value[index] === "D" ? "Drop set" : `Set ${labels.value[index]}`);
+/** "Set 2", "Drop set", and "Warm-up set", numbered when there is more than one. */
+function setName(index: number) {
+  const label = labels.value[index];
+  if (label === "D") return "Drop set";
+  if (label !== "W") return `Set ${label}`;
+  const warmups = labels.value.filter((each) => each === "W").length;
+  return warmups > 1 ? `Warm-up set ${labels.value.slice(0, index + 1).filter((each) => each === "W").length}` : "Warm-up set";
+}
 
 function onFocus(event: FocusEvent, index: number, field: SetField) {
   const value = props.exercise.sets[index][field];
@@ -170,7 +182,7 @@ function onInput(event: Event, index: number, field: SetField) {
 
     <div class="row acts">
       <button type="button" class="btn sm secondary t-label" @click="addSet(exercise.key)"><Icon name="plus" :size="14" /> Set</button>
-      <button type="button" class="btn sm secondary t-label" @click="addSet(exercise.key, 'warmup')"><Icon name="plus" :size="14" /> Warm-up</button>
+      <button type="button" class="btn sm secondary t-label" data-add-warmup @click="warmUp"><Icon name="plus" :size="14" /> Warm-up</button>
       <span class="row ends">
       <button type="button" class="cbtn" aria-label="Remove the last set" :disabled="!canRemoveSet" @click="removeSet(exercise.key, exercise.sets.length - 1)"><Icon name="minus" :size="18" /></button>
       <button type="button" class="cbtn" :aria-label="`Swap ${name}`" data-swap @click="emit('swap')"><Icon name="swap" :size="18" /></button>

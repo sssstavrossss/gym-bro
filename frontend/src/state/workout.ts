@@ -20,6 +20,7 @@ import {
 import { targetOf, weekSets, type UpNext } from "../lib/plan";
 import { loadTargetOf, suggestLoad, type LoadSuggestion, type LoadTarget } from "../lib/progression";
 import { newBests, type NewBest } from "../lib/records";
+import { warmupRamp, workingKg } from "../lib/warmup";
 import { exercises } from "./exercises";
 import { loadPlan } from "./plan";
 import { deviceTimeZone } from "./profile";
@@ -215,6 +216,29 @@ export function addSet(key: string, type: SetType = "working"): void {
     exercise.sets.push(emptySet(type));
   }
   save();
+}
+
+/**
+ * "+ Warm-up": with no warm-ups yet and a weight to work up to (typed, suggested or last time's), fills in the
+ * ramp before the first working set (lib/warmup.ts) and returns it; otherwise adds one empty warm-up and returns null.
+ */
+export function addWarmups(key: string): { count: number; workKg: number } | null {
+  const exercise = find(key);
+  if (!exercise) return null;
+  const item = exerciseItem(exercise.exerciseId);
+  const hasWarmup = exercise.sets.some((set) => set.type === "warmup");
+  const workKg = hasWarmup || (item?.measure ?? "weight_reps") !== "weight_reps"
+    ? null
+    : workingKg(exercise.sets, exerciseSuggestion(exercise)?.kg, workout.previous[exercise.exerciseId]?.sets ?? []);
+  const ramp = workKg == null ? [] : warmupRamp(workKg, item?.equipment, item?.mechanic);
+  if (!ramp.length) {
+    addSet(key, "warmup");
+    return null;
+  }
+  const at = exercise.sets.findIndex((set) => set.type !== "warmup");
+  exercise.sets.splice(at < 0 ? exercise.sets.length : at, 0, ...ramp.map((step) => ({ ...emptySet("warmup"), kg: step.kg, reps: step.reps })));
+  save();
+  return { count: ramp.length, workKg: workKg! };
 }
 
 export function removeSet(key: string, index: number): void {
