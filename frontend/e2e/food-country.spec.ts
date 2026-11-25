@@ -29,7 +29,7 @@ function seedCatalogue(word: string, tag: string) {
 
 async function resultNames(page: Page, word: string): Promise<string[]> {
   await page.getByRole("button", { name: "Add", exact: true }).click();
-  await page.getByRole("dialog", { name: "Add" }).getByRole("button", { name: /Search or quick add/ }).click();
+  await page.getByRole("dialog", { name: "Add" }).getByRole("button", { name: "Search", exact: true }).click();
   const sheet = page.getByRole("dialog", { name: "Add food" });
   await sheet.getByRole("searchbox", { name: "Search foods" }).fill(word);
   await expect(sheet.locator(".rtext .t-body")).toHaveCount(2);

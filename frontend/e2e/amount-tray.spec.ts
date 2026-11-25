@@ -37,7 +37,7 @@ async function setUp(page: Page, name: string) {
   }, oid);
   await page.goto("/today");
   await page.getByRole("button", { name: "Add", exact: true }).click();
-  await page.getByRole("dialog", { name: "Add" }).getByRole("button", { name: /Search or quick add/ }).click();
+  await page.getByRole("dialog", { name: "Add" }).getByRole("button", { name: "Search", exact: true }).click();
   await foodSheet(page).getByRole("searchbox", { name: "Search foods" }).blur();
   await expect(foodSheet(page).getByRole("heading", { name: "Add food" })).toBeVisible();
   await foodSheet(page).getByRole("button", { name: /My foods/ }).click();
@@ -126,7 +126,7 @@ test("the first quick amount is the one logged last time", async ({ page }) => {
   // Picking it as a recipe ingredient: the same chip leads, found by search rather than recents.
   await page.goto("/today");
   await page.getByRole("button", { name: "Add", exact: true }).click();
-  await page.getByRole("dialog", { name: "Add" }).getByRole("button", { name: /Search or quick add/ }).click();
+  await page.getByRole("dialog", { name: "Add" }).getByRole("button", { name: "Search", exact: true }).click();
   await foodSheet(page).getByRole("searchbox", { name: "Search foods" }).blur();
   await expect(foodSheet(page).getByRole("heading", { name: "Add food" })).toBeVisible();
   await foodSheet(page).getByRole("button", { name: /Recipes/ }).click();

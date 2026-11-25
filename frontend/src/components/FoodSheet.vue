@@ -850,9 +850,9 @@ watch(open, (isOpen) => {
   addedEdit = null;
   addedCap.value = document.documentElement.classList.contains("dt-l") ? 1 : 2;
   off.value = idleOff();
-  pageIndex.value = 0;
+  pageIndex.value = Math.max(0, FOOD_PAGES.findIndex((page) => page.id === ui.foodPage));
   pagePosition.value = null;
-  pager.value?.go(0, "auto");
+  pager.value?.go(pageIndex.value, "auto");
   detailFood.value = null;
   amount.resetServingForm();
   if (!editingFood.value) ui.detailFoodId = null;

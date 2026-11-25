@@ -38,7 +38,7 @@ test("the added tray steps aside while the search has the keyboard", async ({ pa
 
   await page.goto("/today");
   await page.getByRole("button", { name: "Add", exact: true }).click();
-  await page.getByRole("dialog", { name: "Add" }).getByRole("button", { name: /Search or quick add/ }).click();
+  await page.getByRole("dialog", { name: "Add" }).getByRole("button", { name: "Search", exact: true }).click();
   const search = foodSheet(page).getByRole("searchbox", { name: "Search foods" });
   await search.blur();
   await foodSheet(page).getByRole("button", { name: /My foods/ }).click();

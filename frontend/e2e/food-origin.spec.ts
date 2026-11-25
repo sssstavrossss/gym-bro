@@ -87,7 +87,7 @@ test("another country's food: English name, country tag, after home matches, log
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/today");
     await page.getByRole("button", { name: "Add", exact: true }).click();
-    await page.getByRole("dialog", { name: "Add" }).getByRole("button", { name: /Search or quick add/ }).click();
+    await page.getByRole("dialog", { name: "Add" }).getByRole("button", { name: "Search", exact: true }).click();
     const search = sheet(page).getByRole("searchbox", { name: "Search foods" });
     await search.fill(word);
 

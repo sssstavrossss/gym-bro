@@ -30,6 +30,7 @@ These are the rules the app's screens follow. Read this before you add or change
 - **Swipe dots** sit 12px above and below the dots, in every card that has them (`SwipePanels` `tight`).
 - **Swipes wrap like a carousel.** Past the last page is the first, both ways, in every pager (`SwipePanels`, `lib/carousel.ts`).
 - **Chips that name swipe pages** (`PageChips`) share the row equally, so a count never moves them, and mark the page with one pill that slides with the swipe instead of a colour jump. When chips name the pages, the dots stay but are visual only (`quiet-dots`).
+- **Rings of buttons** (the + fan) keep five to a page, each button in a fixed spot, with dots for more pages; a new action goes on a page, never as a sixth spot.
 - **Long lists inside a card** show five rows, then scroll inside the card. A thin bar and a fade show that there is more.
 - **Numbers are typed on the app keypad** on a touch screen, never on the phone's number pad.
 - **Settings for occasional use** go behind the cog. Anything new on Home gets its own on/off switch in Settings → Home sections; the week strip always stays.

@@ -37,7 +37,7 @@ async function setUp(page: Page, oid: string) {
 
 async function openAddFood(page: Page) {
   await page.getByRole("button", { name: "Add", exact: true }).click();
-  await page.getByRole("dialog", { name: "Add" }).getByRole("button", { name: /Search or quick add/ }).click();
+  await page.getByRole("dialog", { name: "Add" }).getByRole("button", { name: "Search", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Add food" })).toBeVisible();
   return foodSheet(page).getByRole("searchbox", { name: "Search foods" });
 }

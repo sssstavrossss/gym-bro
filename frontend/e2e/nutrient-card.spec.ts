@@ -211,7 +211,7 @@ test("the home nutrient card is 358 by 214 on every panel", async ({ page }) => 
     window.dispatchEvent(new Event("resize"));
   });
   await page.getByRole("button", { name: "Add", exact: true }).click();
-  await page.getByRole("button", { name: /Search or quick add/ }).click();
+  await page.getByRole("button", { name: "Search", exact: true }).click();
   await page.getByRole("searchbox", { name: "Search foods" }).fill("Oats");
   await page.getByRole("button", { name: /^Oats/ }).first().click();
   const preview = page.locator(".preview");

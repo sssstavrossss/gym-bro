@@ -65,7 +65,7 @@ async function openAdd(page: Page, width: number) {
     await page.locator("aside").getByRole("button", { name: /Add food/ }).click();
   } else {
     await page.getByRole("button", { name: "Add", exact: true }).click();
-    await page.getByRole("dialog", { name: "Add" }).getByRole("button", { name: /Search or quick add/ }).click();
+    await page.getByRole("dialog", { name: "Add" }).getByRole("button", { name: "Search", exact: true }).click();
   }
   await expect(page.getByRole("dialog", { name: "Add", exact: true })).toBeHidden();
   const search = sheet(page).getByRole("searchbox", { name: "Search foods" });

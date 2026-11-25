@@ -43,9 +43,9 @@ async function setup(page: Page) {
   }, oid);
   await page.goto("/today");
   if (page.viewportSize()!.width < 500) {
-    // Phone: the tab bar's Add, then Search or quick add.
+    // Phone: the tab bar's Add, then Search on the fan.
     await page.getByRole("button", { name: "Add", exact: true }).click();
-    await page.getByRole("dialog", { name: "Add" }).getByRole("button", { name: /Search or quick add/ }).click();
+    await page.getByRole("dialog", { name: "Add" }).getByRole("button", { name: "Search", exact: true }).click();
   } else {
     await page.getByRole("button", { name: "Add food" }).first().click();
   }
