@@ -67,6 +67,19 @@ describe("hints and ticking", () => {
     expect(setHints(exercise("b"), 0, [])).toEqual({ kg: null, reps: null, rir: null, seconds: null, metres: null });
   });
 
+  it("hints the suggested weight on working sets until one is done today, and not after a warm-up", () => {
+    const squat = exercise("a", [emptySet("warmup"), emptySet(), emptySet()]);
+    const up = { kg: 82.5, reps: 6 };
+    expect(setHints(squat, 0, last, up)).toMatchObject({ kg: 80, reps: 8 });
+    expect(setHints(squat, 1, last, up)).toMatchObject({ kg: 82.5, reps: 6 });
+    squat.sets[0] = { ...squat.sets[0], kg: 40, reps: 10, doneAt: now.toISOString() };
+    expect(setHints(squat, 1, last, up)).toMatchObject({ kg: 82.5, reps: 6 });
+    // A hold keeps last time's reps.
+    expect(setHints(squat, 2, last, { kg: 80, reps: null })).toMatchObject({ kg: 80, reps: 7 });
+    squat.sets[1] = { ...squat.sets[1], kg: 85, reps: 5, doneAt: now.toISOString() };
+    expect(setHints(squat, 2, last, up)).toMatchObject({ kg: 85, reps: 5 });
+  });
+
   it("ticking fills empty fields from hints and keeps typed ones; ticking again undoes it", () => {
     const typed = { ...emptySet(), reps: 9 };
     const done = toggleSet(typed, { kg: 80, reps: 8, rir: 2, seconds: null, metres: null }, ["kg", "reps", "rir"], now);

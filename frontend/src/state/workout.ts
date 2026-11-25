@@ -17,6 +17,7 @@ import {
   type SetType,
 } from "../lib/workout";
 import { targetOf, weekSets, type UpNext } from "../lib/plan";
+import { loadTargetOf, suggestLoad, type LoadSuggestion, type LoadTarget } from "../lib/progression";
 import { exercises } from "./exercises";
 import { loadPlan } from "./plan";
 import { deviceTimeZone } from "./profile";
@@ -232,6 +233,20 @@ export function exerciseItem(exerciseId: string) {
   return exercises.items.find((item) => item.id === exerciseId) ?? null;
 }
 
+/** What an exercise in the live workout progresses against; null for one it doesn't apply to. */
+export function exerciseLoadTarget(exercise: DraftExercise): LoadTarget | null {
+  const item = exerciseItem(exercise.exerciseId);
+  return item ? loadTargetOf(exercise.target, item.measure, item.mechanic) : null;
+}
+
+/** The suggested weight for an exercise in the live workout, from its last two times (lib/progression.ts). */
+export function exerciseSuggestion(exercise: DraftExercise): LoadSuggestion | null {
+  const last = workout.previous[exercise.exerciseId];
+  const target = exerciseLoadTarget(exercise);
+  if (!last || !target) return null;
+  return suggestLoad(last.sets, last.earlier?.sets ?? null, target, exerciseItem(exercise.exerciseId)?.equipment);
+}
+
 /** Ticks a set off (or back on). In the live workout a ticked working set starts the rest timer. */
 export function toggleDone(key: string, index: number, now = new Date()): void {
   const active = editing();
@@ -240,10 +255,11 @@ export function toggleDone(key: string, index: number, now = new Date()): void {
   const item = exercise ? exerciseItem(exercise.exerciseId) : null;
   if (!active || !exercise || !set) return;
   const fields = measureFields(item?.measure ?? "weight_reps");
-  const hints = setHints(exercise, index, workout.previous[exercise.exerciseId]?.sets ?? []);
+  const live = active === workout.active;
+  const hints = setHints(exercise, index, workout.previous[exercise.exerciseId]?.sets ?? [], live ? exerciseSuggestion(exercise) : null);
   const next = toggleSet(set, hints, fields, now);
   exercise.sets[index] = next;
-  if (active !== workout.active) return;
+  if (!live) return;
   const rest = next.doneAt && item ? exercise.target?.restSeconds ?? restSeconds(item) : 0;
   if (rest) {
     active.restFor = rest;

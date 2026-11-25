@@ -199,6 +199,8 @@ export interface PlanTarget {
   seconds: number | null;
   rir: number;
   restSeconds: number;
+  /** Ease in's first weeks: load suggestions take half steps. Missing on drafts from before it was added. */
+  easing?: boolean;
 }
 
 /** The plan's next workout and where it sits in the block. */
@@ -214,6 +216,8 @@ export interface UpNext {
   rir: number;
   /** The block's last week: half the sets, further from failure. */
   lighter: boolean;
+  /** Ease in's first two weeks of the first block: further from failure, half load steps. */
+  easing: boolean;
 }
 
 /**
@@ -251,6 +255,7 @@ export function upNext(
     week,
     rir: weekRir(week, blockWeeks, plan.easeIn && block === 1),
     lighter: week === blockWeeks,
+    easing: plan.easeIn && block === 1 && week <= 2 && week < blockWeeks,
   };
 }
 
@@ -274,8 +279,8 @@ export function nextLine(next: UpNext): string {
 }
 
 /** An exercise's target for this session. */
-export function targetOf(exercise: PlanExercise, next: Pick<UpNext, "rir">): PlanTarget {
-  return { repMin: exercise.repMin, repMax: exercise.repMax, seconds: exercise.seconds, rir: next.rir, restSeconds: exercise.restSeconds };
+export function targetOf(exercise: PlanExercise, next: Pick<UpNext, "rir"> & Partial<Pick<UpNext, "easing">>): PlanTarget {
+  return { repMin: exercise.repMin, repMax: exercise.repMax, seconds: exercise.seconds, rir: next.rir, restSeconds: exercise.restSeconds, easing: next.easing ?? false };
 }
 
 /** "6–10 reps · 2 in reserve", "45 s hold". The line over a plan exercise's set table. */
