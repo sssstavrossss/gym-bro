@@ -35,8 +35,9 @@ Phase 3 is done. Phase 4 (suggestions and PRs; Progress rebuilt), shipped so far
 
 Phase 4 is done. Phase 5 (swaps, warm-ups, plate maths, build or edit your own plan), shipped so far:
 - Swap an exercise in a workout: the same movement first (the generator's alternatives), then the same main muscle, then the library; within the plan's equipment and go-easy areas. Unticked sets move, ticked ones stay. See *Swap* in the README.
+- Warm-ups: + Warm-up on a weight exercise adds a ramp filled in towards the working weight (40/60/80% for a compound, the empty bar first on a barbell; 50% for isolation). See *Warm-ups* in the README.
 
-Next in phase 5: warm-ups, plate maths, then editing and building your own plan.
+Next in phase 5: plate maths, then editing and building your own plan.
 
 ## Decisions (agreed 2026-11-25)
 

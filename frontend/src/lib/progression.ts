@@ -35,16 +35,16 @@ export interface LoadSuggestion {
 /** Equipment with a load that steps, and its smallest step in kg (a pair of 1.25 plates, the next dumbbell, the next bell). */
 const STEPS: Record<string, number> = {
   barbell: 2.5,
-  "e-z curl bar": 2.5,
+  "ez-bar": 2.5,
   cable: 2.5,
   machine: 2.5,
   other: 2.5,
   dumbbell: 2,
-  kettlebells: 4,
+  kettlebell: 4,
 };
 
 /** Kit that can take a half step: microplates on a bar, the half plate on a stack. Dumbbells and bells come in fixed sizes. */
-const HALVES = new Set(["barbell", "e-z curl bar", "cable", "machine", "other"]);
+const HALVES = new Set(["barbell", "ez-bar", "cable", "machine", "other"]);
 
 /** The smallest load step for the kit, or null when the load doesn't step (body weight, bands, balls). */
 export function loadStep(equipment: string | null | undefined): number | null {
