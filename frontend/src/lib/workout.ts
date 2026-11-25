@@ -357,3 +357,16 @@ export function historyLine(row: { exercises: readonly string[]; sets: number; v
   if (row.volumeKg > 0) parts.push(`${Math.round(row.volumeKg).toLocaleString("en-GB")} kg`);
   return parts.join(" · ");
 }
+
+/**
+ * Swapping an exercise for another in a workout (docs/training.md, phase 5). Sets not ticked off yet move to the new
+ * exercise, empty, with their types; ticked ones stay with the old exercise, which keeps its place. With nothing
+ * ticked the old one goes. With everything ticked the new one gets as many sets again. The plan target carries over.
+ */
+export function swapExercise(exercise: DraftExercise, exerciseId: string, newKey: string): { keep: DraftExercise | null; next: DraftExercise } {
+  const ticked = exercise.sets.filter((set) => set.doneAt);
+  const left = exercise.sets.filter((set) => !set.doneAt);
+  const types = (left.length ? left : exercise.sets).map((set) => set.type);
+  const next: DraftExercise = { key: ticked.length ? newKey : exercise.key, exerciseId, sets: types.map((type) => emptySet(type)), target: exercise.target ?? null };
+  return { keep: ticked.length ? { ...exercise, sets: ticked } : null, next };
+}

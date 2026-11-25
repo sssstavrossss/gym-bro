@@ -1,5 +1,7 @@
 using System.Security.Claims;
+using GymBro.Api.Data;
 using GymBro.Api.Training;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Net.Http.Headers;
 
 namespace GymBro.Api.Endpoints;
@@ -13,6 +15,7 @@ public static class ExerciseEndpoints
     {
         api.MapGet("/exercises", List);
         api.MapGet("/exercises/{id}", Detail);
+        api.MapGet("/exercises/{id}/swaps", SwapsFor);
         return api;
     }
 
@@ -87,6 +90,37 @@ public static class ExerciseEndpoints
             photos = item.Images > 0 ? ExerciseCatalog.PhotoBase : null,
             item.Source,
             licence = item.Source == ExerciseCatalog.FreeExerciseDb ? "Unlicense (public domain)" : "Gym Bro",
+        });
+    }
+
+    /// <summary>
+    /// What an exercise can be swapped for in a workout: the same movement first, then the same main muscle. With a
+    /// plan, only what its equipment allows and nothing that loads its go-easy areas (<see cref="Swaps"/>).
+    /// </summary>
+    private static async Task<IResult> SwapsFor(ClaimsPrincipal principal, string id, AppDbContext db, CancellationToken cancellationToken)
+    {
+        if (Caller.MissingOid(principal) is { } denied)
+        {
+            return denied;
+        }
+
+        var library = ExerciseCatalog.Current;
+        if (library.Find(id) is not { } item)
+        {
+            return ApiResults.Error(UnknownExercise, StatusCodes.Status404NotFound);
+        }
+
+        var userId = Caller.Id(principal);
+        var plan = await db.TrainingPlans.AsNoTracking()
+            .Where(row => row.UserId == userId)
+            .Select(row => new { row.Equipment, row.GoEasy })
+            .FirstOrDefaultAsync(cancellationToken);
+        var kit = plan is null ? null : EquipmentPresets.KitOf(plan.Equipment);
+        return Results.Ok(new
+        {
+            exerciseId = item.Id,
+            planKit = plan is not null,
+            options = Swaps.For(item, library, kit, plan?.GoEasy ?? []),
         });
     }
 }

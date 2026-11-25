@@ -4,6 +4,7 @@ import { addDays, todayInZone } from "../lib/dates";
 import {
   dropUndone,
   emptySet,
+  swapExercise as swapSets,
   finished,
   fromSaved,
   measureFields,
@@ -178,6 +179,21 @@ export async function addExercise(exerciseId: string): Promise<string> {
   active.exercises.push({ key, exerciseId, sets });
   save();
   return key;
+}
+
+/**
+ * Swaps an exercise for another: sets not ticked off move to the new one, ticked ones stay (lib/workout.ts
+ * `swapExercise`). Returns the new exercise's key, or null when it isn't there.
+ */
+export async function swapExercise(key: string, exerciseId: string): Promise<string | null> {
+  const active = editing();
+  const at = active?.exercises.findIndex((exercise) => exercise.key === key) ?? -1;
+  if (!active || at < 0) return null;
+  const { keep, next } = swapSets(active.exercises[at], exerciseId, `e${++keySeq}`);
+  active.exercises.splice(at, 1, ...(keep ? [keep, next] : [next]));
+  save();
+  await loadPrevious(exerciseId);
+  return next.key;
 }
 
 /** The workout the sheet is editing: a past one when open, else the live one. */

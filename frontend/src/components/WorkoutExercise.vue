@@ -34,7 +34,7 @@ export interface CellEdit {
 // One exercise in the workout: folded to a line, or open with its set table (docs/training.md, phase 2).
 /** `past`: a workout logged or edited afterwards, so "last time" (the newest workout) doesn't apply. */
 const props = defineProps<{ exercise: DraftExercise; open: boolean; edit: CellEdit; past?: boolean }>();
-const emit = defineEmits<{ expand: []; remove: [] }>();
+const emit = defineEmits<{ expand: []; remove: []; swap: [] }>();
 
 const item = computed(() => exerciseItem(props.exercise.exerciseId));
 const measure = computed(() => item.value?.measure ?? "weight_reps");
@@ -173,6 +173,7 @@ function onInput(event: Event, index: number, field: SetField) {
       <button type="button" class="btn sm secondary t-label" @click="addSet(exercise.key, 'warmup')"><Icon name="plus" :size="14" /> Warm-up</button>
       <span class="row ends">
       <button type="button" class="cbtn" aria-label="Remove the last set" :disabled="!canRemoveSet" @click="removeSet(exercise.key, exercise.sets.length - 1)"><Icon name="minus" :size="18" /></button>
+      <button type="button" class="cbtn" :aria-label="`Swap ${name}`" data-swap @click="emit('swap')"><Icon name="swap" :size="18" /></button>
       <button type="button" class="cbtn" :aria-label="`Remove ${name}`" @click="emit('remove')"><Icon name="trash" :size="18" /></button>
       </span>
     </div>
