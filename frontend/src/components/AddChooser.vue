@@ -3,16 +3,16 @@ import { computed, nextTick, ref, watch } from "vue";
 import { useRoute } from "vue-router";
 import { useDialogFocus } from "../lib/focusTrap";
 import { shortTurn } from "../lib/carousel";
-import { FAN_RADIUS, FAN_ROLL, fanActions, fanAngle, fanPages, fanRadius, fanScale, fanTurn, type FanActionId } from "../lib/fan";
+import { FAN_RADIUS, FAN_ROLL, fanActions, fanAngle, fanDim, fanDrag, fanDragSpan, fanFade, fanPages, fanRadius, fanScale, fanSettles, fanTurn, type FanActionId } from "../lib/fan";
 import Icon from "./Icon.vue";
 import { viewed } from "../state/log";
 import { describe, loadDescribe } from "../state/describe";
 import { closeSheet, openFood, openFoodWithScan, openNewFoodFrom, openRecipeCreate, openWeight, ui } from "../ui";
 
 /**
- * The + fan: the buttons open on a half ring around the tab bar's +, five to a page. Swipe sideways
- * (or tap a dot, or press ←/→) and the page rolls along the ring and out while the next rolls in from
- * the other side. Pages wrap. The + under it turns into the close button.
+ * The + fan: the buttons open on a half ring around the tab bar's +, five to a page. Drag sideways
+ * and the page rolls along the ring with the finger while the next rolls in from the other side; let go
+ * and it finishes or springs back. A dot or ←/→ rolls it the whole way. Pages wrap. The + under it turns into the close button.
  */
 const open = computed(() => ui.sheet === "chooser");
 const root = ref<HTMLElement | null>(null);
@@ -30,6 +30,8 @@ const instant = ref(false);
 /** The buttons fan out one after another only as it opens. */
 const staggered = ref(false);
 const centre = ref({ x: 0, y: 0 });
+/** A turn the finger is making: the page coming in, which way, and how far (0 to 1). */
+const drag = ref<{ peer: number; dir: 1 | -1; t: number } | null>(null);
 const radius = ref(FAN_RADIUS);
 
 const route = useRoute();
@@ -69,6 +71,7 @@ watch(open, async (isOpen) => {
   spread.value = false;
   if (!isOpen) return;
   page.value = 0;
+  drag.value = null;
   rolled.value = pages.value.map(() => 0);
   void loadDescribe();
   await nextTick();
@@ -111,24 +114,86 @@ function place(at: number, count: number, pageAt: number, slot: number) {
   return {
     transform: `rotate(${-angle}deg) translateX(${distance}px) rotate(${angle}deg) scale(${scale})`,
     transitionDelay: staggered.value && spread.value ? `${slot * 30}ms` : "0ms",
+    // Mid-drag, both pages show, each button fading as it nears an end of the ring.
+    ...(drag.value && moving(pageAt) ? { opacity: fanFade(angle) * fanDim(pageAt === page.value ? 1 - drag.value.t : drag.value.t) } : {}),
   };
 }
+function moving(pageAt: number) {
+  return Boolean(drag.value) && (pageAt === page.value || pageAt === drag.value?.peer);
+}
+/** Mid-drag the wide pip stretches from this page's dot to the next one's, like the chips' pill. */
+function pip(at: number) {
+  const turn = drag.value;
+  if (!turn) return undefined;
+  const share = at === page.value ? 1 - turn.t : at === turn.peer ? turn.t : 0;
+  return { width: `${6 + 10 * share}px`, transition: "none" };
+}
 
-/** A sideways swipe anywhere on the fan turns the page; the tap it ends with does nothing else. */
-let start: { x: number; y: number } | null = null;
+/**
+ * A sideways drag anywhere on the fan turns the page with the finger; the tap it ends with does
+ * nothing else. A drag that starts mostly up or down is left alone.
+ */
+let start: { x: number; y: number; id: number } | null = null;
+let last = { x: 0, at: 0, velocity: 0 };
 let swiped = false;
 function down(event: PointerEvent) {
-  start = { x: event.clientX, y: event.clientY };
+  if (drag.value) return;
+  start = { x: event.clientX, y: event.clientY, id: event.pointerId };
+  last = { x: event.clientX, at: event.timeStamp, velocity: 0 };
 }
-function up(event: PointerEvent) {
-  if (!start) return;
+function move(event: PointerEvent) {
+  if (!start || event.pointerId !== start.id || pages.value.length < 2 || !root.value) return;
   const dx = event.clientX - start.x;
   const dy = event.clientY - start.y;
+  if (!drag.value) {
+    if (Math.abs(dx) < 8 || Math.abs(dx) < Math.abs(dy)) {
+      if (Math.abs(dy) >= 8) start = null;
+      return;
+    }
+    root.value.setPointerCapture?.(event.pointerId);
+    staggered.value = false;
+    instant.value = true;
+  }
+  const elapsed = event.timeStamp - last.at;
+  if (elapsed > 0) last = { x: event.clientX, at: event.timeStamp, velocity: (event.clientX - last.x) / elapsed };
+  const { dir, t } = fanDrag(dx, fanDragSpan(root.value.clientWidth));
+  const peer = fanTurn(page.value, dir, pages.value.length);
+  // Turning back past the start swaps which page comes in: the one left behind goes back out of sight.
+  if (drag.value && drag.value.peer !== peer && drag.value.peer !== page.value) rolled.value[drag.value.peer] = FAN_ROLL;
+  rolled.value[page.value] = dir * t * FAN_ROLL;
+  if (peer !== page.value) rolled.value[peer] = -dir * (1 - t) * FAN_ROLL;
+  drag.value = { peer, dir, t };
+}
+async function up(event: PointerEvent) {
+  if (!start || event.pointerId !== start.id) return;
   start = null;
-  if (Math.abs(dx) < 40 || Math.abs(dx) < Math.abs(dy) || pages.value.length < 2) return;
+  const turn = drag.value;
+  if (!turn) return;
   swiped = true;
-  turn(dx < 0 ? 1 : -1);
   window.setTimeout(() => { swiped = false; }, 0);
+  // A finger that stopped before letting go isn't flicking.
+  const finish = fanSettles(turn.t, event.timeStamp - last.at > 80 ? 0 : last.velocity, turn.dir);
+  // Hand back to the transitions from where the finger left it.
+  instant.value = false;
+  drag.value = null;
+  await nextTick();
+  if (finish) {
+    rolled.value[page.value] = turn.dir * FAN_ROLL;
+    rolled.value[turn.peer] = 0;
+    page.value = turn.peer;
+  } else {
+    rolled.value[page.value] = 0;
+    rolled.value[turn.peer] = -turn.dir * FAN_ROLL;
+  }
+}
+function cancel() {
+  const turn = drag.value;
+  start = null;
+  if (!turn) return;
+  instant.value = false;
+  drag.value = null;
+  rolled.value[page.value] = 0;
+  rolled.value[turn.peer] = -turn.dir * FAN_ROLL;
 }
 function scrim() {
   if (!swiped) closeSheet();
@@ -155,8 +220,9 @@ function key(event: KeyboardEvent) {
       :style="{ '--cx': `${centre.x}px`, '--cy': `${centre.y}px` }"
       @click.self="scrim"
       @pointerdown="down"
+      @pointermove="move"
       @pointerup="up"
-      @pointercancel="start = null"
+      @pointercancel="cancel"
       @keydown="key"
     >
       <div class="ring">
@@ -166,7 +232,7 @@ function key(event: KeyboardEvent) {
             :key="action.id"
             type="button"
             class="fi"
-            :class="{ here: pageAt === page }"
+            :class="{ here: pageAt === page, peek: moving(pageAt) }"
             :style="place(at, group.length, pageAt, at)"
             :inert="pageAt !== page"
             :data-fan="action.id"
@@ -187,7 +253,7 @@ function key(event: KeyboardEvent) {
           :aria-label="`Page ${at + 1} of ${pages.length}`"
           :aria-current="at === page ? 'true' : undefined"
           @click="pick(at)"
-        ><span class="pip" /></button>
+        ><span class="pip" :style="pip(at)" /></button>
       </div>
       <button type="button" class="fclose" aria-label="Close" @click="closeSheet">
         <Icon name="plus" :size="26" :sw="2.4" />
@@ -211,6 +277,8 @@ function key(event: KeyboardEvent) {
 }
 .spread .fi.here { opacity: 1; visibility: visible; transition: transform 0.32s cubic-bezier(0.25, 1.25, 0.45, 1), opacity 0.2s, visibility 0s; }
 .instant .fi { transition: none !important; }
+/* Mid-drag the incoming page shows too; its opacity follows the finger. */
+.spread .fi.peek { visibility: visible; }
 .fdisc, .lbl { pointer-events: auto; }
 .fdisc {
   width: var(--control-fab); height: var(--control-fab); border-radius: 50%; flex: none;
