@@ -10,10 +10,15 @@ describe("the + fan", () => {
     ]);
   });
 
+  it("leaves the workout extras off the default fan", () => {
+    expect(fanActions(true).map((action) => action.id)).not.toContain("workout");
+    expect(FAN_ACTIONS.filter((action) => action.extra).map((action) => action.label)).toEqual(["Start workout", "Log workout"]);
+  });
+
   it("leaves Describe out when the server can't describe meals", () => {
     const labels = fanActions(false).map((action) => action.label);
     expect(labels).not.toContain("Describe");
-    expect(labels).toHaveLength(FAN_ACTIONS.length - 1);
+    expect(labels).toHaveLength(FAN_ACTIONS.filter((action) => !action.extra).length - 1);
     expect(fanPages(fanActions(false)).map((page) => page.length)).toEqual([5, 4]);
   });
 

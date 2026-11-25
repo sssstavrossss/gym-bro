@@ -3,10 +3,10 @@ import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import ExerciseBrowser from "../components/ExerciseBrowser.vue";
 import Icon from "../components/Icon.vue";
 import OfflineLine from "../components/OfflineLine.vue";
-import { workoutStatus } from "../lib/workout";
-import { loadExercises } from "../state/exercises";
-import { startWorkout, workout } from "../state/workout";
-import { openExercise, openWorkout } from "../ui";
+import { historyLine, shortDay, workoutStatus, workoutTotals } from "../lib/workout";
+import { exercises, loadExercises } from "../state/exercises";
+import { loadHistory, newPast, openPast, startWorkout, workout, workoutHistory } from "../state/workout";
+import { openExercise, openWorkout, toastError } from "../ui";
 
 // Training (docs/training.md): start or resume a workout, and the exercise library. Plans and the
 // calendar arrive above it in later steps.
@@ -14,6 +14,7 @@ const now = ref(Date.now());
 let timer: number | undefined;
 onMounted(() => {
   void loadExercises();
+  void loadHistory();
   timer = window.setInterval(() => (now.value = Date.now()), 1000);
 });
 onBeforeUnmount(() => window.clearInterval(timer));
@@ -22,6 +23,30 @@ const status = computed(() => (workout.active ? workoutStatus(workout.active, no
 
 function start() {
   startWorkout();
+  openWorkout();
+}
+
+// History: the last year, ten at a time. Finished workouts still waiting to send show first.
+const shown = ref(10);
+const nameOf = (id: string) => exercises.items.find((item) => item.id === id)?.name ?? id;
+const waitingRows = computed(() => workout.pending.map((draft) => ({
+  id: draft.id,
+  date: draft.date,
+  line: historyLine({ exercises: draft.exercises.map((exercise) => exercise.exerciseId), ...totalsOf(draft) }, nameOf),
+})));
+function totalsOf(draft: (typeof workout.pending)[number]) {
+  const totals = workoutTotals(draft);
+  return { sets: totals.sets, volumeKg: totals.volumeKg };
+}
+const rows = computed(() => workoutHistory.rows.slice(0, shown.value));
+
+async function openRow(id: string) {
+  if (await openPast(id)) openWorkout();
+  else toastError("That workout needs a connection to open.");
+}
+
+function logPast() {
+  newPast();
   openWorkout();
 }
 </script>
@@ -48,6 +73,37 @@ function start() {
       </p>
     </section>
 
+    <section class="col hist" aria-labelledby="history-title" data-workout-history>
+      <div class="chead">
+        <h2 id="history-title" class="t-cap c3 section-title grow">History</h2>
+        <button type="button" class="btn sm secondary t-label" @click="logPast"><Icon name="plus" :size="14" /> Log past</button>
+      </div>
+      <ul v-if="waitingRows.length || rows.length" class="list">
+        <li v-for="row in waitingRows" :key="row.id" class="row hrow waiting">
+          <span class="col grow text">
+            <span class="t-body">{{ shortDay(row.date) }} <span class="t-label c2">· waiting</span></span>
+            <span class="t-label c2 line">{{ row.line }}</span>
+          </span>
+        </li>
+        <li v-for="row in rows" :key="row.id">
+          <button type="button" class="row hrow" :data-workout-row="row.id" @click="openRow(row.id)">
+            <span class="col grow text">
+              <span class="t-body">{{ row.name ?? shortDay(row.date) }}<span v-if="row.name" class="t-label c2"> · {{ shortDay(row.date) }}</span></span>
+              <span class="t-label c2 line">{{ historyLine(row, nameOf) }}</span>
+            </span>
+            <Icon name="right" :size="16" class="c3" />
+          </button>
+        </li>
+      </ul>
+      <p v-else-if="workoutHistory.state === 'loading' || workoutHistory.state === 'idle'" class="t-label c2 m0 note">Loading workouts…</p>
+      <div v-else-if="workoutHistory.state === 'failed'" class="row note">
+        <span class="t-label c2 grow">Couldn't load your workouts.</span>
+        <button type="button" class="btn sm secondary t-label" @click="loadHistory">Try again</button>
+      </div>
+      <p v-else class="t-label c2 m0 note">No workouts yet. Finished ones show here, newest first.</p>
+      <button v-if="workoutHistory.rows.length > shown" type="button" class="btn sm secondary t-label more" @click="shown += 10">Show more</button>
+    </section>
+
     <ExerciseBrowser title="Exercises" title-id="exercises-title" @pick="openExercise" />
   </main>
 </template>
@@ -57,4 +113,15 @@ function start() {
 .g2 { gap: var(--space-2xs); min-width: 0; }
 .wrow { gap: var(--space-m); }
 .dt-xl .wrow .btn { flex: 1 1 100%; }
+.hist { gap: var(--space-s); }
+.hist .chead { padding-top: var(--space-s); }
+.list { list-style: none; margin: 0; padding: 0; }
+.hrow {
+  width: 100%; min-height: 56px; gap: var(--space-m); padding: var(--space-s) 0; flex-wrap: nowrap;
+  background: none; border: 0; border-bottom: 1px solid var(--color-border); color: inherit; text-align: left;
+}
+.text { gap: var(--space-2xs); min-width: 0; }
+.line { overflow-wrap: anywhere; }
+.note { padding-block: var(--space-m); gap: var(--space-s); }
+.more { align-self: flex-start; }
 </style>

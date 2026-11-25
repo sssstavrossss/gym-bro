@@ -12,11 +12,13 @@ export const FAN_PAGES_KEY = "gymbro-fan-pages";
 export type FanLayout = FanActionId[][];
 
 const IDS: readonly FanActionId[] = FAN_ACTIONS.map((action) => action.id);
+/** The default fan leaves out the extras (Start workout, Log workout). */
+const DEFAULT_IDS: readonly FanActionId[] = FAN_ACTIONS.filter((action) => !action.extra).map((action) => action.id);
 const BY_ID = new Map(FAN_ACTIONS.map((action) => [action.id, action]));
 
-/** Every action, five to a page, in FAN_ACTIONS order. */
+/** Every action but the extras, five to a page, in FAN_ACTIONS order. */
 export function defaultFan(): FanLayout {
-  return fanPages(IDS);
+  return fanPages(DEFAULT_IDS);
 }
 
 export function fanAction(id: FanActionId): FanAction {
