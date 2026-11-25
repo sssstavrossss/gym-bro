@@ -150,7 +150,7 @@ Sign-in settings are not baked into the JavaScript bundle. The API reads them fr
 | `GET` | `/api/workouts?from=&to=` | bearer | `{ workouts }`: your workouts from one date through another (up to 366 days), newest first, each `{ id, kind, date, name, status, startedAt, endedAt, planWorkoutId, sequencePosition, updatedAt, exercises, sets, volumeKg }`. `exercises` are ids in the order done; `sets` and `volumeKg` count ticked sets that aren't warm-ups. |
 | `GET` | `/api/workouts/previous?exercise=&except=` | bearer | `{ exercises: { <id>: { workoutId, date, sets } } }`: for each exercise asked about (up to 30, `exercise` repeated), its sets in the latest done workout that had it, leaving out `except`. An exercise never done is left out. |
 | `DELETE` | `/api/workouts/{id}` | bearer | Deletes one of your workouts and its sets. 204 even when it was already gone, so a resend is harmless. |
-| `GET` | `/api/plan` | bearer | `{ plan }`: your training plan, or `null`. See *Training plans*. |
+| `GET` | `/api/plan` | bearer | `{ plan }`: your training plan, or `null`, with `lastPosition`, the highest place in the sequence done or skipped from its workouts. See *Training plans*. |
 | `POST` | `/api/plan/preview` | bearer | What the answers would make, not saved: `{ split, easeIn, blockWeeks, workouts }`. |
 | `PUT` | `/api/plan` | bearer | Makes your plan from the setup's answers, or remakes it: `{ goal, weekdays, minutes, experience, equipment, goEasy?, easeIn?, split?, timeZone }`. 201 when new, 200 when it replaces yours. |
 | `DELETE` | `/api/plan` | bearer | Ends your plan. Workouts done from it stay. 204. |
@@ -692,6 +692,10 @@ A plan is made from the setup's answers by fixed rules, not AI (`training_plans`
 - **Time.** Movements are added while the workout fits the minutes: 5 minutes of warm-up (2 under 20 minutes), each set's work (40 s, or the hold) and rest, and a minute to change over. One that doesn't fit leaves room for a shorter one later. There are always at least two exercises. Each workout's `minutes` is the estimate to the nearest 5.
 - **Sets, reps, rest.** Big movements (squat, hinge, lunge, presses, rows, pulldowns, glutes) take 3 sets (4 for Experienced), and isolation and core 3 (2 for New); under 20 minutes, 2 at most. Reps: muscle 6–10 and 10–15, strength 3–6 for the first lift (4 sets) then 6–8 and 8–12, fitness 8–12 and 12–15; body-weight moves 8–15 and 10–20; holds 30, 45 or 60 seconds by experience. Rest: heavy leg and hip lifts 3:00, other big lifts 2:00, isolation 1:30, holds 1:00; a strength plan's first lift gets a minute more, and fitness takes a third off. The load isn't set: the first session asks for a weight that leaves about 3 reps.
 - **Block.** `blockWeeks` is 6: about five weeks from 3 to 1 in reserve, then a lighter week.
+- **Where the plan is.** `lastPosition` is the highest `sequencePosition` of your workouts, done or skipped, whose `planWorkoutId` is one of the plan's workouts (null before the first). A new split has new ids, so it starts again. The app works out the rest (`lib/plan.ts` `upNext`):
+  - **Next:** the workout at `lastPosition + 1`, going round the sequence, counting finished workouts still waiting to send.
+  - **Week:** a week of the block is as many plan workouts as days a week, so the place gives the block and the week in it.
+  - **Reps in reserve:** 3, 3, 2, 2, 1 over the working weeks, then 4 in the lighter last week, which does half the sets (at least 1). Easing in, the first block's weeks 1 and 2 are 4 and 3.
 - Every query is scoped by your `oid`. The table cascades from your user row, and the export includes it (`training-plan`, one row per exercise).
 
 ## Offline
@@ -817,7 +821,12 @@ The service worker keeps each photo once it has been shown (`gymbro-exercise-pho
 
 **The plan on Train** (`PlanSheet.vue`; state in `state/plan.ts`, labels and lines in `lib/plan.ts`; see *Training plans*). The **Plan** card comes after the Workout card.
 - **No plan yet:** "Answer a few questions and get workouts that fit your week and your time", with **Make a plan**.
-- **With a plan:** "Plan" with **Edit**, the plan's line ("Muscle · Upper / Lower · 4 days · 60 min"), then each workout in sequence order: its name, "5 exercises · 15 sets · ~50 min", and its exercises joined by " · ".
+- **With a plan:** "Plan" with **Edit**, the plan's line ("Muscle · Upper / Lower · 4 days · 60 min"), **Up next**, then each workout in sequence order: its name, "5 exercises · 15 sets · ~50 min", and its exercises joined by " · ".
+- **Up next** names the next workout, "5 exercises · 15 sets · ~50 min" (a lighter week counts its halved sets), and "Week 2 of 6 · 3 reps in reserve" (or "Week 6 of 6 · lighter week"), with **Start** and **Skip**:
+  - **Start** opens the workout sheet titled with the workout's name, with its exercises in order and this week's sets. Each exercise's line reads "6–10 reps · 3 in reserve · Last time Mon 23 Nov" ("45 s hold" for a hold). The RIR column offers the week's target, a hold's time is offered until there is a last time, and the rest timer uses the plan's rest. Exercises can still be added or removed. Finishing saves it with its plan workout and place, and Up next moves on.
+  - **Skip** saves the workout as skipped today (no sets), with the toast "Skipped Upper A" and **Undo**. It needs a connection. A skipped workout shows in History as "Skipped". Opening it and ticking off sets saves it as done.
+  - While the plan workout runs, Up next says "In progress". While a free workout runs, it says "Finish the workout in progress to start this one.", and only Skip is offered.
+  - Editing a past plan workout keeps its plan workout and place.
 - **New plan / Edit plan** is a sheet with the questions in order:
   - **Goal:** Muscle, Strength or Fitness.
   - **Days a week:** seven day chips; the days only date your workouts, and their count picks the split.

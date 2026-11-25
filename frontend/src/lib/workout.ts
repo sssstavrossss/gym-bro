@@ -2,6 +2,7 @@
 // on the phone while it runs; the API stores it whole when it finishes (README → Workouts).
 import { parse } from "./dates";
 import type { ExerciseItem, ExerciseMeasure } from "./exercises";
+import type { PlanTarget } from "./plan";
 
 export type SetType = "warmup" | "working" | "drop";
 export type SetField = "kg" | "reps" | "rir" | "seconds" | "metres";
@@ -25,6 +26,8 @@ export interface DraftExercise {
   key: string;
   exerciseId: string;
   sets: DraftSet[];
+  /** From a plan workout: the range, reps in reserve and rest to aim for. */
+  target?: PlanTarget | null;
 }
 
 export interface DraftWorkout {
@@ -39,6 +42,10 @@ export interface DraftWorkout {
   /** When the rest timer runs out (ISO), and how long it was set for, in seconds. */
   restEndsAt: string | null;
   restFor: number;
+  /** The plan workout it's done from, and its place in the sequence. Missing for a free workout. */
+  plan?: { workoutId: string; position: number } | null;
+  /** Saved as skipped. Adding sets to it and saving makes it done. */
+  skipped?: boolean;
 }
 
 /** A set as the API sends it back (`GET /api/workouts/previous`). */
@@ -55,9 +62,11 @@ export interface WorkoutRequestBody {
   timeZone: string;
   kind: "strength";
   name: string | null;
-  status: "done";
+  status: "done" | "skipped";
   startedAt: string | null;
   endedAt: string | null;
+  planWorkoutId: string | null;
+  sequencePosition: number | null;
   sets: (WorkoutSetValues & { exerciseId: string; block: number; type: SetType; calories: null; doneAt: string | null })[];
 }
 
@@ -94,11 +103,12 @@ export function setHints(exercise: DraftExercise, index: number, lastTime: reado
   const source: WorkoutSetValues | undefined = before?.doneAt
     ? before
     : lastTime.filter((set) => set.type !== "warmup")[index - warmupsBefore(exercise, index)] ?? lastTime[lastTime.length - 1];
+  // A plan's target sets this week's reps in reserve, and a hold's time until there is a last time.
   return {
     kg: source?.kg ?? null,
     reps: source?.reps ?? null,
-    rir: source?.rir ?? null,
-    seconds: source?.seconds ?? null,
+    rir: exercise.target?.rir ?? source?.rir ?? null,
+    seconds: source?.seconds ?? exercise.target?.seconds ?? null,
     metres: source?.metres ?? null,
   };
 }
@@ -236,9 +246,11 @@ export function toRequest(workout: DraftWorkout, timeZone: string): WorkoutReque
     timeZone,
     kind: "strength",
     name: workout.name,
-    status: "done",
+    status: workout.skipped && !workout.exercises.some((exercise) => exercise.sets.length) ? "skipped" : "done",
     startedAt: workout.startedAt,
     endedAt: workout.endedAt,
+    planWorkoutId: workout.plan?.workoutId ?? null,
+    sequencePosition: workout.plan?.position ?? null,
     sets: workout.exercises.flatMap((exercise, block) => exercise.sets.map((set) => ({
       exerciseId: exercise.exerciseId,
       block,
@@ -298,7 +310,10 @@ export function workoutStatus(workout: DraftWorkout, now: number): string {
 }
 
 /** A saved workout back as a draft to edit: each block is one exercise, its sets in order. */
-export function fromSaved(saved: { id: string; date: string; name: string | null; startedAt: string | null; endedAt: string | null; sets: readonly SavedSet[] }): DraftWorkout {
+export function fromSaved(saved: {
+  id: string; date: string; name: string | null; startedAt: string | null; endedAt: string | null; sets: readonly SavedSet[];
+  status?: string; planWorkoutId?: string | null; sequencePosition?: number | null;
+}): DraftWorkout {
   const exercises: DraftExercise[] = [];
   let last: { block: number; exerciseId: string } | null = null;
   for (const set of saved.sets) {
@@ -310,7 +325,11 @@ export function fromSaved(saved: { id: string; date: string; name: string | null
       type: set.type, kg: set.kg, reps: set.reps, rir: set.rir, seconds: set.seconds, metres: set.metres, doneAt: set.doneAt,
     });
   }
-  return { id: saved.id, date: saved.date, startedAt: saved.startedAt, endedAt: saved.endedAt, name: saved.name, exercises, restEndsAt: null, restFor: 0 };
+  const plan = saved.planWorkoutId != null && saved.sequencePosition != null ? { workoutId: saved.planWorkoutId, position: saved.sequencePosition } : null;
+  return {
+    id: saved.id, date: saved.date, startedAt: saved.startedAt, endedAt: saved.endedAt, name: saved.name, exercises, restEndsAt: null, restFor: 0,
+    plan, skipped: saved.status === "skipped",
+  };
 }
 
 /** "Mon 23 Nov". */
@@ -319,7 +338,8 @@ export function shortDay(date: string): string {
 }
 
 /** A history row's second line: "Bench Press, Squat +2 · 12 sets · 4,560 kg". */
-export function historyLine(row: { exercises: readonly string[]; sets: number; volumeKg: number }, nameOf: (id: string) => string): string {
+export function historyLine(row: { exercises: readonly string[]; sets: number; volumeKg: number; status?: string }, nameOf: (id: string) => string): string {
+  if (row.status === "skipped" && !row.sets) return "Skipped";
   const names = row.exercises.slice(0, 2).map(nameOf).join(", ");
   const more = row.exercises.length > 2 ? ` +${row.exercises.length - 2}` : "";
   const parts = [`${names}${more}` || "No exercises", `${row.sets} ${row.sets === 1 ? "set" : "sets"}`];

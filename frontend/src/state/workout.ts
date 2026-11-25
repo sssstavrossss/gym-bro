@@ -16,7 +16,9 @@ import {
   type SetField,
   type SetType,
 } from "../lib/workout";
+import { targetOf, weekSets, type UpNext } from "../lib/plan";
 import { exercises } from "./exercises";
+import { loadPlan } from "./plan";
 import { deviceTimeZone } from "./profile";
 
 /**
@@ -100,6 +102,54 @@ export function startWorkout(now = new Date()): DraftWorkout {
   };
   save();
   return workout.active;
+}
+
+/**
+ * Starts the plan's next workout: its exercises in order, each with this week's sets (half in a lighter
+ * week) and its target. Saved with the plan workout and its place, which moves the plan on.
+ */
+export function startPlanWorkout(next: UpNext, now = new Date()): DraftWorkout {
+  if (workout.active) return workout.active;
+  const active = startWorkout(now);
+  active.name = next.workout.name;
+  active.plan = { workoutId: next.workout.id, position: next.position };
+  active.exercises = next.workout.exercises.map((exercise) => ({
+    key: `e${++keySeq}`,
+    exerciseId: exercise.exerciseId,
+    sets: Array.from({ length: weekSets(exercise, next.lighter) }, () => emptySet()),
+    target: targetOf(exercise, next),
+  }));
+  save();
+  for (const exercise of active.exercises) void loadPrevious(exercise.exerciseId);
+  return active;
+}
+
+export const SKIP_OFFLINE = "You're offline. Skipping a workout needs a connection.";
+
+/** Skips the plan's next workout: saved as skipped today, so the one after is next. Returns its id, or what went wrong. */
+export async function skipPlanWorkout(next: UpNext): Promise<{ id: string } | { error: string }> {
+  const skipped: DraftWorkout = {
+    id: newId(), date: today(), startedAt: null, endedAt: null, name: next.workout.name, exercises: [], restEndsAt: null, restFor: 0,
+    plan: { workoutId: next.workout.id, position: next.position }, skipped: true,
+  };
+  try {
+    await putWorkout(skipped.id, toRequest(skipped, deviceTimeZone()));
+  } catch (error) {
+    return { error: error instanceof ApiError ? error.message : SKIP_OFFLINE };
+  }
+  refresh();
+  return { id: skipped.id };
+}
+
+/** Undo for Skip. */
+export async function unskipPlanWorkout(id: string): Promise<boolean> {
+  try {
+    await deleteWorkout(id);
+  } catch {
+    return false;
+  }
+  refresh();
+  return true;
 }
 
 async function loadPrevious(exerciseId: string): Promise<void> {
@@ -194,7 +244,7 @@ export function toggleDone(key: string, index: number, now = new Date()): void {
   const next = toggleSet(set, hints, fields, now);
   exercise.sets[index] = next;
   if (active !== workout.active) return;
-  const rest = next.doneAt && item ? restSeconds(item) : 0;
+  const rest = next.doneAt && item ? exercise.target?.restSeconds ?? restSeconds(item) : 0;
   if (rest) {
     active.restFor = rest;
     active.restEndsAt = new Date(now.getTime() + rest * 1000).toISOString();
@@ -253,7 +303,7 @@ export async function finishWorkout(now = new Date()): Promise<"saved" | "waitin
     workout.active = null;
     save();
     for (const exercise of done.exercises) delete workout.previous[exercise.exerciseId];
-    if (outcome === "saved") void loadHistory();
+    if (outcome === "saved") refresh();
   }
   return outcome;
 }
@@ -272,12 +322,18 @@ export async function sendPendingWorkouts(): Promise<number> {
     writeJson(pendingKey(), workout.pending);
     sent += 1;
   }
-  if (sent) void loadHistory();
+  if (sent) refresh();
   return sent;
 }
 
 export function closeSummary(): void {
   workout.summary = null;
+}
+
+/** After a workout is saved, changed or deleted: the history, and the plan's place in its sequence. */
+function refresh(): void {
+  void loadHistory();
+  void loadPlan();
 }
 
 function today(): string {
@@ -340,7 +396,7 @@ export async function savePast(): Promise<string | null> {
   }
   workout.past = null;
   for (const exercise of done.exercises) delete workout.previous[exercise.exerciseId];
-  void loadHistory();
+  refresh();
   return null;
 }
 
@@ -358,7 +414,7 @@ export async function deletePast(): Promise<DraftWorkout | string> {
   }
   workout.past = null;
   workout.previous = {};
-  void loadHistory();
+  refresh();
   return kept;
 }
 
@@ -367,7 +423,7 @@ export async function restorePast(kept: DraftWorkout): Promise<boolean> {
   try {
     await putWorkout(kept.id, toRequest(kept, deviceTimeZone()));
     workout.previous = {};
-    void loadHistory();
+    refresh();
     return true;
   } catch {
     return false;

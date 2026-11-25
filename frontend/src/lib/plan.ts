@@ -52,6 +52,8 @@ export interface Plan {
   startDate: string;
   updatedAt: string;
   workouts: PlanWorkout[];
+  /** The highest place in the sequence done or skipped from this plan's workouts, or null before the first. */
+  lastPosition: number | null;
 }
 
 export interface PlanPreview {
@@ -187,4 +189,97 @@ export function prescription(exercise: PlanExercise): string {
   if (exercise.seconds != null) return `${exercise.sets} × ${exercise.seconds} s`;
   if (exercise.repMin != null && exercise.repMax != null) return `${exercise.sets} × ${exercise.repMin}–${exercise.repMax}`;
   return `${exercise.sets} sets`;
+}
+
+/** What a plan workout asks of one exercise while it's logged: the range, the hold, the reps in reserve and the rest. */
+export interface PlanTarget {
+  repMin: number | null;
+  repMax: number | null;
+  seconds: number | null;
+  rir: number;
+  restSeconds: number;
+}
+
+/** The plan's next workout and where it sits in the block. */
+export interface UpNext {
+  workout: PlanWorkout;
+  /** Its place in the sequence, from 0, as the session will store it. */
+  position: number;
+  /** The block, from 1. */
+  block: number;
+  /** The week in the block, from 1 to blockWeeks. */
+  week: number;
+  /** The reps to leave in reserve on working sets. */
+  rir: number;
+  /** The block's last week: half the sets, further from failure. */
+  lighter: boolean;
+}
+
+/**
+ * Reps in reserve for a week of the block (docs/training.md, Rules): the working weeks step from 3 to 1
+ * (3, 3, 2, 2, 1 in a 6-week block), and the last week is lighter at 4. Easing in, the plan's first two
+ * weeks are 4, then 3.
+ */
+export function weekRir(week: number, blockWeeks: number, easing: boolean): number {
+  if (week >= blockWeeks) return 4;
+  if (easing && week <= 2) return week === 1 ? 4 : 3;
+  const working = Math.max(1, blockWeeks - 1);
+  return 3 - Math.floor(((week - 1) * 2) / Math.max(1, working - 1));
+}
+
+/**
+ * The next workout: the one after the latest done or skipped, counting the finished ones still waiting to
+ * send. A week of the block is as many plan workouts as days a week, so a missed day doesn't move it on.
+ */
+export function upNext(
+  plan: Pick<Plan, "workouts" | "weekdays" | "blockWeeks" | "easeIn" | "lastPosition">,
+  waiting: readonly { workoutId: string; position: number }[] = [],
+): UpNext | null {
+  if (!plan.workouts.length) return null;
+  const ids = new Set(plan.workouts.map((item) => item.id));
+  const last = Math.max(plan.lastPosition ?? -1, ...waiting.filter((item) => ids.has(item.workoutId)).map((item) => item.position));
+  const position = last + 1;
+  const weeks = Math.floor(position / Math.max(1, plan.weekdays.length));
+  const blockWeeks = Math.max(1, plan.blockWeeks);
+  const block = Math.floor(weeks / blockWeeks) + 1;
+  const week = (weeks % blockWeeks) + 1;
+  return {
+    workout: plan.workouts[position % plan.workouts.length],
+    position,
+    block,
+    week,
+    rir: weekRir(week, blockWeeks, plan.easeIn && block === 1),
+    lighter: week === blockWeeks,
+  };
+}
+
+/** A lighter week does half the working sets, at least one. */
+export function weekSets(exercise: PlanExercise, lighter: boolean): number {
+  return lighter ? Math.max(1, Math.ceil(exercise.sets / 2)) : exercise.sets;
+}
+
+/** "Week 2 of 6 · 3 reps in reserve", "Week 6 of 6 · lighter week". */
+export function weekLine(next: Pick<UpNext, "week" | "rir" | "lighter">, blockWeeks: number): string {
+  const tail = next.lighter ? "lighter week" : `${next.rir} ${next.rir === 1 ? "rep" : "reps"} in reserve`;
+  return `Week ${next.week} of ${blockWeeks} · ${tail}`;
+}
+
+/** "5 exercises · 8 sets · ~30 min" for the week: a lighter week counts its halved sets and not its time. */
+export function nextLine(next: UpNext): string {
+  if (!next.lighter) return workoutLine(next.workout);
+  const count = next.workout.exercises.length;
+  const sets = next.workout.exercises.reduce((sum, exercise) => sum + weekSets(exercise, true), 0);
+  return `${count} ${count === 1 ? "exercise" : "exercises"} · ${sets} ${sets === 1 ? "set" : "sets"}`;
+}
+
+/** An exercise's target for this session. */
+export function targetOf(exercise: PlanExercise, next: Pick<UpNext, "rir">): PlanTarget {
+  return { repMin: exercise.repMin, repMax: exercise.repMax, seconds: exercise.seconds, rir: next.rir, restSeconds: exercise.restSeconds };
+}
+
+/** "6–10 reps · 2 in reserve", "45 s hold". The line over a plan exercise's set table. */
+export function targetLine(target: PlanTarget): string {
+  if (target.seconds != null) return `${target.seconds} s hold`;
+  const reps = target.repMin != null && target.repMax != null ? `${target.repMin}–${target.repMax} reps` : "";
+  return [reps, `${target.rir} in reserve`].filter(Boolean).join(" · ");
 }

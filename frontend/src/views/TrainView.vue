@@ -3,15 +3,15 @@ import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import ExerciseBrowser from "../components/ExerciseBrowser.vue";
 import Icon from "../components/Icon.vue";
 import OfflineLine from "../components/OfflineLine.vue";
-import { planLine, workoutLine } from "../lib/plan";
+import { nextLine, planLine, upNext, weekLine, workoutLine } from "../lib/plan";
 import { historyLine, shortDay, workoutStatus, workoutTotals } from "../lib/workout";
 import { exercises, loadExercises } from "../state/exercises";
 import { loadPlan, plan } from "../state/plan";
-import { loadHistory, newPast, openPast, startWorkout, workout, workoutHistory } from "../state/workout";
-import { openExercise, openPlan, openWorkout, toastError } from "../ui";
+import { loadHistory, newPast, openPast, skipPlanWorkout, startPlanWorkout, startWorkout, unskipPlanWorkout, workout, workoutHistory } from "../state/workout";
+import { openExercise, openPlan, openWorkout, toast, toastError } from "../ui";
 
 // Training (docs/training.md): start or resume a workout, the plan, the history and the exercise library.
-// Up next and the calendar arrive in later steps.
+// The calendar arrives in a later step.
 const now = ref(Date.now());
 let timer: number | undefined;
 onMounted(() => {
@@ -27,6 +27,40 @@ const status = computed(() => (workout.active ? workoutStatus(workout.active, no
 function start() {
   startWorkout();
   openWorkout();
+}
+
+// Up next: the plan's next workout, counting finished ones still waiting to send.
+const next = computed(() => {
+  if (!plan.current) return null;
+  const waiting = workout.pending.flatMap((draft) => (draft.plan ? [draft.plan] : []));
+  return upNext(plan.current, waiting);
+});
+/** The live workout is this one: Resume instead of Start, and no Skip. */
+const nextRunning = computed(() => !!next.value && workout.active?.plan?.position === next.value.position && workout.active.plan.workoutId === next.value.workout.id);
+const skipping = ref(false);
+
+function startNext() {
+  if (!next.value) return;
+  if (!workout.active) startPlanWorkout(next.value);
+  openWorkout();
+}
+
+async function skipNext() {
+  const current = next.value;
+  if (!current || skipping.value) return;
+  skipping.value = true;
+  const result = await skipPlanWorkout(current);
+  skipping.value = false;
+  if ("error" in result) {
+    toastError(result.error);
+    return;
+  }
+  toast(`Skipped ${current.workout.name}`, {
+    label: "Undo",
+    run: () => {
+      void unskipPlanWorkout(result.id).then((ok) => { if (!ok) toastError("Couldn't undo the skip. Try again when you're online."); });
+    },
+  });
 }
 
 // History: the last year, ten at a time. Finished workouts still waiting to send show first.
@@ -82,8 +116,22 @@ function logPast() {
         <button type="button" class="btn sm secondary t-label" @click="openPlan">Edit</button>
       </div>
       <span class="t-body">{{ planLine(plan.current) }}</span>
+      <div v-if="next" class="well col g8 upnext" data-up-next :data-position="next.position">
+        <span class="t-cap c3 section-title">Up next</span>
+        <span class="col g2">
+          <span class="t-bodys">{{ next.workout.name }}</span>
+          <span class="t-label c2">{{ nextLine(next) }}</span>
+          <span class="t-label c2">{{ weekLine(next, plan.current.blockWeeks) }}</span>
+        </span>
+        <p v-if="workout.active && !nextRunning" class="t-capn c2 m0">Finish the workout in progress to start this one.</p>
+        <div class="row g8 nbtns">
+          <span v-if="nextRunning" class="t-label c2" data-up-next-running>In progress</span>
+          <button v-else-if="!workout.active" type="button" class="btn sm primary t-label" :aria-label="`Start ${next.workout.name}`" @click="startNext"><Icon name="play" :size="14" /> Start</button>
+          <button v-if="!nextRunning" type="button" class="btn sm secondary t-label" :aria-label="`Skip ${next.workout.name}`" :disabled="skipping" @click="skipNext">Skip</button>
+        </div>
+      </div>
       <ol class="list pws">
-        <li v-for="item in plan.current.workouts" :key="item.id" class="col pw" :data-plan-workout="item.name">
+        <li v-for="item in plan.current.workouts" :key="item.id" class="col pw" :data-plan-workout="item.name" :aria-current="next?.workout.id === item.id ? 'step' : undefined">
           <span class="row pwhead"><span class="t-bodys grow">{{ item.name }}</span><span class="t-label c2">{{ workoutLine(item) }}</span></span>
           <span class="t-capn c2">{{ item.exercises.map((exercise) => nameOf(exercise.exerciseId)).join(" · ") }}</span>
         </li>
@@ -143,6 +191,8 @@ function logPast() {
 .pw { gap: var(--space-2xs); padding-block: var(--space-s); }
 .pw + .pw { border-top: 1px solid var(--color-border); }
 .pwhead { gap: var(--space-s); }
+.g8 { gap: var(--space-s); }
+.nbtns { flex-wrap: wrap; }
 .hist { gap: var(--space-s); }
 .hist .chead { padding-top: var(--space-s); }
 .list { list-style: none; margin: 0; padding: 0; }
