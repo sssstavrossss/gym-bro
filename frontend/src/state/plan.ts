@@ -39,11 +39,11 @@ export async function savePlan(answers: PlanAnswers): Promise<string | null> {
 }
 
 /** Saves one workout's exercises as edited by hand. Returns null when saved, else what went wrong. */
-export async function savePlanWorkout(id: string, exercises: PlanExercise[]): Promise<string | null> {
+export async function savePlanWorkout(id: string, exercises: PlanExercise[], name?: string): Promise<string | null> {
   if (plan.saving) return null;
   plan.saving = true;
   try {
-    plan.current = markRaw(await putPlanWorkout(id, exercises));
+    plan.current = markRaw(await putPlanWorkout(id, exercises, name));
     return null;
   } catch (error) {
     return error instanceof ApiError ? error.message : PLAN_OFFLINE;

@@ -7,7 +7,7 @@ import { workoutStatus } from "../lib/workout";
 import { loadPlan, plan } from "../state/plan";
 import { deviceTimeZone } from "../state/profile";
 import { loadHistory, startPlanWorkout, workout, workoutHistory } from "../state/workout";
-import { openWorkout } from "../ui";
+import { openPlanWorkout, openWorkout } from "../ui";
 
 // Today's training card (docs/training.md, phase 3; Settings → Home sections → Training). It shows the
 // workout in progress, today's plan workout, the one done or skipped today, or a rest day. Without a plan
@@ -70,7 +70,8 @@ function start() {
       <span class="t-capn c2">{{ workoutLine(next.workout) }}</span>
       <span class="t-capn c2">{{ weekLine(next, plan.current?.blockWeeks ?? 6) }}</span>
     </span>
-    <button type="button" class="btn sm primary t-label" :aria-label="`Start ${next.workout.name}`" @click="start"><Icon name="play" :size="14" /> Start</button>
+    <button v-if="!next.workout.exercises.length" type="button" class="btn sm primary t-label" :aria-label="`Add exercises to ${next.workout.name}`" @click="openPlanWorkout(next.workout.id)"><Icon name="plus" :size="14" /> Add</button>
+    <button v-else type="button" class="btn sm primary t-label" :aria-label="`Start ${next.workout.name}`" @click="start"><Icon name="play" :size="14" /> Start</button>
   </section>
 
   <section v-else-if="state === 'done' && doneToday" class="card row tcard" aria-label="Today's workout" data-training-today="done">

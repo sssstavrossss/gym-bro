@@ -1,7 +1,8 @@
 namespace GymBro.Api.Training;
 
 /// <summary>A plan workout's exercises as the editor sends them (docs/training.md, phase 5).</summary>
-public sealed record PlanWorkoutRequest(IReadOnlyList<PlanExerciseRequest>? Exercises);
+/// <param name="Name">A new name, or null to keep it.</param>
+public sealed record PlanWorkoutRequest(IReadOnlyList<PlanExerciseRequest>? Exercises, string? Name = null);
 
 public sealed record PlanExerciseRequest(string? ExerciseId, int Sets, int? RepMin, int? RepMax, int? Seconds, int RestSeconds);
 
@@ -18,6 +19,10 @@ public static class PlanEdits
     public const int MaxSeconds = 600;
     public const int MaxRest = 600;
 
+    public const int MaxName = 30;
+
+    public static readonly string BadName = $"A workout's name is 1 to {MaxName} characters.";
+
     public const string NoExercises = "A workout needs at least one exercise.";
     public static readonly string TooMany = $"A workout takes up to {MaxExercises} exercises.";
     public const string Unknown = "That exercise isn't in the library.";
@@ -26,6 +31,18 @@ public static class PlanEdits
     public static readonly string BadReps = $"Reps are 1 to {MaxReps}, the low end no more than the high end.";
     public static readonly string BadSeconds = $"A hold is {MinSeconds} to {MaxSeconds} seconds.";
     public static readonly string BadRest = $"Rest is 0 to {MaxRest} seconds.";
+
+    /// <summary>The name to store: the new one trimmed, or the current one when none is sent.</summary>
+    public static (string? Name, string? Error) CheckName(string? name, string current)
+    {
+        if (name is null)
+        {
+            return (current, null);
+        }
+
+        var trimmed = string.Join(' ', name.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+        return trimmed.Length is 0 or > MaxName ? (null, BadName) : (trimmed, null);
+    }
 
     /// <summary>The exercises to store, or what's wrong with them.</summary>
     public static (IReadOnlyList<PlanExercise>? Exercises, string? Error) Check(PlanWorkoutRequest request, ExerciseLibrary library)

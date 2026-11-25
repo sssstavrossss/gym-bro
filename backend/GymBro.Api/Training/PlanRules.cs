@@ -75,7 +75,10 @@ public static class Splits
     /// <summary>Five days: push, pull, legs, then upper and lower.</summary>
     public const string PplUpperLower = "ppl_upper_lower";
 
-    public static readonly IReadOnlySet<string> All = new HashSet<string>([FullBody, UpperLower, PushPullLegs, PplUpperLower]);
+    /// <summary>Your own: one empty workout a day, filled in by hand (docs/training.md, phase 5).</summary>
+    public const string Custom = "custom";
+
+    public static readonly IReadOnlySet<string> All = new HashSet<string>([FullBody, UpperLower, PushPullLegs, PplUpperLower, Custom]);
 
     /// <summary>The split that follows from the days a week (docs/training.md, decision 3).</summary>
     public static string For(int days) => days switch

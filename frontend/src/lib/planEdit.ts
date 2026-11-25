@@ -5,6 +5,7 @@ import type { Plan, PlanExercise } from "./plan";
 import { clock, restSeconds } from "./workout";
 
 export const MAX_EXERCISES = 15;
+export const MAX_NAME = 30;
 export const MAX_SETS = 10;
 export const MAX_REPS = 50;
 export const MIN_SECONDS = 5;

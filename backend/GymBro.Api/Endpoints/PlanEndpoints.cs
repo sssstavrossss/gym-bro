@@ -108,8 +108,12 @@ public static class PlanEndpoints
         }
 
         // The same split keeps its workout ids, so the sequence and the block carry on after a change.
-        var keep = plan.Split == answers.Split ? PlanWorkouts.Parse(plan.Workouts).Select(item => item.Id).ToList() : null;
-        var workouts = PlanGenerator.Generate(answers, ExerciseCatalog.Current, keep);
+        // Your own plan keeps the workouts you made; a generated one is made again from the answers.
+        var current = PlanWorkouts.Parse(plan.Workouts);
+        var keep = plan.Split == answers.Split ? current.Select(item => item.Id).ToList() : null;
+        var workouts = answers.Split == Splits.Custom && plan.Split == Splits.Custom
+            ? PlanGenerator.KeepCustom(current, answers.Weekdays.Count)
+            : PlanGenerator.Generate(answers, ExerciseCatalog.Current, keep);
         plan.Goal = answers.Goal;
         plan.Weekdays = [.. answers.Weekdays];
         plan.Minutes = answers.Minutes;
@@ -158,7 +162,13 @@ public static class PlanEndpoints
             return ApiResults.Error(error!);
         }
 
-        workouts[index] = workouts[index] with { Exercises = exercises, Minutes = PlanGenerator.Minutes(exercises, plan.Minutes), Edited = true };
+        var (name, nameError) = PlanEdits.CheckName(body.Name, workouts[index].Name);
+        if (name is null)
+        {
+            return ApiResults.Error(nameError!);
+        }
+
+        workouts[index] = workouts[index] with { Name = name, Exercises = exercises, Minutes = PlanGenerator.Minutes(exercises, plan.Minutes), Edited = true };
         plan.Workouts = PlanWorkouts.Serialize(workouts);
         plan.UpdatedAt = clock.GetUtcNow();
         await db.SaveChangesAsync(cancellationToken);
