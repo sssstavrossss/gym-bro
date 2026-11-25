@@ -46,6 +46,10 @@ public static class ExportTables
         var groups = await db.EntryGroups.AsNoTracking().Where(row => row.UserId == userId && row.DeletedAt == null).OrderBy(row => row.Name).ToListAsync(cancellationToken);
         var items = await db.EntryGroupItems.AsNoTracking().Where(row => row.UserId == userId).ToListAsync(cancellationToken);
         var described = await db.MealDescriptions.AsNoTracking().Where(row => row.UserId == userId).OrderBy(row => row.CreatedAt).ToListAsync(cancellationToken);
+        var workouts = await db.WorkoutSessions.AsNoTracking().Include(row => row.Sets)
+            .Where(row => row.UserId == userId)
+            .OrderBy(row => row.LocalDate).ThenBy(row => row.StartedAt ?? row.CreatedAt)
+            .ToListAsync(cancellationToken);
 
         // A serving can be on a catalogue food, so its name is read by id. Only the ids this person used.
         var servingFoodIds = servings.Select(row => row.FoodId).Distinct().ToList();
@@ -65,6 +69,7 @@ public static class ExportTables
             Recipes(recipes, ingredients),
             Groups(groups, items),
             Descriptions(described),
+            Workouts(workouts),
         ];
     }
 
@@ -179,4 +184,17 @@ public static class ExportTables
                 row.Kcal, row.Protein, row.Fat, row.Carbs, row.SaturatedFat, row.Sugars, row.Fiber, row.Salt,
             }))]);
     }
+
+    /// <summary>One row per set, with its workout's columns repeated. A workout with no sets still gets a row.</summary>
+    private static ExportTable Workouts(List<WorkoutSession> sessions) => new(
+        "workouts",
+        ["date", "workout", "kind", "status", "started_at", "ended_at", "notes", "set", "exercise", "type", "reps", "kg", "rir", "seconds", "metres", "calories", "done_at"],
+        [.. sessions.SelectMany(session =>
+        {
+            object?[] head = [session.LocalDate, session.Name, session.Kind, session.Status, session.StartedAt?.ToString("O"), session.EndedAt?.ToString("O"), session.Notes];
+            var sets = session.Sets.OrderBy(row => row.Position).ToList();
+            return sets.Count == 0
+                ? [[.. head, null, null, null, null, null, null, null, null, null, null]]
+                : sets.Select(row => (object?[])[.. head, row.Position + 1, row.ExerciseId, row.Type, row.Reps, row.Kg, row.Rir, row.Seconds, row.Metres, row.Calories, row.DoneAt?.ToString("O")]);
+        })]);
 }

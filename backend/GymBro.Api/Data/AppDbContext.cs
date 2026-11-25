@@ -45,6 +45,10 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
 
     public DbSet<MealDescription> MealDescriptions => Set<MealDescription>();
 
+    public DbSet<WorkoutSession> WorkoutSessions => Set<WorkoutSession>();
+
+    public DbSet<WorkoutSet> WorkoutSets => Set<WorkoutSet>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         var user = modelBuilder.Entity<AppUser>();
@@ -650,5 +654,45 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         described.Property(d => d.RetryOf).HasColumnName("retry_of");
         described.HasIndex(d => new { d.UserId, d.CreatedAt });
         described.HasOne<AppUser>().WithMany().HasForeignKey(d => d.UserId).OnDelete(DeleteBehavior.Cascade);
+
+        var session = modelBuilder.Entity<WorkoutSession>();
+        session.ToTable("workout_sessions");
+        session.HasKey(w => w.Id);
+        session.Property(w => w.Id).HasColumnName("id").ValueGeneratedNever();
+        session.Property(w => w.UserId).HasColumnName("user_id").HasMaxLength(64);
+        session.Property(w => w.Kind).HasColumnName("kind").HasMaxLength(16);
+        session.Property(w => w.LocalDate).HasColumnName("local_date");
+        session.Property(w => w.Name).HasColumnName("name").HasMaxLength(80);
+        session.Property(w => w.Status).HasColumnName("status").HasMaxLength(16);
+        session.Property(w => w.StartedAt).HasColumnName("started_at");
+        session.Property(w => w.EndedAt).HasColumnName("ended_at");
+        session.Property(w => w.Notes).HasColumnName("notes").HasMaxLength(2000);
+        session.Property(w => w.PlanWorkoutId).HasColumnName("plan_workout_id");
+        session.Property(w => w.SequencePosition).HasColumnName("sequence_position");
+        session.Property(w => w.CreatedAt).HasColumnName("created_at");
+        session.Property(w => w.UpdatedAt).HasColumnName("updated_at");
+        session.HasIndex(w => new { w.UserId, w.LocalDate });
+        session.HasOne<AppUser>().WithMany().HasForeignKey(w => w.UserId).OnDelete(DeleteBehavior.Cascade);
+        session.HasMany(w => w.Sets).WithOne().HasForeignKey(s => s.SessionId).OnDelete(DeleteBehavior.Cascade);
+
+        var set = modelBuilder.Entity<WorkoutSet>();
+        set.ToTable("workout_sets");
+        set.HasKey(s => s.Id);
+        set.Property(s => s.Id).HasColumnName("id").ValueGeneratedNever();
+        set.Property(s => s.SessionId).HasColumnName("session_id");
+        set.Property(s => s.UserId).HasColumnName("user_id").HasMaxLength(64);
+        set.Property(s => s.ExerciseId).HasColumnName("exercise_id").HasMaxLength(100);
+        set.Property(s => s.Block).HasColumnName("block");
+        set.Property(s => s.Position).HasColumnName("position");
+        set.Property(s => s.Type).HasColumnName("type").HasMaxLength(16);
+        set.Property(s => s.Reps).HasColumnName("reps");
+        set.Property(s => s.Kg).HasColumnName("kg").HasPrecision(7, 2);
+        set.Property(s => s.Rir).HasColumnName("rir");
+        set.Property(s => s.Seconds).HasColumnName("seconds");
+        set.Property(s => s.Metres).HasColumnName("metres").HasPrecision(9, 1);
+        set.Property(s => s.Calories).HasColumnName("calories");
+        set.Property(s => s.DoneAt).HasColumnName("done_at");
+        set.HasIndex(s => new { s.SessionId, s.Position });
+        set.HasIndex(s => new { s.UserId, s.ExerciseId });
     }
 }
