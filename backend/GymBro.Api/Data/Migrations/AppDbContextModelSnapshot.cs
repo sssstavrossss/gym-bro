@@ -122,185 +122,55 @@ namespace GymBro.Api.Data.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
-                    b.Property<decimal>("Amount")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("amount");
-
-                    b.Property<decimal>("Carbs")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("carbs");
-                    b.Property<decimal?>("MonoFat")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("mono_fat");
-
-                    b.Property<decimal?>("PolyFat")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("poly_fat");
-
-                    b.Property<decimal?>("Omega3")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("omega3");
-
-                    b.Property<decimal?>("Omega6")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("omega6");
-
-                    b.Property<decimal?>("TransFat")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("trans_fat");
-
-                    b.Property<decimal?>("Cholesterol")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("cholesterol");
-
                     b.Property<decimal?>("AddedSugars")
                         .HasPrecision(8, 2)
                         .HasColumnType("numeric(8,2)")
                         .HasColumnName("added_sugars");
 
-                    b.Property<decimal?>("Sodium")
+                    b.Property<decimal>("Amount")
                         .HasPrecision(8, 2)
                         .HasColumnType("numeric(8,2)")
-                        .HasColumnName("sodium");
-
-                    b.Property<decimal?>("VitaminA")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("vitamin_a");
-
-                    b.Property<decimal?>("VitaminD")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("vitamin_d");
-
-                    b.Property<decimal?>("VitaminE")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("vitamin_e");
-
-                    b.Property<decimal?>("Thiamin")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("thiamin");
-
-                    b.Property<decimal?>("Riboflavin")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("riboflavin");
-
-                    b.Property<decimal?>("Niacin")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("niacin");
-
-                    b.Property<decimal?>("VitaminB6")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("vitamin_b6");
-
-                    b.Property<decimal?>("Folate")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("folate");
-
-                    b.Property<decimal?>("VitaminB12")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("vitamin_b12");
-
-                    b.Property<decimal?>("VitaminC")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("vitamin_c");
+                        .HasColumnName("amount");
 
                     b.Property<decimal?>("Calcium")
                         .HasPrecision(8, 2)
                         .HasColumnType("numeric(8,2)")
                         .HasColumnName("calcium");
 
-                    b.Property<decimal?>("Iron")
+                    b.Property<decimal>("Carbs")
                         .HasPrecision(8, 2)
                         .HasColumnType("numeric(8,2)")
-                        .HasColumnName("iron");
+                        .HasColumnName("carbs");
 
-                    b.Property<decimal?>("Zinc")
+                    b.Property<decimal?>("Cholesterol")
                         .HasPrecision(8, 2)
                         .HasColumnType("numeric(8,2)")
-                        .HasColumnName("zinc");
-
-                    b.Property<decimal?>("Magnesium")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("magnesium");
-
-                    b.Property<decimal?>("Potassium")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("potassium");
-
-                    b.Property<decimal?>("Phosphorus")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("phosphorus");
-
-                    b.Property<decimal?>("Selenium")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("selenium");
-
-                    b.Property<decimal?>("Iodine")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("iodine");
+                        .HasColumnName("cholesterol");
 
                     b.Property<decimal?>("Copper")
                         .HasPrecision(8, 2)
                         .HasColumnType("numeric(8,2)")
                         .HasColumnName("copper");
 
-                    b.Property<decimal?>("Starch")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("starch");
-
                     b.Property<decimal?>("EpaDha")
                         .HasPrecision(8, 2)
                         .HasColumnType("numeric(8,2)")
                         .HasColumnName("epa_dha");
+
+                    b.Property<decimal>("Fat")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("fat");
 
                     b.Property<decimal?>("Fiber")
                         .HasPrecision(8, 2)
                         .HasColumnType("numeric(8,2)")
                         .HasColumnName("fiber");
 
-                    b.Property<decimal?>("Salt")
+                    b.Property<decimal?>("Folate")
                         .HasPrecision(8, 2)
                         .HasColumnType("numeric(8,2)")
-                        .HasColumnName("salt");
-
-                    b.Property<decimal?>("SaturatedFat")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("saturated_fat");
-
-                    b.Property<decimal?>("Sugars")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("sugars");
-
-
-                    b.Property<decimal>("Fat")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("fat");
+                        .HasColumnName("folate");
 
                     b.Property<Guid?>("FoodId")
                         .HasColumnType("uuid")
@@ -321,10 +191,30 @@ namespace GymBro.Api.Data.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("group_id");
 
+                    b.Property<decimal?>("Iodine")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("iodine");
+
+                    b.Property<decimal?>("Iron")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("iron");
+
                     b.Property<decimal>("Kcal")
                         .HasPrecision(8, 2)
                         .HasColumnType("numeric(8,2)")
                         .HasColumnName("kcal");
+
+                    b.Property<decimal?>("Magnesium")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("magnesium");
+
+                    b.Property<decimal?>("MonoFat")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("mono_fat");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -332,14 +222,89 @@ namespace GymBro.Api.Data.Migrations
                         .HasColumnType("character varying(300)")
                         .HasColumnName("name");
 
+                    b.Property<decimal?>("Niacin")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("niacin");
+
+                    b.Property<decimal?>("Omega3")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("omega3");
+
+                    b.Property<decimal?>("Omega6")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("omega6");
+
+                    b.Property<decimal?>("Phosphorus")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("phosphorus");
+
+                    b.Property<decimal?>("PolyFat")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("poly_fat");
+
                     b.Property<int>("Position")
                         .HasColumnType("integer")
                         .HasColumnName("position");
+
+                    b.Property<decimal?>("Potassium")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("potassium");
 
                     b.Property<decimal>("Protein")
                         .HasPrecision(8, 2)
                         .HasColumnType("numeric(8,2)")
                         .HasColumnName("protein");
+
+                    b.Property<decimal?>("Riboflavin")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("riboflavin");
+
+                    b.Property<decimal?>("Salt")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("salt");
+
+                    b.Property<decimal?>("SaturatedFat")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("saturated_fat");
+
+                    b.Property<decimal?>("Selenium")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("selenium");
+
+                    b.Property<decimal?>("Sodium")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("sodium");
+
+                    b.Property<decimal?>("Starch")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("starch");
+
+                    b.Property<decimal?>("Sugars")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("sugars");
+
+                    b.Property<decimal?>("Thiamin")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("thiamin");
+
+                    b.Property<decimal?>("TransFat")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("trans_fat");
 
                     b.Property<string>("Unit")
                         .IsRequired()
@@ -352,6 +317,41 @@ namespace GymBro.Api.Data.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)")
                         .HasColumnName("user_id");
+
+                    b.Property<decimal?>("VitaminA")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("vitamin_a");
+
+                    b.Property<decimal?>("VitaminB12")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("vitamin_b12");
+
+                    b.Property<decimal?>("VitaminB6")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("vitamin_b6");
+
+                    b.Property<decimal?>("VitaminC")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("vitamin_c");
+
+                    b.Property<decimal?>("VitaminD")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("vitamin_d");
+
+                    b.Property<decimal?>("VitaminE")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("vitamin_e");
+
+                    b.Property<decimal?>("Zinc")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("zinc");
 
                     b.HasKey("Id");
 
@@ -375,6 +375,11 @@ namespace GymBro.Api.Data.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
+                    b.Property<decimal?>("AddedSugarsPer100")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("added_sugars_per_100");
+
                     b.Property<string>("Barcode")
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)")
@@ -390,189 +395,70 @@ namespace GymBro.Api.Data.Migrations
                         .HasColumnType("character varying(80)")
                         .HasColumnName("brand");
 
+                    b.Property<decimal?>("CalciumPer100")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("calcium_per_100");
+
                     b.Property<decimal>("CarbsPer100")
                         .HasPrecision(8, 2)
                         .HasColumnType("numeric(8,2)")
                         .HasColumnName("carbs_per_100");
-                    b.Property<decimal?>("MonoFatPer100")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("mono_fat_per_100");
-
-                    b.Property<decimal?>("PolyFatPer100")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("poly_fat_per_100");
-
-                    b.Property<string>("Portions")
-                        .HasColumnType("jsonb")
-                        .HasColumnName("portions");
-
-                    b.Property<decimal?>("Omega3Per100")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("omega3_per_100");
-
-                    b.Property<decimal?>("Omega6Per100")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("omega6_per_100");
-
-                    b.Property<decimal?>("TransFatPer100")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("trans_fat_per_100");
 
                     b.Property<decimal?>("CholesterolPer100")
                         .HasPrecision(8, 2)
                         .HasColumnType("numeric(8,2)")
                         .HasColumnName("cholesterol_per_100");
 
-                    b.Property<decimal?>("AddedSugarsPer100")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("added_sugars_per_100");
-
-                    b.Property<decimal?>("SodiumPer100")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("sodium_per_100");
-
-                    b.Property<decimal?>("VitaminAPer100")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("vitamin_a_per_100");
-
-                    b.Property<decimal?>("VitaminDPer100")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("vitamin_d_per_100");
-
-                    b.Property<decimal?>("VitaminEPer100")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("vitamin_e_per_100");
-
-                    b.Property<decimal?>("ThiaminPer100")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("thiamin_per_100");
-
-                    b.Property<decimal?>("RiboflavinPer100")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("riboflavin_per_100");
-
-                    b.Property<decimal?>("NiacinPer100")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("niacin_per_100");
-
-                    b.Property<decimal?>("VitaminB6Per100")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("vitamin_b6_per_100");
-
-                    b.Property<decimal?>("FolatePer100")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("folate_per_100");
-
-                    b.Property<decimal?>("VitaminB12Per100")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("vitamin_b12_per_100");
-
-                    b.Property<decimal?>("VitaminCPer100")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("vitamin_c_per_100");
-
-                    b.Property<decimal?>("CalciumPer100")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("calcium_per_100");
-
-                    b.Property<decimal?>("IronPer100")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("iron_per_100");
-
-                    b.Property<decimal?>("ZincPer100")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("zinc_per_100");
-
-                    b.Property<decimal?>("MagnesiumPer100")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("magnesium_per_100");
-
-                    b.Property<decimal?>("PotassiumPer100")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("potassium_per_100");
-
-                    b.Property<decimal?>("PhosphorusPer100")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("phosphorus_per_100");
-
-                    b.Property<decimal?>("SeleniumPer100")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("selenium_per_100");
-
-                    b.Property<decimal?>("IodinePer100")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("iodine_per_100");
-
                     b.Property<decimal?>("CopperPer100")
                         .HasPrecision(8, 2)
                         .HasColumnType("numeric(8,2)")
                         .HasColumnName("copper_per_100");
-
-                    b.Property<decimal?>("StarchPer100")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("starch_per_100");
 
                     b.Property<decimal?>("EpaDhaPer100")
                         .HasPrecision(8, 2)
                         .HasColumnType("numeric(8,2)")
                         .HasColumnName("epa_dha_per_100");
 
-                    b.Property<decimal?>("FiberPer100")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("fiber_per_100");
-
-                    b.Property<decimal?>("SaltPer100")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("salt_per_100");
-
-                    b.Property<decimal?>("SaturatedFatPer100")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("saturated_fat_per_100");
-
-                    b.Property<decimal?>("SugarsPer100")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("sugars_per_100");
-
-
                     b.Property<decimal>("FatPer100")
                         .HasPrecision(8, 2)
                         .HasColumnType("numeric(8,2)")
                         .HasColumnName("fat_per_100");
 
+                    b.Property<decimal?>("FiberPer100")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("fiber_per_100");
+
+                    b.Property<decimal?>("FolatePer100")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("folate_per_100");
+
+                    b.Property<decimal?>("IodinePer100")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("iodine_per_100");
+
+                    b.Property<decimal?>("IronPer100")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("iron_per_100");
+
                     b.Property<decimal>("KcalPer100")
                         .HasPrecision(8, 2)
                         .HasColumnType("numeric(8,2)")
                         .HasColumnName("kcal_per_100");
+
+                    b.Property<decimal?>("MagnesiumPer100")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("magnesium_per_100");
+
+                    b.Property<decimal?>("MonoFatPer100")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("mono_fat_per_100");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -585,11 +471,26 @@ namespace GymBro.Api.Data.Migrations
                         .HasColumnType("character varying(300)")
                         .HasColumnName("name_en");
 
+                    b.Property<decimal?>("NiacinPer100")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("niacin_per_100");
+
                     b.Property<string>("NutrientBasis")
                         .IsRequired()
                         .HasMaxLength(16)
                         .HasColumnType("character varying(16)")
                         .HasColumnName("nutrient_basis");
+
+                    b.Property<decimal?>("Omega3Per100")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("omega3_per_100");
+
+                    b.Property<decimal?>("Omega6Per100")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("omega6_per_100");
 
                     b.Property<string>("OwnerKey")
                         .IsRequired()
@@ -598,6 +499,11 @@ namespace GymBro.Api.Data.Migrations
                         .HasColumnType("character varying(64)")
                         .HasColumnName("owner_key")
                         .HasComputedColumnSql("COALESCE(user_id, '')", true);
+
+                    b.Property<decimal?>("PhosphorusPer100")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("phosphorus_per_100");
 
                     b.Property<string>("PieceLabel")
                         .HasMaxLength(80)
@@ -609,6 +515,20 @@ namespace GymBro.Api.Data.Migrations
                         .HasColumnType("numeric(8,2)")
                         .HasColumnName("piece_quantity");
 
+                    b.Property<decimal?>("PolyFatPer100")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("poly_fat_per_100");
+
+                    b.Property<string>("Portions")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("portions");
+
+                    b.Property<decimal?>("PotassiumPer100")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("potassium_per_100");
+
                     b.Property<decimal>("ProteinPer100")
                         .HasPrecision(8, 2)
                         .HasColumnType("numeric(8,2)")
@@ -617,6 +537,21 @@ namespace GymBro.Api.Data.Migrations
                     b.Property<DateTimeOffset?>("RetiredAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("retired_at");
+
+                    b.Property<decimal?>("RiboflavinPer100")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("riboflavin_per_100");
+
+                    b.Property<decimal?>("SaltPer100")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("salt_per_100");
+
+                    b.Property<decimal?>("SaturatedFatPer100")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("saturated_fat_per_100");
 
                     b.Property<string>("SearchBrand")
                         .HasMaxLength(80)
@@ -633,6 +568,11 @@ namespace GymBro.Api.Data.Migrations
                         .HasColumnType("character varying(300)")
                         .HasColumnName("search_name_en");
 
+                    b.Property<decimal?>("SeleniumPer100")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("selenium_per_100");
+
                     b.Property<string>("ServingLabel")
                         .HasMaxLength(80)
                         .HasColumnType("character varying(80)")
@@ -642,6 +582,11 @@ namespace GymBro.Api.Data.Migrations
                         .HasPrecision(8, 2)
                         .HasColumnType("numeric(8,2)")
                         .HasColumnName("serving_quantity");
+
+                    b.Property<decimal?>("SodiumPer100")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("sodium_per_100");
 
                     b.Property<string>("Source")
                         .IsRequired()
@@ -655,6 +600,26 @@ namespace GymBro.Api.Data.Migrations
                         .HasColumnType("character varying(64)")
                         .HasColumnName("source_id");
 
+                    b.Property<decimal?>("StarchPer100")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("starch_per_100");
+
+                    b.Property<decimal?>("SugarsPer100")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("sugars_per_100");
+
+                    b.Property<decimal?>("ThiaminPer100")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("thiamin_per_100");
+
+                    b.Property<decimal?>("TransFatPer100")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("trans_fat_per_100");
+
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("updated_at");
@@ -663,6 +628,41 @@ namespace GymBro.Api.Data.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)")
                         .HasColumnName("user_id");
+
+                    b.Property<decimal?>("VitaminAPer100")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("vitamin_a_per_100");
+
+                    b.Property<decimal?>("VitaminB12Per100")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("vitamin_b12_per_100");
+
+                    b.Property<decimal?>("VitaminB6Per100")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("vitamin_b6_per_100");
+
+                    b.Property<decimal?>("VitaminCPer100")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("vitamin_c_per_100");
+
+                    b.Property<decimal?>("VitaminDPer100")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("vitamin_d_per_100");
+
+                    b.Property<decimal?>("VitaminEPer100")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("vitamin_e_per_100");
+
+                    b.Property<decimal?>("ZincPer100")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("zinc_per_100");
 
                     b.HasKey("Id");
 
@@ -821,189 +821,59 @@ namespace GymBro.Api.Data.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
-                    b.Property<decimal>("Amount")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("amount");
-
-                    b.Property<decimal>("Carbs")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("carbs");
-                    b.Property<decimal?>("MonoFat")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("mono_fat");
-
-                    b.Property<decimal?>("PolyFat")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("poly_fat");
-
-                    b.Property<decimal?>("Omega3")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("omega3");
-
-                    b.Property<decimal?>("Omega6")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("omega6");
-
-                    b.Property<decimal?>("TransFat")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("trans_fat");
-
-                    b.Property<decimal?>("Cholesterol")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("cholesterol");
-
                     b.Property<decimal?>("AddedSugars")
                         .HasPrecision(8, 2)
                         .HasColumnType("numeric(8,2)")
                         .HasColumnName("added_sugars");
 
-                    b.Property<decimal?>("Sodium")
+                    b.Property<decimal>("Amount")
                         .HasPrecision(8, 2)
                         .HasColumnType("numeric(8,2)")
-                        .HasColumnName("sodium");
-
-                    b.Property<decimal?>("VitaminA")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("vitamin_a");
-
-                    b.Property<decimal?>("VitaminD")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("vitamin_d");
-
-                    b.Property<decimal?>("VitaminE")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("vitamin_e");
-
-                    b.Property<decimal?>("Thiamin")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("thiamin");
-
-                    b.Property<decimal?>("Riboflavin")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("riboflavin");
-
-                    b.Property<decimal?>("Niacin")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("niacin");
-
-                    b.Property<decimal?>("VitaminB6")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("vitamin_b6");
-
-                    b.Property<decimal?>("Folate")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("folate");
-
-                    b.Property<decimal?>("VitaminB12")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("vitamin_b12");
-
-                    b.Property<decimal?>("VitaminC")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("vitamin_c");
+                        .HasColumnName("amount");
 
                     b.Property<decimal?>("Calcium")
                         .HasPrecision(8, 2)
                         .HasColumnType("numeric(8,2)")
                         .HasColumnName("calcium");
 
-                    b.Property<decimal?>("Iron")
+                    b.Property<decimal>("Carbs")
                         .HasPrecision(8, 2)
                         .HasColumnType("numeric(8,2)")
-                        .HasColumnName("iron");
+                        .HasColumnName("carbs");
 
-                    b.Property<decimal?>("Zinc")
+                    b.Property<decimal?>("Cholesterol")
                         .HasPrecision(8, 2)
                         .HasColumnType("numeric(8,2)")
-                        .HasColumnName("zinc");
-
-                    b.Property<decimal?>("Magnesium")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("magnesium");
-
-                    b.Property<decimal?>("Potassium")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("potassium");
-
-                    b.Property<decimal?>("Phosphorus")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("phosphorus");
-
-                    b.Property<decimal?>("Selenium")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("selenium");
-
-                    b.Property<decimal?>("Iodine")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("iodine");
+                        .HasColumnName("cholesterol");
 
                     b.Property<decimal?>("Copper")
                         .HasPrecision(8, 2)
                         .HasColumnType("numeric(8,2)")
                         .HasColumnName("copper");
 
-                    b.Property<decimal?>("Starch")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("starch");
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
 
                     b.Property<decimal?>("EpaDha")
                         .HasPrecision(8, 2)
                         .HasColumnType("numeric(8,2)")
                         .HasColumnName("epa_dha");
 
+                    b.Property<decimal>("Fat")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("fat");
+
                     b.Property<decimal?>("Fiber")
                         .HasPrecision(8, 2)
                         .HasColumnType("numeric(8,2)")
                         .HasColumnName("fiber");
 
-                    b.Property<decimal?>("Salt")
+                    b.Property<decimal?>("Folate")
                         .HasPrecision(8, 2)
                         .HasColumnType("numeric(8,2)")
-                        .HasColumnName("salt");
-
-                    b.Property<decimal?>("SaturatedFat")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("saturated_fat");
-
-                    b.Property<decimal?>("Sugars")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("sugars");
-
-
-                    b.Property<DateTimeOffset?>("DeletedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("deleted_at");
-
-                    b.Property<decimal>("Fat")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("fat");
+                        .HasColumnName("folate");
 
                     b.Property<Guid?>("FoodId")
                         .HasColumnType("uuid")
@@ -1030,6 +900,16 @@ namespace GymBro.Api.Data.Migrations
                         .HasColumnType("character varying(64)")
                         .HasColumnName("idempotency_key");
 
+                    b.Property<decimal?>("Iodine")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("iodine");
+
+                    b.Property<decimal?>("Iron")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("iron");
+
                     b.Property<decimal>("Kcal")
                         .HasPrecision(8, 2)
                         .HasColumnType("numeric(8,2)")
@@ -1043,16 +923,81 @@ namespace GymBro.Api.Data.Migrations
                         .HasColumnType("timestamp without time zone")
                         .HasColumnName("logged_at");
 
+                    b.Property<decimal?>("Magnesium")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("magnesium");
+
+                    b.Property<decimal?>("MonoFat")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("mono_fat");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(300)
                         .HasColumnType("character varying(300)")
                         .HasColumnName("name");
 
+                    b.Property<decimal?>("Niacin")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("niacin");
+
+                    b.Property<decimal?>("Omega3")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("omega3");
+
+                    b.Property<decimal?>("Omega6")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("omega6");
+
+                    b.Property<decimal?>("Phosphorus")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("phosphorus");
+
+                    b.Property<decimal?>("PolyFat")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("poly_fat");
+
+                    b.Property<decimal?>("Potassium")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("potassium");
+
                     b.Property<decimal>("Protein")
                         .HasPrecision(8, 2)
                         .HasColumnType("numeric(8,2)")
                         .HasColumnName("protein");
+
+                    b.Property<decimal?>("Riboflavin")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("riboflavin");
+
+                    b.Property<decimal?>("Salt")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("salt");
+
+                    b.Property<decimal?>("SaturatedFat")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("saturated_fat");
+
+                    b.Property<decimal?>("Selenium")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("selenium");
+
+                    b.Property<decimal?>("Sodium")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("sodium");
 
                     b.Property<string>("Source")
                         .HasMaxLength(32)
@@ -1064,11 +1009,31 @@ namespace GymBro.Api.Data.Migrations
                         .HasColumnType("character varying(64)")
                         .HasColumnName("source_id");
 
+                    b.Property<decimal?>("Starch")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("starch");
+
+                    b.Property<decimal?>("Sugars")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("sugars");
+
+                    b.Property<decimal?>("Thiamin")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("thiamin");
+
                     b.Property<string>("TimeZone")
                         .IsRequired()
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)")
                         .HasColumnName("time_zone");
+
+                    b.Property<decimal?>("TransFat")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("trans_fat");
 
                     b.Property<string>("Unit")
                         .IsRequired()
@@ -1081,6 +1046,41 @@ namespace GymBro.Api.Data.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)")
                         .HasColumnName("user_id");
+
+                    b.Property<decimal?>("VitaminA")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("vitamin_a");
+
+                    b.Property<decimal?>("VitaminB12")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("vitamin_b12");
+
+                    b.Property<decimal?>("VitaminB6")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("vitamin_b6");
+
+                    b.Property<decimal?>("VitaminC")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("vitamin_c");
+
+                    b.Property<decimal?>("VitaminD")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("vitamin_d");
+
+                    b.Property<decimal?>("VitaminE")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("vitamin_e");
+
+                    b.Property<decimal?>("Zinc")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("zinc");
 
                     b.HasKey("Id");
 
@@ -1501,19 +1501,95 @@ namespace GymBro.Api.Data.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
+                    b.Property<decimal?>("AddedSugars")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("added_sugars");
+
+                    b.Property<decimal?>("Calcium")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("calcium");
+
                     b.Property<decimal>("Carbs")
                         .HasPrecision(8, 2)
                         .HasColumnType("numeric(8,2)")
                         .HasColumnName("carbs");
+
+                    b.Property<decimal?>("Cholesterol")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("cholesterol");
+
+                    b.Property<decimal?>("Copper")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("copper");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<decimal?>("EpaDha")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("epa_dha");
+
+                    b.Property<decimal>("Fat")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("fat");
+
+                    b.Property<decimal?>("Fiber")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("fiber");
+
+                    b.Property<decimal?>("FinishedGrams")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("finished_grams");
+
+                    b.Property<decimal?>("Folate")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("folate");
+
+                    b.Property<decimal?>("Iodine")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("iodine");
+
+                    b.Property<decimal?>("Iron")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("iron");
+
+                    b.Property<decimal>("Kcal")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("kcal");
+
+                    b.Property<decimal?>("Magnesium")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("magnesium");
+
                     b.Property<decimal?>("MonoFat")
                         .HasPrecision(8, 2)
                         .HasColumnType("numeric(8,2)")
                         .HasColumnName("mono_fat");
 
-                    b.Property<decimal?>("PolyFat")
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("name");
+
+                    b.Property<decimal?>("Niacin")
                         .HasPrecision(8, 2)
                         .HasColumnType("numeric(8,2)")
-                        .HasColumnName("poly_fat");
+                        .HasColumnName("niacin");
 
                     b.Property<decimal?>("Omega3")
                         .HasPrecision(8, 2)
@@ -1525,135 +1601,39 @@ namespace GymBro.Api.Data.Migrations
                         .HasColumnType("numeric(8,2)")
                         .HasColumnName("omega6");
 
-                    b.Property<decimal?>("TransFat")
+                    b.Property<decimal?>("Phosphorus")
                         .HasPrecision(8, 2)
                         .HasColumnType("numeric(8,2)")
-                        .HasColumnName("trans_fat");
+                        .HasColumnName("phosphorus");
 
-                    b.Property<decimal?>("Cholesterol")
+                    b.Property<decimal?>("PolyFat")
                         .HasPrecision(8, 2)
                         .HasColumnType("numeric(8,2)")
-                        .HasColumnName("cholesterol");
+                        .HasColumnName("poly_fat");
 
-                    b.Property<decimal?>("AddedSugars")
+                    b.Property<decimal>("Portions")
                         .HasPrecision(8, 2)
                         .HasColumnType("numeric(8,2)")
-                        .HasColumnName("added_sugars");
-
-                    b.Property<decimal?>("Sodium")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("sodium");
-
-                    b.Property<decimal?>("VitaminA")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("vitamin_a");
-
-                    b.Property<decimal?>("VitaminD")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("vitamin_d");
-
-                    b.Property<decimal?>("VitaminE")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("vitamin_e");
-
-                    b.Property<decimal?>("Thiamin")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("thiamin");
-
-                    b.Property<decimal?>("Riboflavin")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("riboflavin");
-
-                    b.Property<decimal?>("Niacin")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("niacin");
-
-                    b.Property<decimal?>("VitaminB6")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("vitamin_b6");
-
-                    b.Property<decimal?>("Folate")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("folate");
-
-                    b.Property<decimal?>("VitaminB12")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("vitamin_b12");
-
-                    b.Property<decimal?>("VitaminC")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("vitamin_c");
-
-                    b.Property<decimal?>("Calcium")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("calcium");
-
-                    b.Property<decimal?>("Iron")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("iron");
-
-                    b.Property<decimal?>("Zinc")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("zinc");
-
-                    b.Property<decimal?>("Magnesium")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("magnesium");
+                        .HasColumnName("portions");
 
                     b.Property<decimal?>("Potassium")
                         .HasPrecision(8, 2)
                         .HasColumnType("numeric(8,2)")
                         .HasColumnName("potassium");
 
-                    b.Property<decimal?>("Phosphorus")
+                    b.Property<decimal>("Protein")
                         .HasPrecision(8, 2)
                         .HasColumnType("numeric(8,2)")
-                        .HasColumnName("phosphorus");
+                        .HasColumnName("protein");
 
-                    b.Property<decimal?>("Selenium")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("selenium");
+                    b.Property<DateTimeOffset?>("RetiredAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("retired_at");
 
-                    b.Property<decimal?>("Iodine")
+                    b.Property<decimal?>("Riboflavin")
                         .HasPrecision(8, 2)
                         .HasColumnType("numeric(8,2)")
-                        .HasColumnName("iodine");
-
-                    b.Property<decimal?>("Copper")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("copper");
-
-                    b.Property<decimal?>("Starch")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("starch");
-
-                    b.Property<decimal?>("EpaDha")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("epa_dha");
-
-                    b.Property<decimal?>("Fiber")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("fiber");
+                        .HasColumnName("riboflavin");
 
                     b.Property<decimal?>("Salt")
                         .HasPrecision(8, 2)
@@ -1665,50 +1645,35 @@ namespace GymBro.Api.Data.Migrations
                         .HasColumnType("numeric(8,2)")
                         .HasColumnName("saturated_fat");
 
+                    b.Property<decimal?>("Selenium")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("selenium");
+
+                    b.Property<decimal?>("Sodium")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("sodium");
+
+                    b.Property<decimal?>("Starch")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("starch");
+
                     b.Property<decimal?>("Sugars")
                         .HasPrecision(8, 2)
                         .HasColumnType("numeric(8,2)")
                         .HasColumnName("sugars");
 
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
-
-                    b.Property<decimal>("Fat")
+                    b.Property<decimal?>("Thiamin")
                         .HasPrecision(8, 2)
                         .HasColumnType("numeric(8,2)")
-                        .HasColumnName("fat");
+                        .HasColumnName("thiamin");
 
-                    b.Property<decimal?>("FinishedGrams")
+                    b.Property<decimal?>("TransFat")
                         .HasPrecision(8, 2)
                         .HasColumnType("numeric(8,2)")
-                        .HasColumnName("finished_grams");
-
-                    b.Property<decimal>("Kcal")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("kcal");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(120)
-                        .HasColumnType("character varying(120)")
-                        .HasColumnName("name");
-
-                    b.Property<decimal>("Portions")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("portions");
-
-                    b.Property<decimal>("Protein")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("protein");
-
-                    b.Property<DateTimeOffset?>("RetiredAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("retired_at");
+                        .HasColumnName("trans_fat");
 
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")
@@ -1719,6 +1684,41 @@ namespace GymBro.Api.Data.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)")
                         .HasColumnName("user_id");
+
+                    b.Property<decimal?>("VitaminA")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("vitamin_a");
+
+                    b.Property<decimal?>("VitaminB12")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("vitamin_b12");
+
+                    b.Property<decimal?>("VitaminB6")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("vitamin_b6");
+
+                    b.Property<decimal?>("VitaminC")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("vitamin_c");
+
+                    b.Property<decimal?>("VitaminD")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("vitamin_d");
+
+                    b.Property<decimal?>("VitaminE")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("vitamin_e");
+
+                    b.Property<decimal?>("Zinc")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("zinc");
 
                     b.HasKey("Id");
 
@@ -1742,185 +1742,55 @@ namespace GymBro.Api.Data.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
-                    b.Property<decimal>("Amount")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("amount");
-
-                    b.Property<decimal>("Carbs")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("carbs");
-                    b.Property<decimal?>("MonoFat")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("mono_fat");
-
-                    b.Property<decimal?>("PolyFat")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("poly_fat");
-
-                    b.Property<decimal?>("Omega3")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("omega3");
-
-                    b.Property<decimal?>("Omega6")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("omega6");
-
-                    b.Property<decimal?>("TransFat")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("trans_fat");
-
-                    b.Property<decimal?>("Cholesterol")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("cholesterol");
-
                     b.Property<decimal?>("AddedSugars")
                         .HasPrecision(8, 2)
                         .HasColumnType("numeric(8,2)")
                         .HasColumnName("added_sugars");
 
-                    b.Property<decimal?>("Sodium")
+                    b.Property<decimal>("Amount")
                         .HasPrecision(8, 2)
                         .HasColumnType("numeric(8,2)")
-                        .HasColumnName("sodium");
-
-                    b.Property<decimal?>("VitaminA")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("vitamin_a");
-
-                    b.Property<decimal?>("VitaminD")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("vitamin_d");
-
-                    b.Property<decimal?>("VitaminE")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("vitamin_e");
-
-                    b.Property<decimal?>("Thiamin")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("thiamin");
-
-                    b.Property<decimal?>("Riboflavin")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("riboflavin");
-
-                    b.Property<decimal?>("Niacin")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("niacin");
-
-                    b.Property<decimal?>("VitaminB6")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("vitamin_b6");
-
-                    b.Property<decimal?>("Folate")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("folate");
-
-                    b.Property<decimal?>("VitaminB12")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("vitamin_b12");
-
-                    b.Property<decimal?>("VitaminC")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("vitamin_c");
+                        .HasColumnName("amount");
 
                     b.Property<decimal?>("Calcium")
                         .HasPrecision(8, 2)
                         .HasColumnType("numeric(8,2)")
                         .HasColumnName("calcium");
 
-                    b.Property<decimal?>("Iron")
+                    b.Property<decimal>("Carbs")
                         .HasPrecision(8, 2)
                         .HasColumnType("numeric(8,2)")
-                        .HasColumnName("iron");
+                        .HasColumnName("carbs");
 
-                    b.Property<decimal?>("Zinc")
+                    b.Property<decimal?>("Cholesterol")
                         .HasPrecision(8, 2)
                         .HasColumnType("numeric(8,2)")
-                        .HasColumnName("zinc");
-
-                    b.Property<decimal?>("Magnesium")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("magnesium");
-
-                    b.Property<decimal?>("Potassium")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("potassium");
-
-                    b.Property<decimal?>("Phosphorus")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("phosphorus");
-
-                    b.Property<decimal?>("Selenium")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("selenium");
-
-                    b.Property<decimal?>("Iodine")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("iodine");
+                        .HasColumnName("cholesterol");
 
                     b.Property<decimal?>("Copper")
                         .HasPrecision(8, 2)
                         .HasColumnType("numeric(8,2)")
                         .HasColumnName("copper");
 
-                    b.Property<decimal?>("Starch")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("starch");
-
                     b.Property<decimal?>("EpaDha")
                         .HasPrecision(8, 2)
                         .HasColumnType("numeric(8,2)")
                         .HasColumnName("epa_dha");
+
+                    b.Property<decimal>("Fat")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("fat");
 
                     b.Property<decimal?>("Fiber")
                         .HasPrecision(8, 2)
                         .HasColumnType("numeric(8,2)")
                         .HasColumnName("fiber");
 
-                    b.Property<decimal?>("Salt")
+                    b.Property<decimal?>("Folate")
                         .HasPrecision(8, 2)
                         .HasColumnType("numeric(8,2)")
-                        .HasColumnName("salt");
-
-                    b.Property<decimal?>("SaturatedFat")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("saturated_fat");
-
-                    b.Property<decimal?>("Sugars")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("sugars");
-
-
-                    b.Property<decimal>("Fat")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("numeric(8,2)")
-                        .HasColumnName("fat");
+                        .HasColumnName("folate");
 
                     b.Property<Guid>("FoodId")
                         .HasColumnType("uuid")
@@ -1937,10 +1807,30 @@ namespace GymBro.Api.Data.Migrations
                         .HasColumnType("numeric(8,2)")
                         .HasColumnName("grams");
 
+                    b.Property<decimal?>("Iodine")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("iodine");
+
+                    b.Property<decimal?>("Iron")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("iron");
+
                     b.Property<decimal>("Kcal")
                         .HasPrecision(8, 2)
                         .HasColumnType("numeric(8,2)")
                         .HasColumnName("kcal");
+
+                    b.Property<decimal?>("Magnesium")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("magnesium");
+
+                    b.Property<decimal?>("MonoFat")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("mono_fat");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -1948,9 +1838,39 @@ namespace GymBro.Api.Data.Migrations
                         .HasColumnType("character varying(300)")
                         .HasColumnName("name");
 
+                    b.Property<decimal?>("Niacin")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("niacin");
+
+                    b.Property<decimal?>("Omega3")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("omega3");
+
+                    b.Property<decimal?>("Omega6")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("omega6");
+
+                    b.Property<decimal?>("Phosphorus")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("phosphorus");
+
+                    b.Property<decimal?>("PolyFat")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("poly_fat");
+
                     b.Property<int>("Position")
                         .HasColumnType("integer")
                         .HasColumnName("position");
+
+                    b.Property<decimal?>("Potassium")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("potassium");
 
                     b.Property<decimal>("Protein")
                         .HasPrecision(8, 2)
@@ -1960,6 +1880,51 @@ namespace GymBro.Api.Data.Migrations
                     b.Property<Guid>("RecipeId")
                         .HasColumnType("uuid")
                         .HasColumnName("recipe_id");
+
+                    b.Property<decimal?>("Riboflavin")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("riboflavin");
+
+                    b.Property<decimal?>("Salt")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("salt");
+
+                    b.Property<decimal?>("SaturatedFat")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("saturated_fat");
+
+                    b.Property<decimal?>("Selenium")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("selenium");
+
+                    b.Property<decimal?>("Sodium")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("sodium");
+
+                    b.Property<decimal?>("Starch")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("starch");
+
+                    b.Property<decimal?>("Sugars")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("sugars");
+
+                    b.Property<decimal?>("Thiamin")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("thiamin");
+
+                    b.Property<decimal?>("TransFat")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("trans_fat");
 
                     b.Property<string>("Unit")
                         .IsRequired()
@@ -1972,6 +1937,41 @@ namespace GymBro.Api.Data.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)")
                         .HasColumnName("user_id");
+
+                    b.Property<decimal?>("VitaminA")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("vitamin_a");
+
+                    b.Property<decimal?>("VitaminB12")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("vitamin_b12");
+
+                    b.Property<decimal?>("VitaminB6")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("vitamin_b6");
+
+                    b.Property<decimal?>("VitaminC")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("vitamin_c");
+
+                    b.Property<decimal?>("VitaminD")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("vitamin_d");
+
+                    b.Property<decimal?>("VitaminE")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("vitamin_e");
+
+                    b.Property<decimal?>("Zinc")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasColumnName("zinc");
 
                     b.HasKey("Id");
 
@@ -2245,6 +2245,150 @@ namespace GymBro.Api.Data.Migrations
                     b.ToTable("weigh_ins", (string)null);
                 });
 
+            modelBuilder.Entity("GymBro.Api.Data.WorkoutSession", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTimeOffset?>("EndedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("ended_at");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("kind");
+
+                    b.Property<DateOnly>("LocalDate")
+                        .HasColumnType("date")
+                        .HasColumnName("local_date");
+
+                    b.Property<string>("Name")
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("name");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("notes");
+
+                    b.Property<Guid?>("PlanWorkoutId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("plan_workout_id");
+
+                    b.Property<int?>("SequencePosition")
+                        .HasColumnType("integer")
+                        .HasColumnName("sequence_position");
+
+                    b.Property<DateTimeOffset?>("StartedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("started_at");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("status");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId", "LocalDate");
+
+                    b.ToTable("workout_sessions", (string)null);
+                });
+
+            modelBuilder.Entity("GymBro.Api.Data.WorkoutSet", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<int>("Block")
+                        .HasColumnType("integer")
+                        .HasColumnName("block");
+
+                    b.Property<int?>("Calories")
+                        .HasColumnType("integer")
+                        .HasColumnName("calories");
+
+                    b.Property<DateTimeOffset?>("DoneAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("done_at");
+
+                    b.Property<string>("ExerciseId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("exercise_id");
+
+                    b.Property<decimal?>("Kg")
+                        .HasPrecision(7, 2)
+                        .HasColumnType("numeric(7,2)")
+                        .HasColumnName("kg");
+
+                    b.Property<decimal?>("Metres")
+                        .HasPrecision(9, 1)
+                        .HasColumnType("numeric(9,1)")
+                        .HasColumnName("metres");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("integer")
+                        .HasColumnName("position");
+
+                    b.Property<int?>("Reps")
+                        .HasColumnType("integer")
+                        .HasColumnName("reps");
+
+                    b.Property<int?>("Rir")
+                        .HasColumnType("integer")
+                        .HasColumnName("rir");
+
+                    b.Property<int?>("Seconds")
+                        .HasColumnType("integer")
+                        .HasColumnName("seconds");
+
+                    b.Property<Guid>("SessionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("session_id");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("type");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SessionId", "Position");
+
+                    b.HasIndex("UserId", "ExerciseId");
+
+                    b.ToTable("workout_sets", (string)null);
+                });
+
             modelBuilder.Entity("GymBro.Api.Data.DayStatus", b =>
                 {
                     b.HasOne("GymBro.Api.Data.AppUser", null)
@@ -2440,6 +2584,29 @@ namespace GymBro.Api.Data.Migrations
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("GymBro.Api.Data.WorkoutSession", b =>
+                {
+                    b.HasOne("GymBro.Api.Data.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("GymBro.Api.Data.WorkoutSet", b =>
+                {
+                    b.HasOne("GymBro.Api.Data.WorkoutSession", null)
+                        .WithMany("Sets")
+                        .HasForeignKey("SessionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("GymBro.Api.Data.WorkoutSession", b =>
+                {
+                    b.Navigation("Sets");
                 });
 #pragma warning restore 612, 618
         }

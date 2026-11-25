@@ -11,7 +11,10 @@ Shipped so far:
 - The Train tab in Log's place, with the exercise library (search, area chips) and the how-to sheet (photos, muscles, steps, Watch a demo). See *Screens* in the README.
 - The muscle map: our own front and back SVG (`lib/muscleMap.ts`, `MuscleMap.vue`), in the how-to sheet beside Main and Helping. This week and Progress reuse it later.
 
-Phase 1 is done. Next: phase 2 (log a free workout).
+Phase 1 is done. Phase 2 (log a free workout), shipped so far:
+- The workouts API: `PUT/GET/DELETE /api/workouts/{id}`, `GET /api/workouts?from=&to=` and `GET /api/workouts/previous`, with the session and set tables below. The app makes each workout's id, so an offline workout sends safely later. See *Workouts* in the README.
+
+Next: logging a workout in the app (Start workout, the set table, rest timer, summary), then history and editing past workouts.
 
 ## Decisions (agreed 2026-11-25)
 

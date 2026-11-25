@@ -30,6 +30,15 @@ public sealed class ExportEndpointTests(ApiFactory factory)
         Assert.True((await client.PostAsync("/api/recipes", Json($$"""{"name":"Fictional porridge","portions":2,"ingredients":[{"foodId":"{{oats}}","amount":120,"unit":"g"}]}"""))).IsSuccessStatusCode);
         Assert.True((await client.PutAsync("/api/day-status/2026-10-24", Json("""{"complete":false,"fasting":true,"timeZone":"UTC"}"""))).IsSuccessStatusCode);
         Assert.True((await client.PostAsJsonAsync("/api/describe", new { text = "60 g fictional oats" })).IsSuccessStatusCode);
+        Assert.True((await client.PutAsJsonAsync("/api/workouts/" + Guid.NewGuid(), new
+        {
+            date = "2026-10-24", timeZone = "UTC", name = "Fictional legs",
+            sets = new object[]
+            {
+                new { exerciseId = "barbell-squat", type = "warmup", kg = 40, reps = 10, doneAt = "2026-10-24T17:00:00Z" },
+                new { exerciseId = "barbell-squat", kg = 82.5, reps = 8, rir = 2, doneAt = "2026-10-24T17:05:00Z" },
+            },
+        })).IsSuccessStatusCode);
 
         var stranger = TestData.NewUser("export-other");
         using var other = factory.AsUser(stranger);
@@ -38,6 +47,7 @@ public sealed class ExportEndpointTests(ApiFactory factory)
         await Food(other, "Fictional stranger food", 100, 1, 1, 1);
         await Log(other, "x", """{"name":"Fictional stranger lunch","kcal":500,"protein":1,"fat":1,"carbs":1,"time":"12:00"}""");
         await other.PostAsJsonAsync("/api/describe", new { text = "a stranger sandwich" });
+        await other.PutAsJsonAsync("/api/workouts/" + Guid.NewGuid(), new { date = "2026-10-24", timeZone = "UTC", name = "Fictional stranger workout" });
 
         var response = await client.GetAsync("/api/export");
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -47,11 +57,18 @@ public sealed class ExportEndpointTests(ApiFactory factory)
 
         using var zip = new ZipArchive(await response.Content.ReadAsStreamAsync(), ZipArchiveMode.Read);
         Assert.Equal(
-            ["profile.csv", "weigh-ins.csv", "targets.csv", "log.csv", "fasting-days.csv", "foods.csv", "servings.csv", "recipes.csv", "groups.csv", "descriptions.csv", ExportFiles.JsonName],
+            ["profile.csv", "weigh-ins.csv", "targets.csv", "log.csv", "fasting-days.csv", "foods.csv", "servings.csv", "recipes.csv", "groups.csv", "descriptions.csv", "workouts.csv", ExportFiles.JsonName],
             zip.Entries.Select(entry => entry.FullName));
         Assert.Equal(
             ["created_at,kind,text,photo,outcome,foods,kcal,logged_at,model,input_tokens,output_tokens", "2026-10-24T18:00:00.0000000+00:00,meal,60 g fictional oats,false,found,1,228,,rule,0,0"],
             Lines(zip, "descriptions.csv"));
+        Assert.Equal(
+            [
+                "date,workout,kind,status,started_at,ended_at,notes,set,exercise,type,reps,kg,rir,seconds,metres,calories,done_at",
+                "2026-10-24,Fictional legs,strength,done,,,,1,barbell-squat,warmup,10,40,,,,,2026-10-24T17:00:00.0000000+00:00",
+                "2026-10-24,Fictional legs,strength,done,,,,2,barbell-squat,working,8,82.5,2,,,,2026-10-24T17:05:00.0000000+00:00",
+            ],
+            Lines(zip, "workouts.csv"));
         var everything = string.Concat(zip.Entries.Select(Read));
         Assert.DoesNotContain("stranger", everything);
         Assert.DoesNotContain("deleted snack", everything);
