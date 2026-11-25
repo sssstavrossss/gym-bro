@@ -72,3 +72,42 @@ export function fanTurn(page: number, by: number, pages: number): number {
   if (pages < 1) return 0;
   return (((page + by) % pages) + pages) % pages;
 }
+
+/** How far a finger drags for a whole page turn: most of the screen, so the roll follows it closely. */
+export function fanDragSpan(width: number): number {
+  return Math.max(160, Math.min(280, width * 0.6));
+}
+
+/**
+ * A sideways drag as a page turn in progress: `dir` 1 turns forward (the finger goes left, as on every
+ * other pager), and `t` runs from 0 (the page as it was) to 1 (the next page in place).
+ */
+export function fanDrag(dx: number, span: number): { dir: 1 | -1; t: number } {
+  return { dir: dx < 0 ? 1 : -1, t: Math.min(1, Math.abs(dx) / Math.max(1, span)) };
+}
+
+/** On release, the turn finishes past a third of the way, or on a flick that way (px per ms); otherwise it springs back. */
+export function fanSettles(t: number, velocity: number, dir: 1 | -1): boolean {
+  const flick = -velocity * dir;
+  if (flick > 0.35) return true;
+  if (flick < -0.35) return false;
+  return t > 1 / 3;
+}
+
+/**
+ * A button fades as it rolls towards either end of the half ring, and is gone `floor` degrees above it,
+ * so nothing shows over the tab bar. It is whole from the outer spots (36°) in, so a drag's first move
+ * doesn't dim them.
+ */
+export function fanFade(angle: number, floor = 12, band = 24): number {
+  return Math.max(0, Math.min(1, (Math.min(angle, 180 - angle) - floor) / band));
+}
+
+/**
+ * Mid-drag, the page further from its place dims, so the turn reads as one page handing over to the
+ * next rather than ten buttons at once. `share` is how much of the turn belongs to this page (1 - t for
+ * the one leaving, t for the one coming in).
+ */
+export function fanDim(share: number): number {
+  return 0.35 + 0.65 * Math.max(0, Math.min(1, share));
+}

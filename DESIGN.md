@@ -32,7 +32,7 @@ These are the rules the app's screens follow. Read this before you add or change
 - **Chips that name swipe pages** (`PageChips`) share the row equally, so a count never moves them, and mark the page with one pill that slides with the swipe instead of a colour jump. When chips name the pages, the dots stay but are visual only (`quiet-dots`).
 - **One action, one icon.** The same action uses the same icon everywhere it appears (Add food's tabs and the + fan share theirs). A segmented option takes an icon with `icon` in `Segmented`'s options, 16px beside its label.
 - **A button inside a field** (Scan in the search field) is a `.btn.sm` with its word, not a bare icon, so it doesn't read as part of the field. Its face sits as far in from the field's end as from its top.
-- **Rings of buttons** (the + fan) keep five to a page, each button in a fixed spot, with dots for more pages; a new action goes on a page, never as a sixth spot.
+- **Rings of buttons** (the + fan) keep five to a page, each button in a fixed spot, with dots for more pages; a new action goes on a page, never as a sixth spot. A drag turns the page with the finger, as `SwipePanels` does: the incoming page dims until it has more of the turn, and buttons fade before they reach the tab bar.
 - **Long lists inside a card** show five rows, then scroll inside the card. A thin bar and a fade show that there is more.
 - **Numbers are typed on the app keypad** on a touch screen, never on the phone's number pad.
 - **Settings for occasional use** go behind the cog. Anything new on Home gets its own on/off switch in Settings → Home sections; the week strip always stays.

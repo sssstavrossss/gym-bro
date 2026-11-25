@@ -92,8 +92,27 @@ test("the + opens a fan of five, with more pages that roll in and wrap", async (
   await fan.getByRole("button", { name: "Page 1 of 2" }).click();
   await shown(pageOne);
 
-  // A sideways swipe turns the page and doesn't close the fan.
+  // The page follows a drag: halfway, both pages show, the leaving one dimmer, and the wide dot is
+  // stretching across. A short slow drag springs back; a longer one turns the page and doesn't close the fan.
   const box = (await fan.boundingBox())!;
+  await page.mouse.move(box.x + 300, box.y + 300);
+  await page.mouse.down();
+  await page.mouse.move(box.x + 180, box.y + 302, { steps: 6 });
+  await expect(fan.locator(".fi.peek")).toHaveCount(10);
+  const mid = await fan.evaluate((el) => ({
+    leaving: Number(getComputedStyle(el.querySelector('[data-fan="quick"]')!).opacity),
+    coming: Number(getComputedStyle(el.querySelector('[data-fan="recipe"]')!).opacity),
+    pips: [...el.querySelectorAll(".fdots .pip")].map((pip) => pip.getBoundingClientRect().width),
+  }));
+  expect(mid.leaving).toBeGreaterThan(0.3);
+  expect(mid.leaving).toBeLessThan(1);
+  expect(mid.coming).toBeGreaterThan(0.3);
+  for (const width of mid.pips) expect(width).toBeGreaterThan(7);
+  await page.mouse.move(box.x + 280, box.y + 300, { steps: 4 });
+  await page.waitForTimeout(150);
+  await page.mouse.up();
+  await shown(pageOne);
+  await expect(fan.locator(".fi.peek")).toHaveCount(0);
   await page.mouse.move(box.x + 300, box.y + 300);
   await page.mouse.down();
   await page.mouse.move(box.x + 120, box.y + 310, { steps: 6 });
