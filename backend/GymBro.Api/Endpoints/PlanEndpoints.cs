@@ -38,6 +38,7 @@ public static class PlanEndpoints
         api.MapGet("/plan", Get);
         api.MapPost("/plan/preview", Preview);
         api.MapPut("/plan", Put);
+        api.MapPut("/plan/workouts/{id:guid}", PutWorkout);
         api.MapDelete("/plan", Delete);
         return api;
     }
@@ -122,6 +123,46 @@ public static class PlanEndpoints
         plan.UpdatedAt = now;
         await db.SaveChangesAsync(cancellationToken);
         return Results.Json(await ViewAsync(db, plan, cancellationToken), statusCode: created ? StatusCodes.Status201Created : StatusCodes.Status200OK);
+    }
+
+    /// <summary>
+    /// Changes one of the plan's workouts by hand (docs/training.md, phase 5): its exercises in order, with sets,
+    /// reps or hold, and rest. The workout keeps its id and place, so the sequence carries on; its minutes are
+    /// worked out again. 404 with no plan or no such workout in it.
+    /// </summary>
+    private static async Task<IResult> PutWorkout(
+        Guid id,
+        ClaimsPrincipal principal,
+        PlanWorkoutRequest body,
+        AppDbContext db,
+        TimeProvider clock,
+        CancellationToken cancellationToken)
+    {
+        if (Caller.MissingOid(principal) is { } denied)
+        {
+            return denied;
+        }
+
+        var userId = Caller.Id(principal);
+        var plan = await db.TrainingPlans.FirstOrDefaultAsync(row => row.UserId == userId, cancellationToken);
+        var workouts = plan is null ? [] : PlanWorkouts.Parse(plan.Workouts).ToList();
+        var index = workouts.FindIndex(item => item.Id == id);
+        if (plan is null || index < 0)
+        {
+            return Results.NotFound();
+        }
+
+        var (exercises, error) = PlanEdits.Check(body, ExerciseCatalog.Current);
+        if (exercises is null)
+        {
+            return ApiResults.Error(error!);
+        }
+
+        workouts[index] = workouts[index] with { Exercises = exercises, Minutes = PlanGenerator.Minutes(exercises, plan.Minutes), Edited = true };
+        plan.Workouts = PlanWorkouts.Serialize(workouts);
+        plan.UpdatedAt = clock.GetUtcNow();
+        await db.SaveChangesAsync(cancellationToken);
+        return Results.Ok(await ViewAsync(db, plan, cancellationToken));
     }
 
     /// <summary>Ends the plan. Workouts done from it stay in the history.</summary>

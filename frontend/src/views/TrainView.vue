@@ -10,7 +10,7 @@ import { exercises, loadExercises } from "../state/exercises";
 import { loadPlan, plan } from "../state/plan";
 import { deviceTimeZone } from "../state/profile";
 import { loadHistory, newPast, openPast, skipPlanWorkout, startPlanWorkout, startWorkout, unskipPlanWorkout, workout, workoutHistory } from "../state/workout";
-import { openExercise, openPlan, openWorkout, toast, toastError } from "../ui";
+import { openExercise, openPlan, openPlanWorkout, openWorkout, toast, toastError } from "../ui";
 
 // Training (docs/training.md): start or resume a workout, the plan, the history and the exercise library.
 const now = ref(Date.now());
@@ -146,9 +146,15 @@ function logPast() {
         </ul>
       </div>
       <ol class="list pws">
-        <li v-for="item in plan.current.workouts" :key="item.id" class="col pw" :data-plan-workout="item.name" :aria-current="next?.workout.id === item.id ? 'step' : undefined">
-          <span class="row pwhead"><span class="t-bodys grow">{{ item.name }}</span><span class="t-label c2">{{ workoutLine(item) }}</span></span>
-          <span class="t-capn c2">{{ item.exercises.map((exercise) => nameOf(exercise.exerciseId)).join(" · ") }}</span>
+        <li v-for="item in plan.current.workouts" :key="item.id" :data-plan-workout="item.name" :aria-current="next?.workout.id === item.id ? 'step' : undefined">
+          <button type="button" class="row pw" :aria-label="`Edit ${item.name}, ${workoutLine(item)}${item.edited ? ', edited by you' : ''}`" @click="openPlanWorkout(item.id)">
+            <span class="col grow pwtext">
+              <span class="row pwhead"><span class="t-bodys grow">{{ item.name }}</span><span class="t-label c2">{{ workoutLine(item) }}</span></span>
+              <span class="t-capn c2">{{ item.exercises.map((exercise) => nameOf(exercise.exerciseId)).join(" · ") }}</span>
+              <span v-if="item.edited" class="t-capn c3" data-plan-edited>Edited by you</span>
+            </span>
+            <Icon name="right" :size="16" class="c3" />
+          </button>
         </li>
       </ol>
     </section>
@@ -203,8 +209,12 @@ function logPast() {
 .wrow { gap: var(--space-m); }
 .dt-xl .wrow .btn { flex: 1 1 100%; }
 .pws { display: flex; flex-direction: column; }
-.pw { gap: var(--space-2xs); padding-block: var(--space-s); }
-.pw + .pw { border-top: 1px solid var(--color-border); }
+.pw {
+  width: 100%; min-height: var(--control-hit); gap: var(--space-m); padding: var(--space-s) 0; flex-wrap: nowrap;
+  background: none; border: 0; color: inherit; text-align: left;
+}
+.pws li + li .pw { border-top: 1px solid var(--color-border); }
+.pwtext { gap: var(--space-2xs); min-width: 0; }
 .pwhead { gap: var(--space-s); }
 .g8 { gap: var(--space-s); }
 .nbtns { flex-wrap: wrap; }

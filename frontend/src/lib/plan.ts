@@ -24,6 +24,8 @@ export interface PlanWorkout {
   /** The estimate, to the nearest 5. */
   minutes: number;
   exercises: PlanExercise[];
+  /** Changed by hand in the editor. Remaking the plan from the answers drops it. */
+  edited?: boolean;
 }
 
 /** The setup's answers, as `PUT /api/plan` takes them. Null takes the server's default. */

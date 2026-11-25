@@ -78,6 +78,8 @@ async function refreshPreview() {
 const split = computed(() => answers.value.split ?? splitFor(answers.value.weekdays.length));
 const summary = computed(() => (preview.value ? previewSummary(preview.value) : null));
 const easeIn = computed(() => easeInFor(answers.value));
+/** Saving remakes every workout from the answers, so hand edits go. */
+const editedNames = computed(() => (plan.current?.workouts ?? []).filter((item) => item.edited).map((item) => item.name));
 const missing = computed(() =>
   !answers.value.weekdays.length ? "Pick at least one day." : !answers.value.equipment.length ? "Pick the equipment you have." : "");
 
@@ -220,6 +222,10 @@ async function end() {
           ><span>{{ item.label }}</span></button>
         </div>
       </div>
+
+      <p v-if="editedNames.length" class="well t-label m0" data-plan-edits-note>
+        Saving remakes the workouts from these answers. Your changes to {{ editedNames.join(", ") }} won't be kept.
+      </p>
 
       <div v-if="editing" class="col g8 endwrap">
         <div v-if="confirmingEnd" class="card outline col confirm" role="alertdialog" aria-labelledby="pe-h" aria-describedby="pe-d">

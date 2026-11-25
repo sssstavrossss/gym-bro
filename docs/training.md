@@ -38,7 +38,9 @@ Phase 4 is done. Phase 5 (swaps, warm-ups, plate maths, build or edit your own p
 - Warm-ups: + Warm-up on a weight exercise adds a ramp filled in towards the working weight (40/60/80% for a compound, the empty bar first on a barbell; 50% for isolation). See *Warm-ups* in the README.
 - Plate maths: a barbell lift shows the plates a side for the set you're on (25 to 1.25 kg on a 20 kg bar). See *Plates* in the README.
 
-Next in phase 5: editing your plan (swap for good, add or remove exercises, change sets and reps), then building your own.
+- Edit a plan workout by hand: swap for good, add, remove and reorder exercises, and change sets, reps or hold, and rest. Saving keeps the workout's place; remaking the plan from its answers drops the edits, and Edit plan says so. Stored in the plan's workouts JSON with `edited`, no migration. See *Edit a plan workout* in the README.
+
+Next in phase 5: building your own plan from scratch.
 
 ## Decisions (agreed 2026-11-25)
 

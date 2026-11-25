@@ -6,8 +6,11 @@ namespace GymBro.Api.Training;
 /// </summary>
 public sealed record PlanExercise(string ExerciseId, int Sets, int? RepMin, int? RepMax, int? Seconds, int RestSeconds);
 
-/// <summary>A workout in the plan's sequence, like Upper A. Its id is what a session done from it points at.</summary>
-public sealed record PlanWorkout(Guid Id, string Name, int Minutes, IReadOnlyList<PlanExercise> Exercises);
+/// <summary>
+/// A workout in the plan's sequence, like Upper A. Its id is what a session done from it points at.
+/// <paramref name="Edited"/> is set once its exercises were changed by hand; remaking the plan drops that.
+/// </summary>
+public sealed record PlanWorkout(Guid Id, string Name, int Minutes, IReadOnlyList<PlanExercise> Exercises, bool Edited = false);
 
 /// <summary>
 /// Builds a plan from the setup's answers with fixed rules, no AI (docs/training.md, Rules). The split gives the
@@ -180,6 +183,10 @@ public static class PlanGenerator
 
     /// <summary>An exercise's time in the workout: each set's work and rest, and the changeover to it.</summary>
     public static int Duration(PlanExercise exercise) => exercise.Sets * ((exercise.Seconds ?? SetWork) + exercise.RestSeconds) + Changeover;
+
+    /// <summary>A workout's estimate: the warm-up and each exercise's time, to the nearest 5 minutes.</summary>
+    public static int Minutes(IEnumerable<PlanExercise> exercises, int planMinutes) =>
+        RoundMinutes((planMinutes <= ShortMinutes ? ShortWarmUp : WarmUp) + exercises.Sum(Duration));
 
     /// <summary>To the nearest 5 minutes, as "~55 min" shows it.</summary>
     private static int RoundMinutes(int seconds) => Math.Max(5, (int)Math.Round(seconds / 300.0) * 5);

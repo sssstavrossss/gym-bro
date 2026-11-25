@@ -68,6 +68,8 @@ export const ui = reactive({
   exercise: null as string | null,
   /** The how-to is open over the workout sheet, which stays open under it. */
   exerciseOver: false,
+  /** The plan workout open in the editor (components/PlanWorkoutSheet.vue). */
+  planWorkoutId: null as string | null,
   /** The swipe card whose pages the card pages sheet picks. */
   cardPages: "progress" as PageCard,
   /** The card pages sheet is open over another sheet (a cog on Add food or a recipe), which stays open under it. */
@@ -209,6 +211,12 @@ export function openWorkout(): void {
 /** New plan, or Edit plan when there is one (components/PlanSheet.vue). */
 export function openPlan(): void {
   ui.sheet = "plan";
+}
+
+/** Edit one of the plan's workouts by hand. */
+export function openPlanWorkout(id: string): void {
+  ui.planWorkoutId = id;
+  ui.sheet = "plan-workout";
 }
 
 export function openRecalculate(): void {
