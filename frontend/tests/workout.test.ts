@@ -1,0 +1,177 @@
+import { describe, expect, it } from "vitest";
+import {
+  clock,
+  currentExercise,
+  emptySet,
+  exerciseSummary,
+  finished,
+  formatSet,
+  measureFields,
+  parseField,
+  restLeft,
+  restSeconds,
+  secondsDigits,
+  setHints,
+  toggleSet,
+  toRequest,
+  typeKey,
+  undoneSets,
+  workoutStatus,
+  workoutTotals,
+  type DraftExercise,
+  type DraftWorkout,
+  type SavedSet,
+} from "../src/lib/workout";
+
+const now = new Date("2026-11-25T17:30:00Z");
+
+function saved(kg: number | null, reps: number | null, type: SavedSet["type"] = "working"): SavedSet {
+  return { exerciseId: "barbell-squat", block: 0, type, kg, reps, rir: 2, seconds: null, metres: null, calories: null, doneAt: "2026-11-23T17:00:00Z" };
+}
+
+function exercise(key: string, sets = [emptySet(), emptySet()]): DraftExercise {
+  return { key, exerciseId: "barbell-squat", sets };
+}
+
+function workout(exercises: DraftExercise[]): DraftWorkout {
+  return { id: "w1", date: "2026-11-25", startedAt: "2026-11-25T17:00:00.000Z", endedAt: null, name: null, exercises, restEndsAt: null, restFor: 0 };
+}
+
+describe("measureFields", () => {
+  it("asks for what each measure records, in typing order", () => {
+    expect(measureFields("weight_reps")).toEqual(["kg", "reps", "rir"]);
+    expect(measureFields("reps")).toEqual(["reps", "rir"]);
+    expect(measureFields("time")).toEqual(["seconds"]);
+    expect(measureFields("distance_time")).toEqual(["metres", "seconds"]);
+    expect(measureFields("weight_distance")).toEqual(["kg", "metres"]);
+  });
+});
+
+describe("hints and ticking", () => {
+  const last = [saved(40, 10, "warmup"), saved(80, 8), saved(80, 7)];
+
+  it("hints last time's matching working set, skipping warm-ups on both sides", () => {
+    const squat = exercise("a", [emptySet("warmup"), emptySet(), emptySet(), emptySet()]);
+    expect(setHints(squat, 1, last).kg).toBe(80);
+    expect(setHints(squat, 2, last).reps).toBe(7);
+    // Past the end of last time: its final set.
+    expect(setHints(squat, 3, last).reps).toBe(7);
+  });
+
+  it("hints the set before once that one is done", () => {
+    const squat = exercise("a", [{ ...emptySet(), kg: 85, reps: 6, rir: 1, doneAt: now.toISOString() }, emptySet()]);
+    expect(setHints(squat, 1, last)).toMatchObject({ kg: 85, reps: 6, rir: 1 });
+    expect(setHints(exercise("b"), 0, [])).toEqual({ kg: null, reps: null, rir: null, seconds: null, metres: null });
+  });
+
+  it("ticking fills empty fields from hints and keeps typed ones; ticking again undoes it", () => {
+    const typed = { ...emptySet(), reps: 9 };
+    const done = toggleSet(typed, { kg: 80, reps: 8, rir: 2, seconds: null, metres: null }, ["kg", "reps", "rir"], now);
+    expect(done).toMatchObject({ kg: 80, reps: 9, rir: 2, doneAt: now.toISOString() });
+    expect(toggleSet(done, { kg: 1, reps: 1, rir: 1, seconds: null, metres: null }, ["kg", "reps", "rir"], now)).toMatchObject({ kg: 80, reps: 9, doneAt: null });
+  });
+});
+
+describe("totals and finishing", () => {
+  const done = now.toISOString();
+  const draft = workout([
+    exercise("a", [{ ...emptySet("warmup"), kg: 40, reps: 10, doneAt: done }, { ...emptySet(), kg: 80, reps: 8, doneAt: done }, emptySet()]),
+    exercise("b", [emptySet()]),
+  ]);
+
+  it("counts ticked sets that aren't warm-ups", () => {
+    expect(workoutTotals(draft)).toEqual({ sets: 1, plannedSets: 3, volumeKg: 640 });
+    expect(undoneSets(draft)).toBe(2);
+    expect(currentExercise(draft)).toBe("a");
+  });
+
+  it("Finish keeps only ticked sets and drops empty exercises", () => {
+    const end = finished(draft, now);
+    expect(end.endedAt).toBe(now.toISOString());
+    expect(end.exercises.map((e) => e.key)).toEqual(["a"]);
+    expect(end.exercises[0].sets).toHaveLength(2);
+  });
+
+  it("sends each exercise as its own block, sets in order", () => {
+    const body = toRequest(workout([exercise("a", [{ ...emptySet(), kg: 80, reps: 8, doneAt: done }]), { key: "b", exerciseId: "pullups", sets: [{ ...emptySet(), reps: 10, doneAt: done }] }]), "Europe/Oslo");
+    expect(body).toMatchObject({ date: "2026-11-25", timeZone: "Europe/Oslo", kind: "strength", status: "done" });
+    expect(body.sets.map((set) => [set.exerciseId, set.block, set.kg, set.reps])).toEqual([["barbell-squat", 0, 80, 8], ["pullups", 1, null, 10]]);
+  });
+});
+
+describe("rest", () => {
+  const base = { category: "strength", measure: "weight_reps" as const, primaryMuscles: ["quadriceps"] };
+  it("rests longest after heavy leg compounds, none after cardio", () => {
+    expect(restSeconds({ ...base, mechanic: "compound" })).toBe(180);
+    expect(restSeconds({ ...base, mechanic: "compound", primaryMuscles: ["chest"] })).toBe(120);
+    expect(restSeconds({ ...base, mechanic: "isolation", primaryMuscles: ["biceps"] })).toBe(90);
+    expect(restSeconds({ ...base, category: "cardio", mechanic: null, measure: "distance_time" })).toBe(0);
+    expect(restSeconds({ ...base, mechanic: null, measure: "time" })).toBe(0);
+  });
+
+  it("counts down to zero", () => {
+    expect(restLeft({ restEndsAt: null }, now.getTime())).toBeNull();
+    expect(restLeft({ restEndsAt: "2026-11-25T17:31:30Z" }, now.getTime())).toBe(90);
+    expect(restLeft({ restEndsAt: "2026-11-25T17:29:00Z" }, now.getTime())).toBe(0);
+  });
+});
+
+describe("words and typing", () => {
+  it("writes sets the way each measure reads", () => {
+    const set = { kg: 82.5, reps: 8, rir: 2, seconds: 90, metres: 500 };
+    expect(formatSet(set, "weight_reps")).toBe("82.5 × 8");
+    expect(formatSet({ ...set, kg: null }, "weight_reps")).toBe("8 reps");
+    expect(formatSet(set, "reps")).toBe("8 reps");
+    expect(formatSet(set, "time")).toBe("1:30");
+    expect(formatSet(set, "distance_time")).toBe("500 m · 1:30");
+    expect(formatSet({ ...set, metres: 20 }, "weight_distance")).toBe("82.5 kg · 20 m");
+    expect(formatSet({ kg: null, reps: null, rir: null, seconds: null, metres: null }, "time")).toBe("—");
+    expect(clock(3723)).toBe("1:02:03");
+  });
+
+  it("reads typed numbers within the API's limits", () => {
+    expect(parseField("kg", "82.5")).toBe(82.5);
+    expect(parseField("kg", "82,25")).toBe(82.25);
+    expect(parseField("reps", "8.5")).toBeUndefined();
+    expect(parseField("rir", "11")).toBeUndefined();
+    expect(parseField("reps", "")).toBeNull();
+    expect(parseField("seconds", "130")).toBe(90);
+    expect(parseField("seconds", "45")).toBe(45);
+    expect(secondsDigits(90)).toBe("130");
+    expect(secondsDigits(45)).toBe("45");
+    expect(secondsDigits(3661)).toBe("10101");
+  });
+
+  it("types on the app keypad: one point for kg, none for reps, and nothing past a limit", () => {
+    expect(typeKey("82", ".", "kg")).toBe("82.");
+    expect(typeKey("82.", ".", "kg")).toBe("82.");
+    expect(typeKey("8", ".", "reps")).toBe("8");
+    expect(typeKey("", ".", "kg")).toBe("0.");
+    expect(typeKey("0", "5", "reps")).toBe("5");
+    expect(typeKey("10", "1", "rir")).toBe("10");
+    expect(typeKey("82.5", "⌫", "kg")).toBe("82.");
+  });
+});
+
+describe("exerciseSummary", () => {
+  const done = (kg: number | null, reps: number, type: "working" | "warmup" = "working") =>
+    ({ ...emptySet(type), kg, reps, doneAt: now.toISOString() });
+
+  it("says the weight once when it held, and leaves out warm-ups and undone sets", () => {
+    expect(exerciseSummary([done(40, 10, "warmup"), done(80, 10), done(80, 10), done(80, 9), emptySet()], "weight_reps")).toBe("80 kg × 10, 10, 9");
+  });
+
+  it("lists each set when the weight changed, and is empty when nothing is done", () => {
+    expect(exerciseSummary([done(80, 10), done(82.5, 8)], "weight_reps")).toBe("80 × 10, 82.5 × 8");
+    expect(exerciseSummary([done(null, 12)], "reps")).toBe("12 reps");
+    expect(exerciseSummary([emptySet()], "weight_reps")).toBe("");
+  });
+});
+
+describe("workoutStatus", () => {
+  it("shows the time it has run and the sets ticked off", () => {
+    const one = workout([exercise("e1", [{ ...emptySet(), doneAt: now.toISOString() }])]);
+    expect(workoutStatus(one, now.getTime())).toBe("30:00 · 1 of 1 set");
+    expect(workoutStatus(workout([exercise("e1")]), now.getTime() + 3_600_000)).toBe("1:30:00 · 0 of 2 sets");
+  });
+});

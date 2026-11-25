@@ -15,6 +15,7 @@ import SettingsSheet from "./components/SettingsSheet.vue";
 import NotificationsSheet from "./components/NotificationsSheet.vue";
 import NutrientSheet from "./components/NutrientSheet.vue";
 import ExerciseSheet from "./components/ExerciseSheet.vue";
+import WorkoutSheet from "./components/WorkoutSheet.vue";
 import OfflineSheet from "./components/OfflineSheet.vue";
 import AccuracySheet from "./components/AccuracySheet.vue";
 import CardPagesSheet from "./components/CardPagesSheet.vue";
@@ -32,7 +33,7 @@ import { followDeviceZone, loadProfile, profile, retryLoad } from "./state/profi
 import { refreshInbox } from "./state/inbox";
 import { loadToday, sendQueue, viewed } from "./state/log";
 import { startSync } from "./state/sync";
-import { closeCardPages, closeCopy, closeFanPages, closeFoodLayer, closeGroupSheet, closeRecipeSheet, closeSheet, endSelect, openFood, openWeight, ui } from "./ui";
+import { closeCardPages, closeCopy, closeExercise, closeFanPages, closeFoodLayer, closeGroupSheet, closeRecipeSheet, closeSheet, endSelect, openFood, openWeight, ui } from "./ui";
 import SignInView from "./views/SignInView.vue";
 
 const route = useRoute();
@@ -113,6 +114,7 @@ function onKey(event: KeyboardEvent) {
     typing: isTypingTarget(event.target),
     sheet: ui.sheet,
     cardPagesOver: ui.cardPagesOver,
+    exerciseOver: ui.exerciseOver,
     fanPagesOver: ui.fanPagesOver,
     selecting: ui.selecting,
     nav: showNav.value,
@@ -128,6 +130,7 @@ function onKey(event: KeyboardEvent) {
   else if (effect.action === "close-group") closeGroupSheet();
   else if (effect.action === "close-recipe") closeRecipeSheet();
   else if (effect.action === "close-card-pages") closeCardPages();
+  else if (effect.action === "close-exercise") closeExercise();
   else if (effect.action === "close-fan-pages") closeFanPages();
   else if (effect.action === "end-select") endSelect();
   else if (ui.sheet === "food" && closeFoodLayer()) return;
@@ -158,6 +161,8 @@ function onKey(event: KeyboardEvent) {
     <SettingsSheet />
     <NotificationsSheet />
     <NutrientSheet />
+    <WorkoutSheet />
+    <!-- After the workout: its how-to opens on top. -->
     <ExerciseSheet />
     <OfflineSheet />
     <AddChooser />

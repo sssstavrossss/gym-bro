@@ -1,5 +1,8 @@
 // The exercise library on the Train tab: body areas, search, and the words shown for the API's ids.
 
+/** What a set of the exercise records (README → Exercise library → Measure). */
+export type ExerciseMeasure = "weight_reps" | "reps" | "time" | "distance_time" | "weight_distance";
+
 /** One exercise as `GET /api/exercises` lists it. */
 export interface ExerciseItem {
   id: string;
@@ -9,7 +12,7 @@ export interface ExerciseItem {
   level: string;
   mechanic: string | null;
   force: string | null;
-  measure: string;
+  measure: ExerciseMeasure;
   primaryMuscles: string[];
   secondaryMuscles: string[];
   /** How many photos it has, numbered from 0. */
