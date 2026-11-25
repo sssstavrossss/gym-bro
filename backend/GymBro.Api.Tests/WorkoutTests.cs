@@ -206,10 +206,17 @@ public sealed class WorkoutEndpointTests(ApiFactory factory)
         var squat = found.GetProperty("barbell-squat");
         Assert.Equal(monday, squat.GetProperty("workoutId").GetGuid());
         Assert.Equal(2, squat.GetProperty("sets").GetArrayLength());
+        Assert.Equal(JsonValueKind.Null, squat.GetProperty("earlier").ValueKind);
         Assert.False(found.TryGetProperty("pullups", out _));
 
+        // The latest, and the one before it for load suggestions.
         using var latest = JsonDocument.Parse(await client.GetStringAsync("/api/workouts/previous?exercise=barbell-squat"));
-        Assert.Equal(wednesday, latest.RootElement.GetProperty("exercises").GetProperty("barbell-squat").GetProperty("workoutId").GetGuid());
+        var both = latest.RootElement.GetProperty("exercises").GetProperty("barbell-squat");
+        Assert.Equal(wednesday, both.GetProperty("workoutId").GetGuid());
+        Assert.Equal(1, both.GetProperty("sets").GetArrayLength());
+        Assert.Equal(monday, both.GetProperty("earlier").GetProperty("workoutId").GetGuid());
+        Assert.Equal(Today.AddDays(-2), DateOnly.Parse(both.GetProperty("earlier").GetProperty("date").GetString()!));
+        Assert.Equal(2, both.GetProperty("earlier").GetProperty("sets").GetArrayLength());
     }
 
     [Fact]

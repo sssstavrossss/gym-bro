@@ -1439,6 +1439,8 @@ export interface PreviousSets {
   workoutId: string;
   date: string;
   sets: SavedSet[];
+  /** The workout before that one with the exercise (load suggestions). Missing from copies kept before it was added. */
+  earlier?: { workoutId: string; date: string; sets: SavedSet[] } | null;
 }
 
 /** Saves a whole workout under the app's own id. Sent again, it replaces the first copy. */

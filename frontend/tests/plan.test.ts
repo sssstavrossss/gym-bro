@@ -136,7 +136,10 @@ describe("up next", () => {
     expect([1, 2, 3, 4, 5, 6].map((week) => weekRir(week, 6, true))).toEqual([4, 3, 2, 2, 1, 4]);
     const easing = { ...plan, easeIn: true };
     expect(upNext(easing)!.rir).toBe(4);
-    expect(upNext({ ...easing, lastPosition: 23 })).toMatchObject({ block: 2, week: 1, rir: 3 });
+    expect(upNext({ ...easing, lastPosition: 23 })).toMatchObject({ block: 2, week: 1, rir: 3, easing: false });
+    // Half load steps in the first two weeks only.
+    expect([2, 3, 7].map((lastPosition) => upNext({ ...easing, lastPosition })!.easing)).toEqual([true, true, false]);
+    expect(upNext(plan)!.easing).toBe(false);
   });
 
   it("halves the sets in a lighter week", () => {
@@ -159,7 +162,7 @@ describe("up next", () => {
 
   it("gives each exercise its target", () => {
     const target = targetOf({ exerciseId: "a", sets: 3, repMin: 6, repMax: 10, seconds: null, restSeconds: 120 }, { rir: 2 });
-    expect(target).toEqual({ repMin: 6, repMax: 10, seconds: null, rir: 2, restSeconds: 120 });
+    expect(target).toEqual({ repMin: 6, repMax: 10, seconds: null, rir: 2, restSeconds: 120, easing: false });
     expect(targetLine(target)).toBe("6–10 reps · 2 in reserve");
     expect(targetLine({ ...target, repMin: null, repMax: null, seconds: 45 })).toBe("45 s hold");
   });

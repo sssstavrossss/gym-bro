@@ -3,6 +3,7 @@
 import { parse } from "./dates";
 import type { ExerciseItem, ExerciseMeasure } from "./exercises";
 import type { PlanTarget } from "./plan";
+import type { LoadSuggestion } from "./progression";
 
 export type SetType = "warmup" | "working" | "drop";
 export type SetField = "kg" | "reps" | "rir" | "seconds" | "metres";
@@ -96,17 +97,27 @@ export function emptySet(type: SetType = "working"): DraftSet {
 
 /**
  * Grey hints for a set that hasn't been typed in: this workout's set before it when that one is done,
- * else the same set last time, else last time's final set. Ticking a set takes its hints as values.
+ * else the same set last time, else last time's final set, with the suggested weight and reps on working sets.
+ * Ticking a set takes its hints as values.
  */
-export function setHints(exercise: DraftExercise, index: number, lastTime: readonly SavedSet[]): WorkoutSetValues {
+export function setHints(
+  exercise: DraftExercise,
+  index: number,
+  lastTime: readonly SavedSet[],
+  suggestion?: Pick<LoadSuggestion, "kg" | "reps"> | null,
+): WorkoutSetValues {
   const before = exercise.sets[index - 1];
-  const source: WorkoutSetValues | undefined = before?.doneAt
+  // A warm-up done before it doesn't set a working set's weight.
+  const fromBefore = !!before?.doneAt && (before.type !== "warmup" || exercise.sets[index]?.type === "warmup");
+  const source: WorkoutSetValues | undefined = fromBefore
     ? before
     : lastTime.filter((set) => set.type !== "warmup")[index - warmupsBefore(exercise, index)] ?? lastTime[lastTime.length - 1];
+  // A working set not following one done today takes the suggested weight, and the reps to aim for.
+  const suggested = !fromBefore && suggestion && exercise.sets[index]?.type === "working" ? suggestion : null;
   // A plan's target sets this week's reps in reserve, and a hold's time until there is a last time.
   return {
-    kg: source?.kg ?? null,
-    reps: source?.reps ?? null,
+    kg: suggested?.kg ?? source?.kg ?? null,
+    reps: suggested?.reps ?? source?.reps ?? null,
     rir: exercise.target?.rir ?? source?.rir ?? null,
     seconds: source?.seconds ?? exercise.target?.seconds ?? null,
     metres: source?.metres ?? null,

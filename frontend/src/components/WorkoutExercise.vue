@@ -16,7 +16,8 @@ import {
   type SetField,
 } from "../lib/workout";
 import { targetLine } from "../lib/plan";
-import { addSet, exerciseItem, removeSet, setValue, toggleDone, workout } from "../state/workout";
+import { FIRST_TIME_LINE, suggestionLine } from "../lib/progression";
+import { addSet, exerciseItem, exerciseLoadTarget, exerciseSuggestion, removeSet, setValue, toggleDone, workout } from "../state/workout";
 import { openExercise } from "../ui";
 
 /** The cell being typed in. The workout sheet owns it, so its keypad can type into any card. */
@@ -52,7 +53,18 @@ const folded = computed(() => {
 const subtitle = computed(() => {
   const target = props.exercise.target ? targetLine(props.exercise.target) : "";
   if (props.past) return target;
-  return [target, last.value ? `Last time ${shortDay(last.value.date)}` : "First time"].filter(Boolean).join(" · ");
+  const first = advice.value === FIRST_TIME_LINE ? "" : "First time";
+  return [target, last.value ? `Last time ${shortDay(last.value.date)}` : first].filter(Boolean).join(" · ");
+});
+const loadTarget = computed(() => exerciseLoadTarget(props.exercise));
+const suggestion = computed(() => (props.past ? null : exerciseSuggestion(props.exercise)));
+/** What to lift: a suggestion from last time, or how to pick a weight the first time. */
+const advice = computed(() => {
+  if (props.past || !loadTarget.value || !item.value) return "";
+  if (suggestion.value) return suggestionLine(suggestion.value, loadTarget.value);
+  // Shown once the last workouts are known, so it doesn't flash before "Last time".
+  const known = props.exercise.exerciseId in workout.previous;
+  return known && !last.value && item.value.equipment !== "body only" ? FIRST_TIME_LINE : "";
 });
 const columns = computed(() => `var(--set-n) var(--set-lt) ${fields.value.map((field) => `var(--set-${field})`).join(" ")} var(--control-hit)`);
 
@@ -70,7 +82,7 @@ const rows = computed(() => {
       index,
       label: labels.value[index],
       lastTime: set.type === "warmup" ? "" : before ? formatSet(before, measure.value) : "—",
-      hints: setHints(props.exercise, index, lastSets.value),
+      hints: setHints(props.exercise, index, lastSets.value, suggestion.value),
     };
   });
 });
@@ -118,6 +130,7 @@ function onInput(event: Event, index: number, field: SetField) {
       <span class="col grow g2">
         <h3 class="t-bodys m0">{{ name }}</h3>
         <span v-if="subtitle" class="t-capn c2">{{ subtitle }}</span>
+        <span v-if="advice" class="t-capn c2" :data-load-suggestion="suggestion?.kind ?? 'first'">{{ advice }}</span>
       </span>
       <button type="button" class="cbtn" :aria-label="`How to do ${name}`" @click="openExercise(exercise.exerciseId)"><Icon name="info" :size="18" /></button>
     </div>

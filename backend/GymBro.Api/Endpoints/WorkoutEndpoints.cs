@@ -50,7 +50,11 @@ public sealed record WorkoutSummary(
     decimal VolumeKg);
 
 /// <summary>The last workout that had an exercise, and that exercise's sets in it.</summary>
-public sealed record PreviousSets(Guid WorkoutId, DateOnly Date, IReadOnlyList<WorkoutSetView> Sets);
+/// <summary>An exercise's sets in one earlier workout.</summary>
+public sealed record WorkoutSetsOn(Guid WorkoutId, DateOnly Date, IReadOnlyList<WorkoutSetView> Sets);
+
+/// <summary>The latest done workout with an exercise, and the one before it (load suggestions need two).</summary>
+public sealed record PreviousSets(Guid WorkoutId, DateOnly Date, IReadOnlyList<WorkoutSetView> Sets, WorkoutSetsOn? Earlier);
 
 /// <summary>
 /// Workouts (docs/training.md, phase 2). The app makes each workout's id and sends the whole workout with
@@ -228,19 +232,24 @@ public static class WorkoutEndpoints
                 .Where(set => set.UserId == userId && set.ExerciseId == id && set.SessionId != except)
                 .Join(db.WorkoutSessions.Where(row => row.UserId == userId && row.Status == WorkoutStatuses.Done),
                     set => set.SessionId, row => row.Id, (set, row) => row)
-                .OrderByDescending(row => row.LocalDate).ThenByDescending(row => row.StartedAt ?? row.CreatedAt)
-                .Select(row => new { row.Id, row.LocalDate })
-                .FirstOrDefaultAsync(cancellationToken);
-            if (latest is null)
+                .Select(row => new { row.Id, row.LocalDate, Started = row.StartedAt ?? row.CreatedAt })
+                .Distinct()
+                .OrderByDescending(row => row.LocalDate).ThenByDescending(row => row.Started)
+                .Take(2)
+                .ToListAsync(cancellationToken);
+            if (latest.Count == 0)
             {
                 continue;
             }
 
+            var sessionIds = latest.Select(row => row.Id).ToList();
             var sets = await db.WorkoutSets.AsNoTracking()
-                .Where(set => set.SessionId == latest.Id && set.ExerciseId == id)
+                .Where(set => set.UserId == userId && sessionIds.Contains(set.SessionId) && set.ExerciseId == id)
                 .OrderBy(set => set.Position)
                 .ToListAsync(cancellationToken);
-            found[id] = new PreviousSets(latest.Id, latest.LocalDate, sets.Select(ToView).ToList());
+            List<WorkoutSetView> On(Guid session) => sets.Where(set => set.SessionId == session).Select(ToView).ToList();
+            var earlier = latest.Count > 1 ? new WorkoutSetsOn(latest[1].Id, latest[1].LocalDate, On(latest[1].Id)) : null;
+            found[id] = new PreviousSets(latest[0].Id, latest[0].LocalDate, On(latest[0].Id), earlier);
         }
 
         return Results.Ok(new { exercises = found });
