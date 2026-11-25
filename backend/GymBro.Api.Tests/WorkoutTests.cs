@@ -262,6 +262,59 @@ public sealed class WorkoutEndpointTests(ApiFactory factory)
     }
 
     [Fact]
+    public async Task Strength_gives_each_lifts_estimated_max_per_day_in_the_range()
+    {
+        var client = factory.AsUser(TestData.NewUser("workout-strength"));
+        // Two days of squats and one of bench in the last 30 days, one squat day before it, and a skipped workout.
+        await client.PutAsJsonAsync($"/api/workouts/{Guid.NewGuid()}", Workout(Today.AddDays(-40), null, Set("barbell-squat", 60, 5)));
+        await client.PutAsJsonAsync($"/api/workouts/{Guid.NewGuid()}", Workout(Today.AddDays(-10), null,
+            Set("barbell-squat", 40, 10, type: "warmup"), Set("barbell-squat", 100, 5), Set("barbell-squat", 90, 8), Set("barbell-bench-press-medium-grip", 70, 8)));
+        await client.PutAsJsonAsync($"/api/workouts/{Guid.NewGuid()}", Workout(Today.AddDays(-3), null, Set("barbell-squat", 105, 5), Set("barbell-squat", 105, 4)));
+        await client.PutAsJsonAsync($"/api/workouts/{Guid.NewGuid()}", new { date = Today, timeZone = "UTC", status = "skipped", sets = Array.Empty<object>() });
+
+        using var json = JsonDocument.Parse(await client.GetStringAsync("/api/workouts/strength?range=30d"));
+        var root = json.RootElement;
+        Assert.Equal(Today.AddDays(-29), DateOnly.Parse(root.GetProperty("from").GetString()!));
+        Assert.Equal(2, root.GetProperty("workouts").GetInt32());
+        Assert.Equal(5, root.GetProperty("sets").GetInt32());
+        var lifts = root.GetProperty("lifts");
+        Assert.Equal(2, lifts.GetArrayLength());
+        var squat = lifts[0];
+        Assert.Equal("barbell-squat", squat.GetProperty("exerciseId").GetString());
+        // 100 × 5 and 105 × 5 at 2 in reserve: 123.33 then 129.5.
+        Assert.Equal(129.5m, squat.GetProperty("current").GetDecimal());
+        Assert.Equal(6.17m, squat.GetProperty("change").GetDecimal());
+        Assert.Equal(2, squat.GetProperty("points").GetArrayLength());
+        Assert.Equal(100m, squat.GetProperty("points")[0].GetProperty("kg").GetDecimal());
+        Assert.Equal(JsonValueKind.Null, lifts[1].GetProperty("change").ValueKind);
+
+        using var all = JsonDocument.Parse(await client.GetStringAsync("/api/workouts/strength?range=all"));
+        Assert.Equal(Today.AddDays(-40), DateOnly.Parse(all.RootElement.GetProperty("from").GetString()!));
+        Assert.Equal(3, all.RootElement.GetProperty("lifts")[0].GetProperty("points").GetArrayLength());
+        Assert.Equal(HttpStatusCode.BadRequest, (await client.GetAsync("/api/workouts/strength?range=2y")).StatusCode);
+    }
+
+    [Fact]
+    public void Strength_keeps_the_best_set_each_day_and_orders_lifts_by_how_often_they_were_done()
+    {
+        var day = new DateOnly(2026, 11, 2);
+        var lifts = StrengthProgress.Lifts([
+            new ScoredSet(day, "row", "working", 80, 8, 2),
+            new ScoredSet(day, "row", "working", 85, 5, 0),
+            new ScoredSet(day, "curl", "working", 20, 25, 0),
+            new ScoredSet(day.AddDays(2), "row", "drop", 120, 8, 0),
+            new ScoredSet(day.AddDays(2), "press", "working", 50, 8, 2),
+            new ScoredSet(day.AddDays(4), "press", "working", 47.5m, 8, 2),
+        ]);
+        Assert.Equal(["press", "row"], lifts.Select(lift => lift.ExerciseId));
+        Assert.Equal(66.67m, lifts[0].Best);
+        Assert.Equal(63.33m, lifts[0].Current);
+        Assert.Equal(-3.34m, lifts[0].Change);
+        var row = Assert.Single(lifts[1].Points);
+        Assert.Equal((80m, 8), (row.Kg, row.Reps));
+    }
+
+    [Fact]
     public async Task Delete_removes_the_workout_and_its_sets_and_can_be_sent_twice()
     {
         var client = factory.AsUser(TestData.NewUser("workout-delete"));

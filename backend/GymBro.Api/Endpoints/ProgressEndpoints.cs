@@ -127,7 +127,8 @@ public static class ProgressEndpoints
             burnNow is null ? null : new ProgressBurn(burnNow.Kcal, burnNow.BmrKcal, burnNow.SdKcal, burnNow.Measured, burnNow.SetOn)));
     }
 
-    private static async Task<DateOnly> TodayAsync(
+    /// <summary>The caller's today in their saved time zone, else UTC.</summary>
+    internal static async Task<DateOnly> TodayAsync(
         string userId,
         AppDbContext db,
         TimeProvider clock,
