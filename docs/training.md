@@ -2,7 +2,7 @@
 
 Gym Bro adds training next to nutrition. This file holds the decisions, the rules and the data model. It is updated as each part is agreed or ships. The README describes behaviour once it ships, and DESIGN.md holds the UI rules.
 
-Status: **phase 6, next**.
+Status: **phase 6, building**.
 
 Shipped so far:
 - The exercise library API: `GET /api/exercises` and `/api/exercises/{id}`, with 884 exercises (free-exercise-db plus our 8 stations), each with a `measure`. See *Exercise library* in the README.
@@ -43,6 +43,9 @@ Phase 4 is done. Phase 5 (swaps, warm-ups, plate maths, build or edit your own p
 - Build your own plan: a Your own split with one empty workout a day, filled and renamed in the plan workout editor; Add exercises instead of Start while one is empty; changing days keeps what you built and says what it drops. See *Build your own* in the README.
 
 Phase 5 is done. Next: phase 6, other kinds of training.
+
+Phase 6 (circuits, EMOM, AMRAP, for time, Hyrox and kettlebell plans, cardio, "describe a workout"), shipped so far:
+- Supersets and circuits in a workout: join an exercise to the one before; they open together and rest comes after each round. Saved as a shared `block`, no migration. See *Supersets and circuits* in the README.
 
 ## Decisions (agreed 2026-11-25)
 

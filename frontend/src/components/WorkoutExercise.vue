@@ -34,8 +34,9 @@ export interface CellEdit {
 
 // One exercise in the workout: folded to a line, or open with its set table (docs/training.md, phase 2).
 /** `past`: a workout logged or edited afterwards, so "last time" (the newest workout) doesn't apply. */
-const props = defineProps<{ exercise: DraftExercise; open: boolean; edit: CellEdit; past?: boolean }>();
-const emit = defineEmits<{ expand: []; remove: []; swap: [] }>();
+/** `prevName`: the exercise before this one, which the superset button joins it to; empty for the first. */
+const props = defineProps<{ exercise: DraftExercise; open: boolean; edit: CellEdit; past?: boolean; prevName?: string }>();
+const emit = defineEmits<{ expand: []; remove: []; swap: []; superset: [] }>();
 
 const item = computed(() => exerciseItem(props.exercise.exerciseId));
 const measure = computed(() => item.value?.measure ?? "weight_reps");
@@ -157,6 +158,10 @@ function onInput(event: Event, index: number, field: SetField) {
         <span v-if="advice" class="t-capn c2" :data-load-suggestion="suggestion?.kind ?? 'first'">{{ advice }}</span>
         <span v-if="newBest" class="t-capn best" data-new-best><Icon name="check" :size="12" :sw="3" /><span>New best: est. max {{ maxText(newBest.estimatedMax) }}</span></span>
       </span>
+      <button
+        v-if="prevName" type="button" class="cbtn" :class="{ filled: exercise.superset }" :aria-pressed="!!exercise.superset"
+        :aria-label="`Superset with ${prevName}`" data-superset-prev @click="emit('superset')"
+      ><Icon name="link" :size="18" /></button>
       <button type="button" class="cbtn" :aria-label="`How to do ${name}`" @click="openExercise(exercise.exerciseId)"><Icon name="info" :size="18" /></button>
     </div>
 

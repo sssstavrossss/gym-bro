@@ -219,6 +219,8 @@ html[data-accent]:not([data-accent="mono"]) {
   --control-s-sm: 24px;
   --control-chip: 30px;
   --control-hit: 44px;
+  /* The line down the left of a superset's exercises. */
+  --line-rail: 2px;
   --control-btn: 44px;
   /* The tab bar's + and the fan's buttons around it. */
   --control-fab: 56px;
