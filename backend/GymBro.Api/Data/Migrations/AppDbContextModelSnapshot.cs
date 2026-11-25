@@ -1298,6 +1298,10 @@ namespace GymBro.Api.Data.Migrations
                         .HasColumnType("text[]")
                         .HasColumnName("macros_hidden");
 
+                    b.PrimitiveCollection<string[]>("MacrosOrder")
+                        .HasColumnType("text[]")
+                        .HasColumnName("macros_order");
+
                     b.Property<bool>("NotifyRecalculate")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")
@@ -1307,6 +1311,10 @@ namespace GymBro.Api.Data.Migrations
                     b.PrimitiveCollection<string[]>("ProgressHidden")
                         .HasColumnType("text[]")
                         .HasColumnName("progress_hidden");
+
+                    b.PrimitiveCollection<string[]>("ProgressOrder")
+                        .HasColumnType("text[]")
+                        .HasColumnName("progress_order");
 
                     b.Property<decimal>("ProteinGramsPerKg")
                         .HasPrecision(3, 1)

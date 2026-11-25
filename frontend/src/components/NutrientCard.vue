@@ -3,17 +3,18 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue"
 import MacroRows from "./MacroRows.vue";
 import NutrientPanelSet from "./NutrientPanelSet.vue";
 import SwipePanels from "./SwipePanels.vue";
-import { followPage } from "../lib/cardPages";
+import { followPage, MACRO_PAGES, visiblePages } from "../lib/cardPages";
 import type { MacroAmounts, MacroGoal } from "../lib/macros";
 import { fatLimitsOf } from "../lib/nutrientCards";
 import { panelsForSize, type NutrientMap, type NutrientSource } from "../lib/nutrients";
-import { cardPages } from "../state/cardPages";
+import { cardPages, pageOrder } from "../state/cardPages";
 import { nutrientPerson, profile } from "../state/profile";
 import { openCardPages } from "../ui";
 
 /**
- * The macros swipe card: a Macros page, then the nutrient panels. Home, the amount screens and
- * the recipe editor all show it. The pages it shows are one choice, made from the cog on any of them.
+ * The macros swipe card: a Macros page and the nutrient panels, in the order picked. Home, the amount
+ * screens and the recipe editor all show it. The pages it shows and their order are one choice, made
+ * from the cog on any of them. It opens on the first page.
  */
 const props = withDefaults(defineProps<{
   /** The Macros page's title: "Macros", "Today after adding", "Per portion". */
@@ -48,12 +49,23 @@ onMounted(() => {
 });
 onBeforeUnmount(() => window.removeEventListener("resize", readSize));
 
-const panels = computed(() => panelsForSize(large.value, cardPages.macros));
-/** Page ids in swipe order. At the largest text a panel can span pages ("vitamins-0", "vitamins-1"). */
-const pageIds = computed(() => ["macros", ...panels.value.map((panel) => panel.id)]);
+/** The card's pages in the picked order, less hidden ones: "macros" and panel ids. */
+const order = computed(() => visiblePages(MACRO_PAGES, cardPages.macros, pageOrder.macros));
+const panels = computed(() => panelsForSize(large.value, cardPages.macros, order.value.filter((id) => id !== "macros")));
+/** The panels on either side of the Macros page. At the largest text a panel can span pages ("vitamins-0"). */
+const sides = computed(() => {
+  const at = order.value.indexOf("macros");
+  const placed = (id: string) => order.value.indexOf(id.replace(/-\d+$/, ""));
+  return {
+    before: panels.value.filter((panel) => placed(panel.id) < at),
+    after: panels.value.filter((panel) => placed(panel.id) > at),
+  };
+});
+/** Page ids in swipe order. */
+const pageIds = computed(() => [...sides.value.before.map((panel) => panel.id), "macros", ...sides.value.after.map((panel) => panel.id)]);
 const swipe = ref<InstanceType<typeof SwipePanels> | null>(null);
-const shownPage = ref("macros");
-// Hiding or showing a panel keeps the card on the same page, or sends it to Macros if that one went.
+const shownPage = ref(pageIds.value[0] ?? "macros");
+// Hiding, showing or moving a panel keeps the card on the same page, or sends it to the first if that one went.
 watch(pageIds, async (next) => {
   const target = followPage(shownPage.value, next);
   await nextTick();
@@ -61,6 +73,10 @@ watch(pageIds, async (next) => {
 });
 const person = computed(() => nutrientPerson(props.goal?.kcal ?? null));
 const fatLimits = computed(() => fatLimitsOf(profile.saved?.fatLimits));
+const panelProps = computed(() => ({
+  values: props.values, entries: props.entries, carbs: props.carbs, person: person.value, fatLimits: fatLimits.value,
+  large: large.value, week: props.week, portion: props.portion, per100: props.per100,
+}));
 </script>
 
 <template>
@@ -74,7 +90,8 @@ const fatLimits = computed(() => fatLimitsOf(profile.saved?.fatLimits));
     @change="shownPage = pageIds[$event] ?? 'macros'"
     @settings="openCardPages('macros')"
   >
+    <NutrientPanelSet v-if="sides.before.length" :panels="sides.before" v-bind="panelProps" />
     <MacroRows :title="title" :goal="goal" :eaten="eaten" :adding="adding" :tags="tags" />
-    <NutrientPanelSet :panels="panels" :values="values" :entries="entries" :carbs="carbs" :person="person" :fat-limits="fatLimits" :large="large" :week="week" :portion="portion" :per100="per100" />
+    <NutrientPanelSet :panels="sides.after" v-bind="panelProps" />
   </SwipePanels>
 </template>

@@ -32,6 +32,11 @@ async function setup(page: Page, startPage: number) {
     sessionStorage.setItem("gymbro-e2e-kept", "1");
     localStorage.setItem("gymbro-home-progress-page", String(start));
   }, { id: oid, start: startPage });
+  return oid;
+}
+
+async function savedProfile(page: Page, oid: string) {
+  return (await (await page.request.get("/api/profile", { headers: headers(oid) })).json()).profile;
 }
 
 test("the Progress cog hides pages, keeps the page you're on, and remembers the choice", async ({ page }) => {
@@ -128,4 +133,81 @@ test("the Macros card cog hides nutrient panels, and Macros always stays", async
   await expect(dots).toHaveCount(0);
   await expect(card.getByRole("button", { name: "Choose macros card pages" })).toBeVisible();
   await expect(card.getByText("Calories").first()).toBeVisible();
+});
+
+test("pages move by keyboard and by drag, off pages keep their place, and the order follows the account", async ({ page }) => {
+  await page.goto("/");
+  const oid = await setup(page, 0);
+  await page.goto("/today");
+
+  const progress = page.getByRole("region", { name: "Progress", exact: true });
+  await progress.getByRole("button", { name: "Choose progress pages" }).click();
+  const sheet = page.getByRole("dialog", { name: "Progress pages" });
+  const rows = sheet.locator("[data-page-row]");
+  const order = () => rows.evaluateAll((all) => all.map((row) => row.getAttribute("data-page-row")));
+  await expect(sheet.locator("[data-reset-order]")).toHaveCount(0);
+
+  // ↑ on Burn's handle walks it up to second; focus stays on the handle and the move is read out.
+  const burnGrip = sheet.locator('[data-page-row="burn"] [data-page-grip]');
+  await burnGrip.focus();
+  for (let i = 0; i < 7; i += 1) await page.keyboard.press("ArrowUp");
+  await expect(burnGrip).toBeFocused();
+  await expect(burnGrip).toHaveAttribute("aria-label", "Move Burn, 2 of 9");
+  await expect(sheet.locator("[aria-live]")).toHaveText("Burn, 2 of 9");
+  expect(await order()).toEqual(["weight", "burn", "kcal", "protein", "fat", "carbs", "fiber", "saturatedFat", "sodium"]);
+
+  // Weight moves too: drag its handle below Burn. Both boxes are read in one frame, once the sheet is still.
+  await sheet.locator('[data-page-row="weight"]').scrollIntoViewIfNeeded();
+  await page.waitForTimeout(300);
+  const at = await sheet.evaluate((el) => {
+    const grip = el.querySelector('[data-page-row="weight"] [data-page-grip]')!.getBoundingClientRect();
+    const burn = el.querySelector('[data-page-row="burn"]')!.getBoundingClientRect();
+    return { x: grip.x + grip.width / 2, y: grip.y + grip.height / 2, to: burn.y + burn.height * 0.9 };
+  });
+  await page.mouse.move(at.x, at.y);
+  await page.mouse.down();
+  await page.mouse.move(at.x, at.to, { steps: 10 });
+  await page.mouse.up();
+  await expect.poll(order).toEqual(["burn", "weight", "kcal", "protein", "fat", "carbs", "fiber", "saturatedFat", "sodium"]);
+
+  // Switched off, Calories keeps its place, dimmed.
+  await sheet.getByRole("switch", { name: /^Calories/ }).click();
+  await expect(sheet.locator('[data-page-row="kcal"]')).toHaveClass(/off/);
+  expect(await order()).toEqual(["burn", "weight", "kcal", "protein", "fat", "carbs", "fiber", "saturatedFat", "sodium"]);
+  await sheet.getByRole("button", { name: "Close" }).click();
+
+  const pages = () => progress.locator(".ppage").evaluateAll((all) => all.map((item) => item.getAttribute("data-page")));
+  await expect.poll(pages).toEqual(["burn", "weight", "protein", "fat", "carbs", "fiber", "saturatedFat", "sodium"]);
+  await expect.poll(async () => (await savedProfile(page, oid)).progressOrder)
+    .toEqual(["burn", "weight", "kcal", "protein", "fat", "carbs", "fiber", "saturatedFat", "sodium"]);
+
+  await page.reload();
+  await expect.poll(pages).toEqual(["burn", "weight", "protein", "fat", "carbs", "fiber", "saturatedFat", "sodium"]);
+
+  // Reset order puts the default back and leaves Calories off.
+  await progress.getByRole("button", { name: "Choose progress pages" }).click();
+  await sheet.locator("[data-reset-order]").click();
+  await expect(sheet.locator("[data-reset-order]")).toHaveCount(0);
+  expect(await order()).toEqual(["weight", "kcal", "protein", "fat", "carbs", "fiber", "saturatedFat", "sodium", "burn"]);
+  await expect(sheet.getByRole("switch", { name: /^Calories/ })).toHaveAttribute("aria-checked", "false");
+  await expect.poll(async () => (await savedProfile(page, oid)).progressOrder).toEqual([]);
+});
+
+test("a panel moved before Macros is where the Macros card opens", async ({ page }) => {
+  await page.goto("/");
+  await setup(page, 0);
+  await page.goto("/today");
+
+  const card = page.locator("[data-nutrient-card]");
+  await card.getByRole("button", { name: "Choose macros card pages" }).click();
+  const sheet = page.getByRole("dialog", { name: "Macros card pages" });
+  await sheet.locator('[data-page-row="fats"] [data-page-grip]').focus();
+  await page.keyboard.press("ArrowUp");
+  await expect(sheet.locator('[data-page-row="fats"] [data-page-grip]')).toHaveAttribute("aria-label", "Move Fats, 1 of 5");
+  await sheet.getByRole("button", { name: "Close" }).click();
+
+  await page.reload();
+  await expect(card.getByRole("button", { name: "Panel 1 of 5" })).toHaveAttribute("aria-current", "true");
+  await card.getByRole("button", { name: "Panel 2 of 5" }).click();
+  await expect(card.getByText("Calories").first()).toBeInViewport();
 });

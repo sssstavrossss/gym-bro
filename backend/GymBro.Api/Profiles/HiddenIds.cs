@@ -12,6 +12,9 @@ public static partial class HiddenIds
 
     public const string Invalid = "Hidden cards are a list of up to 32 short ids.";
 
+    /// <summary>A card's page order is the same shape: the app's ids, first page first.</summary>
+    public const string OrderInvalid = "A page order is a list of up to 32 short ids.";
+
     /// <summary>The list in its order without repeats, or null when it isn't a list of short ids.</summary>
     public static string[]? Clean(IReadOnlyList<string?> ids)
     {

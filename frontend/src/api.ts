@@ -78,6 +78,9 @@ export interface ProfileResponse {
   homeHidden?: string[] | null;
   macrosHidden?: string[] | null;
   progressHidden?: string[] | null;
+  /** Each card's pages in swipe order, hidden ones included. Null until the app first saves one; absent from an older server. */
+  macrosOrder?: string[] | null;
+  progressOrder?: string[] | null;
 }
 
 export type TrendState = "normal" | "low_accuracy" | "fresh_start";
@@ -503,6 +506,8 @@ export interface SettingsBody {
   homeHidden?: string[];
   macrosHidden?: string[];
   progressHidden?: string[];
+  macrosOrder?: string[];
+  progressOrder?: string[];
 }
 
 export interface SettingsResponse {
@@ -518,6 +523,8 @@ export interface SettingsResponse {
   homeHidden: string[] | null;
   macrosHidden: string[] | null;
   progressHidden: string[] | null;
+  macrosOrder?: string[] | null;
+  progressOrder?: string[] | null;
 }
 
 /** Display preferences. Saving one never changes the targets or adds history. */

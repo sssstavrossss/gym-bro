@@ -88,6 +88,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         profile.Property(p => p.HomeHidden).HasColumnName("home_hidden").HasColumnType("text[]");
         profile.Property(p => p.MacrosHidden).HasColumnName("macros_hidden").HasColumnType("text[]");
         profile.Property(p => p.ProgressHidden).HasColumnName("progress_hidden").HasColumnType("text[]");
+        profile.Property(p => p.MacrosOrder).HasColumnName("macros_order").HasColumnType("text[]");
+        profile.Property(p => p.ProgressOrder).HasColumnName("progress_order").HasColumnType("text[]");
         profile.Property(p => p.CreatedAt).HasColumnName("created_at");
         profile.Property(p => p.UpdatedAt).HasColumnName("updated_at");
         profile.HasOne<AppUser>().WithMany().HasForeignKey(p => p.UserId).OnDelete(DeleteBehavior.Cascade);

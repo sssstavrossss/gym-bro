@@ -379,11 +379,30 @@ public static class ProfileEndpoints
             apply(clean);
         }
 
+        foreach (var (ids, apply) in new (string?[]?, Action<string[]>)[]
+        {
+            (request.MacrosOrder, clean => profile.MacrosOrder = clean),
+            (request.ProgressOrder, clean => profile.ProgressOrder = clean),
+        })
+        {
+            if (ids is null)
+            {
+                continue;
+            }
+
+            if (HiddenIds.Clean(ids) is not { } clean)
+            {
+                return ApiResults.Error(HiddenIds.OrderInvalid);
+            }
+
+            apply(clean);
+        }
+
         profile.UpdatedAt = clock.GetUtcNow();
         await db.SaveChangesAsync(cancellationToken);
         return Results.Ok(new SettingsResponse(
             profile.TimeZone, profile.TimeZoneFollowsDevice, FoodCountries.Home(profile), profile.FoodCountryFollowsZone, profile.WeightUnit, profile.HeightUnit, profile.FoodUnit, profile.FatLimits, profile.SodiumLimit,
-            profile.HomeHidden, profile.MacrosHidden, profile.ProgressHidden));
+            profile.HomeHidden, profile.MacrosHidden, profile.ProgressHidden, profile.MacrosOrder, profile.ProgressOrder));
     }
 
     /// <summary>
@@ -495,7 +514,9 @@ public static class ProfileEndpoints
             profile.SodiumLimit,
             profile.HomeHidden,
             profile.MacrosHidden,
-            profile.ProgressHidden);
+            profile.ProgressHidden,
+            profile.MacrosOrder,
+            profile.ProgressOrder);
 
     public static WeightResponse ToWeight(WeightSnapshot weight) => new(
         weight.AsOf,
@@ -561,19 +582,22 @@ public sealed record ProfileResponse(
     string SodiumLimit,
     string[]? HomeHidden,
     string[]? MacrosHidden,
-    string[]? ProgressHidden);
+    string[]? ProgressHidden,
+    string[]? MacrosOrder = null,
+    string[]? ProgressOrder = null);
 
 /// <summary>
 /// Display preferences. None of them changes the targets, so saving one writes no target history.
 /// <see cref="FoodCountry"/> is an ISO code picked by hand; send <see cref="FoodCountryFollowsZone"/> false with it.
 /// </summary>
 public sealed record SettingsRequest(string? TimeZone, bool? TimeZoneFollowsDevice, string? WeightUnit = null, string? HeightUnit = null, string? FatLimits = null, string? FoodUnit = null, string? SodiumLimit = null,
-    string?[]? HomeHidden = null, string?[]? MacrosHidden = null, string?[]? ProgressHidden = null, string? FoodCountry = null, bool? FoodCountryFollowsZone = null);
+    string?[]? HomeHidden = null, string?[]? MacrosHidden = null, string?[]? ProgressHidden = null, string? FoodCountry = null, bool? FoodCountryFollowsZone = null,
+    string?[]? MacrosOrder = null, string?[]? ProgressOrder = null);
 
-/// <summary>The hidden lists are null until the app first saves them. <see cref="FoodCountry"/> is the one in use.</summary>
+/// <summary>The hidden lists and page orders are null until the app first saves them. <see cref="FoodCountry"/> is the one in use.</summary>
 public sealed record SettingsResponse(
     string TimeZone, bool TimeZoneFollowsDevice, string FoodCountry, bool FoodCountryFollowsZone, string WeightUnit, string HeightUnit, string FoodUnit, string FatLimits, string SodiumLimit,
-    string[]? HomeHidden, string[]? MacrosHidden, string[]? ProgressHidden);
+    string[]? HomeHidden, string[]? MacrosHidden, string[]? ProgressHidden, string[]? MacrosOrder = null, string[]? ProgressOrder = null);
 
 public sealed record WeightResponse(
     DateOnly AsOf,

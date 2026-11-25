@@ -211,6 +211,36 @@ public sealed class ProfileSettingsTests(ApiFactory factory)
     }
 
     [Fact]
+    public async Task Page_order_follows_the_account_and_stays_null_until_first_saved()
+    {
+        factory.Clock.UtcNow = new DateTimeOffset(2026, 11, 16, 8, 0, 0, TimeSpan.Zero);
+        var user = TestData.NewUser("settings-order");
+        using var client = factory.AsUser(user);
+        await TestData.PutWeighIn(client, "2026-11-16", """{"kg":83.6,"timeZone":"UTC"}""");
+        var saved = await TestData.PutProfile(client, TestData.Profile());
+        Assert.Equal(JsonValueKind.Null, saved.GetProperty("profile").GetProperty("progressOrder").ValueKind);
+        Assert.Equal(JsonValueKind.Null, saved.GetProperty("profile").GetProperty("macrosOrder").ValueKind);
+
+        var picked = await client.PutAsJsonAsync("/api/profile/settings", new { progressOrder = new[] { "burn", "weight", "kcal", "burn" } });
+        Assert.Equal(HttpStatusCode.OK, picked.StatusCode);
+        var body = await picked.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("""["burn","weight","kcal"]""", body.GetProperty("progressOrder").GetRawText());
+        Assert.Equal(JsonValueKind.Null, body.GetProperty("macrosOrder").ValueKind);
+
+        // Another device reads it; a hidden-list save leaves the order alone.
+        using var other = factory.AsUser(user);
+        await other.PutAsJsonAsync("/api/profile/settings", new { macrosOrder = new[] { "fats", "macros" }, progressHidden = new[] { "sodium" } });
+        var state = await other.GetFromJsonAsync<JsonElement>("/api/profile");
+        Assert.Equal("""["burn","weight","kcal"]""", state.GetProperty("profile").GetProperty("progressOrder").GetRawText());
+        Assert.Equal("""["fats","macros"]""", state.GetProperty("profile").GetProperty("macrosOrder").GetRawText());
+        Assert.Equal(1, await HistoryCount(user));
+
+        var rejected = await client.PutAsJsonAsync("/api/profile/settings", new { progressOrder = new[] { "has space" } });
+        Assert.Equal(HttpStatusCode.BadRequest, rejected.StatusCode);
+        Assert.Contains("page order", await rejected.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
     public async Task Keeping_the_goal_hides_goal_reached_everywhere_until_the_goal_changes()
     {
         factory.Clock.UtcNow = new DateTimeOffset(2026, 10, 24, 8, 0, 0, TimeSpan.Zero);

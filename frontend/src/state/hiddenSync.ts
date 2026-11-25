@@ -2,7 +2,7 @@ import { ApiError, putSettings, type ProfileResponse } from "../api";
 import { readPending, reconcileHidden, SETTINGS_FIELDS, writePending, type HiddenList } from "../lib/hiddenSync";
 import { boot } from "./boot";
 
-const sent: Record<HiddenList, number> = { home: 0, macros: 0, progress: 0 };
+const sent: Record<HiddenList, number> = { home: 0, macros: 0, progress: 0, macrosOrder: 0, progressOrder: 0 };
 
 function setPending(list: HiddenList, on: boolean): void {
   const lists = readPending(boot.accountId).filter((item) => item !== list);
