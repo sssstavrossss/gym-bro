@@ -6,7 +6,7 @@ import ProgressChart from "./ProgressChart.vue";
 import SwipePanels from "./SwipePanels.vue";
 import { ApiError, getProgress, type ProgressDay, type ProgressResponse } from "../api";
 import { followPage, visiblePages } from "../lib/cardPages";
-import { spanLabel } from "../lib/dates";
+import { dayMonth, spanLabel } from "../lib/dates";
 import { formatDecimal, int } from "../lib/format";
 import { fatLimits, fatLimitsOf, sodiumLimitMg, sodiumLimitOf } from "../lib/nutrientCards";
 import type { IntakeDay } from "../lib/progressChart";
@@ -143,7 +143,7 @@ const SOURCES: Record<IntakePage, { value: (day: ProgressDay) => Amount; line: (
   saturatedFat: { value: (day) => day.saturatedFat, line: (day) => fatLimits(fatLimitsOf(profile.saved?.fatLimits), day.targetKcal).saturatedGrams },
   sodium: { value: (day) => day.sodiumMg, line: () => sodiumLimitMg(sodiumLimitOf(profile.saved?.sodiumLimit)) },
 };
-const INTAKE_PAGES = PROGRESS_PAGES.filter((item): item is IntakePage => item !== "weight");
+const INTAKE_PAGES = PROGRESS_PAGES.filter((item): item is IntakePage => item !== "weight" && item !== "burn");
 const intake = computed(() => Object.fromEntries(INTAKE_PAGES.map((item) => [item, days.value.map((day): IntakeDay => ({
   date: day.date,
   logged: day.logged,
@@ -152,7 +152,7 @@ const intake = computed(() => Object.fromEntries(INTAKE_PAGES.map((item) => [ite
 }))])) as Record<IntakePage, IntakeDay[]>);
 function unitOf(item: ProgressPage) {
   if (item === "weight") return weightUnit();
-  return item === "kcal" ? "kcal" : item === "sodium" ? "mg" : "g";
+  return item === "kcal" || item === "burn" ? "kcal" : item === "sodium" ? "mg" : "g";
 }
 const HIT_LABEL = { target: "On target", minimum: "Reached min", limit: "Under limit" } as const;
 /** Sodium in mg as salt in g (sodium × 2.5). */
@@ -172,6 +172,16 @@ function statsOf(item: ProgressPage): Stat[] {
       { label: "Trend", value: trend == null ? "–" : wtUnit(trend), sub: latest == null ? "no weigh-in" : `${band}latest ${wt(latest)}` },
       { label: "Rate", ...rateStat(weight?.rateKgPerWeek, weightUnit()) },
       { label: "Weigh-ins", value: String(count), sub: `in ${days.value.length} days` },
+    ];
+  }
+  if (item === "burn") {
+    // Today's burn, not the range's: it is what today's target is built on.
+    const burn = data.value?.burn;
+    if (!burn) return [{ label: "Burn", value: "–", sub: "no target yet" }, { label: "BMR", value: "–", sub: "at rest" }, { label: "Activity", value: "–", sub: "burn − BMR" }];
+    return [
+      { label: "Burn", value: int(burn.kcal), sub: `±${int(burn.sdKcal)} · ${burn.measured ? dayMonth(burn.setOn) : "formula"}` },
+      { label: "BMR", value: int(burn.bmrKcal), sub: "at rest" },
+      { label: "Activity", value: int(burn.kcal - burn.bmrKcal), sub: "burn − BMR" },
     ];
   }
   const kind = goalKind(item);
@@ -230,7 +240,7 @@ function statsOf(item: ProgressPage): Stat[] {
           :title="PAGE_TITLES[item]"
           :range="range"
           :days="days"
-          :intake="item === 'weight' ? [] : intake[item]"
+          :intake="item === 'weight' || item === 'burn' ? [] : intake[item]"
           :weigh-ins="data?.weight.weighIns ?? []"
           :selected="props.selected"
           :unit="unitOf(item)"

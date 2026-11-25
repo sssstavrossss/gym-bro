@@ -8,6 +8,7 @@ import { kgTo } from "../lib/units";
 import { weightUnit } from "../state/units";
 import { evenAxisLabels, valueY, type IntakeDay } from "../lib/progressChart";
 import { trendExtent, trendShapes, type TrendSample } from "../lib/weightTrend";
+import { burnScale, burnShapes, lastBurn, measuredDays, type BurnSample } from "../lib/burnChart";
 import { barWidth, chartLayout, goalKind, intakeScale, LINE_WORDS, monthTicks, targetSteps, visibleSpan, type ProgressPage } from "../lib/progressCard";
 
 /**
@@ -82,8 +83,45 @@ const weightTicks = computed(() => {
   return scale ? evenAxisLabels(scale.lo, scale.hi, scale.flat) : [];
 });
 
+// Burn: the daily burn over the BMR, the gap between them shaded, the spread a faint band around the burn.
+const burnSamples = computed<BurnSample[]>(() => props.days.map((day) => ({
+  burn: day.burnKcal ?? null,
+  bmr: day.bmrKcal ?? null,
+  sd: day.burnSdKcal ?? null,
+  measured: day.burnMeasured ?? false,
+})));
+const bScale = computed(() => (props.page === "burn" ? burnScale(burnSamples.value) : null));
+function by(value: number) {
+  const scale = bScale.value;
+  return scale ? valueY(value, scale.lo, scale.hi, H) : H;
+}
+const burnTop = computed(() => by(bScale.value?.hi ?? 0));
+const burnBottom = computed(() => by(bScale.value?.lo ?? 0));
+const burn = computed(() => {
+  const scale = bScale.value;
+  if (!scale) return null;
+  const shapes = burnShapes(burnSamples.value, slot.value, by, by(scale.lo));
+  const marks = measuredDays(burnSamples.value).map((index) => ({ x: xAt(index), y: by(burnSamples.value[index].burn!) }));
+  const last = lastBurn(burnSamples.value);
+  if (!last) return { shapes, marks, end: null };
+  // The end dots sit just inside the last day, their numbers to the left: the burn's above, the BMR's below.
+  const x = (last.index + 1) * slot.value - 4.5;
+  const pill = (text: string, cy: number, above: boolean) => {
+    const width = Math.round(text.length * 6.2 + 14);
+    const top = above ? Math.max(0, cy - 27) : Math.min(H - 18, cy + 9);
+    return { text, x: x - 6 - width, y: top, width };
+  };
+  const burnY = by(last.burn);
+  const bmrY = by(last.bmr);
+  return {
+    shapes,
+    marks,
+    end: { x, burnY, bmrY, burnPill: pill(int(last.burn), burnY, true), bmrPill: pill(`BMR ${int(last.bmr)}`, bmrY, false) },
+  };
+});
+
 // Intake
-const kind = computed(() => goalKind(props.page));
+const kind = computed(() => (props.page === "burn" ? "target" : goalKind(props.page)));
 const scale = computed(() => {
   const values = props.intake.flatMap((day) => (day.logged && day.value != null ? [day.value] : []));
   const targets = props.intake.flatMap((day) => (day.target != null ? [day.target] : []));
@@ -137,6 +175,7 @@ const stepLabel = computed(() => {
 // Axes
 const yLabels = computed(() => {
   if (props.page === "weight") return weightTicks.value.map((mark) => ({ key: `w${mark}`, top: wy(mark), text: formatDecimal(mark) }));
+  if (props.page === "burn") return (bScale.value?.ticks ?? []).map((mark) => ({ key: `b${mark}`, top: by(mark), text: int(mark) }));
   return scale.value.ticks.map((mark) => ({ key: `i${mark}`, top: iy(mark), text: int(mark) }));
 });
 const gridLines = computed(() => yLabels.value.map((label) => label.top));
@@ -169,6 +208,7 @@ const previewDot = computed(() => {
 
 const empty = computed(() => {
   if (props.page === "weight") return weightScale.value ? "" : "No weigh-ins in this range.";
+  if (props.page === "burn") return bScale.value ? "" : "No burn estimate in this range.";
   return bars.value.length || steps.value.length ? "" : "Nothing logged in this range.";
 });
 
@@ -233,6 +273,22 @@ watch(() => props.pan, () => {
           <defs v-if="page === 'weight'">
             <clipPath :id="`wplot-${uid}`"><rect x="0" y="0" :width="W" :height="H" /></clipPath>
           </defs>
+          <defs v-else-if="page === 'burn'">
+            <!-- The spread is clipped to the gridlines, so a formula burn's ±350 doesn't spill past the axis. -->
+            <clipPath :id="`bplot-${uid}`"><rect x="0" :y="burnTop - 2" :width="W" :height="burnBottom - burnTop + 4" /></clipPath>
+            <linearGradient :id="`bfade-${uid}`" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="var(--chart-line)" stop-opacity="0.38" />
+              <stop offset="1" stop-color="var(--chart-line)" stop-opacity="0.02" />
+            </linearGradient>
+            <linearGradient :id="`bbase-${uid}`" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="var(--text-primary)" stop-opacity="0.08" />
+              <stop offset="1" stop-color="var(--text-primary)" stop-opacity="0" />
+            </linearGradient>
+            <!-- In user space: a flat line's box has no height, so a box-relative filter would draw nothing. -->
+            <filter :id="`bglow-${uid}`" filterUnits="userSpaceOnUse" x="0" y="-10" :width="W" :height="H + 20">
+              <feGaussianBlur stdDeviation="3" />
+            </filter>
+          </defs>
           <defs v-else-if="kind === 'limit'">
             <pattern :id="`over-${uid}`" patternUnits="userSpaceOnUse" width="6" height="6" patternTransform="rotate(45)">
               <rect width="6" height="6" fill="var(--over-gap)" />
@@ -251,6 +307,27 @@ watch(() => props.pan, () => {
               <circle :cx="lastTrend.x" :cy="lastTrend.y" r="4" fill="var(--color-surface)" stroke="var(--chart-line)" stroke-width="2.2" />
               <rect :x="lastTrend.x - 48" :y="Math.max(0, lastTrend.y - 27)" width="42" height="18" rx="9" fill="var(--color-surface-2)" />
               <text :x="lastTrend.x - 27" :y="Math.max(0, lastTrend.y - 27) + 12.5" text-anchor="middle" class="pill" data-trend-label>{{ lastTrend.text }}</text>
+            </template>
+          </template>
+          <template v-else-if="page === 'burn'">
+            <g v-if="burn" :clip-path="`url(#bplot-${uid})`">
+              <path :d="burn.shapes.activity" :fill="`url(#bfade-${uid})`" data-burn-activity />
+              <path :d="burn.shapes.spread" fill="var(--chart-line)" fill-opacity="0.08" data-burn-spread />
+              <path :d="burn.shapes.base" :fill="`url(#bbase-${uid})`" />
+              <path :d="burn.shapes.bmr" fill="none" stroke="var(--text-primary)" stroke-opacity="0.45" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="1 4" data-bmr-line />
+              <path :d="burn.shapes.burn" fill="none" stroke="var(--chart-line)" stroke-opacity="0.35" stroke-width="7" stroke-linecap="round" :filter="`url(#bglow-${uid})`" />
+              <path :d="burn.shapes.burn" fill="none" stroke="var(--chart-line)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" data-burn-line />
+            </g>
+            <template v-if="burn">
+              <circle v-for="mark in burn.marks" :key="mark.x" :cx="mark.x" :cy="mark.y" r="2.6" fill="var(--chart-line)" data-burn-measured />
+            </template>
+            <template v-if="burn?.end">
+              <circle :cx="burn.end.x" :cy="burn.end.bmrY" r="3.2" fill="var(--color-surface)" stroke="var(--text-primary)" stroke-opacity="0.6" stroke-width="1.8" />
+              <circle :cx="burn.end.x" :cy="burn.end.burnY" r="4" fill="var(--color-surface)" stroke="var(--chart-line)" stroke-width="2.2" />
+              <rect :x="burn.end.burnPill.x" :y="burn.end.burnPill.y" :width="burn.end.burnPill.width" height="18" rx="9" fill="var(--color-surface-2)" />
+              <text :x="burn.end.burnPill.x + burn.end.burnPill.width / 2" :y="burn.end.burnPill.y + 12.5" text-anchor="middle" class="pill" data-burn-label>{{ burn.end.burnPill.text }}</text>
+              <rect :x="burn.end.bmrPill.x" :y="burn.end.bmrPill.y" :width="burn.end.bmrPill.width" height="18" rx="9" fill="var(--color-surface-2)" />
+              <text :x="burn.end.bmrPill.x + burn.end.bmrPill.width / 2" :y="burn.end.bmrPill.y + 12.5" text-anchor="middle" class="pill" fill-opacity="0.75" data-bmr-label>{{ burn.end.bmrPill.text }}</text>
             </template>
           </template>
           <template v-else>

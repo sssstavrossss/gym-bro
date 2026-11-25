@@ -70,7 +70,7 @@ export function pageRows(card: PageCard): PageRow[] {
     return PROGRESS_PAGES.map((page, index) => ({
       id: page,
       title: PAGE_TITLES[page],
-      caption: index === 0 ? ALWAYS : KIND_CAPTIONS[goalKind(page)],
+      caption: index === 0 ? ALWAYS : page === "burn" ? "Daily burn and BMR" : KIND_CAPTIONS[goalKind(page)],
     }));
   }
   return [

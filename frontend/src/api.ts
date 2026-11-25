@@ -595,6 +595,23 @@ export interface ProgressDay {
   saturatedFat?: number | null;
   /** Milligrams of sodium that day: each entry's sodium, or its salt ÷ 2.5. Unknown counts as 0; null on a day with nothing logged. */
   sodiumMg?: number | null;
+  /** The daily burn (TDEE) in effect that day, kcal. Null before the first target. */
+  burnKcal?: number | null;
+  /** The BMR in effect that day, kcal. */
+  bmrKcal?: number | null;
+  /** How unsure the burn is that day, kcal: it widens 60 kcal a week after it was set, up to the formula's 350. */
+  burnSdKcal?: number | null;
+  /** The burn was measured from intake and weight, not the formula alone. */
+  burnMeasured?: boolean;
+}
+
+/** Today's burn, its spread, and the day it was last set (a recalculation or fresh start, else setup). */
+export interface ProgressBurn {
+  kcal: number;
+  bmrKcal: number;
+  sdKcal: number;
+  measured: boolean;
+  setOn: string;
 }
 
 export interface ProgressResponse {
@@ -620,6 +637,8 @@ export interface ProgressResponse {
     averageProtein: number | null;
   };
   days: ProgressDay[];
+  /** Null without a target. Absent from an older server. */
+  burn?: ProgressBurn | null;
 }
 
 export async function getProgress(range: string): Promise<ProgressResponse> {

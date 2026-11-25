@@ -204,6 +204,55 @@ public sealed class ProgressEndpointTests(ApiFactory factory)
         Assert.True(on.GetProperty("targetKcal").GetInt32() > 0);
     }
 
+    [Fact]
+    public async Task Days_and_today_carry_the_burn_and_BMR_in_effect()
+    {
+        factory.Clock.UtcNow = new DateTimeOffset(2026, 11, 10, 9, 0, 0, TimeSpan.Zero);
+        var user = TestData.NewUser("progress-burn");
+        using var client = factory.AsUser(user);
+        await Setup(client, "2026-11-10", "83.6");
+
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var row = await db.TargetHistories.SingleAsync(item => item.UserId == user);
+            row.EffectiveDate = new DateOnly(2026, 11, 8);
+            row.Tdee = row.FormulaTdee + 300;
+            row.BurnSdKcal = 244;
+            row.Reasons = ["recalculation_adaptive"];
+            await db.SaveChangesAsync();
+        }
+
+        var body = await client.GetFromJsonAsync<JsonElement>("/api/progress?range=7d");
+        var before = Day(body.GetProperty("days"), "2026-11-07");
+        Assert.Equal(JsonValueKind.Null, before.GetProperty("burnKcal").ValueKind);
+        Assert.Equal(JsonValueKind.Null, before.GetProperty("bmrKcal").ValueKind);
+        Assert.False(before.GetProperty("burnMeasured").GetBoolean());
+        var on = Day(body.GetProperty("days"), "2026-11-08");
+        Assert.True(on.GetProperty("burnKcal").GetInt32() > on.GetProperty("bmrKcal").GetInt32());
+        Assert.Equal(244, on.GetProperty("burnSdKcal").GetInt32());
+        Assert.True(on.GetProperty("burnMeasured").GetBoolean());
+
+        var burn = body.GetProperty("burn");
+        Assert.Equal(on.GetProperty("burnKcal").GetInt32(), burn.GetProperty("kcal").GetInt32());
+        Assert.True(burn.GetProperty("bmrKcal").GetInt32() > 1000);
+        // Two days on, the spread has grown a little: √(244² + 60²·2/7) ≈ 246.
+        Assert.Equal(246, burn.GetProperty("sdKcal").GetInt32());
+        Assert.True(burn.GetProperty("measured").GetBoolean());
+        Assert.Equal("2026-11-08", burn.GetProperty("setOn").GetString());
+    }
+
+    [Fact]
+    public async Task Without_a_target_there_is_no_burn()
+    {
+        factory.Clock.UtcNow = new DateTimeOffset(2026, 11, 10, 9, 0, 0, TimeSpan.Zero);
+        using var client = factory.AsUser(TestData.NewUser("progress-noburn"));
+        await TestData.PutWeighIn(client, "2026-11-10", """{"kg":83.6,"timeZone":"UTC"}""");
+
+        var body = await client.GetFromJsonAsync<JsonElement>("/api/progress?range=7d");
+        Assert.Equal(JsonValueKind.Null, body.GetProperty("burn").ValueKind);
+    }
+
     private static JsonElement Day(JsonElement days, string date)
     {
         foreach (var day in days.EnumerateArray())
