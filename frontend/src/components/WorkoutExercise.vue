@@ -18,6 +18,7 @@ import {
 import { targetLine } from "../lib/plan";
 import { FIRST_TIME_LINE, suggestionLine } from "../lib/progression";
 import { maxText } from "../lib/records";
+import { plateLine } from "../lib/plates";
 import { addSet, addWarmups, exerciseItem, exerciseLoadTarget, exerciseNewBest, exerciseSuggestion, removeSet, setValue, toggleDone, workout } from "../state/workout";
 import { openExercise, toast } from "../ui";
 
@@ -93,6 +94,14 @@ const rows = computed(() => {
       hints: setHints(props.exercise, index, lastSets.value, suggestion.value),
     };
   });
+});
+/** A barbell lift says what to load a side for the set being typed in, else the next to do, else the last. */
+const barbell = computed(() => !props.past && item.value?.equipment === "barbell" && measure.value === "weight_reps");
+const plates = computed(() => {
+  if (!barbell.value) return "";
+  const at = props.edit.key === props.exercise.key ? props.edit.index : rows.value.findIndex((row) => !row.set.doneAt);
+  const row = rows.value[at >= 0 ? at : rows.value.length - 1];
+  return plateLine(row ? row.set.kg ?? row.hints.kg : null);
 });
 const canRemoveSet = computed(() => props.exercise.sets.length > 1 && !props.exercise.sets[props.exercise.sets.length - 1].doneAt);
 
@@ -179,6 +188,8 @@ function onInput(event: Event, index: number, field: SetField) {
         </span>
       </div>
     </div>
+
+    <p v-if="plates" class="t-capn c2 m0" data-plates>{{ plates }}</p>
 
     <div class="row acts">
       <button type="button" class="btn sm secondary t-label" @click="addSet(exercise.key)"><Icon name="plus" :size="14" /> Set</button>
