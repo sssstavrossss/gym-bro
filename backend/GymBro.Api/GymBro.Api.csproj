@@ -10,6 +10,8 @@
     <EmbeddedResource Include="Foods\food-alias-lexicon.v2.json" />
     <EmbeddedResource Include="Foods\food-measures.v1.json" />
     <EmbeddedResource Include="Profiles\zone-countries.tsv" />
+    <EmbeddedResource Include="Training\free-exercise-db.json" />
+    <EmbeddedResource Include="Training\gym-bro-exercises.json" />
   </ItemGroup>
 
   <ItemGroup>

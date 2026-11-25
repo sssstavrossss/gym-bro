@@ -61,6 +61,7 @@ Sign-in settings are not baked into the JavaScript bundle. The API reads them fr
 | `backend/GymBro.Api/Logging` | Log entry, saved group and recipe rules: units, nutrient snapshots, scaling, and the setup-through-today date window. |
 | `backend/GymBro.Api/Foods` | Search, aliases, the food-table importer (`FoodTable.cs`) with the Matvaretabellen, Livsmedelsverket, Fineli and USDA tables and their countries (`FoodSources.cs`), the Kassalapp import, the Open Food Facts client and throttle, and the nutrient panel. |
 | `backend/GymBro.Api/Progress` | Range and average maths for `GET /api/progress`. |
+| `backend/GymBro.Api/Training` | The exercise library (`ExerciseCatalog.cs`), free-exercise-db at a pinned commit, and our own exercises. |
 | `backend/GymBro.Api/Hosting` | Startup migrations, security headers, and the Monday push reminder. |
 | `backend/GymBro.Api/Notifications` | The weekly in-app recalculate notification. |
 | `backend/GymBro.Api.Tests` | xUnit tests against Postgres (Testcontainers) and a test authentication handler. |
@@ -142,6 +143,8 @@ Sign-in settings are not baked into the JavaScript bundle. The API reads them fr
 | `POST` | `/api/notifications/inbox/{id}/read` and `/api/notifications/inbox/read` | bearer | Marks one, or all, of this person's notifications read. Mark-all leaves the types shown on Home (the recalculate reminder) open; they close when acted on there. Another person's id is 404. |
 | `POST` `/DELETE` | `/api/notifications/subscription` | bearer | Stores or removes this person's push subscription. `endpoint` is unique. |
 | `GET` | `/api/export` | bearer | The caller's own data as `application/zip`: one CSV per table and `gym-bro.json`. See *Export* under Screens. |
+| `GET` | `/api/exercises` | bearer | `{ version, exercises }`: the whole exercise library without steps, by name, each `{ id, name, category, equipment, level, mechanic, force, measure, primaryMuscles, secondaryMuscles, images }`. The same for everyone. It sends `ETag: "<version>"` and `Cache-Control: private, no-cache`, and a matching `If-None-Match` gets 304. See *Exercise library*. |
+| `GET` | `/api/exercises/{id}` | bearer | One exercise in full: the list fields plus `instructions`, `source` and `licence`. An unknown id is 404 "That exercise is not known." |
 | `GET` | `/api/about` | bearer | Food-data credits: the Matvaretabellen citation and “Data from Open Food Facts.”, plus `sources`: one `{ source, name, country, citation, importedAt, foodCount }` per imported food table. |
 | `GET` | `/config.json` | anonymous | Runtime Entra settings for the SPA. `Cache-Control: no-store`. |
 | other `/api/*` | | same as `/api/me` | Unknown routes are not anonymous. |
@@ -635,6 +638,23 @@ Catalogue foods have no owner, so a foreign key of `(log.user_id, food_id)` cann
 ## Open Food Facts and response headers
 
 The Open Food Facts client does not follow redirects. A 3xx, a network failure, or a body over 2 MiB comes back as `unavailable`. Every response, including static files and errors, sends a Content-Security-Policy that allows the built SPA and MSAL calls to `https://*.ciamlogin.com` (no script inline or eval; `'wasm-unsafe-eval'` lets the barcode decoder compile its WebAssembly, which is served from this origin, and does not allow JavaScript eval; style attributes stay allowed for the sheet drag). Silent renewal needs `frame-src 'self' https://*.ciamlogin.com` and `frame-ancestors 'self'`, with `X-Frame-Options: SAMEORIGIN`, so the hidden iframe can load CIAM and the same-origin redirect page. Responses also send `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, and `Permissions-Policy: camera=(self), microphone=(), geolocation=()` (the camera is for the barcode scanner, on this origin only). The Playwright smoke checks those headers on `http://127.0.0.1:8100/api/health` and walks the e2e sign-in flag. It does not complete a real CIAM redirect.
+
+## Exercise library
+
+Training is being built in small steps; [docs/training.md](docs/training.md) holds the decisions, rules and data model. The first step is the exercise library, served from memory by `GET /api/exercises`. It ships with the build and isn't in the database.
+
+- **Source.** All 876 exercises of [free-exercise-db](https://github.com/yuhonas/free-exercise-db) (Unlicense, public domain), from `dist/exercises.json` at commit `f00c92c`, embedded as `Training/free-exercise-db.json`. Plus our own in `Training/gym-bro-exercises.json`, with steps we wrote: SkiErg, Sled Pull, Wall Ball, Burpee Broad Jump, Sandbag Lunge, Run, Fan Bike and the two-hand Kettlebell Swing. free-exercise-db's own "Air Bike" is a bicycle crunch, so the bike station is called Fan Bike. 884 in all.
+- **Ids** are the source id in lower case, with each run of other characters turned into one dash (`Barbell_Squat` → `barbell-squat`, `3_4_Sit-Up` → `3-4-sit-up`). They never change once shipped, because logged sets will point at them.
+- **Names.** Equipment and muscles are lower case with dashes. `body only` becomes `bodyweight`, `kettlebells` becomes `kettlebell`, `e-z curl bar` becomes `ez-bar` and `foam roll` becomes `foam-roller`. An exercise without equipment gets `none`.
+- **Measure** says what a set records, which the source doesn't:
+  - `distance_time` for cardio;
+  - `time` for stretches and static holds;
+  - `weight_distance` for strongman carries, drags and pushes (walk, carry, drag, push, crawl in the name);
+  - `reps` for body-weight moves;
+  - `weight_reps` for the rest.
+
+  Our own exercises state their measure.
+- **Version** is the first 16 hex characters of a SHA-256 of the whole list, so a phone can keep its copy until a deploy changes it.
 
 ## Offline
 
