@@ -122,7 +122,7 @@ function logPast() {
     <section v-if="plan.current" class="card" aria-labelledby="plan-title" data-plan-card>
       <div class="chead">
         <h2 id="plan-title" class="t-head section-title grow">Plan</h2>
-        <button type="button" class="btn sm secondary t-label" @click="openPlan">Edit</button>
+        <button type="button" class="btn sm secondary t-label" @click="openPlan()">Edit</button>
       </div>
       <span class="t-body">{{ planLine(plan.current) }}</span>
       <div v-if="next" class="well col g8 upnext" data-up-next :data-position="next.position">
@@ -135,6 +135,7 @@ function logPast() {
         <p v-if="workout.active && !nextRunning" class="t-capn c2 m0">Finish the workout in progress to start this one.</p>
         <div class="row g8 nbtns">
           <span v-if="nextRunning" class="t-label c2" data-up-next-running>In progress</span>
+          <button v-else-if="!next.workout.exercises.length" type="button" class="btn sm primary t-label" :aria-label="`Add exercises to ${next.workout.name}`" data-up-next-fill @click="openPlanWorkout(next.workout.id)"><Icon name="plus" :size="14" /> Add exercises</button>
           <button v-else-if="!workout.active" type="button" class="btn sm primary t-label" :aria-label="`Start ${next.workout.name}`" @click="startNext"><Icon name="play" :size="14" /> Start</button>
           <button v-if="!nextRunning" type="button" class="btn sm secondary t-label" :aria-label="`Skip ${next.workout.name}`" :disabled="skipping" @click="skipNext">Skip</button>
         </div>
@@ -159,12 +160,13 @@ function logPast() {
       </ol>
     </section>
     <section v-else-if="plan.state === 'ready'" class="card" aria-labelledby="plan-title" data-plan-card>
-      <div class="row wrow">
-        <span class="col grow g2">
-          <h2 id="plan-title" class="t-head m0">Plan</h2>
-          <span class="t-capn c2">Answer a few questions and get workouts that fit your week and your time.</span>
-        </span>
-        <button type="button" class="btn secondary t-label" @click="openPlan">Make a plan</button>
+      <span class="col g2">
+        <h2 id="plan-title" class="t-head m0">Plan</h2>
+        <span class="t-capn c2">Answer a few questions and get workouts that fit your week and your time, or build your own.</span>
+      </span>
+      <div class="row g8 mkbtns">
+        <button type="button" class="btn secondary t-label" @click="openPlan()">Make a plan</button>
+        <button type="button" class="btn secondary t-label" data-build-own @click="openPlan(true)">Build your own</button>
       </div>
     </section>
 
@@ -218,6 +220,8 @@ function logPast() {
 .pwhead { gap: var(--space-s); }
 .g8 { gap: var(--space-s); }
 .nbtns { flex-wrap: wrap; }
+.mkbtns { flex-wrap: wrap; }
+.dt-xl .mkbtns .btn { flex: 1 1 100%; }
 .then { border-top: 1px solid var(--color-border); padding-top: var(--space-xs); }
 .trow { gap: var(--space-s); padding-block: var(--space-2xs); }
 .hist { gap: var(--space-s); }

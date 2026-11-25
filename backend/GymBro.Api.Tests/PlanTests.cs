@@ -384,6 +384,61 @@ public sealed class PlanEndpointTests(ApiFactory factory)
     }
 
     [Fact]
+    public async Task Your_own_plan_starts_empty_and_keeps_what_you_build()
+    {
+        var client = factory.AsUser(TestData.NewUser("plan-own"));
+        var created = await client.PutAsJsonAsync("/api/plan", Answers(days: [0, 2, 4], split: "custom"));
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        using var made = JsonDocument.Parse(await created.Content.ReadAsStringAsync());
+        var workouts = made.RootElement.GetProperty("workouts").EnumerateArray().ToList();
+        Assert.Equal(["Workout A", "Workout B", "Workout C"], workouts.Select(item => item.GetProperty("name").GetString()));
+        Assert.All(workouts, item => Assert.Equal(0, item.GetProperty("exercises").GetArrayLength()));
+        Assert.All(workouts, item => Assert.Equal(0, item.GetProperty("minutes").GetInt32()));
+        var ids = WorkoutIds(made.RootElement);
+
+        var edit = new
+        {
+            name = "  Push   day ",
+            exercises = new[] { new { exerciseId = "barbell-bench-press-medium-grip", sets = 3, repMin = 6, repMax = 10, restSeconds = 120 } },
+        };
+        using (var saved = JsonDocument.Parse(await (await client.PutAsJsonAsync($"/api/plan/workouts/{ids[1]}", edit)).Content.ReadAsStringAsync()))
+        {
+            Assert.Equal("Push day", saved.RootElement.GetProperty("workouts")[1].GetProperty("name").GetString());
+        }
+
+        async Task<string> Refused(string name)
+        {
+            var response = await client.PutAsJsonAsync($"/api/plan/workouts/{ids[1]}", new { name, edit.exercises });
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+            return await response.Content.ReadAsStringAsync();
+        }
+
+        Assert.Contains(PlanEdits.BadName, await Refused("   "));
+        Assert.Contains(PlanEdits.BadName, await Refused(new string('x', PlanEdits.MaxName + 1)));
+
+        // A day more adds an empty workout and keeps the rest as built.
+        using (var more = JsonDocument.Parse(await (await client.PutAsJsonAsync("/api/plan", Answers(days: [0, 2, 4, 5], split: "custom"))).Content.ReadAsStringAsync()))
+        {
+            var four = more.RootElement.GetProperty("workouts");
+            Assert.Equal(ids, WorkoutIds(more.RootElement).Take(3));
+            Assert.Equal(["Workout A", "Push day", "Workout C", "Workout D"], four.EnumerateArray().Select(item => item.GetProperty("name").GetString()));
+            Assert.Equal("barbell-bench-press-medium-grip", four[1].GetProperty("exercises")[0].GetProperty("exerciseId").GetString());
+            Assert.True(four[1].GetProperty("edited").GetBoolean());
+        }
+
+        // Fewer days drop the last ones.
+        using (var fewer = JsonDocument.Parse(await (await client.PutAsJsonAsync("/api/plan", Answers(days: [0, 3], split: "custom"))).Content.ReadAsStringAsync()))
+        {
+            Assert.Equal(ids.Take(2), WorkoutIds(fewer.RootElement));
+        }
+
+        // Going to a suggested split makes its workouts.
+        using var full = JsonDocument.Parse(await (await client.PutAsJsonAsync("/api/plan", Answers(days: [0, 3], split: "full_body"))).Content.ReadAsStringAsync());
+        Assert.Equal("Full body A", full.RootElement.GetProperty("workouts")[0].GetProperty("name").GetString());
+        Assert.True(full.RootElement.GetProperty("workouts")[0].GetProperty("exercises").GetArrayLength() > 0);
+    }
+
+    [Fact]
     public async Task A_preview_is_not_saved()
     {
         var client = factory.AsUser(TestData.NewUser("plan-preview"));

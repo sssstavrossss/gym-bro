@@ -47,6 +47,7 @@ public static class PlanGenerator
     /// <summary>The split's workouts in sequence order: a name, a template and which variant of each movement.</summary>
     public static IReadOnlyList<(string Name, string Template, int Variant)> Sequence(string split, int days) => split switch
     {
+        Splits.Custom => [.. Enumerable.Range(0, days).Select(index => (CustomName(index), "", 0))],
         Splits.UpperLower => [("Upper A", "upper-a", 0), ("Lower A", "lower-a", 0), ("Upper B", "upper-b", 1), ("Lower B", "lower-b", 1)],
         Splits.PushPullLegs when days >= 6 =>
             [("Push A", "push", 0), ("Pull A", "pull", 0), ("Legs A", "legs", 0), ("Push B", "push", 1), ("Pull B", "pull", 1), ("Legs B", "legs", 1)],
@@ -69,6 +70,12 @@ public static class PlanGenerator
         {
             var (name, template, variant) = sequence[index];
             var id = keepIds is not null && keepIds.Count == sequence.Count ? keepIds[index] : newId();
+            if (answers.Split == Splits.Custom)
+            {
+                workouts.Add(new PlanWorkout(id, name, 0, []));
+                continue;
+            }
+
             var (exercises, seconds) = Fill(Templates[template], variant, kit, answers, library);
             workouts.Add(new PlanWorkout(id, name, RoundMinutes(seconds), exercises));
         }
@@ -183,6 +190,30 @@ public static class PlanGenerator
 
     /// <summary>An exercise's time in the workout: each set's work and rest, and the changeover to it.</summary>
     public static int Duration(PlanExercise exercise) => exercise.Sets * ((exercise.Seconds ?? SetWork) + exercise.RestSeconds) + Changeover;
+
+    /// <summary>"Workout A" to "Workout G": your own plan's workouts until you name them.</summary>
+    public static string CustomName(int index) => $"Workout {(char)('A' + index)}";
+
+    /// <summary>
+    /// Your own plan after a change of answers: its workouts stay as you made them. More days add empty ones at the
+    /// end; fewer drop the last ones.
+    /// </summary>
+    public static IReadOnlyList<PlanWorkout> KeepCustom(IReadOnlyList<PlanWorkout> current, int days, Func<Guid>? newId = null)
+    {
+        newId ??= Guid.NewGuid;
+        var kept = current.Take(days).ToList();
+        var names = kept.Select(item => item.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        for (var index = kept.Count; kept.Count < days; index++)
+        {
+            var name = CustomName(index);
+            if (names.Add(name))
+            {
+                kept.Add(new PlanWorkout(newId(), name, 0, []));
+            }
+        }
+
+        return kept;
+    }
 
     /// <summary>A workout's estimate: the warm-up and each exercise's time, to the nearest 5 minutes.</summary>
     public static int Minutes(IEnumerable<PlanExercise> exercises, int planMinutes) =>

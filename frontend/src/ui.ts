@@ -68,6 +68,8 @@ export const ui = reactive({
   exercise: null as string | null,
   /** The how-to is open over the workout sheet, which stays open under it. */
   exerciseOver: false,
+  /** A new plan opens on the Your own split (Train's Build your own). */
+  planOwn: false,
   /** The plan workout open in the editor (components/PlanWorkoutSheet.vue). */
   planWorkoutId: null as string | null,
   /** The swipe card whose pages the card pages sheet picks. */
@@ -208,8 +210,9 @@ export function openWorkout(): void {
   ui.sheet = "workout";
 }
 
-/** New plan, or Edit plan when there is one (components/PlanSheet.vue). */
-export function openPlan(): void {
+/** New plan, or Edit plan when there is one (components/PlanSheet.vue). `own` starts a new one on Your own. */
+export function openPlan(own = false): void {
+  ui.planOwn = own;
   ui.sheet = "plan";
 }
 

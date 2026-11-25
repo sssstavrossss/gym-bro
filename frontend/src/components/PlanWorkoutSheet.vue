@@ -10,6 +10,7 @@ import {
   defaultPrescription,
   estimateMinutes,
   MAX_EXERCISES,
+  MAX_NAME,
   MAX_REPS,
   MAX_REST,
   MAX_SECONDS,
@@ -38,11 +39,13 @@ const list = ref<PlanExercise[]>([]);
 const openIndex = ref<number | null>(null);
 const view = ref<"edit" | "add" | "swap">("edit");
 const swapIndex = ref<number | null>(null);
+const name = ref("");
 
 watch(open, (shown) => {
   if (!shown) return;
   void loadExercises();
   list.value = (source.value?.exercises ?? []).map((item) => ({ ...item }));
+  name.value = source.value?.name ?? "";
   openIndex.value = null;
   view.value = "edit";
   swapIndex.value = null;
@@ -57,7 +60,11 @@ const summary = computed(() => {
   const count = list.value.length;
   return `${count} ${count === 1 ? "exercise" : "exercises"} · ${sets.value} ${sets.value === 1 ? "set" : "sets"} · ~${minutes.value} min`;
 });
-const changed = computed(() => !!source.value && !sameExercises(list.value, source.value.exercises));
+/** The name as it will be saved: spaces tidied, empty not allowed. */
+const cleanName = computed(() => name.value.trim().replace(/\s+/g, " "));
+const renamed = computed(() => !!source.value && cleanName.value !== source.value.name);
+const changed = computed(() => !!source.value && (renamed.value || !sameExercises(list.value, source.value.exercises)));
+const canSave = computed(() => changed.value && list.value.length > 0 && cleanName.value.length > 0 && !plan.saving);
 const title = computed(() => {
   if (view.value === "add") return "Add exercise";
   if (view.value === "swap" && swapIndex.value != null) return `Swap ${nameOf(list.value[swapIndex.value]?.exerciseId ?? "")}`;
@@ -118,14 +125,14 @@ function swapTo(id: string) {
 
 async function save() {
   const current = source.value;
-  if (!current || !changed.value || !list.value.length || plan.saving) return;
-  const error = await savePlanWorkout(current.id, list.value);
+  if (!current || !canSave.value) return;
+  const error = await savePlanWorkout(current.id, list.value, renamed.value ? cleanName.value : undefined);
   if (error) {
     toastError(error);
     return;
   }
   closeSheet();
-  toast(`Saved ${current.name}`);
+  toast(`Saved ${cleanName.value}`);
 }
 
 function back() {
@@ -154,7 +161,12 @@ function back() {
     <SwapList v-else-if="view === 'swap' && swapIndex != null" :key="list[swapIndex].exerciseId" :exercise-id="list[swapIndex].exerciseId" @pick="swapTo" />
 
     <div v-else class="col body" data-plan-workout-editor>
-      <p class="t-capn c2 m0">Changes apply from the next time you start this workout. Remaking the plan from its answers puts back the suggested exercises.</p>
+      <label class="field row">
+        <span class="t-label c2">Name</span>
+        <input v-model="name" class="t-body grow nfield" type="text" :maxlength="MAX_NAME" autocomplete="off" enterkeyhint="done" aria-label="Workout name" data-no-autofocus data-plan-workout-name />
+      </label>
+      <p v-if="!list.length" class="t-label c2 m0" data-plan-workout-empty>No exercises yet. Add the first one, then set its sets, reps and rest.</p>
+      <p v-else class="t-capn c2 m0">Changes apply from the next time you start this workout.<template v-if="plan.current?.split !== 'custom'"> Remaking the plan from its answers puts back the suggested exercises.</template></p>
       <ol class="col list" aria-label="Exercises">
         <li v-for="(item, index) in list" :key="item.exerciseId" class="card inset pe" :data-plan-exercise="item.exerciseId" :data-open="openIndex === index ? '' : undefined">
           <button type="button" class="row phead" :aria-expanded="openIndex === index" @click="openIndex = openIndex === index ? null : index">
@@ -223,7 +235,7 @@ function back() {
     </div>
 
     <template v-if="view === 'edit'" #footer>
-      <button type="button" class="btn primary block t-bodys" :disabled="!changed || plan.saving" data-plan-workout-save @click="save">Save workout</button>
+      <button type="button" class="btn primary block t-bodys" :disabled="!canSave" data-plan-workout-save @click="save">Save workout</button>
     </template>
   </BottomSheet>
 </template>
@@ -248,4 +260,6 @@ function back() {
 .pe .acts { gap: var(--space-s); flex-wrap: nowrap; }
 .pe .acts .ends { gap: var(--space-s); margin-left: auto; flex-wrap: nowrap; }
 .addbtn { align-self: flex-start; }
+.field .nfield { min-width: 0; text-align: right; }
+.body .field.row { flex-wrap: nowrap; gap: var(--space-s); }
 </style>

@@ -2,7 +2,7 @@
 
 Gym Bro adds training next to nutrition. This file holds the decisions, the rules and the data model. It is updated as each part is agreed or ships. The README describes behaviour once it ships, and DESIGN.md holds the UI rules.
 
-Status: **phase 5, building**.
+Status: **phase 6, next**.
 
 Shipped so far:
 - The exercise library API: `GET /api/exercises` and `/api/exercises/{id}`, with 884 exercises (free-exercise-db plus our 8 stations), each with a `measure`. See *Exercise library* in the README.
@@ -33,14 +33,16 @@ Phase 3 is done. Phase 4 (suggestions and PRs; Progress rebuilt), shipped so far
 - Strength on Progress: a Body / Strength switch; workouts, sets and lifts up in the range, and each lift's estimated max with its change and a small line. See *Strength on Progress* in the README.
 - Sets per muscle this week on Progress → Strength: the body map by target, each muscle's sets (main in full, helping as half) against the plan's weekly volume, and the big muscles not worked yet. See *This week* in the README.
 
-Phase 4 is done. Phase 5 (swaps, warm-ups, plate maths, build or edit your own plan), shipped so far:
+Phase 4 is done. Phase 5 (swaps, warm-ups, plate maths, build or edit your own plan), shipped:
 - Swap an exercise in a workout: the same movement first (the generator's alternatives), then the same main muscle, then the library; within the plan's equipment and go-easy areas. Unticked sets move, ticked ones stay. See *Swap* in the README.
 - Warm-ups: + Warm-up on a weight exercise adds a ramp filled in towards the working weight (40/60/80% for a compound, the empty bar first on a barbell; 50% for isolation). See *Warm-ups* in the README.
 - Plate maths: a barbell lift shows the plates a side for the set you're on (25 to 1.25 kg on a 20 kg bar). See *Plates* in the README.
 
 - Edit a plan workout by hand: swap for good, add, remove and reorder exercises, and change sets, reps or hold, and rest. Saving keeps the workout's place; remaking the plan from its answers drops the edits, and Edit plan says so. Stored in the plan's workouts JSON with `edited`, no migration. See *Edit a plan workout* in the README.
 
-Next in phase 5: building your own plan from scratch.
+- Build your own plan: a Your own split with one empty workout a day, filled and renamed in the plan workout editor; Add exercises instead of Start while one is empty; changing days keeps what you built and says what it drops. See *Build your own* in the README.
+
+Phase 5 is done. Next: phase 6, other kinds of training.
 
 ## Decisions (agreed 2026-11-25)
 

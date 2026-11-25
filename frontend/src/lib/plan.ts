@@ -6,7 +6,7 @@ export type PlanGoal = "muscle" | "strength" | "fitness";
 export type Experience = "new" | "some" | "experienced";
 export type EquipmentPreset = "gym" | "home" | "dumbbells" | "kettlebells" | "bodyweight";
 export type Joint = "shoulders" | "elbows" | "wrists" | "lower-back" | "hips" | "knees" | "ankles";
-export type Split = "full_body" | "upper_lower" | "push_pull_legs" | "ppl_upper_lower";
+export type Split = "full_body" | "upper_lower" | "push_pull_legs" | "ppl_upper_lower" | "custom";
 
 export interface PlanExercise {
   exerciseId: string;
@@ -101,6 +101,7 @@ export const SPLITS: { id: Split; label: string }[] = [
   { id: "upper_lower", label: "Upper / Lower" },
   { id: "push_pull_legs", label: "Push / Pull / Legs" },
   { id: "ppl_upper_lower", label: "Push / Pull / Legs + Upper / Lower" },
+  { id: "custom", label: "Your own" },
 ];
 
 export const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
@@ -163,9 +164,10 @@ export function setCount(workout: PlanWorkout): number {
   return workout.exercises.reduce((sum, exercise) => sum + exercise.sets, 0);
 }
 
-/** "6 exercises · 16 sets · ~55 min" */
+/** "6 exercises · 16 sets · ~55 min"; "No exercises yet" for one of your own not filled in. */
 export function workoutLine(workout: PlanWorkout): string {
   const count = workout.exercises.length;
+  if (!count) return EMPTY_WORKOUT;
   const sets = setCount(workout);
   return `${count} ${count === 1 ? "exercise" : "exercises"} · ${sets} ${sets === 1 ? "set" : "sets"} · ~${workout.minutes} min`;
 }
@@ -176,9 +178,31 @@ export function planLine(plan: Pick<Plan, "goal" | "split" | "weekdays" | "minut
   return `${goalLabel(plan.goal)} · ${splitLabel(plan.split)} · ${days} ${days === 1 ? "day" : "days"} · ${plan.minutes} min`;
 }
 
+export const EMPTY_WORKOUT = "No exercises yet";
+
+/**
+ * Saving answers for your own plan keeps its workouts; fewer days drop the last ones. These are their names, or
+ * none when nothing would go (or when the plan is made again anyway).
+ */
+export function droppedOwn(current: Pick<Plan, "split" | "workouts"> | null, split: Split, days: number): string[] {
+  if (!current || current.split !== "custom" || split !== "custom") return [];
+  return current.workouts.slice(Math.max(1, days)).map((workout) => workout.name);
+}
+
+/** Saving these answers makes the workouts again from scratch, so edits by hand go. Your own plan keeps its own. */
+export function remakes(current: Pick<Plan, "split"> | null, split: Split): boolean {
+  return !!current && !(current.split === "custom" && split === "custom");
+}
+
 /** The setup's summary of what the answers make: a title and a line under it. */
 export function previewSummary(preview: PlanPreview): { title: string; line: string } {
   const count = preview.workouts.length;
+  if (preview.split === "custom") {
+    return {
+      title: `Your own, ${count} ${count === 1 ? "workout" : "workouts"} in turn`,
+      line: "They start empty: after saving, tap each one on the Plan card to add exercises.",
+    };
+  }
   const exercises = Math.round(preview.workouts.reduce((sum, workout) => sum + workout.exercises.length, 0) / Math.max(1, count));
   const sets = Math.round(preview.workouts.reduce((sum, workout) => sum + setCount(workout), 0) / Math.max(1, count));
   return {
@@ -274,7 +298,7 @@ export function weekLine(next: Pick<UpNext, "week" | "rir" | "lighter">, blockWe
 
 /** "5 exercises · 8 sets · ~30 min" for the week: a lighter week counts its halved sets and not its time. */
 export function nextLine(next: UpNext): string {
-  if (!next.lighter) return workoutLine(next.workout);
+  if (!next.lighter || !next.workout.exercises.length) return workoutLine(next.workout);
   const count = next.workout.exercises.length;
   const sets = next.workout.exercises.reduce((sum, exercise) => sum + weekSets(exercise, true), 0);
   return `${count} ${count === 1 ? "exercise" : "exercises"} · ${sets} ${sets === 1 ? "set" : "sets"}`;

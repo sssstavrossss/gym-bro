@@ -1572,11 +1572,11 @@ export async function putPlan(answers: PlanAnswers, timeZone: string): Promise<P
 }
 
 /** Saves one plan workout as edited by hand; the whole plan comes back. */
-export async function putPlanWorkout(id: string, exercises: PlanExercise[]): Promise<Plan> {
+export async function putPlanWorkout(id: string, exercises: PlanExercise[], name?: string): Promise<Plan> {
   return jsonOrThrow(await request(`/api/plan/workouts/${encodeURIComponent(id)}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ exercises }),
+    body: JSON.stringify({ exercises, name }),
   }));
 }
 

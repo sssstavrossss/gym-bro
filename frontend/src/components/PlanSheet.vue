@@ -8,6 +8,7 @@ import { previewPlan } from "../api";
 import {
   answersOf,
   defaultAnswers,
+  droppedOwn,
   easeInFor,
   EQUIPMENT,
   EXPERIENCES,
@@ -17,6 +18,7 @@ import {
   MIN_MINUTES,
   MINUTE_STEP,
   previewSummary,
+  remakes,
   splitFor,
   SPLITS,
   stepMinutes,
@@ -42,9 +44,9 @@ const previewState = ref<"loading" | "ready" | "failed">("loading");
 
 watch(open, (shown) => {
   if (!shown) return;
-  answers.value = plan.current ? answersOf(plan.current) : defaultAnswers();
+  answers.value = plan.current ? answersOf(plan.current) : { ...defaultAnswers(), split: ui.planOwn ? "custom" : null };
   heart.value = "";
-  choosingSplit.value = false;
+  choosingSplit.value = !plan.current && ui.planOwn;
   confirmingEnd.value = false;
 });
 
@@ -79,7 +81,10 @@ const split = computed(() => answers.value.split ?? splitFor(answers.value.weekd
 const summary = computed(() => (preview.value ? previewSummary(preview.value) : null));
 const easeIn = computed(() => easeInFor(answers.value));
 /** Saving remakes every workout from the answers, so hand edits go. */
-const editedNames = computed(() => (plan.current?.workouts ?? []).filter((item) => item.edited).map((item) => item.name));
+const editedNames = computed(() =>
+  remakes(plan.current, split.value) ? (plan.current?.workouts ?? []).filter((item) => item.edited).map((item) => item.name) : []);
+/** Your own plan with fewer days: the last workouts go. */
+const dropped = computed(() => droppedOwn(plan.current, split.value, answers.value.weekdays.length));
 const missing = computed(() =>
   !answers.value.weekdays.length ? "Pick at least one day." : !answers.value.equipment.length ? "Pick the equipment you have." : "");
 
@@ -225,6 +230,9 @@ async function end() {
 
       <p v-if="editedNames.length" class="well t-label m0" data-plan-edits-note>
         Saving remakes the workouts from these answers. Your changes to {{ editedNames.join(", ") }} won't be kept.
+      </p>
+      <p v-else-if="dropped.length" class="well t-label m0" data-plan-drops-note>
+        With {{ answers.weekdays.length === 1 ? "1 day" : `${answers.weekdays.length} days` }}, saving drops {{ dropped.join(", ") }} from your plan.
       </p>
 
       <div v-if="editing" class="col g8 endwrap">
