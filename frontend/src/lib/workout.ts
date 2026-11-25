@@ -29,6 +29,8 @@ export interface DraftExercise {
   sets: DraftSet[];
   /** From a plan workout: the range, reps in reserve and rest to aim for. */
   target?: PlanTarget | null;
+  /** Done together with the exercise before it (a superset, or a circuit of three or more): rest comes after each round. */
+  superset?: boolean;
 }
 
 export interface DraftWorkout {
@@ -250,8 +252,9 @@ export function typeKey(text: string, key: string, field: SetField): string {
   return parseField(field, next) === undefined ? text : next;
 }
 
-/** The whole workout as `PUT /api/workouts/{id}` takes it. Each exercise is its own block. */
+/** The whole workout as `PUT /api/workouts/{id}` takes it. Each exercise is its own block, except that a superset shares one. */
 export function toRequest(workout: DraftWorkout, timeZone: string): WorkoutRequestBody {
+  let block = -1;
   return {
     date: workout.date,
     timeZone,
@@ -262,7 +265,9 @@ export function toRequest(workout: DraftWorkout, timeZone: string): WorkoutReque
     endedAt: workout.endedAt,
     planWorkoutId: workout.plan?.workoutId ?? null,
     sequencePosition: workout.plan?.position ?? null,
-    sets: workout.exercises.flatMap((exercise, block) => exercise.sets.map((set) => ({
+    sets: workout.exercises.flatMap((exercise, at) => {
+      if (at === 0 || !exercise.superset) block++;
+      return exercise.sets.map((set) => ({
       exerciseId: exercise.exerciseId,
       block,
       type: set.type,
@@ -273,7 +278,8 @@ export function toRequest(workout: DraftWorkout, timeZone: string): WorkoutReque
       metres: set.metres,
       calories: null,
       doneAt: set.doneAt,
-    }))),
+    }));
+    }),
   };
 }
 
@@ -320,7 +326,7 @@ export function workoutStatus(workout: DraftWorkout, now: number): string {
   return `${clock(workout.startedAt ? (now - Date.parse(workout.startedAt)) / 1000 : 0)} · ${totals.sets} of ${totals.plannedSets} ${totals.plannedSets === 1 ? "set" : "sets"}`;
 }
 
-/** A saved workout back as a draft to edit: each block is one exercise, its sets in order. */
+/** A saved workout back as a draft to edit: each run of one exercise's sets is an exercise; a block that holds more than one exercise is a superset. */
 export function fromSaved(saved: {
   id: string; date: string; name: string | null; startedAt: string | null; endedAt: string | null; sets: readonly SavedSet[];
   status?: string; planWorkoutId?: string | null; sequencePosition?: number | null;
@@ -329,7 +335,8 @@ export function fromSaved(saved: {
   let last: { block: number; exerciseId: string } | null = null;
   for (const set of saved.sets) {
     if (!last || last.block !== set.block || last.exerciseId !== set.exerciseId) {
-      exercises.push({ key: `e${exercises.length + 1}`, exerciseId: set.exerciseId, sets: [] });
+      const joined = last?.block === set.block;
+      exercises.push({ key: `e${exercises.length + 1}`, exerciseId: set.exerciseId, sets: [], ...(joined ? { superset: true } : {}) });
       last = { block: set.block, exerciseId: set.exerciseId };
     }
     exercises[exercises.length - 1].sets.push({
@@ -368,5 +375,54 @@ export function swapExercise(exercise: DraftExercise, exerciseId: string, newKey
   const left = exercise.sets.filter((set) => !set.doneAt);
   const types = (left.length ? left : exercise.sets).map((set) => set.type);
   const next: DraftExercise = { key: ticked.length ? newKey : exercise.key, exerciseId, sets: types.map((type) => emptySet(type)), target: exercise.target ?? null };
-  return { keep: ticked.length ? { ...exercise, sets: ticked } : null, next };
+  return { keep: ticked.length ? { ...exercise, sets: ticked } : null, next: exercise.superset ? { ...next, superset: true } : next };
+}
+
+/**
+ * The exercises in runs done together (docs/training.md, phase 6): a run starts at each exercise that isn't joined to
+ * the one before it. Straight sets are a run of one.
+ */
+export function exerciseGroups<T extends Pick<DraftExercise, "superset">>(exercises: readonly T[]): T[][] {
+  const runs: T[][] = [];
+  exercises.forEach((exercise, at) => {
+    if (at > 0 && exercise.superset) runs[runs.length - 1].push(exercise);
+    else runs.push([exercise]);
+  });
+  return runs;
+}
+
+/** The run an exercise is in: itself alone, or its whole superset. */
+export function groupOf(exercises: readonly DraftExercise[], key: string): DraftExercise[] {
+  return exerciseGroups(exercises).find((run) => run.some((exercise) => exercise.key === key)) ?? [];
+}
+
+/** "Superset" for two, "Circuit" for three or more. */
+export function groupName(size: number): string {
+  return size > 2 ? "Circuit" : "Superset";
+}
+
+/**
+ * Whether set `index` ends a round: every exercise in its run that has a set at that place has it ticked off. Rest
+ * starts then, not between the exercises of a superset. Straight sets end a round with each set.
+ */
+export function roundDone(exercises: readonly DraftExercise[], key: string, index: number): boolean {
+  return groupOf(exercises, key).every((exercise) => !exercise.sets[index] || exercise.sets[index].doneAt != null);
+}
+
+/** Joins an exercise to the run before it, or splits it off again. The first exercise has nothing to join. */
+export function toggleSuperset(exercises: readonly DraftExercise[], key: string): DraftExercise[] {
+  const at = exercises.findIndex((exercise) => exercise.key === key);
+  if (at < 1) return [...exercises];
+  return exercises.map((exercise, index) => (index === at ? { ...exercise, superset: !exercise.superset } : exercise));
+}
+
+/**
+ * Takes an exercise out. When it started a superset, the one after it starts the run instead, so the rest stay
+ * together and don't join the run before. `led` says so, for Undo.
+ */
+export function withoutExercise(exercises: readonly DraftExercise[], at: number): { exercises: DraftExercise[]; led: boolean } {
+  const rest = exercises.filter((_, index) => index !== at);
+  const led = !exercises[at]?.superset && !!exercises[at + 1]?.superset;
+  if (led) rest[at] = { ...rest[at], superset: false };
+  return { exercises: rest, led };
 }

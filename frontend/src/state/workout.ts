@@ -7,8 +7,12 @@ import {
   swapExercise as swapSets,
   finished,
   fromSaved,
+  groupOf,
   measureFields,
   restSeconds,
+  roundDone,
+  toggleSuperset as joinNext,
+  withoutExercise,
   setHints,
   toggleSet,
   toRequest,
@@ -249,20 +253,40 @@ export function removeSet(key: string, index: number): void {
 }
 
 /** Takes an exercise out, and returns it with where it was, for Undo. */
-export function removeExercise(key: string): { exercise: DraftExercise; at: number } | null {
+export interface RemovedExercise {
+  exercise: DraftExercise;
+  at: number;
+  /** It started a superset, so the one after it took over. */
+  led: boolean;
+}
+
+export function removeExercise(key: string): RemovedExercise | null {
   const active = editing();
   const at = active?.exercises.findIndex((exercise) => exercise.key === key) ?? -1;
   if (!active || at < 0) return null;
-  const [exercise] = active.exercises.splice(at, 1);
+  const exercise = active.exercises[at];
+  const { exercises, led } = withoutExercise(active.exercises, at);
+  active.exercises = exercises;
   save();
-  return { exercise, at };
+  return { exercise, at, led };
 }
 
 /** Undo for removeExercise. */
-export function restoreExercise(removed: { exercise: DraftExercise; at: number }): void {
+export function restoreExercise(removed: RemovedExercise): void {
   const active = editing();
   if (!active || active.exercises.some((exercise) => exercise.key === removed.exercise.key)) return;
-  active.exercises.splice(Math.min(removed.at, active.exercises.length), 0, removed.exercise);
+  const at = Math.min(removed.at, active.exercises.length);
+  active.exercises.splice(at, 0, removed.exercise);
+  const after = active.exercises[at + 1];
+  if (removed.led && after) active.exercises[at + 1] = { ...after, superset: true };
+  save();
+}
+
+/** Joins an exercise to the one before it as a superset, or splits it off. */
+export function toggleSuperset(key: string): void {
+  const active = editing();
+  if (!active) return;
+  active.exercises = joinNext(active.exercises, key);
   save();
 }
 
@@ -310,14 +334,22 @@ export function toggleDone(key: string, index: number, now = new Date()): void {
   const next = toggleSet(set, hints, fields, now);
   exercise.sets[index] = next;
   if (!live) return;
-  const rest = next.doneAt && item ? exercise.target?.restSeconds ?? restSeconds(item) : 0;
+  // In a superset the rest comes after the round, the longest any of its exercises asks for; between them there is none.
+  const group = groupOf(active.exercises, key);
+  const endsRound = roundDone(active.exercises, key, index);
+  const rest = next.doneAt && endsRound ? Math.max(0, ...group.map(restOf)) : 0;
   if (rest) {
     active.restFor = rest;
     active.restEndsAt = new Date(now.getTime() + rest * 1000).toISOString();
-  } else if (!next.doneAt) {
+  } else if (!next.doneAt || group.length > 1) {
     active.restEndsAt = null;
   }
   save();
+}
+
+function restOf(exercise: DraftExercise): number {
+  const item = exerciseItem(exercise.exerciseId);
+  return exercise.target?.restSeconds ?? (item ? restSeconds(item) : 0);
 }
 
 /** −15, +15 or Skip on the rest timer. */

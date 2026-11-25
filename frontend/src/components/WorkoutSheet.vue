@@ -10,7 +10,10 @@ import { keyboardEntry } from "../lib/viewport";
 import {
   clock,
   currentExercise,
+  exerciseGroups,
   exerciseSummary,
+  groupName,
+  groupOf,
   FIELD_LABELS,
   fieldDecimals,
   measureFields,
@@ -41,8 +44,10 @@ import {
   savePast,
   setValue,
   shiftRest,
+  toggleSuperset,
   workout,
 } from "../state/workout";
+import type { DraftExercise } from "../lib/workout";
 import { closeSheet, toast, toastError, ui } from "../ui";
 
 // The workout being logged (docs/training.md, phase 2), and its summary once finished. Closing the sheet
@@ -96,6 +101,8 @@ const shownKey = computed(() => {
   const exercises = active.value?.exercises ?? [];
   return exercises.some((exercise) => exercise.key === chosen.value) ? chosen.value : active.value ? currentExercise(active.value) : null;
 });
+/** The open exercise's whole superset opens with it, so its sets can be done in turn. */
+const shownKeys = computed(() => (active.value && shownKey.value ? groupOf(active.value.exercises, shownKey.value).map((exercise) => exercise.key) : []));
 const left = computed(() => (active.value ? restLeft(active.value, now.value) : null));
 const restShare = computed(() => (left.value == null || !active.value?.restFor ? 0 : Math.min(1, left.value / active.value.restFor)));
 const keypadShown = computed(() => edit.key != null && !keyboardEntry.value && view.value === "log");
@@ -108,9 +115,30 @@ const editName = computed(() => {
 });
 
 // A finished exercise folds away and the next one opens, unless one was picked by hand and still has sets to do.
-watch(() => active.value?.exercises.find((exercise) => exercise.key === chosen.value)?.sets.every((set) => set.doneAt), (allDone) => {
+watch(() => (active.value && chosen.value ? groupOf(active.value.exercises, chosen.value).every((exercise) => exercise.sets.every((set) => set.doneAt)) : false), (allDone) => {
   if (allDone) chosen.value = null;
 });
+
+const nameOf = (exercise: DraftExercise | undefined) => (exercise ? exerciseItem(exercise.exerciseId)?.name ?? "Exercise" : "");
+/** The exercise each superset button joins to: the one before. */
+const prevName = (exercises: readonly DraftExercise[], exercise: DraftExercise) => nameOf(exercises[exercises.indexOf(exercise) - 1]);
+function runLabel(run: readonly DraftExercise[]) {
+  return `${groupName(run.length)}: ${run.map((exercise) => nameOf(exercise)).join(", ")}`;
+}
+
+function join(exercises: readonly DraftExercise[], key: string) {
+  const at = exercises.findIndex((exercise) => exercise.key === key);
+  const before = exercises[at - 1];
+  if (at < 1 || !before) return;
+  const exercise = exercises[at];
+  toggleSuperset(key);
+  if (exercise.superset) {
+    toast(`Split ${nameOf(before)} and ${nameOf(exercise)}`);
+    return;
+  }
+  const run = groupOf(current.value?.exercises ?? [], key);
+  toast(`${groupName(run.length)}: ${run.map((exercise) => nameOf(exercise)).join(" + ")}`);
+}
 
 function padKey(key: string) {
   if (!edit.key) return;
@@ -327,10 +355,17 @@ async function deletePastNow() {
       <div v-if="!past.draft.exercises.length" class="card inset empty">
         <span class="t-label c2">No exercises yet. Add one, then tick off each set you did.</span>
       </div>
-      <WorkoutExercise
-        v-for="exercise in past.draft.exercises" :key="exercise.key" :exercise="exercise" open past :edit="edit"
-        @remove="remove(exercise.key)" @swap="startSwap(exercise)"
-      />
+      <div
+        v-for="run in exerciseGroups(past.draft.exercises)" :key="run[0].key" :class="run.length > 1 ? 'col ss' : 'solo'"
+        :role="run.length > 1 ? 'group' : undefined" :aria-label="run.length > 1 ? runLabel(run) : undefined" :data-superset="run.length > 1 ? run.length : undefined"
+      >
+        <span v-if="run.length > 1" class="row sshead t-capn c2"><Icon name="link" :size="14" />{{ groupName(run.length) }}</span>
+        <WorkoutExercise
+          v-for="exercise in run" :key="exercise.key" :exercise="exercise" open past :edit="edit"
+          :prev-name="prevName(past.draft.exercises, exercise)"
+          @remove="remove(exercise.key)" @swap="startSwap(exercise)" @superset="join(past.draft.exercises, exercise.key)"
+        />
+      </div>
       <div class="row more">
         <button type="button" class="btn sm secondary t-label" @click="view = 'add'"><Icon name="plus" :size="14" /> Exercise</button>
       </div>
@@ -359,10 +394,17 @@ async function deletePastNow() {
       <div v-if="!active.exercises.length" class="card inset empty">
         <span class="t-label c2">No exercises yet. Add the first one to start ticking off sets.</span>
       </div>
-      <WorkoutExercise
-        v-for="exercise in active.exercises" :key="exercise.key" :exercise="exercise" :open="exercise.key === shownKey" :edit="edit"
-        @expand="chosen = exercise.key" @remove="remove(exercise.key)" @swap="startSwap(exercise)"
-      />
+      <div
+        v-for="run in exerciseGroups(active.exercises)" :key="run[0].key" :class="run.length > 1 ? 'col ss' : 'solo'"
+        :role="run.length > 1 ? 'group' : undefined" :aria-label="run.length > 1 ? runLabel(run) : undefined" :data-superset="run.length > 1 ? run.length : undefined"
+      >
+        <span v-if="run.length > 1" class="row sshead t-capn c2"><Icon name="link" :size="14" />{{ groupName(run.length) }} · rest after each round</span>
+        <WorkoutExercise
+          v-for="exercise in run" :key="exercise.key" :exercise="exercise" :open="shownKeys.includes(exercise.key)" :edit="edit"
+          :prev-name="prevName(active.exercises, exercise)"
+          @expand="chosen = exercise.key" @remove="remove(exercise.key)" @swap="startSwap(exercise)" @superset="join(active.exercises, exercise.key)"
+        />
+      </div>
       <div class="row more">
         <button type="button" class="btn sm secondary t-label" @click="view = 'add'"><Icon name="plus" :size="14" /> Exercise</button>
         <span class="grow" />
@@ -415,6 +457,10 @@ async function deletePastNow() {
 .confirm { gap: var(--space-s); }
 .cbtns { gap: var(--space-s); flex-wrap: wrap; }
 .empty { padding: var(--space-m); }
+/* A superset or circuit: its exercises under one heading, joined by a rail down the left. */
+.solo { display: contents; }
+.ss { gap: var(--space-s); padding-left: var(--space-s); border-left: var(--line-rail) solid var(--color-action); }
+.sshead { gap: var(--space-xs); flex-wrap: nowrap; }
 .more { gap: var(--space-s); padding-top: var(--space-xs); }
 .pad { gap: var(--space-s); }
 .padacts { gap: var(--space-s); flex-wrap: nowrap; }
