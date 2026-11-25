@@ -64,6 +64,8 @@ export const ui = reactive({
   recipeReturn: null as null | "food" | "select" | "log",
   /** Nutrient open in the nutrient sheet, for the day the Home card shows, with that day's kcal target. */
   nutrient: null as null | { key: string; kcalTarget: number | null },
+  /** Exercise open in the how-to sheet (Train → Exercises). */
+  exercise: null as string | null,
   /** The swipe card whose pages the card pages sheet picks. */
   cardPages: "progress" as PageCard,
   /** The card pages sheet is open over another sheet (a cog on Add food or a recipe), which stays open under it. */
@@ -178,6 +180,12 @@ export function openOffline(): void {
 export function openNutrient(key: string, kcalTarget: number | null): void {
   ui.nutrient = { key, kcalTarget };
   ui.sheet = "nutrient";
+}
+
+/** How to do one exercise: photos, muscles and steps. */
+export function openExercise(id: string): void {
+  ui.exercise = id;
+  ui.sheet = "exercise";
 }
 
 export function openRecalculate(): void {

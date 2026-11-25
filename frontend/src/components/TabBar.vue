@@ -7,7 +7,7 @@ import { openAdd } from "../ui";
 const route = useRoute();
 const tabs = [
   { to: "/today", label: "Today", icon: "sun" },
-  { to: "/log", label: "Log", icon: "list" },
+  { to: "/train", label: "Train", icon: "dumbbell" },
   { to: "", label: "+", icon: "plus" },
   { to: "/progress", label: "Progress", icon: "cal" },
   { to: "/profile", label: "Profile", icon: "user" },
