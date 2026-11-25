@@ -137,7 +137,7 @@ describe("Open Food Facts on demand", () => {
     expect(down.query).toBe("skyr");
     expect(offFailureCopy("rate_limited")).toEqual(offFailureCopy("unavailable"));
     expect(offFailureCopy("unavailable").retry).toBe("Try again");
-    expect(offFailureCopy("unavailable").quickAdd).toBe("Quick Add instead");
+    expect(offFailureCopy("unavailable").quickAdd).toBe("Quick add instead");
     expect(offFailureCopy("rate_limited").title).toBe("Can't reach the food database");
   });
 

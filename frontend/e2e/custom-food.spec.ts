@@ -131,7 +131,7 @@ test("create, save from quick add, search my food, and keep past entries", async
   await expect(logged).not.toContainText("240");
 
   await openAdd(page);
-  await foodSheet(page).getByRole("radio", { name: "Quick Add" }).click();
+  await foodSheet(page).getByRole("radio", { name: "Quick add" }).click();
   await foodSheet(page).getByLabel("Name (optional)").fill("Fictional quick oat bar");
   await foodSheet(page).getByLabel("Also save as my food").check();
   await foodSheet(page).getByLabel("Calories").fill("180");

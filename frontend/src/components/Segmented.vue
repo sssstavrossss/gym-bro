@@ -1,7 +1,8 @@
 <script setup lang="ts" generic="T extends string">
 import { nextTick } from "vue";
+import Icon from "./Icon.vue";
 
-const props = defineProps<{ options: { value: T; label: string; ariaLabel?: string }[]; modelValue: T; label: string; size?: "regular" | "compact" }>();
+const props = defineProps<{ options: { value: T; label: string; ariaLabel?: string; icon?: string }[]; modelValue: T; label: string; size?: "regular" | "compact" }>();
 const emit = defineEmits<{ "update:modelValue": [T] }>();
 
 function tabIndex(value: T, index: number) {
@@ -27,8 +28,8 @@ async function onKey(event: KeyboardEvent, index: number) {
 <template>
   <div class="seg" :class="{ compact: size === 'compact' }" role="radiogroup" :aria-label="label" :style="{ minWidth: options.length * 44 + 'px' }">
     <button v-for="(o, index) in options" :key="o.value" type="button" role="radio" class="seg-btn t-label"
-      :class="{ on: o.value === modelValue }" :aria-checked="o.value === modelValue" :aria-label="o.ariaLabel" :tabindex="tabIndex(o.value, index)"
-      @click="emit('update:modelValue', o.value)" @keydown="onKey($event, index)">{{ o.label }}</button>
+      :class="{ on: o.value === modelValue }" :aria-checked="o.value === modelValue" :aria-label="o.ariaLabel" :tabindex="tabIndex(o.value, index)" :data-value="o.value"
+      @click="emit('update:modelValue', o.value)" @keydown="onKey($event, index)"><Icon v-if="o.icon" :name="o.icon" :size="16" class="seg-ic" />{{ o.label }}</button>
   </div>
 </template>
 
@@ -45,7 +46,10 @@ async function onKey(event: KeyboardEvent, index: number) {
 .seg-btn {
   position: relative; flex: 1 1 0; min-width: 44px; white-space: nowrap; min-height: var(--control-hit);
   border-radius: var(--radius-m); padding: var(--space-xs) var(--space-m); color: var(--text-secondary);
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--space-s);
 }
+/* An option's icon matches the same action's icon elsewhere (Add food's tabs use the + fan's). */
+.seg-ic { flex: none; }
 .seg-btn.on {
   background: var(--color-action); color: var(--color-on-action);
   box-shadow: inset 0 0 0 var(--space-2xs) var(--btn-bg, var(--color-surface-2)), var(--d-action);

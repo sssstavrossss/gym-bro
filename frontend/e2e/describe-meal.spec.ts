@@ -139,7 +139,7 @@ test.describe("phone", () => {
     await sheet(page).getByRole("radio", { name: "Describe" }).click();
     await expect(sheet(page).getByRole("heading", { name: "2 of 3 found" })).toBeVisible();
     await missing.getByRole("button", { name: "Quick add" }).click();
-    await expect(sheet(page).getByRole("radio", { name: "Quick Add" })).toBeChecked();
+    await expect(sheet(page).getByRole("radio", { name: "Quick add" })).toBeChecked();
     await expect(sheet(page).getByRole("textbox", { name: "Name (optional)" })).toHaveValue("mum's quibble");
 
     // Not what you meant: the words open over the dimmed list, and Cancel brings the same list back.

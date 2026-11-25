@@ -73,6 +73,20 @@ test("Add food's lists are four swipe pages named by chips, wrapping like a caro
   await expect(recentRow).toBeVisible();
   await expect(food.getByRole("button", { name: /^New recipe/ })).toHaveCount(0);
 
+  // The tabs carry the + fan's icons, and Scan is a labelled button at the end of the field.
+  const tabs = food.getByRole("radiogroup", { name: "Add food" });
+  await expect(tabs.getByRole("radio", { name: "Quick add", exact: true })).toBeVisible();
+  for (const tab of await tabs.getByRole("radio").all()) await expect(tab.locator("svg")).toHaveCount(1);
+  const scan = food.getByRole("button", { name: "Scan a barcode" });
+  await expect(scan).toHaveText("Scan");
+  const field = (await food.locator("label.field").boundingBox())!;
+  const scanBox = (await scan.boundingBox())!;
+  expect(scanBox.height).toBeGreaterThanOrEqual(44);
+  expect(scanBox.x + scanBox.width).toBeLessThanOrEqual(field.x + field.width);
+  // Only the lists scroll: the sheet itself has nothing to scroll, so the search and the chips stay put.
+  const sheetBody = await food.locator(".sheet-body").evaluate((el) => ({ scroll: el.scrollHeight, client: el.clientHeight }));
+  expect(sheetBody.scroll, "the sheet scrolls, dragging the search and chips with it").toBeLessThanOrEqual(sheetBody.client);
+
   // Each chip turns to its page; New recipe and New food are the pages' first rows.
   await chips.getByRole("button", { name: /^Recipes/ }).click();
   await expect(food.getByRole("button", { name: /^New recipe/ })).toBeVisible();

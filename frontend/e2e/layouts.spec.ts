@@ -210,7 +210,7 @@ test("desktop shortcuts, escape, and the right-hand panel", async ({ page }) => 
   await page.keyboard.press("Escape");
 
   await page.keyboard.press("q");
-  await expect(page.getByRole("radio", { name: "Quick Add" })).toBeChecked();
+  await expect(page.getByRole("radio", { name: "Quick add" })).toBeChecked();
   // With a keyboard, Quick Add opens with the focus in Calories.
   await expect(page.getByRole("dialog", { name: "Add food" }).getByRole("textbox", { name: "Calories" })).toBeFocused();
   const name = page.getByRole("dialog", { name: "Add food" }).getByRole("textbox", { name: "Name (optional)" });
@@ -317,7 +317,7 @@ test("a touch screen at desktop width keeps swipe and the keypad", async ({ page
 
   await page.locator("aside.side").getByRole("button", { name: /Add food/ }).click();
   await page.getByRole("searchbox", { name: "Search foods" }).blur();
-  await page.getByRole("radio", { name: "Quick Add" }).click();
+  await page.getByRole("radio", { name: "Quick add" }).click();
   await expect(page.getByRole("group", { name: "Number keypad" })).toBeVisible();
   await expect(page.getByRole("textbox", { name: "Calories", exact: true })).toHaveCount(0);
   // The side sheet slides in from the right; measure once it has landed.

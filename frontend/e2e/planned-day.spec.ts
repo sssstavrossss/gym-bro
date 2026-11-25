@@ -46,7 +46,7 @@ async function quickAdd(page: Page, name: string, kcal: number) {
   const sheet = foodSheet(page);
   await expect(sheet).toBeVisible();
   await sheet.getByRole("searchbox", { name: "Search foods" }).blur();
-  await sheet.getByRole("radio", { name: "Quick Add" }).click();
+  await sheet.getByRole("radio", { name: "Quick add" }).click();
   await sheet.getByRole("textbox", { name: "Name (optional)", exact: true }).fill(name);
   // On a phone the numbers go in through the sheet's own keypad.
   for (const [field, value] of [["Calories", String(kcal)], ["Protein", "20"], ["Fat", "10"], ["Carbs", "40"]]) {
