@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
 import AccuracyDot from "../components/AccuracyDot.vue";
+import TrainingToday from "../components/TrainingToday.vue";
 import AddFoodPill from "../components/AddFoodPill.vue";
 import Bar from "../components/Bar.vue";
 import FreshStart from "../components/FreshStart.vue";
@@ -116,7 +117,7 @@ const nothingShown = computed(() => HOME_SECTIONS.every((row) => !sectionShown(r
 const dayCards = computed(() => sectionShown("macros") || (layout.value === "phone" && sectionShown("foods")));
 /** Wider layouts: the columns that still have a card. With one gone, the rest share the width. */
 const columns = computed(() => ({
-  a: sectionShown("suggestions") || sectionShown("macros"),
+  a: sectionShown("suggestions") || sectionShown("training") || sectionShown("macros"),
   b: sectionShown("progress"),
   c: sectionShown("foods"),
 }));
@@ -208,6 +209,7 @@ const weekRows = computed(() => {
           <GoalReached v-if="showGoal" />
         </template>
 
+        <TrainingToday v-if="sectionShown('training') && selected === today" />
         <section v-if="!ready && dayCards" class="card macros" aria-busy="true" aria-label="Loading today">
           <span class="sk" />
           <span class="sk" />

@@ -18,7 +18,7 @@ afterEach(() => vi.unstubAllGlobals());
 
 describe("home sections", () => {
   it("lists Home's cards in order, without the week", () => {
-    expect(HOME_SECTIONS.map((row) => row.id)).toEqual(["suggestions", "macros", "foods", "progress"]);
+    expect(HOME_SECTIONS.map((row) => row.id)).toEqual(["suggestions", "training", "macros", "foods", "progress"]);
   });
 
   it("switches a card off and on, keeping Home's order", () => {
@@ -31,9 +31,9 @@ describe("home sections", () => {
   });
 
   it("counts the week in Settings' summary", () => {
-    expect(sectionsSummary([])).toEqual({ names: "Week, Suggestions, Macros, Foods today, Progress", count: "5 of 5" });
-    expect(sectionsSummary(["foods"])).toEqual({ names: "Week, Suggestions, Macros, Progress", count: "4 of 5" });
-    expect(sectionsSummary(["suggestions", "macros", "foods", "progress"])).toEqual({ names: "Week", count: "1 of 5" });
+    expect(sectionsSummary([])).toEqual({ names: "Week, Suggestions, Training, Macros, Foods today, Progress", count: "6 of 6" });
+    expect(sectionsSummary(["foods"])).toEqual({ names: "Week, Suggestions, Training, Macros, Progress", count: "5 of 6" });
+    expect(sectionsSummary(["suggestions", "training", "macros", "foods", "progress"])).toEqual({ names: "Week", count: "1 of 6" });
   });
 
   it("names the weight card for Progress on wider layouts", () => {

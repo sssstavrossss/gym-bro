@@ -5,12 +5,13 @@ import type { ScreenLayout } from "./layout";
 // in Settings → Home sections. A new card joins HOME_SECTIONS and shows until it is switched off,
 // because only the hidden ids are stored. The choice is kept on this device, like the theme.
 
-export type HomeSection = "suggestions" | "macros" | "foods" | "progress";
+export type HomeSection = "suggestions" | "training" | "macros" | "foods" | "progress";
 
 export interface SectionRow { id: HomeSection; title: string; caption: string }
 
 export const HOME_SECTIONS: readonly SectionRow[] = [
   { id: "suggestions", title: "Suggestions", caption: "Recalculate, fresh start, goal reached" },
+  { id: "training", title: "Training", caption: "Today's plan workout, or the one running" },
   { id: "macros", title: "Macros", caption: "The swipe card with the day's targets" },
   { id: "foods", title: "Foods today", caption: "The day's foods and Add food" },
   { id: "progress", title: "Progress", caption: "Weight and intake charts" },
