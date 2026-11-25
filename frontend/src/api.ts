@@ -1532,6 +1532,8 @@ export interface WorkoutSummary {
   exercises: string[];
   sets: number;
   volumeKg: number;
+  /** Distance covered (README → Workouts). Missing from copies kept before it was added. */
+  metres?: number;
 }
 
 /** Workouts from one date through another (up to 366 days), newest first. Kept for offline use. */

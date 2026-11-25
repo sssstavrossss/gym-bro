@@ -9,6 +9,26 @@ public static class WorkoutKinds
     public const string Sport = "sport";
 
     public static readonly IReadOnlySet<string> All = new HashSet<string>([Strength, Cardio, Hybrid, Mobility, Sport]);
+
+    /// <summary>
+    /// The kind a workout sent without one is saved as, from its exercises: all cardio is cardio, cardio with anything
+    /// else is hybrid, all stretching is mobility, and the rest (or none) is strength.
+    /// </summary>
+    public static string Of(IEnumerable<string> exerciseIds, ExerciseLibrary library)
+    {
+        var categories = exerciseIds.Distinct().Select(id => library.Find(id)?.Category).OfType<string>().ToHashSet();
+        if (categories.Count == 0)
+        {
+            return Strength;
+        }
+
+        if (categories.Contains("cardio"))
+        {
+            return categories.Count == 1 ? Cardio : Hybrid;
+        }
+
+        return categories.All(category => category == "stretching") ? Mobility : Strength;
+    }
 }
 
 public static class WorkoutStatuses
@@ -163,8 +183,8 @@ public static class WorkoutRules
             return (null, TooEarly);
         }
 
-        var kind = string.IsNullOrWhiteSpace(request.Kind) ? WorkoutKinds.Strength : request.Kind.Trim();
-        if (!WorkoutKinds.All.Contains(kind))
+        var kind = string.IsNullOrWhiteSpace(request.Kind) ? null : request.Kind.Trim();
+        if (kind is not null && !WorkoutKinds.All.Contains(kind))
         {
             return (null, UnknownKind);
         }
@@ -256,6 +276,7 @@ public static class WorkoutRules
             return (null, blockError);
         }
 
+        kind ??= WorkoutKinds.Of(sets.Select(set => set.ExerciseId), library);
         return (new WorkoutDraft(kind, date, name, status, request.StartedAt, request.EndedAt, notes, request.PlanWorkoutId, request.SequencePosition, sets, blocks), null);
     }
 
@@ -265,6 +286,10 @@ public static class WorkoutRules
     /// </summary>
     public static decimal Volume(IEnumerable<Data.WorkoutSet> sets) =>
         sets.Where(Counts).Sum(set => (set.Kg ?? 0) * (set.Reps ?? 0));
+
+    /// <summary>Distance covered, in metres: sets that count and carry no weight (a run, not a sled push).</summary>
+    public static decimal Distance(IEnumerable<Data.WorkoutSet> sets) =>
+        sets.Where(set => Counts(set) && set.Kg is null).Sum(set => set.Metres ?? 0);
 
     /// <summary>A set that counts toward the workout's totals: ticked off and not a warm-up.</summary>
     public static bool Counts(Data.WorkoutSet set) => set.DoneAt is not null && set.Type != SetTypes.Warmup;

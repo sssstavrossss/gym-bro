@@ -41,7 +41,7 @@ test("Train holds the exercise library: search, body areas, and how to do one", 
   await tabs.getByRole("link", { name: "Train" }).click();
   await expect(page).toHaveURL(/\/train$/);
   await expect(page.getByRole("heading", { name: "Train", exact: true })).toBeVisible();
-  await expect(page.locator("[data-exercise-count]")).toHaveText("884");
+  await expect(page.locator("[data-exercise-count]")).toHaveText("886");
 
   // Every word matches the start of a word; names that start with the query come first.
   const search = page.getByLabel("Search exercises");

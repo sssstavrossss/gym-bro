@@ -49,7 +49,8 @@ public sealed record WorkoutSummary(
     DateTimeOffset UpdatedAt,
     IReadOnlyList<string> Exercises,
     int Sets,
-    decimal VolumeKg);
+    decimal VolumeKg,
+    decimal Metres);
 
 /// <summary>The last workout that had an exercise, and that exercise's sets in it.</summary>
 /// <summary>An exercise's sets in one earlier workout.</summary>
@@ -414,6 +415,7 @@ public static class WorkoutEndpoints
             session.UpdatedAt,
             ordered.Select(set => set.ExerciseId).Distinct().ToList(),
             ordered.Count(WorkoutRules.Counts),
-            WorkoutRules.Volume(ordered));
+            WorkoutRules.Volume(ordered),
+            WorkoutRules.Distance(ordered));
     }
 }

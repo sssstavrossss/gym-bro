@@ -97,7 +97,7 @@ describe("totals and finishing", () => {
   ]);
 
   it("counts ticked sets that aren't warm-ups", () => {
-    expect(workoutTotals(draft)).toEqual({ sets: 1, plannedSets: 3, volumeKg: 640 });
+    expect(workoutTotals(draft)).toEqual({ sets: 1, plannedSets: 3, volumeKg: 640, metres: 0 });
     expect(undoneSets(draft)).toBe(2);
     expect(currentExercise(draft)).toBe("a");
   });
@@ -111,7 +111,7 @@ describe("totals and finishing", () => {
 
   it("sends each exercise as its own block, sets in order", () => {
     const body = toRequest(workout([exercise("a", [{ ...emptySet(), kg: 80, reps: 8, doneAt: done }]), { key: "b", exerciseId: "pullups", sets: [{ ...emptySet(), reps: 10, doneAt: done }] }]), "Europe/Oslo");
-    expect(body).toMatchObject({ date: "2026-11-25", timeZone: "Europe/Oslo", kind: "strength", status: "done" });
+    expect(body).toMatchObject({ date: "2026-11-25", timeZone: "Europe/Oslo", kind: null, status: "done" });
     expect(body.sets.map((set) => [set.exerciseId, set.block, set.kg, set.reps])).toEqual([["barbell-squat", 0, 80, 8], ["pullups", 1, null, 10]]);
   });
 });

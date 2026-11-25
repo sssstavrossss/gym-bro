@@ -135,6 +135,38 @@
         "Hinge at the hips, grip the handle with both hands and hike it back between your legs.",
         "Snap your hips forward to swing it to chest height, arms straight, then let it fall back between your legs and repeat."
       ]
+    },
+    {
+      "id": "swim",
+      "name": "Swim",
+      "category": "cardio",
+      "equipment": "body only",
+      "level": "beginner",
+      "mechanic": "compound",
+      "force": "pull",
+      "measure": "distance_time",
+      "primaryMuscles": ["lats", "shoulders"],
+      "secondaryMuscles": ["chest", "triceps", "quadriceps", "abdominals"],
+      "instructions": [
+        "Swim at the planned pace, any stroke, in a pool or open water.",
+        "Log the distance and the time: lengths times the pool's length give the distance."
+      ]
+    },
+    {
+      "id": "walk",
+      "name": "Walk",
+      "category": "cardio",
+      "equipment": "body only",
+      "level": "beginner",
+      "mechanic": "compound",
+      "force": "push",
+      "measure": "distance_time",
+      "primaryMuscles": ["quadriceps", "hamstrings"],
+      "secondaryMuscles": ["calves", "glutes"],
+      "instructions": [
+        "Walk briskly outdoors, at a pace where you can talk but not sing.",
+        "Stand tall and let your arms swing."
+      ]
     }
   ]
 }
