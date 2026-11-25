@@ -763,7 +763,7 @@ Today, the food log, Train, Progress, saved groups, recipes, and recalculate are
 The list is kept on the device, and an unchanged library costs a 304 on the next visit. Tapping a row opens **how to** (`ExerciseSheet.vue`, `openExercise` in `ui.ts`):
 - the name and "Barbell · compound · beginner";
 - the start and end photos side by side;
-- the main muscles as tags, with the others dimmed;
+- the **body map** (`MuscleMap.vue`, shapes in `lib/muscleMap.ts`): our own front and back drawing, with the main muscles in the action colour and the helping ones in a mix of it. Beside it, **Main** and **Helping** list the same muscles as tags, each with a dot in its map colour. The map is decorative for screen readers, since the tags say the same. It has a shape for each of the 17 muscle groups the library names, and a test fails if the library gains one it can't draw;
 - the numbered steps;
 - a credit line ("Photos and steps: free-exercise-db, public domain", or "Steps written for Gym Bro");
 - **Watch a demo**, which opens a YouTube search for the exercise in a new tab. No video is hosted.

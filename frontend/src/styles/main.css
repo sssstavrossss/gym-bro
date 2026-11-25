@@ -224,6 +224,14 @@ html[data-accent]:not([data-accent="mono"]) {
   --control-fab: 56px;
   /* Text over the dark scrim, in every theme. */
   --text-on-scrim: #fff;
+  /* The body map (MuscleMap): one figure's height, and its four tones. Main muscles take the
+     action colour, helping ones a mix of it, the rest stay quiet, and head, hands, knees and feet
+     quieter still. */
+  --muscle-map-height: 152px;
+  --muscle-main: var(--color-hit);
+  --muscle-help: color-mix(in srgb, var(--color-hit) 42%, var(--color-border));
+  --muscle-idle: var(--color-border);
+  --muscle-rest: var(--color-track);
 
   /* Safe areas (iPhone). In ?statusbar demo mode these are faked for screenshots.
      The tab bar includes the home-indicator inset once. Do not add --sab again. */

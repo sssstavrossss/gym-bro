@@ -2,15 +2,16 @@
 
 Gym Bro adds training next to nutrition. This file holds the decisions, the rules and the data model. It is updated as each part is agreed or ships. The README describes behaviour once it ships, and DESIGN.md holds the UI rules.
 
-Status: **phase 1, building**.
+Status: **phase 2, building**.
 
 Shipped so far:
 - The exercise library API: `GET /api/exercises` and `/api/exercises/{id}`, with 884 exercises (free-exercise-db plus our 8 stations), each with a `measure`. See *Exercise library* in the README.
 - Exercise photos: made in the Docker build from the pinned commit, served from `/exercise-photos/f00c92c/<id>/<n>.webp`. The API names the folder, which is where a native app would point at its own copies.
 
 - The Train tab in Log's place, with the exercise library (search, area chips) and the how-to sheet (photos, muscles, steps, Watch a demo). See *Screens* in the README.
+- The muscle map: our own front and back SVG (`lib/muscleMap.ts`, `MuscleMap.vue`), in the how-to sheet beside Main and Helping. This week and Progress reuse it later.
 
-Next: the muscle map, then phase 2 (log a free workout).
+Phase 1 is done. Next: phase 2 (log a free workout).
 
 ## Decisions (agreed 2026-11-25)
 
