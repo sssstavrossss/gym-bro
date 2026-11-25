@@ -2097,6 +2097,88 @@ namespace GymBro.Api.Data.Migrations
                     b.ToTable("target_history", (string)null);
                 });
 
+            modelBuilder.Entity("GymBro.Api.Data.TrainingPlan", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<int>("BlockWeeks")
+                        .HasColumnType("integer")
+                        .HasColumnName("block_weeks");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<bool>("EaseIn")
+                        .HasColumnType("boolean")
+                        .HasColumnName("ease_in");
+
+                    b.PrimitiveCollection<string[]>("Equipment")
+                        .IsRequired()
+                        .HasColumnType("text[]")
+                        .HasColumnName("equipment");
+
+                    b.Property<string>("Experience")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("experience");
+
+                    b.PrimitiveCollection<string[]>("GoEasy")
+                        .IsRequired()
+                        .HasColumnType("text[]")
+                        .HasColumnName("go_easy");
+
+                    b.Property<string>("Goal")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("goal");
+
+                    b.Property<int>("Minutes")
+                        .HasColumnType("integer")
+                        .HasColumnName("minutes");
+
+                    b.Property<string>("Split")
+                        .IsRequired()
+                        .HasMaxLength(24)
+                        .HasColumnType("character varying(24)")
+                        .HasColumnName("split");
+
+                    b.Property<DateOnly>("StartDate")
+                        .HasColumnType("date")
+                        .HasColumnName("start_date");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("user_id");
+
+                    b.PrimitiveCollection<int[]>("Weekdays")
+                        .IsRequired()
+                        .HasColumnType("integer[]")
+                        .HasColumnName("weekdays");
+
+                    b.Property<string>("Workouts")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("workouts");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId")
+                        .IsUnique();
+
+                    b.ToTable("training_plans", (string)null);
+                });
+
             modelBuilder.Entity("GymBro.Api.Data.UserNotification", b =>
                 {
                     b.Property<long>("Id")
@@ -2545,6 +2627,15 @@ namespace GymBro.Api.Data.Migrations
                 });
 
             modelBuilder.Entity("GymBro.Api.Data.TargetHistory", b =>
+                {
+                    b.HasOne("GymBro.Api.Data.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("GymBro.Api.Data.TrainingPlan", b =>
                 {
                     b.HasOne("GymBro.Api.Data.AppUser", null)
                         .WithMany()
