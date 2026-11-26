@@ -28,6 +28,7 @@ import { e2eSession } from "./auth/e2e";
 import { isConfigured, loadPublicConfig } from "./auth/publicConfig";
 import { currentAccount } from "./auth/session";
 import { bindFocusProxy } from "./lib/focusField";
+import { RESET_FLASH_KEY } from "./lib/reset";
 import { isTypingTarget, screenLayoutFromFlags, shortcutEffect } from "./lib/layout";
 import { vp } from "./lib/viewport";
 import { boot } from "./state/boot";
@@ -35,7 +36,7 @@ import { followDeviceZone, loadProfile, profile, retryLoad } from "./state/profi
 import { refreshInbox } from "./state/inbox";
 import { loadToday, sendQueue, viewed } from "./state/log";
 import { startSync } from "./state/sync";
-import { closeCardPages, closeCopy, closeExercise, closeFanPages, closeFoodLayer, closeGroupSheet, closeRecipeSheet, closeSheet, endSelect, openFood, openWeight, ui } from "./ui";
+import { closeCardPages, closeCopy, closeExercise, closeFanPages, closeFoodLayer, closeGroupSheet, closeRecipeSheet, closeSheet, endSelect, openFood, openWeight, toast, ui } from "./ui";
 import SignInView from "./views/SignInView.vue";
 
 const route = useRoute();
@@ -85,7 +86,19 @@ onMounted(async () => {
     }
   }
   boot.ready = true;
+  showResetFlash();
 });
+
+/** Settings → Reset data reloads the app; its toast waits in sessionStorage until it's back. */
+function showResetFlash(): void {
+  try {
+    const text = sessionStorage.getItem(RESET_FLASH_KEY);
+    sessionStorage.removeItem(RESET_FLASH_KEY);
+    if (text) toast(text);
+  } catch {
+    // Storage blocked: the reset happened, just without the toast.
+  }
+}
 
 watch(() => route.fullPath, () => {
   if (ui.sheet !== "copy") endSelect();

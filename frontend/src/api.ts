@@ -1,3 +1,4 @@
+import type { ResetSummary } from "./lib/reset";
 import { accessToken } from "./auth/session";
 import type { CatalogFood, OwnServing } from "./lib/foodAmount";
 import type { LabelFill } from "./lib/customFood";
@@ -911,6 +912,25 @@ export async function describeWorkout(text: string): Promise<DescribedWorkout> {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ text }),
+  }));
+}
+
+/** Settings → Reset data: what each reset would delete. */
+export async function getResetSummary(): Promise<ResetSummary> {
+  return jsonOrThrow(await request("/api/reset"));
+}
+
+/** Deletes every workout and the plan. Nutrition stays. */
+export async function resetTraining(): Promise<{ workouts: number; plan: boolean }> {
+  return jsonOrThrow(await request("/api/reset/training", { method: "POST" }));
+}
+
+/** Deletes the food log, and with `foods` the caller's own foods, recipes and groups. Training stays. */
+export async function resetNutrition(foods: boolean): Promise<{ entries: number; foods: number; recipes: number; groups: number }> {
+  return jsonOrThrow(await request("/api/reset/nutrition", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ foods }),
   }));
 }
 
