@@ -891,6 +891,29 @@ export async function importRecipe(source: ImportSource): Promise<RecipeImportRe
   }));
 }
 
+/** One exercise from "Describe a workout": a library id and the sets the words gave. Values the words lack are null. */
+export interface DescribedWorkoutExercise {
+  exerciseId: string;
+  superset: boolean;
+  sets: { kg: number | null; reps: number | null; seconds: number | null; metres: number | null }[];
+}
+
+export interface DescribedWorkout {
+  exercises: DescribedWorkoutExercise[];
+  /** Exercises the words named that aren't in the library. */
+  unmatched: string[];
+  left: number;
+}
+
+/** Claude names the exercises and sets in the words. Nothing is saved; it counts toward Describe's limit. */
+export async function describeWorkout(text: string): Promise<DescribedWorkout> {
+  return jsonOrThrow(await request("/api/workouts/describe", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text }),
+  }));
+}
+
 /** A past description with the amounts it was logged with. No call to Claude. */
 export async function getDescription(id: string): Promise<DescribeResult> {
   return jsonOrThrow(await request(`/api/describe/${id}`));

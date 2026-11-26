@@ -2,7 +2,7 @@
 
 Gym Bro adds training next to nutrition. This file holds the decisions, the rules and the data model. It is updated as each part is agreed or ships. The README describes behaviour once it ships, and DESIGN.md holds the UI rules.
 
-Status: **phase 6, building**.
+Status: **phases 1–6 shipped**.
 
 Shipped so far:
 - The exercise library API: `GET /api/exercises` and `/api/exercises/{id}`, with 884 exercises (free-exercise-db plus our 8 stations), each with a `measure`. See *Exercise library* in the README.
@@ -50,6 +50,9 @@ Phase 6 (circuits, EMOM, AMRAP, for time, Hyrox and kettlebell plans, cardio, "d
 - Cardio: runs, walks, rides, rows and swims log distance and time with a pace in each sport's unit, start with one set, and add up to a distance in the summary and history. A workout's kind comes from its exercises (cardio, hybrid, mobility, strength). Swim and Walk joined the library. No migration. See *Cardio* in the README.
 - Hyrox plans: a `hyrox` goal and split. Strength days come between station circuits done for time (Stations A and B, a 1 km run and four stations at shorter distances) and run intervals (1 km or 500 m repeats). Stand-ins cover missing kit and areas to go easy on, and rounds fit the minutes and experience. Plan exercises gained `metres`, `superset` and `format`, and the plan editor keeps them. No migration. See *Hyrox* in the README.
 - Kettlebell plans: with kettlebells and body weight only, from 30 minutes, each workout ends with a finisher on the clock. A workouts get a swing and push-up EMOM, B workouts a clean, push press and goblet squat AMRAP. Its minutes come out of the workout's time and depend on experience. Plan exercises gained `minutes`, and the format can be an EMOM or AMRAP. No migration. See *Kettlebell plans* in the README.
+- Describe a workout: type what you did in the workout sheet and Claude names library exercises and the sets the words give; they're added with those sets ticked off. A weight comes only from the words, never from Claude. It shares Describe's daily limit and usage rows (kind `workout`); tests use a rule-based model, so CI never calls Claude. No migration. See *Describe a workout* in the README.
+
+Phase 6 is done, and with it the roadmap below.
 
 ## Decisions (agreed 2026-11-25)
 

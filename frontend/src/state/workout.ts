@@ -1,5 +1,6 @@
 import { markRaw, reactive } from "vue";
-import { ApiError, deleteWorkout, getPreviousSets, getWorkout, listWorkouts, putWorkout, ServerUnreachable, type PreviousSets, type WorkoutSummary } from "../api";
+import { ApiError, deleteWorkout, getPreviousSets, getWorkout, listWorkouts, putWorkout, ServerUnreachable, type DescribedWorkoutExercise, type PreviousSets, type WorkoutSummary } from "../api";
+import { describedExercises } from "../lib/describeWorkout";
 import { addDays, todayInZone } from "../lib/dates";
 import {
   dropUndone,
@@ -192,6 +193,19 @@ export async function addExercise(exerciseId: string): Promise<string> {
   active.exercises.push({ key, exerciseId, sets });
   save();
   return key;
+}
+
+/**
+ * Adds the exercises "Describe a workout" found, their sets ticked off (lib/describeWorkout.ts), and loads each
+ * one's "last time". Starts a workout when none is running. Returns what was added.
+ */
+export async function addDescribed(found: DescribedWorkoutExercise[], now = new Date()): Promise<DraftExercise[]> {
+  const active = editing() ?? startWorkout(now);
+  const added = describedExercises(found, () => `e${++keySeq}`, now.toISOString());
+  active.exercises.push(...added);
+  save();
+  await Promise.all(added.map((exercise) => loadPrevious(exercise.exerciseId)));
+  return added;
 }
 
 /**
