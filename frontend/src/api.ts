@@ -8,6 +8,7 @@ import { dispositionName } from "./lib/download";
 import type { LookupStatus } from "./lib/barcode";
 import type { ExerciseItem } from "./lib/exercises";
 import type { Plan, PlanAnswers, PlanExercise, PlanPreview } from "./lib/plan";
+import type { TrainingSettings } from "./lib/training";
 import type { LiftProgress } from "./lib/strength";
 import type { TimedBlockBody } from "./lib/timed";
 import type { MuscleSets, VolumeTarget } from "./lib/muscleVolume";
@@ -90,6 +91,8 @@ export interface ProfileResponse {
   progressOrder?: string[] | null;
   /** The + fan's pages, each its action ids joined by commas; empty is the default. Null until first saved. */
   fanPages?: string[] | null;
+  /** Your training, which every new plan starts from. Null until first saved; absent from an older server. */
+  training?: TrainingSettings | null;
 }
 
 export type TrendState = "normal" | "low_accuracy" | "fresh_start";
@@ -520,6 +523,8 @@ export interface SettingsBody {
   macrosOrder?: string[];
   progressOrder?: string[];
   fanPages?: string[];
+  /** Every field, each time. */
+  training?: TrainingSettings;
 }
 
 export interface SettingsResponse {
@@ -539,6 +544,7 @@ export interface SettingsResponse {
   progressOrder?: string[] | null;
   /** The + fan's pages, each its action ids joined by commas; empty is the default. Null until first saved. */
   fanPages?: string[] | null;
+  training?: TrainingSettings | null;
 }
 
 /** Display preferences. Saving one never changes the targets or adds history. */

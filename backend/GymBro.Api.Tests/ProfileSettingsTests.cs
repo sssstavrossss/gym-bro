@@ -87,6 +87,48 @@ public sealed class ProfileSettingsTests(ApiFactory factory)
     }
 
     [Fact]
+    public async Task Your_training_is_saved_on_the_account_and_a_plan_fills_it()
+    {
+        factory.Clock.UtcNow = new DateTimeOffset(2026, 11, 16, 8, 0, 0, TimeSpan.Zero);
+        var user = TestData.NewUser("settings-training");
+        using var client = factory.AsUser(user);
+        await TestData.PutWeighIn(client, "2026-11-16", """{"kg":83.6,"timeZone":"UTC"}""");
+        var saved = await TestData.PutProfile(client, TestData.Profile());
+        Assert.Equal(JsonValueKind.Null, saved.GetProperty("profile").GetProperty("training").ValueKind);
+
+        // Go easy on comes back in the list's order, without repeats.
+        var body = await Settings(client, new { training = new { minutes = 45, experience = "new", equipment = new[] { "dumbbells", "kettlebells" }, goEasy = new[] { "knees", "shoulders", "knees" }, warmUp = true } });
+        var training = body.GetProperty("training");
+        Assert.Equal((45, "new", false, true), (training.GetProperty("minutes").GetInt32(), training.GetProperty("experience").GetString(), training.GetProperty("coolDown").GetBoolean(), training.GetProperty("warmUp").GetBoolean()));
+        Assert.Equal(["shoulders", "knees"], training.GetProperty("goEasy").EnumerateArray().Select(item => item.GetString()));
+        var state = await client.GetFromJsonAsync<JsonElement>("/api/profile");
+        Assert.Equal(["dumbbells", "kettlebells"], state.GetProperty("profile").GetProperty("training").GetProperty("equipment").EnumerateArray().Select(item => item.GetString()));
+
+        // Other settings leave it be.
+        Assert.Equal(45, (await Settings(client, new { weightUnit = "lb" })).GetProperty("training").GetProperty("minutes").GetInt32());
+
+        foreach (var bad in new object[]
+        {
+            new { minutes = 47, experience = "new", equipment = new[] { "gym" } },
+            new { minutes = 45, experience = "pro", equipment = new[] { "gym" } },
+            new { minutes = 45, experience = "new", equipment = Array.Empty<string>() },
+            new { minutes = 45, experience = "new", equipment = new[] { "gym" }, goEasy = new[] { "toes" } },
+        })
+        {
+            Assert.Equal(HttpStatusCode.BadRequest, (await client.PutAsJsonAsync("/api/profile/settings", new { training = bad })).StatusCode);
+        }
+
+        // Making a plan keeps its answers for the next one.
+        var plan = await client.PutAsJsonAsync("/api/plan", new { goal = "strength", weekdays = new[] { 0, 3 }, minutes = 75, experience = "experienced", equipment = new[] { "home" }, coolDown = true, timeZone = "UTC" });
+        Assert.Equal(HttpStatusCode.Created, plan.StatusCode);
+        training = (await client.GetFromJsonAsync<JsonElement>("/api/profile")).GetProperty("profile").GetProperty("training");
+        Assert.Equal((75, "experienced", true, false), (training.GetProperty("minutes").GetInt32(), training.GetProperty("experience").GetString(), training.GetProperty("coolDown").GetBoolean(), training.GetProperty("warmUp").GetBoolean()));
+        Assert.Equal(["home"], training.GetProperty("equipment").EnumerateArray().Select(item => item.GetString()));
+        Assert.Empty(training.GetProperty("goEasy").EnumerateArray());
+        Assert.Equal(1, await HistoryCount(user));
+    }
+
+    [Fact]
     public async Task Settings_need_a_profile()
     {
         var user = TestData.NewUser("settings-none");

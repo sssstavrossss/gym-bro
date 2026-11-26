@@ -28,7 +28,9 @@ import {
   type PlanPreview,
   type Split,
 } from "../lib/plan";
+import { withTraining } from "../lib/training";
 import { endPlan, plan, savePlan } from "../state/plan";
+import { training } from "../state/training";
 import { closeSheet, toast, toastError, ui } from "../ui";
 
 // New plan / Edit plan (docs/training.md, decision 3 and 8). The server makes the workouts; the preview shows
@@ -45,7 +47,8 @@ const previewState = ref<"loading" | "ready" | "failed">("loading");
 
 watch(open, (shown) => {
   if (!shown) return;
-  answers.value = plan.current ? answersOf(plan.current) : { ...defaultAnswers(), split: ui.planOwn ? "custom" : null };
+  // A new plan starts from Your training; saving it keeps its answers there for the next one.
+  answers.value = plan.current ? answersOf(plan.current) : { ...withTraining(defaultAnswers(), training.value), split: ui.planOwn ? "custom" : null };
   heart.value = "";
   choosingSplit.value = !plan.current && ui.planOwn;
   confirmingEnd.value = false;

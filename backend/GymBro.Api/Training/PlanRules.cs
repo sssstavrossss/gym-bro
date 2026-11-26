@@ -177,6 +177,45 @@ public static class PlanRules
         && current.Experience == next.Experience && current.Equipment.Order().SequenceEqual(next.Equipment.Order())
         && current.GoEasy.SequenceEqual(next.GoEasy) && current.EaseIn == next.EaseIn && current.Split == next.Split;
 
+    /// <summary>
+    /// The answers a plan shares with Your training (<see cref="TrainingSettings"/>): time, experience, equipment and
+    /// areas to go easy on, checked, or the first thing wrong. Go easy on comes back in the list's order.
+    /// </summary>
+    public static ((int Minutes, string Experience, List<string> Equipment, List<string> GoEasy)? Kit, string? Error) CheckKit(
+        int? minutes, string? experience, IEnumerable<string>? equipment, IEnumerable<string>? goEasy)
+    {
+        if (minutes is not { } time || time < MinMinutes || time > MaxMinutes || time % MinuteStep != 0)
+        {
+            return (null, BadMinutes);
+        }
+
+        var level = experience?.Trim();
+        if (level is null || !Training.Experience.All.Contains(level))
+        {
+            return (null, UnknownExperience);
+        }
+
+        var kit = (equipment ?? []).Select(item => item.Trim()).Distinct().ToList();
+        if (kit.Count == 0)
+        {
+            return (null, NeedsEquipment);
+        }
+
+        if (kit.Any(item => !EquipmentPresets.Holds.ContainsKey(item)))
+        {
+            return (null, UnknownEquipment);
+        }
+
+        var easy = (goEasy ?? []).Select(item => item.Trim()).Distinct().ToList();
+        if (easy.Any(item => !Joints.All.Contains(item)))
+        {
+            return (null, UnknownJoint);
+        }
+
+        // Keep the list's order, so the same answers always store the same way.
+        return ((time, level, kit, Joints.All.Where(easy.Contains).ToList()), null);
+    }
+
     /// <summary>Checks the answers and fills in the defaults, or returns the first thing wrong.</summary>
     public static (PlanAnswers? Answers, string? Error) Check(PlanRequest request)
     {
@@ -197,33 +236,13 @@ public static class PlanRules
             return (null, BadDay);
         }
 
-        if (request.Minutes is not { } minutes || minutes < MinMinutes || minutes > MaxMinutes || minutes % MinuteStep != 0)
+        var (kit, kitError) = CheckKit(request.Minutes, request.Experience, request.Equipment, request.GoEasy);
+        if (kit is null)
         {
-            return (null, BadMinutes);
+            return (null, kitError);
         }
 
-        var experience = request.Experience?.Trim();
-        if (experience is null || !Training.Experience.All.Contains(experience))
-        {
-            return (null, UnknownExperience);
-        }
-
-        var equipment = (request.Equipment ?? []).Select(item => item.Trim()).Distinct().ToList();
-        if (equipment.Count == 0)
-        {
-            return (null, NeedsEquipment);
-        }
-
-        if (equipment.Any(item => !EquipmentPresets.Holds.ContainsKey(item)))
-        {
-            return (null, UnknownEquipment);
-        }
-
-        var goEasy = (request.GoEasy ?? []).Select(item => item.Trim()).Distinct().ToList();
-        if (goEasy.Any(item => !Joints.All.Contains(item)))
-        {
-            return (null, UnknownJoint);
-        }
+        var (minutes, experience, equipment, goEasy) = kit.Value;
 
         var split = string.IsNullOrWhiteSpace(request.Split) ? Splits.For(days.Count, goal) : request.Split.Trim();
         // Hyrox has its own split (or your own); the other goals don't take it.
@@ -232,8 +251,6 @@ public static class PlanRules
             return (null, UnknownSplit);
         }
 
-        // Keep the list's order, so the same answers always store the same way.
-        goEasy = Joints.All.Where(goEasy.Contains).ToList();
         var easeIn = request.EaseIn ?? (experience == Training.Experience.New || goEasy.Count > 0);
         return (new PlanAnswers(goal, days, minutes, experience, equipment, goEasy, easeIn, split, request.WarmUp ?? false, request.CoolDown ?? false), null);
     }

@@ -1368,6 +1368,30 @@ namespace GymBro.Api.Data.Migrations
                         .HasDefaultValue(true)
                         .HasColumnName("time_zone_follows_device");
 
+                    b.Property<bool?>("TrainingCoolDown")
+                        .HasColumnType("boolean")
+                        .HasColumnName("training_cool_down");
+
+                    b.PrimitiveCollection<string[]>("TrainingEquipment")
+                        .HasColumnType("text[]")
+                        .HasColumnName("training_equipment");
+
+                    b.Property<string>("TrainingExperience")
+                        .HasColumnType("text")
+                        .HasColumnName("training_experience");
+
+                    b.PrimitiveCollection<string[]>("TrainingGoEasy")
+                        .HasColumnType("text[]")
+                        .HasColumnName("training_go_easy");
+
+                    b.Property<int?>("TrainingMinutes")
+                        .HasColumnType("integer")
+                        .HasColumnName("training_minutes");
+
+                    b.Property<bool?>("TrainingWarmUp")
+                        .HasColumnType("boolean")
+                        .HasColumnName("training_warm_up");
+
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("updated_at");

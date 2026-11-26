@@ -17,6 +17,7 @@ import NutrientSheet from "./components/NutrientSheet.vue";
 import ExerciseSheet from "./components/ExerciseSheet.vue";
 import ExercisesSheet from "./components/ExercisesSheet.vue";
 import PlanSheet from "./components/PlanSheet.vue";
+import TrainingSheet from "./components/TrainingSheet.vue";
 import PlanWorkoutSheet from "./components/PlanWorkoutSheet.vue";
 import WorkoutSheet from "./components/WorkoutSheet.vue";
 import OfflineSheet from "./components/OfflineSheet.vue";
@@ -37,7 +38,7 @@ import { followDeviceZone, loadProfile, profile, retryLoad } from "./state/profi
 import { refreshInbox } from "./state/inbox";
 import { loadToday, sendQueue, viewed } from "./state/log";
 import { startSync } from "./state/sync";
-import { closeCardPages, closeCopy, closeExercise, closeFanPages, closeFoodLayer, closeGroupSheet, closeRecipeSheet, closeSheet, endSelect, openFood, openWeight, toast, ui } from "./ui";
+import { closeCardPages, closeCopy, closeExercise, closeFanPages, closeFoodLayer, closeGroupSheet, closeRecipeSheet, closeSheet, closeTraining, endSelect, openFood, openWeight, toast, ui } from "./ui";
 import SignInView from "./views/SignInView.vue";
 
 const route = useRoute();
@@ -132,6 +133,7 @@ function onKey(event: KeyboardEvent) {
     cardPagesOver: ui.cardPagesOver,
     exerciseOver: ui.exerciseOver,
     fanPagesOver: ui.fanPagesOver,
+    trainingOver: ui.trainingOver,
     selecting: ui.selecting,
     nav: showNav.value,
   });
@@ -148,6 +150,7 @@ function onKey(event: KeyboardEvent) {
   else if (effect.action === "close-card-pages") closeCardPages();
   else if (effect.action === "close-exercise") closeExercise();
   else if (effect.action === "close-fan-pages") closeFanPages();
+  else if (effect.action === "close-training") closeTraining();
   else if (effect.action === "end-select") endSelect();
   else if (ui.sheet === "food" && closeFoodLayer()) return;
   else closeSheet();
@@ -189,6 +192,7 @@ function onKey(event: KeyboardEvent) {
     <!-- After every sheet: a cog inside one opens it on top. -->
     <CardPagesSheet />
     <FanPagesSheet />
+    <TrainingSheet />
     <Toast />
     <!--
       iOS Safari raises the keyboard only when focus() runs in the same turn as the tap.

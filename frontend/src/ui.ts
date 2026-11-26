@@ -85,6 +85,8 @@ export const ui = reactive({
   cardPagesOver: false,
   /** The + fan's editor is open over the fan (from its cog), which stays open under it. */
   fanPagesOver: false,
+  /** Your training is open over Settings, so closing it goes back there. */
+  trainingOver: false,
   /** The page Settings opens on: its list, Home sections (from Home when every card is off), or the food country (from its toast). */
   settingsView: "main" as SettingsView,
 });
@@ -181,6 +183,21 @@ export function openFanPages(): void {
 
 export function closeFanPages(): void {
   if (ui.fanPagesOver) ui.fanPagesOver = false;
+  else closeSheet();
+}
+
+/** Your training (components/TrainingSheet.vue). From Settings it opens over it, so closing goes back there. */
+export function openTraining(): void {
+  if (ui.sheet && ui.sheet !== "training") {
+    ui.trainingOver = true;
+    return;
+  }
+  ui.trainingOver = false;
+  ui.sheet = "training";
+}
+
+export function closeTraining(): void {
+  if (ui.trainingOver) ui.trainingOver = false;
   else closeSheet();
 }
 
