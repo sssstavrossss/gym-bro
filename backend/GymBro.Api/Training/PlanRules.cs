@@ -121,6 +121,12 @@ public sealed class PlanRequest
     /// <summary>Null takes the split that follows from the days.</summary>
     public string? Split { get; set; }
 
+    /// <summary>A mobility warm-up of dynamic moves before each workout (<see cref="Mobility"/>). Null is off.</summary>
+    public bool? WarmUp { get; set; }
+
+    /// <summary>A cool-down of held stretches after each workout (<see cref="Mobility"/>). Null is off.</summary>
+    public bool? CoolDown { get; set; }
+
     /// <summary>The person's time zone, so a new plan starts on their today.</summary>
     public string? TimeZone { get; set; }
 }
@@ -134,7 +140,9 @@ public sealed record PlanAnswers(
     IReadOnlyList<string> Equipment,
     IReadOnlyList<string> GoEasy,
     bool EaseIn,
-    string Split);
+    string Split,
+    bool WarmUp = false,
+    bool CoolDown = false);
 
 public static class PlanRules
 {
@@ -154,6 +162,20 @@ public static class PlanRules
     public const string UnknownEquipment = "Pick equipment from the list.";
     public const string UnknownJoint = "Pick areas to go easy on from the list.";
     public const string UnknownSplit = "Pick a split from the list.";
+
+    /// <summary>A saved plan's answers.</summary>
+    public static PlanAnswers AnswersOf(Data.TrainingPlan plan) => new(
+        plan.Goal, plan.Weekdays, plan.Minutes, plan.Experience, plan.Equipment, plan.GoEasy, plan.EaseIn, plan.Split, plan.WarmUp, plan.CoolDown);
+
+    /// <summary>
+    /// Only the warm-up or cool-down changed. Then the plan keeps its workouts, hand edits and all, and only their
+    /// warm-ups and cool-downs are made again; any other change remakes the workouts.
+    /// </summary>
+    public static bool OnlyMobilityChanged(PlanAnswers current, PlanAnswers next) =>
+        (current.WarmUp != next.WarmUp || current.CoolDown != next.CoolDown)
+        && current.Goal == next.Goal && current.Weekdays.SequenceEqual(next.Weekdays) && current.Minutes == next.Minutes
+        && current.Experience == next.Experience && current.Equipment.Order().SequenceEqual(next.Equipment.Order())
+        && current.GoEasy.SequenceEqual(next.GoEasy) && current.EaseIn == next.EaseIn && current.Split == next.Split;
 
     /// <summary>Checks the answers and fills in the defaults, or returns the first thing wrong.</summary>
     public static (PlanAnswers? Answers, string? Error) Check(PlanRequest request)
@@ -213,6 +235,6 @@ public static class PlanRules
         // Keep the list's order, so the same answers always store the same way.
         goEasy = Joints.All.Where(goEasy.Contains).ToList();
         var easeIn = request.EaseIn ?? (experience == Training.Experience.New || goEasy.Count > 0);
-        return (new PlanAnswers(goal, days, minutes, experience, equipment, goEasy, easeIn, split), null);
+        return (new PlanAnswers(goal, days, minutes, experience, equipment, goEasy, easeIn, split, request.WarmUp ?? false, request.CoolDown ?? false), null);
     }
 }

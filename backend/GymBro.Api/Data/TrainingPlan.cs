@@ -29,6 +29,12 @@ public sealed class TrainingPlan
 
     public bool EaseIn { get; set; }
 
+    /// <summary>A mobility warm-up before each workout (<see cref="Training.Mobility"/>).</summary>
+    public bool WarmUp { get; set; }
+
+    /// <summary>A cool-down of stretches after each workout (<see cref="Training.Mobility"/>).</summary>
+    public bool CoolDown { get; set; }
+
     /// <summary>One of <see cref="Training.Splits"/>.</summary>
     public string Split { get; set; } = Training.Splits.FullBody;
 

@@ -17,6 +17,8 @@ public sealed record PlanView(
     IReadOnlyList<string> GoEasy,
     bool EaseIn,
     string Split,
+    bool WarmUp,
+    bool CoolDown,
     int BlockWeeks,
     DateOnly StartDate,
     DateTimeOffset UpdatedAt,
@@ -24,7 +26,7 @@ public sealed record PlanView(
     int? LastPosition);
 
 /// <summary>What a set of answers would make, before it's saved.</summary>
-public sealed record PlanPreview(string Split, bool EaseIn, int BlockWeeks, IReadOnlyList<PlanWorkout> Workouts);
+public sealed record PlanPreview(string Split, bool EaseIn, bool WarmUp, bool CoolDown, int BlockWeeks, IReadOnlyList<PlanWorkout> Workouts);
 
 /// <summary>
 /// The training plan (docs/training.md, phase 3). One per person: PUT makes it from the setup's answers or
@@ -69,7 +71,7 @@ public static class PlanEndpoints
             return ApiResults.Error(error!);
         }
 
-        return Results.Ok(new PlanPreview(answers.Split, answers.EaseIn, PlanRules.BlockWeeks, PlanGenerator.Generate(answers, ExerciseCatalog.Current)));
+        return Results.Ok(new PlanPreview(answers.Split, answers.EaseIn, answers.WarmUp, answers.CoolDown, PlanRules.BlockWeeks, PlanGenerator.Generate(answers, ExerciseCatalog.Current)));
     }
 
     private static async Task<IResult> Put(
@@ -111,9 +113,13 @@ public static class PlanEndpoints
         // Your own plan keeps the workouts you made; a generated one is made again from the answers.
         var current = PlanWorkouts.Parse(plan.Workouts);
         var keep = plan.Split == answers.Split ? current.Select(item => item.Id).ToList() : null;
-        var workouts = answers.Split == Splits.Custom && plan.Split == Splits.Custom
-            ? PlanGenerator.KeepCustom(current, answers.Weekdays.Count)
-            : PlanGenerator.Generate(answers, ExerciseCatalog.Current, keep);
+        // Kept workouts get their warm-up and cool-down made again, as the answers now ask. Switching only those
+        // keeps the workouts as they are, edits and all.
+        IReadOnlyList<PlanWorkout> workouts = answers.Split == Splits.Custom && plan.Split == Splits.Custom
+            ? [.. PlanGenerator.KeepCustom(current, answers.Weekdays.Count).Select(item => Mobility.Attach(item, answers, ExerciseCatalog.Current))]
+            : !created && PlanRules.OnlyMobilityChanged(PlanRules.AnswersOf(plan), answers)
+                ? [.. current.Select(item => Mobility.Attach(item, answers, ExerciseCatalog.Current))]
+                : PlanGenerator.Generate(answers, ExerciseCatalog.Current, keep);
         plan.Goal = answers.Goal;
         plan.Weekdays = [.. answers.Weekdays];
         plan.Minutes = answers.Minutes;
@@ -122,6 +128,8 @@ public static class PlanEndpoints
         plan.GoEasy = [.. answers.GoEasy];
         plan.EaseIn = answers.EaseIn;
         plan.Split = answers.Split;
+        plan.WarmUp = answers.WarmUp;
+        plan.CoolDown = answers.CoolDown;
         plan.BlockWeeks = PlanRules.BlockWeeks;
         plan.Workouts = PlanWorkouts.Serialize(workouts);
         plan.UpdatedAt = now;
@@ -168,7 +176,8 @@ public static class PlanEndpoints
             return ApiResults.Error(nameError!);
         }
 
-        workouts[index] = workouts[index] with { Name = name, Exercises = exercises, Minutes = PlanGenerator.Minutes(exercises, plan.Minutes), Edited = true };
+        // Its warm-up and cool-down follow the new exercises.
+        workouts[index] = Mobility.Attach(workouts[index] with { Name = name, Exercises = exercises, Minutes = PlanGenerator.Minutes(exercises, plan.Minutes), Edited = true }, PlanRules.AnswersOf(plan), ExerciseCatalog.Current);
         plan.Workouts = PlanWorkouts.Serialize(workouts);
         plan.UpdatedAt = clock.GetUtcNow();
         await db.SaveChangesAsync(cancellationToken);
@@ -212,6 +221,8 @@ public static class PlanEndpoints
         plan.GoEasy,
         plan.EaseIn,
         plan.Split,
+        plan.WarmUp,
+        plan.CoolDown,
         plan.BlockWeeks,
         plan.StartDate,
         plan.UpdatedAt,

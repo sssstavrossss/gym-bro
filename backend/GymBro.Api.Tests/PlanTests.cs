@@ -15,7 +15,9 @@ public sealed class PlanRulesTests
         string[]? equipment = null,
         string[]? goEasy = null,
         bool? easeIn = null,
-        string? split = null) => new()
+        string? split = null,
+        bool? warmUp = null,
+        bool? coolDown = null) => new()
     {
         Goal = goal,
         Weekdays = [.. days ?? [0, 2, 4, 6]],
@@ -25,6 +27,8 @@ public sealed class PlanRulesTests
         GoEasy = [.. goEasy ?? []],
         EaseIn = easeIn,
         Split = split,
+        WarmUp = warmUp,
+        CoolDown = coolDown,
     };
 
     private static PlanAnswers Answers(PlanRequest request)
@@ -307,6 +311,96 @@ public sealed class PlanRulesTests
         Assert.True(easy.Count <= Swaps.MuscleOptions);
         Assert.Equal(Kit.Barbell, Swaps.KitOf("ez-bar"));
         Assert.Null(Swaps.KitOf("bands"));
+    }
+    [Fact]
+    public void Warm_up_and_cool_down_are_off_unless_asked_for()
+    {
+        var answers = Answers(Request());
+        Assert.False(answers.WarmUp);
+        Assert.False(answers.CoolDown);
+        Assert.All(Generate(Request()), workout =>
+        {
+            Assert.Null(workout.WarmUp);
+            Assert.Null(workout.CoolDown);
+        });
+    }
+
+    [Fact]
+    public void The_warm_up_moves_the_parts_each_workout_trains()
+    {
+        var workouts = Generate(Request(days: [0, 1, 3, 4], warmUp: true));
+        var upper = workouts.First(item => item.Name == "Upper A").WarmUp!.Select(item => item.ExerciseId).ToList();
+        var lower = workouts.First(item => item.Name == "Lower A").WarmUp!.Select(item => item.ExerciseId).ToList();
+        Assert.Equal(5, upper.Count);
+        Assert.Contains("arm-circles", upper);
+        Assert.DoesNotContain("ankle-circles", upper);
+        Assert.Contains("front-leg-raises", lower);
+        Assert.DoesNotContain("dynamic-chest-stretch", lower);
+        // Each move is 30 s, once, with no rest; every one is a stretch from the library.
+        Assert.All(workouts.SelectMany(item => item.WarmUp!), move =>
+        {
+            Assert.Equal((1, 30, 0), (move.Sets, move.Seconds, move.RestSeconds));
+            Assert.Equal("stretching", ExerciseCatalog.Current.Find(move.ExerciseId)!.Category);
+        });
+        // A full-body workout warms both halves.
+        var full = Generate(Request(days: [0, 3], warmUp: true))[0].WarmUp!.Select(item => ExerciseCatalog.Current.Find(item.ExerciseId)!).ToList();
+        Assert.Contains(full, move => move.PrimaryMuscles.Any(muscle => muscle is "shoulders" or "chest" or "lats"));
+        Assert.Contains(full, move => move.PrimaryMuscles.Any(muscle => muscle is "hamstrings" or "quadriceps" or "glutes" or "abductors"));
+        // A short workout keeps it to two.
+        Assert.Equal(2, Generate(Request(minutes: 20, warmUp: true))[0].WarmUp!.Count);
+    }
+
+    [Fact]
+    public void The_warm_up_takes_the_plain_warm_ups_place()
+    {
+        var plain = Generate(Request(days: [0, 1, 3, 4]));
+        var mobile = Generate(Request(days: [0, 1, 3, 4], warmUp: true));
+        Assert.All(plain.Zip(mobile), pair => Assert.Equal(pair.First.Exercises, pair.Second.Exercises));
+        // 5 × (30 + 15) s = 3:45 in place of 5:00, so the estimate never goes up.
+        Assert.All(plain.Zip(mobile), pair => Assert.True(pair.Second.Minutes <= pair.First.Minutes));
+    }
+
+    [Fact]
+    public void The_cool_down_stretches_the_busiest_muscles_and_keeps_its_minutes_free()
+    {
+        var plain = Generate(Request(days: [0, 1, 3, 4], minutes: 45));
+        var cooled = Generate(Request(days: [0, 1, 3, 4], minutes: 45, coolDown: true));
+        var lower = cooled.First(item => item.Name == "Lower A");
+        Assert.Equal(3, lower.CoolDown!.Count);
+        var stretched = lower.CoolDown.Select(item => ExerciseCatalog.Current.Find(item.ExerciseId)!.PrimaryMuscles[0]).ToList();
+        Assert.Contains("quadriceps", stretched);
+        Assert.Contains("hamstrings", stretched);
+        Assert.All(lower.CoolDown, item => Assert.Equal((1, 45, 0), (item.Sets, item.Seconds, item.RestSeconds)));
+        Assert.Equal(lower.CoolDown.Count, lower.CoolDown.Select(item => item.ExerciseId).Distinct().Count());
+        // Its 3 × (45 + 15) s comes out of the lifting, so the workout still fits the time.
+        Assert.All(plain.Zip(cooled), pair => Assert.True(pair.Second.Exercises.Count <= pair.First.Exercises.Count));
+        Assert.All(cooled, item => Assert.True(item.Minutes <= 50, $"{item.Name}: {item.Minutes}"));
+        // New to training holds for 30 s; an hour or more takes four.
+        Assert.All(Generate(Request(experience: "new", coolDown: true))[0].CoolDown!, item => Assert.Equal(30, item.Seconds));
+        Assert.Equal(4, Generate(Request(minutes: 60, coolDown: true))[0].CoolDown!.Count);
+    }
+
+    [Fact]
+    public void Only_a_change_to_the_warm_up_or_cool_down_keeps_the_workouts()
+    {
+        var current = Answers(Request());
+        Assert.True(PlanRules.OnlyMobilityChanged(current, Answers(Request(warmUp: true))));
+        Assert.True(PlanRules.OnlyMobilityChanged(current, Answers(Request(coolDown: true, equipment: ["gym"]))));
+        Assert.False(PlanRules.OnlyMobilityChanged(current, Answers(Request())));
+        Assert.False(PlanRules.OnlyMobilityChanged(current, Answers(Request(warmUp: true, minutes: 45))));
+        Assert.False(PlanRules.OnlyMobilityChanged(current, Answers(Request(warmUp: true, goEasy: ["knees"]))));
+    }
+
+    [Fact]
+    public void Mobility_passes_over_moves_that_load_a_go_easy_area()
+    {
+        var workouts = Generate(Request(days: [0, 1, 3, 4], goEasy: ["shoulders", "hips"], warmUp: true, coolDown: true));
+        var ids = workouts.SelectMany(item => item.WarmUp!.Concat(item.CoolDown!)).Select(item => item.ExerciseId).ToHashSet();
+        Assert.NotEmpty(ids);
+        Assert.DoesNotContain("arm-circles", ids);
+        Assert.DoesNotContain("front-leg-raises", ids);
+        Assert.DoesNotContain("standing-hip-flexors", ids);
+        Assert.DoesNotContain("elbows-back", ids);
     }
 }
 
@@ -632,5 +726,67 @@ public sealed class PlanEndpointTests(ApiFactory factory)
         Assert.Equal(1, kept.RootElement.GetProperty("lastPosition").GetInt32());
         await client.PutAsJsonAsync("/api/plan", Answers(split: "full_body"));
         Assert.Null(await Last());
+    }
+    [Fact]
+    public async Task Warm_up_and_cool_down_are_kept_on_the_plan_and_follow_an_edit()
+    {
+        var client = factory.AsUser(TestData.NewUser("plan-mobility"));
+        var body = new
+        {
+            goal = "muscle",
+            weekdays = new[] { 0, 2, 4 },
+            minutes = 45,
+            experience = "some",
+            equipment = new[] { "gym" },
+            goEasy = Array.Empty<string>(),
+            warmUp = true,
+            coolDown = true,
+            timeZone = "UTC",
+        };
+        using (var preview = JsonDocument.Parse(await (await client.PostAsJsonAsync("/api/plan/preview", body)).Content.ReadAsStringAsync()))
+        {
+            Assert.True(preview.RootElement.GetProperty("warmUp").GetBoolean());
+            Assert.True(preview.RootElement.GetProperty("coolDown").GetBoolean());
+        }
+
+        var made = await client.PutAsJsonAsync("/api/plan", body);
+        Assert.Equal(HttpStatusCode.Created, made.StatusCode);
+        using var json = JsonDocument.Parse(await made.Content.ReadAsStringAsync());
+        Assert.True(json.RootElement.GetProperty("warmUp").GetBoolean());
+        Assert.True(json.RootElement.GetProperty("coolDown").GetBoolean());
+        var first = json.RootElement.GetProperty("workouts")[0];
+        Assert.Equal(5, first.GetProperty("warmUp").GetArrayLength());
+        Assert.Equal(3, first.GetProperty("coolDown").GetArrayLength());
+
+        // Edited to an upper-body workout, its warm-up and cool-down turn to the upper body.
+        var id = first.GetProperty("id").GetString();
+        var edit = new
+        {
+            exercises = new[]
+            {
+                new { exerciseId = "barbell-bench-press-medium-grip", sets = 3, repMin = 6, repMax = 10, restSeconds = 120 },
+                new { exerciseId = "pullups", sets = 3, repMin = 6, repMax = 10, restSeconds = 120 },
+            },
+        };
+        using var edited = JsonDocument.Parse(await (await client.PutAsJsonAsync($"/api/plan/workouts/{id}", edit)).Content.ReadAsStringAsync());
+        var workout = edited.RootElement.GetProperty("workouts")[0];
+        var warm = workout.GetProperty("warmUp").EnumerateArray().Select(item => item.GetProperty("exerciseId").GetString()).ToList();
+        Assert.Contains("arm-circles", warm);
+        Assert.DoesNotContain("front-leg-raises", warm);
+        var cool = workout.GetProperty("coolDown").EnumerateArray().Select(item => item.GetProperty("exerciseId").GetString()).ToList();
+        Assert.DoesNotContain("hamstring-stretch", cool);
+        Assert.NotEmpty(cool);
+
+        // Turned off, they go. Changing only them keeps the workouts, the hand edit included.
+        using var off = JsonDocument.Parse(await (await client.PutAsJsonAsync("/api/plan", body with { warmUp = false, coolDown = false })).Content.ReadAsStringAsync());
+        Assert.False(off.RootElement.GetProperty("warmUp").GetBoolean());
+        var kept = off.RootElement.GetProperty("workouts")[0];
+        Assert.True(kept.GetProperty("edited").GetBoolean());
+        Assert.Equal(["barbell-bench-press-medium-grip", "pullups"], kept.GetProperty("exercises").EnumerateArray().Select(item => item.GetProperty("exerciseId").GetString()));
+        Assert.All(off.RootElement.GetProperty("workouts").EnumerateArray(), item =>
+        {
+            Assert.Equal(JsonValueKind.Null, item.GetProperty("warmUp").ValueKind);
+            Assert.Equal(JsonValueKind.Null, item.GetProperty("coolDown").ValueKind);
+        });
     }
 }
