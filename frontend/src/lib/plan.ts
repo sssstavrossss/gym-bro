@@ -455,3 +455,32 @@ export function dayLabel(date: string, today: string): string {
   if (date === addDays(today, 1)) return "Tomorrow";
   return DAY_FORMAT.format(parse(date));
 }
+
+// A new plan before it starts (README → The plan on Train): its week, each workout's days and what to expect.
+
+/** The days each workout falls on in a week: the training days in order take the workouts in turn. */
+export function workoutDays(weekdays: readonly number[], count: number): number[][] {
+  const days: number[][] = Array.from({ length: count }, () => []);
+  if (!count) return days;
+  [...weekdays].sort((a, b) => a - b).forEach((day, at) => days[at % count].push(day));
+  return days;
+}
+
+/** "Mon, Thu" */
+export function dayNames(days: readonly number[]): string {
+  return days.map((day) => WEEKDAYS[day].slice(0, 3)).join(", ");
+}
+
+/** The workouts' time to the nearest 5, or the time asked for while they're empty (your own). */
+export function eachMinutes(workouts: readonly Pick<PlanWorkout, "minutes" | "exercises">[], asked: number): number {
+  const timed = workouts.filter((workout) => workout.exercises.length);
+  if (!timed.length) return asked;
+  return Math.round(timed.reduce((sum, workout) => sum + workout.minutes, 0) / timed.length / 5) * 5;
+}
+
+/** How the block runs, in a line. */
+export function blockNote(preview: Pick<PlanPreview, "split" | "easeIn" | "blockWeeks">): string {
+  if (preview.split === "custom") return "The workouts start empty. Once the plan starts, tap each one under Your plan to add exercises.";
+  const build = `Each week adds a little, then week ${preview.blockWeeks} is lighter so you recover.`;
+  return preview.easeIn ? `The first 2 weeks ease in. ${build}` : build;
+}

@@ -2,17 +2,20 @@
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import Icon from "../components/Icon.vue";
 import OfflineLine from "../components/OfflineLine.vue";
+import Segmented from "../components/Segmented.vue";
 import { todayInZone } from "../lib/dates";
 import { EXERCISE_AREAS } from "../lib/exercises";
-import { dayLabel, mobilityLine, nextLine, planLine, projectDays, upNext, weekLine, workoutLine } from "../lib/plan";
+import { dayLabel, GOALS, mobilityLine, nextLine, planLine, projectDays, splitFor, splitLabel, toggled, upNext, WEEKDAYS, weekLine, workoutLine } from "../lib/plan";
+import { usingLine } from "../lib/training";
 import { lastWorkout, repeatName, startText, trainCards, weekDiscs } from "../lib/train";
 import { historyLine, shortDay, workoutStatus, workoutTotals } from "../lib/workout";
 import { describe, loadDescribe } from "../state/describe";
 import { exercises, loadExercises } from "../state/exercises";
-import { loadPlan, plan } from "../state/plan";
+import { loadPlan, plan, planDraft } from "../state/plan";
+import { training } from "../state/training";
 import { deviceTimeZone } from "../state/profile";
 import { loadHistory, newPast, openPast, repeatWorkout, skipPlanWorkout, startPlanWorkout, startWorkout, unskipPlanWorkout, workout, workoutHistory } from "../state/workout";
-import { openExercises, openPlan, openPlanWorkout, openWorkout, toast, toastError } from "../ui";
+import { openExercises, openPlan, openPlanWorkout, openTraining, openWorkout, toast, toastError } from "../ui";
 
 // Training (docs/training.md): start or resume a workout, the plan and the history. The exercise library is its own
 // sheet behind the search button; the list still loads here, for the names on the plan and in history.
@@ -60,6 +63,13 @@ async function repeat() {
   openWorkout();
 }
 const areas = EXERCISE_AREAS.filter((area) => area.id !== "all");
+
+// Make a plan: the split follows the goal and the days. A plan needs a day, so the last one stays on.
+const draftSplit = computed(() => splitFor(planDraft.weekdays.length, planDraft.goal));
+function toggleDay(day: number) {
+  const next = toggled(planDraft.weekdays, day, [0, 1, 2, 3, 4, 5, 6]);
+  if (next.length) planDraft.weekdays = next;
+}
 
 // Up next: the plan's next workout, counting finished ones still waiting to send.
 const next = computed(() => {
@@ -158,10 +168,10 @@ function logPast() {
         <h2 id="next-title" class="section-title c2 grow m0">Up next</h2>
         <span v-if="nextDay" class="t-capn c3" data-next-day>{{ nextDay }}</span>
       </div>
-      <ol class="wk" aria-label="This week" data-week>
-        <li v-for="day in week" :key="day.date" class="wday" :data-state="day.state" :data-date="day.date">
+      <ol class="wkstrip" aria-label="This week" data-week>
+        <li v-for="day in week" :key="day.date" class="wkday" :data-state="day.state" :data-date="day.date">
           <span class="t-cap c3" aria-hidden="true">{{ day.letter }}</span>
-          <span class="wdisc t-bodys" aria-hidden="true"><Icon v-if="day.state === 'done'" name="check" :size="16" :sw="2.6" /><template v-else>{{ day.number }}</template></span>
+          <span class="wkdisc t-bodys" aria-hidden="true"><Icon v-if="day.state === 'done'" name="check" :size="16" :sw="2.6" /><template v-else>{{ day.number }}</template></span>
           <span class="sr-only">{{ day.label }}</span>
         </li>
       </ol>
@@ -215,11 +225,31 @@ function logPast() {
         </li>
       </ol>
     </section>
+    <!-- Make a plan: goal and days here, the rest from Your training. See my plan shows it before it starts. -->
     <section v-else-if="cards.makePlan" class="card" aria-labelledby="plan-title" data-plan-card>
-      <h2 id="plan-title" class="section-title c2 m0">Make a plan</h2>
-      <span class="t-label c2">Answer a few questions. You get workouts that fit your days and your time, and they get harder week by week.</span>
+      <div class="row thead">
+        <h2 id="plan-title" class="section-title c2 grow m0">Make a plan</h2>
+        <span class="t-capn c3">Gets harder week by week</span>
+      </div>
+      <Segmented v-model="planDraft.goal" size="compact" class="full" label="Goal" :options="GOALS" />
+      <div class="dpick" role="group" aria-label="Days you train" data-plan-days>
+        <button
+          v-for="(day, index) in WEEKDAYS" :key="day" type="button" class="dbtn" :aria-pressed="planDraft.weekdays.includes(index)" :aria-label="day"
+          @click="toggleDay(index)"
+        ><span class="t-label">{{ day[0] }}</span></button>
+      </div>
+      <dl class="gstats" data-plan-stats>
+        <div><dt class="t-capn c2">Split</dt><dd class="t-bodys">{{ splitLabel(draftSplit) }}</dd></div>
+        <div><dt class="t-capn c2">Each week</dt><dd class="t-bodys">{{ planDraft.weekdays.length === 1 ? "1 workout" : `${planDraft.weekdays.length} workouts` }}</dd></div>
+        <div><dt class="t-capn c2">Each</dt><dd class="t-bodys">{{ training.minutes }} min</dd></div>
+      </dl>
+      <button type="button" class="row using" :aria-label="`Your training: ${usingLine(training)}. Change`" data-plan-using @click="openTraining">
+        <Icon name="user" :size="16" class="c2" />
+        <span class="t-label c2 grow">{{ usingLine(training) }}</span>
+        <Icon name="edit" :size="14" class="c3" />
+      </button>
       <div class="row g8 mkbtns">
-        <button type="button" class="btn sm primary t-label" @click="openPlan()">Make a plan</button>
+        <button type="button" class="btn sm primary t-label" data-see-plan @click="openPlan()">See my plan</button>
         <button type="button" class="btn sm secondary t-label" data-build-own @click="openPlan(true)">Build your own</button>
       </div>
     </section>
@@ -310,18 +340,12 @@ function logPast() {
 .mkbtns { flex-wrap: wrap; }
 .dt-xl .mkbtns .btn { flex: 1 1 100%; }
 .thead { gap: var(--space-s); flex-wrap: nowrap; }
+/* Your training, in a line you can tap to change it. */
+.using { width: 100%; min-height: var(--control-hit); gap: var(--space-s); padding: 0; background: none; border: 0; color: inherit; text-align: left; flex-wrap: nowrap; }
+.using .grow { min-width: 0; overflow-wrap: anywhere; }
+/* At XL the icons stay beside the words; only the words wrap. */
+.dt-xl .using { flex-wrap: nowrap; }
 .names { overflow-wrap: anywhere; }
-/* This week: Home's week strip, read-only. A tick for a day trained, a ring for today, a disc for a plan day. */
-.wk { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); justify-items: center; list-style: none; margin: 0; padding: 0; }
-.wday { display: flex; flex-direction: column; align-items: center; gap: var(--space-2xs); }
-.wdisc {
-  width: 36px; height: 36px; border-radius: var(--radius-pill); display: flex; align-items: center; justify-content: center;
-  font-size: min(0.8824rem, 20px); line-height: 1; color: var(--text-tertiary);
-}
-.wday[data-state="done"] .wdisc { background: var(--color-action); color: var(--color-on-action); box-shadow: var(--d-action); }
-.wday[data-state="today"] .wdisc { box-shadow: inset 0 0 0 2px var(--color-action); color: var(--color-action); }
-.wday[data-state="planned"] .wdisc { background: var(--color-surface-2); box-shadow: var(--d-edge); color: var(--text-primary); }
-.wday[data-state="skipped"] .wdisc { text-decoration: line-through; }
 .list { list-style: none; margin: 0; padding: 0; }
 .hrow {
   width: 100%; min-height: 56px; gap: var(--space-m); padding: var(--space-s) 0; flex-wrap: nowrap;
