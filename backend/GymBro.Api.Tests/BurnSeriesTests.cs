@@ -65,10 +65,9 @@ public sealed class BurnSeriesTests
     }
 
     [Fact]
-    public void SpreadAfter_matches_the_drift_Step_applies_before_measuring()
+    public void SpreadAfter_drifts_60_a_week_up_to_the_formula_spread()
     {
-        var step = BurnEstimate.Step(2500m, 200m, 3m, 2600m, 100m);
-        Assert.Equal(step.PriorSd, BurnEstimate.SpreadAfter(200m, 3m));
+        Assert.Equal((decimal)Math.Sqrt(200 * 200 + 60 * 60 * 3), BurnEstimate.SpreadAfter(200m, 3m));
         Assert.Equal(200m, BurnEstimate.SpreadAfter(200m, -1m));
         Assert.Equal(BurnEstimate.FormulaSdKcal, BurnEstimate.SpreadAfter(340m, 52m));
     }

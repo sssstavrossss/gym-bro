@@ -46,25 +46,46 @@ public sealed record TargetDetails(RecalculationDetails? Recalculation, IReadOnl
         return new TargetDetails(added.Recalculation ?? existing.Recalculation, changes.Count == 0 ? null : changes);
     }
 
-    public static TargetDetails From(AdaptiveReview review) => new(
-        new RecalculationDetails(
-            review.From,
-            review.To,
-            review.PeriodDays,
-            review.IncludedDays,
-            review.LowDays.Count,
-            review.LowDays.Count(day => day.Included),
-            review.Measured,
-            review.Fit?.WeighIns ?? 0,
-            review.Fit is { } fit ? decimal.Round(fit.RateKgPerWeek, 2, MidpointRounding.AwayFromZero) : null,
-            review.AverageKcal is decimal eaten ? NutritionMath.Round(eaten) : null,
-            review.Step is { } step ? NutritionMath.Round(step.Measured) : null,
-            review.Step is { } spread ? NutritionMath.Round(spread.MeasuredSd) : null,
-            review.Step is { } prior ? NutritionMath.Round(prior.Prior) : null,
-            review.Step is { } moved ? NutritionMath.Round(moved.Gain * 100m) : null),
-        null);
+    public static TargetDetails From(AdaptiveReview review)
+    {
+        var window = review.Window;
+        var step = review.Step;
+        var shown = BurnReadings.Stretches(window.Readings);
+        return new(
+            new RecalculationDetails(
+                review.From,
+                review.To,
+                review.PeriodDays,
+                review.IncludedDays,
+                review.LowDays.Count,
+                review.LowDays.Count(day => day.Included),
+                review.Measured,
+                window.WeighIns,
+                review.Fit is { } fit ? decimal.Round(fit.RateKgPerWeek, 2, MidpointRounding.AwayFromZero) : null,
+                review.AverageKcal is decimal eaten ? NutritionMath.Round(eaten) : null,
+                Round(window.Burn),
+                Round(window.Sd),
+                step is null ? null : NutritionMath.Round(step.Prior),
+                step is null ? null : NutritionMath.Round(step.Gain * 100m),
+                shown.Count,
+                shown.Count(reading => !reading.Sure),
+                window.Tier.ToString().ToLowerInvariant(),
+                review.Burn,
+                review.BurnSdKcal,
+                step is null ? null : NutritionMath.Round(step.Cap),
+                step?.Capped,
+                review.Formula.Tdee,
+                review.FarShare is not null),
+            null);
+    }
+
+    private static int? Round(decimal? value) => value is decimal number ? NutritionMath.Round(number) : null;
 }
 
+/// <summary>
+/// How a recalculation measured the burn. Rows saved before the rolling readings lack the
+/// fields after <see cref="StepPercent"/>; they read as null.
+/// </summary>
 public sealed record RecalculationDetails(
     DateOnly From,
     DateOnly To,
@@ -79,7 +100,16 @@ public sealed record RecalculationDetails(
     int? MeasuredBurn,
     int? MeasuredSd,
     int? PriorBurn,
-    int? StepPercent);
+    int? StepPercent,
+    int? Readings = null,
+    int? LessSure = null,
+    string? Tier = null,
+    int? Burn = null,
+    int? BurnSd = null,
+    int? CapKcal = null,
+    bool? Capped = null,
+    int? FormulaBurn = null,
+    bool? Far = null);
 
 /// <summary>One profile field that changed. Values are invariant text in stored units (kg, cm, g/kg, %).</summary>
 public sealed record ProfileChange(string Field, string From, string To)

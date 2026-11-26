@@ -4,7 +4,7 @@ import CappedList from "./CappedList.vue";
 import Icon from "./Icon.vue";
 import { dayMonth, weekdayShort } from "../lib/dates";
 import { int } from "../lib/format";
-import { changeChip, detailRows, historyItems, historySub, historyTitle, type HistoryUnits } from "../lib/targetHistory";
+import { changeChip, detailRows, historyFar, historyFarNote, historyItems, historySub, historyTitle, type HistoryUnits } from "../lib/targetHistory";
 import { getTargetHistory, type TargetHistoryRow } from "../api";
 import { ht, weightUnit, wt, wtSigned } from "../state/units";
 import { ui } from "../ui";
@@ -95,7 +95,7 @@ watch(() => ui.sheet, (sheet, previous) => {
             </span>
             <span class="col grow mid">
               <span class="t-label">{{ historyTitle(item.row) }}<Icon v-if="item.row.recalculation" name="down" :size="14" class="c2 chev" :class="{ up: openKey === item.key }" /></span>
-              <span class="t-capn c2 sub">{{ historySub(item.row, units) }}</span>
+              <span class="t-capn c2 sub"><Icon v-if="historyFar(item.row) != null" name="info" :size="12" class="wi" data-history-far />{{ historySub(item.row, units) }}</span>
             </span>
             <span v-if="item.row.kind !== 'declined'" class="col right">
               <span class="t-bodys num">{{ int(item.row.kcal) }} <span class="t-capn c2">kcal</span></span>
@@ -104,12 +104,15 @@ watch(() => ui.sheet, (sheet, previous) => {
               <span v-else class="t-capn c2 num">P{{ item.row.protein }} · F{{ item.row.fat }} · C{{ item.row.carbs }}</span>
             </span>
           </component>
-          <dl v-if="openKey === item.key" class="det" data-history-details>
-            <template v-for="[label, value] in detailRows(item.row, units)" :key="label">
-              <dt>{{ label }}</dt>
-              <dd class="num">{{ value }}</dd>
-            </template>
-          </dl>
+          <template v-if="openKey === item.key">
+            <dl class="det" data-history-details>
+              <template v-for="[label, value] in detailRows(item.row, units)" :key="label">
+                <dt>{{ label }}</dt>
+                <dd class="num">{{ value }}</dd>
+              </template>
+            </dl>
+            <p v-if="historyFar(item.row) != null" class="t-capn c2 farnote">{{ historyFarNote }}</p>
+          </template>
         </template>
       </li>
     </CappedList>
@@ -136,6 +139,8 @@ watch(() => ui.sheet, (sheet, previous) => {
 .mid > .t-label { display: inline-flex; align-items: center; gap: var(--space-xs); }
 /* The reason and its burn line wrap; a profile change can list several fields. */
 .sub { overflow-wrap: anywhere; }
+.wi { display: inline-block; vertical-align: -1px; margin-right: var(--space-2xs); }
+.farnote { margin: 0 0 0 calc(3.75rem + var(--space-m)); }
 .chev { transition: transform .15s; }
 .chev.up { transform: rotate(180deg); }
 .right { align-items: flex-end; text-align: right; gap: var(--space-2xs); flex: none; }
@@ -148,8 +153,9 @@ watch(() => ui.sheet, (sheet, previous) => {
 .det dt { color: var(--text-secondary); white-space: nowrap; }
 .det dd { margin: 0; text-align: right; }
 .older { align-self: center; }
-:global(html.dt-xl) .top { flex-direction: column; }
-:global(html.dt-xl) .right { align-items: flex-start; text-align: left; }
-:global(html.dt-xl) .det { margin-left: 0; }
+html.dt-xl .top { flex-direction: column; }
+html.dt-xl .mid { flex: none; }
+html.dt-xl .right { align-items: flex-start; text-align: left; }
+html.dt-xl .det, html.dt-xl .farnote { margin-left: 0; }
 h2 { margin: 0; }
 </style>

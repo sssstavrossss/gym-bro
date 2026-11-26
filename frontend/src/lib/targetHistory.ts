@@ -1,6 +1,7 @@
 import type { TargetHistoryRow, TargetProfileChange } from "../api";
 import { monthKey, monthName, spanLabel } from "./dates";
 import { int } from "./format";
+import { capPercent } from "./recalculate";
 
 /** How the history shows weights and heights. Passed in so this stays free of the unit settings. */
 export interface HistoryUnits {
@@ -59,6 +60,14 @@ export function historySub(row: TargetHistoryRow, units: HistoryUnits): string {
   if (has(row, "recalculation_kept")) return `Burn kept at ${int(row.burn)}`;
   if (has(row, "recalculation_formula")) return `From the formula · burn ${int(row.burn)}`;
   if (has(row, "recalculation_adaptive") || has(row, "weekly_recalculation")) {
+    const details = row.recalculation;
+    const far = historyFar(row);
+    if (far != null) return `Burn ${int(row.burn)} · well ${far > 0 ? "above" : "below"} usual`;
+    if (details?.capped && details.priorBurn != null && details.measuredBurn != null && details.burn != null) {
+      const moved = int(Math.abs(details.burn - details.priorBurn));
+      const gap = int(Math.abs(details.measuredBurn - details.priorBurn));
+      return `Burn ${int(row.burn)} · moved ${moved} of ${gap} (${capPercent(details.tier)}% cap)`;
+    }
     return row.previousBurn != null && row.previousBurn !== row.burn
       ? `Burn ${int(row.previousBurn)} → ${int(row.burn)}`
       : `Burn ${int(row.burn)}`;
@@ -67,6 +76,19 @@ export function historySub(row: TargetHistoryRow, units: HistoryUnits): string {
   if (row.previousKcal == null || has(row, "fresh_start")) return `Formula · burn ${int(row.burn)}`;
   return "";
 }
+
+/**
+ * How far a recalculation's burn was from the formula's, as a share, when it was saved as far
+ * (more than 25%). Null for other rows and rows saved before the rolling readings.
+ */
+export function historyFar(row: TargetHistoryRow): number | null {
+  const details = row.recalculation;
+  if (!details?.far || details.burn == null || !details.formulaBurn) return null;
+  return (details.burn - details.formulaBurn) / details.formulaBurn;
+}
+
+export const historyFarNote =
+  "Your burn is well away from the usual for your size and activity. That can be right; check that your logs are complete. It keeps adjusting with each weigh-in.";
 
 /** "−194", "+60", or null for no change or the first row. */
 export function changeChip(row: TargetHistoryRow): string | null {
@@ -87,6 +109,30 @@ export function detailRows(row: TargetHistoryRow, units: HistoryUnits): [string,
     counted += out > 0 ? ` · ${out} low left out` : ` · ${details.lowDays} low`;
   }
   rows.push(["Days counted", counted]);
+  if (details.readings != null) {
+    // Saved from the rolling readings: where the readings pointed, the capped move and the range.
+    const lessSure = details.lessSure ?? 0;
+    const sure = details.readings === 0 ? "" : lessSure > 0 ? ` · ${lessSure} less sure` : " · all sure";
+    rows.push(["Weigh-ins", `${details.weighIns}${sure}`]);
+    if (details.averageKcal != null) rows.push(["Ate", `${int(details.averageKcal)} a day`]);
+    rows.push(["Readings point to", details.measured && details.measuredBurn != null
+      ? `${int(details.measuredBurn)} ± ${int(details.measuredSd ?? 0)}`
+      : "Not measured"]);
+    const burn = details.burn ?? row.burn;
+    rows.push(["Burn", details.measured && details.priorBurn != null && details.priorBurn !== burn
+      ? `${int(details.priorBurn)} → ${int(burn)}`
+      : int(burn)]);
+    const far = historyFar(row);
+    if (details.burnSd != null) {
+      rows.push(["Range", `${int(burn - details.burnSd)}–${int(burn + details.burnSd)}${far != null ? " (wide)" : ""}`]);
+    }
+    if (details.formulaBurn != null) {
+      const off = far != null ? ` · burn ${Math.round(Math.abs(far) * 100)}% ${far > 0 ? "above" : "below"}` : "";
+      rows.push(["Usual for you", `${int(details.formulaBurn)}${off}`]);
+    }
+    rows.push(["Macros", `P${row.protein} · F${row.fat} · C${row.carbs}`]);
+    return rows;
+  }
   if (details.rateKgPerWeek != null) {
     rows.push(["Weight", `${units.weightSigned(details.rateKgPerWeek)} ${units.weightUnit} a week`]);
     rows.push(["Weigh-ins", String(details.weighIns)]);

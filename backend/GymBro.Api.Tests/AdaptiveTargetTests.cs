@@ -41,12 +41,12 @@ public sealed class AdaptiveTargetTests
         IReadOnlySet<DateOnly>? excluded = null,
         IReadOnlySet<DateOnly>? includeZero = null) =>
         AdaptiveTarget.Review(
-            new ReviewInput(From, To, facts, weighIns, Person, prior, priorSd),
+            new ReviewInput(From, To, To.AddDays(1), From.AddDays(-60), facts, weighIns, Person, prior, priorSd, 21),
             excluded ?? new HashSet<DateOnly>(),
             includeZero);
 
     [Fact]
-    public void Clean_daily_weigh_ins_measure_the_burn_and_move_most_of_the_way()
+    public void Clean_daily_weigh_ins_measure_the_burn_and_move_at_most_five_percent()
     {
         var review = Review(Days(2000m), Line());
 
@@ -55,18 +55,24 @@ public sealed class AdaptiveTargetTests
         Assert.Equal(21, review.PeriodDays);
         Assert.Equal(21, review.IncludedDays);
         Assert.Equal(2000m, review.AverageKcal);
+        Assert.Equal(BurnTier.Regular, review.Window.Tier);
+        Assert.Equal(25, review.Window.WeighIns);
+        Assert.Equal(24, review.Window.Readings.Count);
         var fit = Assert.IsType<WeightFit>(review.Fit);
         Assert.Equal(-0.5m, decimal.Round(fit.RateKgPerWeek, 3));
-        var step = Assert.IsType<BurnStep>(review.Step);
-        Assert.Equal(2550m, decimal.Round(step.Measured));
+        var step = Assert.IsType<CappedStep>(review.Step);
+        // 2,000 eaten and 0.5 kg a week lost: 2,550. The formula's 2,768 moves 5% of the way there.
+        Assert.Equal(2550m, decimal.Round(step.Target));
         Assert.Equal(2768m, step.Prior);
-        Assert.InRange(step.Gain, 0.95m, 0.99m);
-        Assert.InRange(review.Burn, 2550, 2565);
+        Assert.True(step.Capped);
+        Assert.Equal(2768 - 138, review.Burn);
         Assert.Equal(review.Burn, review.Proposed.Tdee);
         Assert.Equal(review.Burn - 550, review.Proposed.Kcal);
         Assert.Equal(2768, review.Formula.Tdee);
         Assert.Equal(2218, review.Formula.Kcal);
-        Assert.True(review.BurnSdKcal < 100);
+        Assert.Null(review.FarShare);
+        // What the cap left over keeps it unsure, so the next week can go on.
+        Assert.True(review.BurnSdKcal >= 39);
     }
 
     [Fact]
@@ -74,20 +80,21 @@ public sealed class AdaptiveTargetTests
     {
         var review = Review(Days(2000m), Line(), prior: 2550, priorSd: 80);
         Assert.InRange(review.Burn, 2549, 2551);
+        Assert.False(review.Step!.Capped);
     }
 
     [Fact]
     public void Sparse_noisy_weigh_ins_move_the_burn_less_than_daily_ones()
     {
-        var daily = Review(Days(2000m), Line(1, 0.3m, -0.3m));
-        var weekly = Review(Days(2000m), Line(7, 0.3m, -0.3m));
+        var daily = Review(Days(2000m), Line(1, 0.3m, -0.3m), prior: 2600, priorSd: 150);
+        var weekly = Review(Days(2000m), Line(7, 0.3m, -0.3m), prior: 2600, priorSd: 150);
 
         Assert.True(daily.Measured);
         Assert.True(weekly.Measured);
-        Assert.Equal(4, weekly.Fit!.WeighIns);
-        Assert.True(weekly.Step!.MeasuredSd > daily.Step!.MeasuredSd);
-        Assert.True(weekly.Step.Gain < daily.Step.Gain);
-        Assert.True(weekly.Step.Gain > 0.3m);
+        Assert.Equal(4, weekly.Window.WeighIns);
+        Assert.True(weekly.Window.Sd > daily.Window.Sd);
+        Assert.True(weekly.Step!.Gain < daily.Step!.Gain);
+        Assert.True(weekly.Step.Gain > 0.1m);
     }
 
     [Fact]
@@ -96,7 +103,7 @@ public sealed class AdaptiveTargetTests
         var facts = Days(2000m);
         facts[3] = facts[3] with { LoggedKcal = 1700m };
         facts[9] = facts[9] with { LoggedKcal = 1000m };
-        var counted = Review(facts, Line());
+        var counted = Review(facts, Line(), prior: 2550, priorSd: 200);
 
         Assert.Equal(2, counted.LowDays.Count);
         Assert.All(counted.LowDays, day => Assert.True(day.Included));
@@ -105,17 +112,20 @@ public sealed class AdaptiveTargetTests
         Assert.True(counted.Calendar[3].Counted);
         Assert.Equal(AdaptiveTarget.Normal, counted.Calendar[0].Status);
 
+        // A day left out is filled with the average logged day for the burn.
         var excluded = new HashSet<DateOnly> { From.AddDays(3), From.AddDays(9) };
-        var leftOut = Review(facts, Line(), excluded: excluded);
+        var leftOut = Review(facts, Line(), prior: 2550, priorSd: 200, excluded: excluded);
         Assert.Equal(19, leftOut.IncludedDays);
         Assert.Equal(2000m, leftOut.AverageKcal);
         Assert.All(leftOut.LowDays, day => Assert.False(day.Included));
+        Assert.Equal(2550m, decimal.Round(leftOut.Window.Burn!.Value));
+        Assert.True(counted.Window.Burn < leftOut.Window.Burn);
         Assert.Equal(leftOut.Proposed.Kcal, counted.LeftOutKcal);
         Assert.Equal(counted.Proposed.Kcal, counted.CountedKcal);
         Assert.True(counted.LeftOutKcal > counted.Proposed.Kcal);
 
         // A mixed choice still offers both: all counted and all left out.
-        var mixed = Review(facts, Line(), excluded: new HashSet<DateOnly> { From.AddDays(9) });
+        var mixed = Review(facts, Line(), prior: 2550, priorSd: 200, excluded: new HashSet<DateOnly> { From.AddDays(9) });
         Assert.Equal(counted.Proposed.Kcal, mixed.CountedKcal);
         Assert.Equal(leftOut.Proposed.Kcal, mixed.LeftOutKcal);
     }
@@ -150,13 +160,13 @@ public sealed class AdaptiveTargetTests
     }
 
     [Fact]
-    public void Fewer_than_seven_counted_days_keep_the_current_burn()
+    public void Too_few_logged_days_keep_the_current_burn()
     {
         var facts = Days(2000m).Select((day, index) => index < 6 ? day : new DayFact(day.Date, 0m, false, 2218)).ToList();
         var review = Review(facts, Line(), prior: 2600, priorSd: 120);
 
         Assert.False(review.Measured);
-        Assert.Equal(AdaptiveTarget.NeedMoreDays, review.Blocked);
+        Assert.Equal(BurnReadings.NeedLogs, review.Blocked);
         Assert.Null(review.Step);
         Assert.Equal(2600, review.Burn);
         Assert.Equal(120, review.BurnSdKcal);
@@ -167,25 +177,37 @@ public sealed class AdaptiveTargetTests
     public void Too_few_or_bunched_weigh_ins_say_what_is_missing()
     {
         var one = Review(Days(2000m), [(From, 84m)]);
-        Assert.Equal(AdaptiveTarget.NeedWeighIns(2), one.Blocked);
-        Assert.Equal(2, one.WeighInsNeeded);
-        Assert.Equal("Weigh in 2 more times to measure your burn.", one.Blocked);
-        Assert.Equal("Weigh in 1 more time to measure your burn.", AdaptiveTarget.NeedWeighIns(1));
+        Assert.Equal(BurnTier.Rare, one.Window.Tier);
+        Assert.Equal(BurnReadings.NeedWeighIns, one.Blocked);
+        Assert.Equal(1, one.WeighInsNeeded);
         Assert.Equal(2768, one.Burn);
 
         var bunched = Review(Days(2000m), [(To, 84m), (To.AddDays(-2), 84.1m), (To.AddDays(-4), 84.2m)]);
-        Assert.Equal(AdaptiveTarget.NeedSpread, bunched.Blocked);
+        Assert.Equal(BurnTier.Sparse, bunched.Window.Tier);
+        Assert.Equal(BurnReadings.NeedSpread, bunched.Blocked);
         Assert.Equal(0, bunched.WeighInsNeeded);
     }
 
     [Fact]
-    public void A_measured_burn_under_bmr_is_raised_to_bmr()
+    public void A_measured_burn_under_bmr_is_raised_to_bmr_and_flagged_far_from_the_formula()
     {
-        var review = Review(Days(900m, 2218), Line(), prior: 1900, priorSd: 50);
+        var review = Review(Days(900m, 2218), Line(), prior: 1800, priorSd: 50);
         Assert.True(review.Measured);
         Assert.Equal(1786, review.Burn);
         Assert.Equal(1786, review.Proposed.Kcal);
         Assert.True(review.Proposed.FloorApplied);
+        Assert.True(review.FarShare < -0.25m);
+    }
+
+    [Fact]
+    public void A_burn_far_from_the_formula_keeps_going_with_a_wide_range()
+    {
+        var review = Review(Days(3000m), Line(), prior: 3600, priorSd: 100);
+        Assert.True(review.Measured);
+        Assert.InRange(review.Burn, 3540, 3600);
+        Assert.True(review.FarShare > 0.25m);
+        // No hard stop: the range widens to half the distance from the formula.
+        Assert.True(review.BurnSdKcal >= (review.Burn - 2768) / 2);
     }
 
     [Fact]
@@ -201,20 +223,6 @@ public sealed class AdaptiveTargetTests
         Assert.Equal(0.0505m, decimal.Round(fit.SlopeSeKgPerDay, 4));
         Assert.Null(BurnEstimate.Fit([(day, 80m), (day.AddDays(7), 79m)]));
         Assert.Null(BurnEstimate.Fit([(day, 80m), (day.AddDays(2), 79m), (day.AddDays(5), 79m)]));
-    }
-
-    [Fact]
-    public void Step_weighs_prior_and_measurement_by_how_sure_each_is()
-    {
-        var even = BurnEstimate.Step(2500m, 100m, 0m, 2700m, 100m);
-        Assert.Equal(0.5m, decimal.Round(even.Gain, 4));
-        Assert.Equal(2600m, decimal.Round(even.Burn, 4));
-
-        // Weeks without a measurement make the prior less sure, never past the formula's spread.
-        var drifted = BurnEstimate.Step(2500m, 100m, 4m, 2700m, 100m);
-        Assert.True(drifted.Gain > even.Gain);
-        var capped = BurnEstimate.Step(2500m, 340m, 100m, 2700m, 100m);
-        Assert.Equal(BurnEstimate.FormulaSdKcal, decimal.Round(capped.PriorSd, 6));
     }
 
     [Fact]
@@ -265,6 +273,8 @@ public sealed class AdaptiveTargetTests
         var afterGap = RecalculatePeriod.For(today, new DateOnly(2026, 1, 1), null, today.AddDays(-60), fresh);
         Assert.Equal(fresh, afterGap.From);
         Assert.Equal(fresh.AddDays(7), afterGap.SlopeFrom);
+        Assert.Equal(fresh.AddDays(7), RecalculatePeriod.Settled(new DateOnly(2026, 1, 1), fresh));
+        Assert.Equal(setup.AddDays(7), RecalculatePeriod.Settled(setup, null));
     }
 
     [Fact]

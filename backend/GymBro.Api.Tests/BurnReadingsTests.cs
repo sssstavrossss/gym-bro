@@ -49,6 +49,7 @@ public sealed class BurnReadingsTests(ITestOutputHelper output)
         Assert.All(window.Readings, reading => Assert.Equal(2900m, decimal.Round(reading.Burn)));
         // Sunday was 140% of target before every Monday: a habit, so the bloat cancels and each stays sure.
         Assert.All(window.Readings, reading => Assert.True(reading.BigDayBefore));
+        Assert.All(window.Readings, reading => Assert.False(reading.Bloated));
         Assert.All(window.Readings, reading => Assert.True(reading.Sure));
     }
 
@@ -64,6 +65,8 @@ public sealed class BurnReadingsTests(ITestOutputHelper output)
         var naive = BurnReadings.Measure(Today, Long, bloated, plain, 2700m);
 
         Assert.True(careful.Readings[^1].BigDayBefore);
+        Assert.True(careful.Readings[^1].Bloated);
+        Assert.False(careful.Readings[^1].Sure);
         Assert.False(naive.Readings[^1].BigDayBefore);
         Assert.True(Math.Abs(careful.Burn!.Value - 2700m) < Math.Abs(naive.Burn!.Value - 2700m));
         Assert.True(careful.Burn < 2700m);
@@ -167,6 +170,42 @@ public sealed class BurnReadingsTests(ITestOutputHelper output)
         Assert.Equal(2660m, down.Burn);
     }
 
+    private static BurnReading Part(DateOnly from, int days, decimal startKg, decimal lost, decimal share = 1m, bool bloated = false) =>
+        new(from, from.AddDays(days), days, startKg, startKg - lost, startKg + days * (2200m - 2900m) / NutritionMath.KcalPerKg,
+            2200m * days, 2200m + lost * NutritionMath.KcalPerKg / days, share, bloated, bloated, !bloated && share >= BurnReadings.SureLoggedShare);
+
+    [Fact]
+    public void Daily_readings_show_a_week_at_a_time_ending_at_the_latest_weigh_in()
+    {
+        var start = new DateOnly(2026, 11, 1);
+        var daily = Enumerable.Range(0, 16).Select(i => Part(start.AddDays(i), 1, 84m - i * 0.1m, 0.1m)).ToList();
+        // A big day before a weigh-in in the middle washes out.
+        daily[11] = daily[11] with { BigDayBefore = true, Bloated = true, Sure = false };
+
+        var shown = BurnReadings.Stretches(daily);
+
+        // 16 days: the last two weeks are whole, and the 2 days before them join the first.
+        Assert.Equal([(start, 9), (start.AddDays(9), 7)], shown.Select(item => (item.From, item.Days)).ToList());
+        var week = shown[1];
+        Assert.Equal(start.AddDays(16), week.To);
+        Assert.Equal(83.1m, week.StartKg);
+        Assert.Equal(82.4m, week.EndKg);
+        // 0.7 kg lost on 2,200 a day: 2,200 + 0.7 × 7,700 / 7 = 2,970.
+        Assert.Equal(2970m, decimal.Round(week.Burn));
+        Assert.Equal(decimal.Round(83.1m + 7 * (2200m - 2900m) / NutritionMath.KcalPerKg, 6), decimal.Round(week.ExpectedKg, 6));
+        Assert.True(week.Sure);
+
+        // Weekly readings stay as they are; the last one's big day or few logs make it less sure.
+        var weekly = new List<BurnReading> { Part(start, 7, 85m, 0.5m), Part(start.AddDays(7), 7, 84.5m, 0.5m, share: 4m / 7m), Part(start.AddDays(14), 7, 84m, -0.4m, bloated: true) };
+        var kept = BurnReadings.Stretches(weekly);
+        Assert.Equal(weekly, kept);
+        Assert.False(kept[1].Sure);
+        Assert.False(kept[2].Sure);
+        Assert.Single(BurnReadings.Stretches([Part(start, 3, 84m, 0.2m)]));
+        var halfLogged = BurnReadings.Stretches(Enumerable.Range(0, 7).Select(i => Part(start.AddDays(i), 1, 84m, 0m, share: i < 3 ? 1m : 0m)).ToList());
+        Assert.False(Assert.Single(halfLogged).Sure);
+    }
+
     [Fact]
     public void In_simulation_the_rolling_readings_move_less_and_are_as_close_or_closer_by_week_twelve()
     {
@@ -181,8 +220,8 @@ public sealed class BurnReadingsTests(ITestOutputHelper output)
         foreach (var result in results)
         {
             var name = result.Scenario.Name;
-            // Never more than 5% in one go, and on average no jumpier than today.
-            Assert.True(result.NewMaxStepShare <= 0.0501, name);
+            // Never more than 5% in one go (give or take rounding to whole kcal), and on average no jumpier than before.
+            Assert.True(result.NewMaxStepShare <= 0.0505, name);
             Assert.True(result.NewMeanStep <= result.OldMeanStep + 1, name);
             // By week 12 at least as close as today's maths.
             Assert.True(result.NewError[2] <= result.OldError[2] + 5, name);

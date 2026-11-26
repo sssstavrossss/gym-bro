@@ -1,3 +1,4 @@
+import type { BurnReading, BurnTier, RecalculateStep } from "../api";
 import { int } from "./format";
 
 export const recalculateBannerText = "Time to recalculate your target";
@@ -99,13 +100,6 @@ export function periodLabel(periodDays: number, capped: boolean): string {
   return periodDays === 1 ? "1 day" : `${periodDays} days`;
 }
 
-/** How the measured burn was worked out, by the weight's direction. */
-export function measureNote(rateKgPerWeek: number): string {
-  if (rateKgPerWeek < 0) return "Ate + weight lost × 7,700";
-  if (rateKgPerWeek > 0) return "Ate − weight gained × 7,700";
-  return "Ate, with your weight steady";
-}
-
 /** Why the burn moved as far as it did. A big step means the weigh-ins line up; a small one means few or noisy ones. */
 export function stepCaption(gain: number): string {
   const moved = `Your burn moved ${stepPercent(gain)} of the way to it`;
@@ -124,4 +118,49 @@ export function targetLine(burn: number, kcal: number, goal: "lose" | "maintain"
   const sign = gap < 0 ? "−" : "+";
   const verb = goal === "lose" ? "lose" : "gain";
   return `Target = burn ${int(burn)} ${sign} ${int(Math.abs(gap))} to ${verb} ${rate} a week.`;
+}
+
+/**
+ * Why a reading is less sure, or null when it's sure: "After a big day" (the day before its
+ * weigh-in was a big one, and that isn't a weekly habit), or "4 of 7 days logged".
+ */
+export function readingNote(reading: BurnReading): string | null {
+  if (reading.sure) return null;
+  const notes: string[] = [];
+  if (reading.bloated) notes.push("After a big day");
+  const logged = Math.round(reading.loggedShare * reading.days);
+  if (logged < reading.days && (!reading.bloated || logged < 0.7 * reading.days)) notes.push(`${logged} of ${reading.days} days logged`);
+  return notes.join(" · ") || null;
+}
+
+/** "22 weigh-ins since 8 Oct", with "· last 8 weeks" when there are few and it looks back further. */
+export function readingsCaption(weighIns: number, since: string, tier: BurnTier): string {
+  const count = weighIns === 1 ? "1 weigh-in" : `${weighIns} weigh-ins`;
+  return `${count} since ${since}${tier === "sparse" ? " · last 8 weeks" : ""}`;
+}
+
+/** The largest share a burn moves in one recalculation, as a whole percent. */
+export const capPercent = (tier: BurnTier | null | undefined) => (tier === "sparse" ? 3 : 5);
+
+/**
+ * Under the strip. A capped step says how far it went of how far it could have:
+ * "Moved 150 of 170 kcal: a burn moves at most 5% per update. Your next weigh-ins settle the rest."
+ * Otherwise it says how sure the readings were.
+ */
+export function moveCaption(step: RecalculateStep, tier: BurnTier): string {
+  if (!step.capped) return stepCaption(step.gain);
+  const moved = int(Math.abs(step.burn - step.prior));
+  const gap = int(Math.abs(step.measured - step.prior));
+  const few = tier === "sparse" ? " while weigh-ins are few" : "";
+  return `Moved ${moved} of ${gap} kcal: a burn moves at most ${capPercent(tier)}% per update${few}. Your next weigh-ins settle the rest.`;
+}
+
+/** "Well above the usual for you" or "Well below…", for a burn more than 25% from the formula. */
+export function farTitle(share: number): string {
+  return `Well ${share > 0 ? "above" : "below"} the usual for you`;
+}
+
+export function farNote(share: number, formulaBurn: number): string {
+  const percent = Math.round(Math.abs(share) * 100);
+  return `Your burn is ${percent}% ${share > 0 ? "above" : "below"} what's usual for your size and activity (${int(formulaBurn)}). That can be right, but check that your logs are complete. The range stays wide until more weigh-ins agree.`;
 }

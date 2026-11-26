@@ -13,14 +13,10 @@ public sealed record WeightFit(
     public decimal RateKgPerWeek => SlopeKgPerDay * 7m;
 }
 
-/// <summary>The burn before and after one measurement, and how far the measurement moved it.</summary>
-public sealed record BurnStep(decimal Prior, decimal PriorSd, decimal Measured, decimal MeasuredSd, decimal Burn, decimal BurnSd, decimal Gain);
-
 /// <summary>
-/// Measures the daily burn from intake and the weight slope, then moves the
-/// current burn toward it by how sure each one is (a one-step Kalman update).
-/// A clean measurement moves it most of the way. Few or noisy weigh-ins move it
-/// a little, so one odd period cannot swing the target.
+/// Shared burn rules: how unsure the formula is, how fast an unmeasured burn grows less sure,
+/// the weight line Recalculate shows, and how a measured burn is carried through profile edits.
+/// The measurement itself is <see cref="BurnReadings"/>.
 /// </summary>
 public static class BurnEstimate
 {
@@ -89,27 +85,9 @@ public static class BurnEstimate
         return new WeightFit(n, first, last, (decimal)slope, (decimal)se);
     }
 
-    /// <summary>Burn = what was eaten, plus the energy that came off the body (or minus what went on).</summary>
-    public static (decimal Burn, decimal Sd) Measure(decimal averageKcal, WeightFit fit) =>
-        (averageKcal - fit.SlopeKgPerDay * NutritionMath.KcalPerKg, fit.SlopeSeKgPerDay * NutritionMath.KcalPerKg);
-
     /// <summary>
-    /// The prior grows less sure each week it goes unmeasured, never past the
-    /// formula's own spread. The gain is the share of the gap it moves.
-    /// </summary>
-    public static BurnStep Step(decimal prior, decimal priorSd, decimal weeks, decimal measured, decimal measuredSd)
-    {
-        var variance = DriftedVariance(priorSd, weeks);
-        var noise = measuredSd * measuredSd;
-        var gain = variance + noise <= 0 ? 0m : variance / (variance + noise);
-        var burn = prior + gain * (measured - prior);
-        var sd = (decimal)Math.Sqrt((double)((1m - gain) * variance));
-        return new BurnStep(prior, (decimal)Math.Sqrt((double)variance), measured, measuredSd, burn, sd, gain);
-    }
-
-    /// <summary>
-    /// How unsure a burn is after <paramref name="weeks"/> unmeasured: the same drift
-    /// <see cref="Step"/> applies before it measures, capped at the formula's spread.
+    /// How unsure a burn is after <paramref name="weeks"/> unmeasured: it drifts by
+    /// <see cref="WeeklyDriftKcal"/> a week, never past the formula's spread.
     /// </summary>
     public static decimal SpreadAfter(decimal sd, decimal weeks) =>
         (decimal)Math.Sqrt((double)DriftedVariance(sd, weeks));
