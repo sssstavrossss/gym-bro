@@ -89,11 +89,14 @@ test("A plan: answer the questions, see the preview, create it, edit it and end 
   expect(saved.plan.goEasy).toEqual(["knees"]);
   expect(saved.plan.weekdays).toEqual([0, 2, 3, 4]);
 
-  // Edit: the answers come back, and a new split remakes the workouts.
+  // Edit: the plan's own answers come back, the rest is Your training, and a new split remakes the workouts.
   await card.getByRole("button", { name: "Edit", exact: true }).click();
   const edit = page.getByRole("dialog", { name: "Edit plan" });
-  await expect(edit.locator("[data-plan-minutes]")).toHaveText("55 min");
-  await expect(edit.getByRole("button", { name: "Knees" })).toHaveAttribute("aria-pressed", "true");
+  await settled(edit);
+  await expect(edit.getByRole("radio", { name: "Muscle" })).toHaveAttribute("aria-checked", "true");
+  await expect(edit.getByRole("button", { name: "Thursday" })).toHaveAttribute("aria-pressed", "true");
+  await expect(edit.locator("[data-plan-using]")).toContainText("Dumbbells · 55 min · Some experience");
+  await expect(edit.locator("[data-plan-training-changed]")).toHaveCount(0);
   await edit.getByRole("button", { name: "Change split" }).click();
   await edit.getByRole("radio", { name: "Full body" }).click();
   await expect(edit.locator("[data-plan-preview]")).toContainText("Full body, 2 workouts in turn");

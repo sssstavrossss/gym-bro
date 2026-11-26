@@ -88,18 +88,25 @@ test("Your training: set in Settings, kept on the account, and a new plan starts
   const saved = (await (await page.request.get("/api/plan", { headers: headers(oid) })).json()).plan;
   expect([saved.minutes, saved.experience, saved.equipment, saved.goEasy, saved.warmUp]).toEqual([45, "new", ["dumbbells"], ["knees"], true]);
 
-  // Changed in Edit plan, the change goes back to Your training.
-  await page.locator("[data-plan-card]").getByRole("button", { name: "Edit", exact: true }).click();
-  const edit = page.getByRole("dialog", { name: "Edit plan" });
-  await settled(edit);
-  await edit.getByRole("button", { name: "5 minutes more" }).click();
-  await edit.locator("[data-plan-save]").click();
-  await expect(edit).toBeHidden();
+  // Changed later, Your training leaves the plan as it is until Edit plan saves it.
   await page.goto("/profile");
   await page.getByRole("button", { name: "Settings" }).click();
   await settled(settings);
-  await expect(settings.locator("[data-training-line]")).toHaveText("Dumbbells · 50 min · New to training");
   await settings.locator("[data-training-row]").click();
   await settled(sheet);
   await expect(sheet.locator("[data-training-plan-note]")).toBeVisible();
+  await sheet.getByRole("button", { name: "5 minutes more" }).click();
+  await expect(sheet.locator("[data-training-minutes]")).toHaveText("50 min");
+  await expect.poll(async () => (await (await page.request.get("/api/profile", { headers: headers(oid) })).json()).profile.training.minutes).toBe(50);
+  expect((await (await page.request.get("/api/plan", { headers: headers(oid) })).json()).plan.minutes).toBe(45);
+
+  await page.goto("/train");
+  await page.locator("[data-plan-card]").getByRole("button", { name: "Edit", exact: true }).click();
+  const edit = page.getByRole("dialog", { name: "Edit plan" });
+  await settled(edit);
+  await expect(edit.locator("[data-plan-using]")).toContainText("Dumbbells · 50 min · New to training");
+  await expect(edit.locator("[data-plan-training-changed]")).toBeVisible();
+  await edit.locator("[data-plan-save]").click();
+  await expect(edit).toBeHidden();
+  expect((await (await page.request.get("/api/plan", { headers: headers(oid) })).json()).plan.minutes).toBe(50);
 });
