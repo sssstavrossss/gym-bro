@@ -7,7 +7,7 @@ function headers(oid: string) {
 
 test.use({ viewport: { width: 390, height: 844 } });
 
-async function setup(page: Page) {
+async function setup(page: Page): Promise<string> {
   const oid = `e2e-train-start-${Date.now()}-${test.info().project.name}`;
   const when = await page.evaluate(() => {
     const zone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
@@ -28,6 +28,7 @@ async function setup(page: Page) {
     sessionStorage.setItem("gymbro-e2e", "1");
     sessionStorage.setItem("gymbro-e2e-oid", id);
   }, oid);
+  return oid;
 }
 
 test("A first visit: start a workout, make a plan, explore by body area, and log what you did before, with no empty History", async ({ page }) => {
@@ -61,9 +62,12 @@ test("A first visit: start a workout, make a plan, explore by body area, and log
   await page.getByRole("button", { name: "Describe a workout" }).click();
   const describe = page.getByRole("dialog", { name: "Describe a workout" });
   await expect(describe.getByLabel("What you did")).toBeVisible();
-  await describe.getByRole("button", { name: "Back to the workout" }).click();
   const workout = page.getByRole("dialog", { name: "Workout", exact: true });
-  await expect(workout).toBeVisible();
+  // WebKit can drop a tap made while the sheet is still sliding in; tap again until it lands.
+  await expect(async () => {
+    await describe.getByRole("button", { name: "Back to the workout" }).click();
+    await expect(workout).toBeVisible({ timeout: 1000 });
+  }).toPass();
   await workout.getByRole("button", { name: "Hide the workout" }).click();
 
   // While it runs, the start makes way for the workout in progress.
@@ -91,4 +95,43 @@ test("A first visit: start a workout, make a plan, explore by body area, and log
   const results = await new AxeBuilder({ page }).include("main").analyze();
   const serious = results.violations.filter((item) => item.impact === "serious" || item.impact === "critical");
   expect(serious, JSON.stringify(serious.map((item) => item.id))).toEqual([]);
+});
+
+test("Repeat starts the last workout again: its name, its exercises in order, and as many sets as last time", async ({ page }) => {
+  await page.goto("/");
+  const oid = await setup(page);
+  const { zone, yesterday } = await page.evaluate(() => {
+    const zone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+    const day = new Intl.DateTimeFormat("en-CA", { timeZone: zone, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(Date.now() - 86_400_000));
+    return { zone, yesterday: day };
+  });
+  const doneAt = `${yesterday}T17:00:00Z`;
+  const put = await page.request.put(`/api/workouts/${crypto.randomUUID()}`, {
+    headers: { "X-Test-Oid": oid, "X-Test-Name": "Test User", "Content-Type": "application/json" },
+    data: {
+      date: yesterday, timeZone: zone, name: "Leg day",
+      sets: [
+        { exerciseId: "barbell-squat", block: 0, type: "warmup", kg: 40, reps: 8, doneAt },
+        { exerciseId: "barbell-squat", block: 0, type: "working", kg: 100, reps: 5, doneAt },
+        { exerciseId: "barbell-squat", block: 0, type: "working", kg: 100, reps: 5, doneAt },
+        { exerciseId: "plank", block: 1, type: "working", seconds: 60, doneAt },
+      ],
+    },
+  });
+  expect(put.status(), await put.text()).toBe(201);
+
+  await page.goto("/train");
+  const start = page.locator("[data-start-workout]");
+  await expect(start).toContainText("repeat Leg day");
+  await start.getByRole("button", { name: "Repeat Leg day", exact: true }).click();
+
+  const workout = page.getByRole("dialog", { name: "Leg day" });
+  await expect(workout).toBeVisible();
+  const lifts = workout.locator("[data-workout-exercise]");
+  await expect(lifts).toHaveCount(2);
+  await expect(lifts.first()).toHaveAttribute("data-workout-exercise", "barbell-squat");
+  // Two working sets last time (the warm-up doesn't count), none ticked off yet.
+  await expect(workout.locator("[data-workout-status]")).toContainText("0 of 3 sets");
+  await workout.getByRole("button", { name: "Discard" }).click();
+  await workout.getByRole("alertdialog").getByRole("button", { name: "Discard" }).click();
 });

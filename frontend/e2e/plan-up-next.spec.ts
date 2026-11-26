@@ -48,16 +48,28 @@ test("Up next: skip with Undo, start the plan workout prefilled, finish it, and 
   const next = page.locator("[data-up-next]");
   await expect(next).toContainText("Upper A");
   await expect(next).toContainText("Week 1 of 6 · 3 reps in reserve");
-  await expect(next).toContainText("Up next · Today");
-  const coming = next.locator("[data-plan-coming] li");
-  await expect(coming).toHaveCount(3);
-  await expect(coming.first()).toContainText("Lower A");
-  await expect(coming.first()).toContainText("Tomorrow");
+  await expect(next.locator("[data-next-day]")).toHaveText("Today");
+  // This week, Monday to Sunday: today ringed with Upper A, tomorrow (when it's still this week) Lower A.
+  const week = next.locator("[data-week] li");
+  await expect(week).toHaveCount(7);
+  const { today, tomorrow } = await page.evaluate(() => {
+    const day = (d: Date) => new Intl.DateTimeFormat("en-CA", { year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
+    return { today: day(new Date()), tomorrow: day(new Date(Date.now() + 86_400_000)) };
+  });
+  const todayDisc = next.locator(`[data-week] [data-date="${today}"]`);
+  await expect(todayDisc).toHaveAttribute("data-state", "today");
+  await expect(todayDisc).toContainText("Upper A, today");
+  const tomorrowDisc = next.locator(`[data-week] [data-date="${tomorrow}"]`);
+  if (weekday < 6) {
+    await expect(tomorrowDisc).toHaveAttribute("data-state", "planned");
+    await expect(tomorrowDisc).toContainText("Lower A");
+  }
 
   // Skip moves on, and Undo brings it back.
   await next.getByRole("button", { name: "Skip Upper A" }).click();
   await expect(next).toContainText("Lower A");
   await expect(page.locator("[data-workout-history]")).toContainText("Skipped");
+  await expect(todayDisc).toHaveAttribute("data-state", "skipped");
   await page.getByRole("button", { name: "Undo" }).click();
   await expect(next).toContainText("Upper A");
   // With nothing left in it, History goes away.
@@ -92,10 +104,10 @@ test("Up next: skip with Undo, start the plan workout prefilled, finish it, and 
 
   await expect(next).toContainText("Lower A");
   // Done today, so the next one goes on the next training day.
-  await expect(next).toContainText("Up next · Tomorrow");
+  await expect(next.locator("[data-next-day]")).toHaveText("Tomorrow");
+  await expect(todayDisc).toHaveAttribute("data-state", "done");
   const plan = (await (await page.request.get("/api/plan", { headers: headers(oid) })).json()).plan;
   expect(plan.lastPosition).toBe(0);
-  const today = await page.evaluate(() => new Intl.DateTimeFormat("en-CA", { year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date()));
   const saved = (await (await page.request.get(`/api/workouts?from=${today}&to=${today}`, { headers: headers(oid) })).json()).workouts;
   expect(saved).toHaveLength(1);
   expect(saved[0]).toMatchObject({ name: "Upper A", status: "done", sequencePosition: 0, planWorkoutId: plan.workouts[0].id, sets: 1 });
