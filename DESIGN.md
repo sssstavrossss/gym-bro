@@ -54,5 +54,6 @@ These are the rules the app's screens follow. Read this before you add or change
 2. Each new control has the same face height, padding and icon size as the existing control of its kind. Screenshot them side by side: a new pill next to "Done" or "Log weight", a new switch next to Goal's.
 3. Every tap target is at least 44px.
 4. Nothing moves when switching modes, swiping, or loading, or when a value is empty or long.
-5. Check it at the phone width (390px), at the largest text size, and in one non-Mono accent. Don't reuse the class `.preview` or `[data-nutrient-card]` for anything else: `main.css` pins their type near the default size at the largest text size, so the rest of the sheet would grow around them.
-6. The README describes the new behaviour, and this file has any new rule.
+5. Check it at the phone width (390px), at the largest text size, and in one non-Mono accent. Don't reuse the class `.preview` or `[data-nutrient-card]` for anything else: `main.css` pins their type near the default size at the largest text size, so the rest of the sheet would grow around them. To check the largest text size, set the system text size (or `html { font-size: 30px }` in a stylesheet), not an inline style on `<html>`: an inline size hides a scoped rule that resizes the root.
+6. In a scoped style, write a text-size rule as `html.dt-xl .thing { … }`, never `:global(html.dt-xl) .thing`: Vue compiles that to a bare `html.dt-xl { … }`, which styles the root instead (a test fails on it).
+7. The README describes the new behaviour, and this file has any new rule.

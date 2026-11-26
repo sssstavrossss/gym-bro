@@ -137,6 +137,6 @@ async function onType() {
 .switch.on { background: var(--color-action); }
 .switch.on i { transform: translateX(18px); background: var(--color-on-action); }
 .srow:disabled .switch { opacity: .45; }
-:global(html.dt-xl) .note { flex-wrap: wrap; }
-:global(html.dt-xl) .side { flex-direction: row; align-items: center; }
+html.dt-xl .note { flex-wrap: wrap; }
+html.dt-xl .side { flex-direction: row; align-items: center; }
 </style>
