@@ -1,7 +1,8 @@
 import { markRaw, reactive } from "vue";
 import { ApiError, deletePlan, getPlan, putPlan, putPlanWorkout } from "../api";
 import type { Plan, PlanAnswers, PlanExercise } from "../lib/plan";
-import { deviceTimeZone } from "./profile";
+import { trainingFrom } from "../lib/training";
+import { deviceTimeZone, profile } from "./profile";
 
 /** The training plan (README → Training plans). Offline, the last copy shows; making or changing one needs a connection. */
 export const plan = reactive({
@@ -30,6 +31,8 @@ export async function savePlan(answers: PlanAnswers): Promise<string | null> {
   try {
     plan.current = markRaw(await putPlan(answers, deviceTimeZone()));
     plan.state = "ready";
+    // The server keeps the answers as Your training, for the next plan.
+    if (profile.saved) profile.saved = { ...profile.saved, training: trainingFrom(answers) };
     return null;
   } catch (error) {
     return error instanceof ApiError ? error.message : PLAN_OFFLINE;

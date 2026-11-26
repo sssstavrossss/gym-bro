@@ -101,6 +101,22 @@ public sealed class Profile
     /// </summary>
     public string[]? FanPages { get; set; }
 
+    /// <summary>
+    /// Your training (<see cref="Training.TrainingSettings"/>): the answers every new plan starts from. All null until
+    /// first saved, from Train or by making a plan; saved together.
+    /// </summary>
+    public int? TrainingMinutes { get; set; }
+
+    public string? TrainingExperience { get; set; }
+
+    public string[]? TrainingEquipment { get; set; }
+
+    public string[]? TrainingGoEasy { get; set; }
+
+    public bool? TrainingWarmUp { get; set; }
+
+    public bool? TrainingCoolDown { get; set; }
+
     public DateTimeOffset CreatedAt { get; set; }
 
     public DateTimeOffset UpdatedAt { get; set; }

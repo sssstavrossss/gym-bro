@@ -3,6 +3,7 @@ using GymBro.Api.Data;
 using GymBro.Api.Foods;
 using GymBro.Api.Nutrition;
 using GymBro.Api.Profiles;
+using GymBro.Api.Training;
 using GymBro.Api.Users;
 using Microsoft.EntityFrameworkCore;
 
@@ -398,6 +399,17 @@ public static class ProfileEndpoints
             apply(clean);
         }
 
+        if (request.Training is not null)
+        {
+            var (training, trainingError) = TrainingSettings.Check(request.Training);
+            if (training is null)
+            {
+                return ApiResults.Error(trainingError!);
+            }
+
+            training.SaveTo(profile);
+        }
+
         if (request.FanPages is not null)
         {
             if (FanPages.Clean(request.FanPages) is not { } pages)
@@ -412,7 +424,8 @@ public static class ProfileEndpoints
         await db.SaveChangesAsync(cancellationToken);
         return Results.Ok(new SettingsResponse(
             profile.TimeZone, profile.TimeZoneFollowsDevice, FoodCountries.Home(profile), profile.FoodCountryFollowsZone, profile.WeightUnit, profile.HeightUnit, profile.FoodUnit, profile.FatLimits, profile.SodiumLimit,
-            profile.HomeHidden, profile.MacrosHidden, profile.ProgressHidden, profile.MacrosOrder, profile.ProgressOrder, profile.FanPages));
+            profile.HomeHidden, profile.MacrosHidden, profile.ProgressHidden, profile.MacrosOrder, profile.ProgressOrder, profile.FanPages,
+            TrainingSettings.Of(profile)));
     }
 
     /// <summary>
@@ -527,7 +540,8 @@ public static class ProfileEndpoints
             profile.ProgressHidden,
             profile.MacrosOrder,
             profile.ProgressOrder,
-            profile.FanPages);
+            profile.FanPages,
+            TrainingSettings.Of(profile));
 
     public static WeightResponse ToWeight(WeightSnapshot weight) => new(
         weight.AsOf,
@@ -597,7 +611,8 @@ public sealed record ProfileResponse(
     string[]? ProgressHidden,
     string[]? MacrosOrder = null,
     string[]? ProgressOrder = null,
-    string[]? FanPages = null);
+    string[]? FanPages = null,
+    TrainingSettings? Training = null);
 
 /// <summary>
 /// Display preferences. None of them changes the targets, so saving one writes no target history.
@@ -605,12 +620,13 @@ public sealed record ProfileResponse(
 /// </summary>
 public sealed record SettingsRequest(string? TimeZone, bool? TimeZoneFollowsDevice, string? WeightUnit = null, string? HeightUnit = null, string? FatLimits = null, string? FoodUnit = null, string? SodiumLimit = null,
     string?[]? HomeHidden = null, string?[]? MacrosHidden = null, string?[]? ProgressHidden = null, string? FoodCountry = null, bool? FoodCountryFollowsZone = null,
-    string?[]? MacrosOrder = null, string?[]? ProgressOrder = null, string?[]? FanPages = null);
+    string?[]? MacrosOrder = null, string?[]? ProgressOrder = null, string?[]? FanPages = null, TrainingSettingsRequest? Training = null);
 
 /// <summary>The hidden lists and page orders are null until the app first saves them. <see cref="FoodCountry"/> is the one in use.</summary>
 public sealed record SettingsResponse(
     string TimeZone, bool TimeZoneFollowsDevice, string FoodCountry, bool FoodCountryFollowsZone, string WeightUnit, string HeightUnit, string FoodUnit, string FatLimits, string SodiumLimit,
-    string[]? HomeHidden, string[]? MacrosHidden, string[]? ProgressHidden, string[]? MacrosOrder = null, string[]? ProgressOrder = null, string[]? FanPages = null);
+    string[]? HomeHidden, string[]? MacrosHidden, string[]? ProgressHidden, string[]? MacrosOrder = null, string[]? ProgressOrder = null, string[]? FanPages = null,
+    TrainingSettings? Training = null);
 
 public sealed record WeightResponse(
     DateOnly AsOf,

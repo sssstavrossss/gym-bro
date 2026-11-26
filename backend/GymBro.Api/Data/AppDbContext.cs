@@ -97,6 +97,12 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         profile.Property(p => p.MacrosOrder).HasColumnName("macros_order").HasColumnType("text[]");
         profile.Property(p => p.ProgressOrder).HasColumnName("progress_order").HasColumnType("text[]");
         profile.Property(p => p.FanPages).HasColumnName("fan_pages").HasColumnType("text[]");
+        profile.Property(p => p.TrainingMinutes).HasColumnName("training_minutes");
+        profile.Property(p => p.TrainingExperience).HasColumnName("training_experience");
+        profile.Property(p => p.TrainingEquipment).HasColumnName("training_equipment").HasColumnType("text[]");
+        profile.Property(p => p.TrainingGoEasy).HasColumnName("training_go_easy").HasColumnType("text[]");
+        profile.Property(p => p.TrainingWarmUp).HasColumnName("training_warm_up");
+        profile.Property(p => p.TrainingCoolDown).HasColumnName("training_cool_down");
         profile.Property(p => p.CreatedAt).HasColumnName("created_at");
         profile.Property(p => p.UpdatedAt).HasColumnName("updated_at");
         profile.HasOne<AppUser>().WithMany().HasForeignKey(p => p.UserId).OnDelete(DeleteBehavior.Cascade);

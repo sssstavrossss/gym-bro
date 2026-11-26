@@ -63,7 +63,7 @@ test("profile: bell, cog, goal line, and a time zone that follows the device", a
   await expect(settings.getByRole("button", { name: "Sign out" })).toBeVisible();
   await expect(settings.locator("[data-build]")).toHaveText(/^Build \w+/);
   // Each group is a card with an icon title; the account row has the name and Sign out.
-  await expect(settings.locator("section h3 svg")).toHaveCount(6);
+  await expect(settings.locator("section h3 svg")).toHaveCount(7);
   // Saturated fat moved to the Macros card.
   await expect(settings.getByText("Fat limits")).toHaveCount(0);
   await expect(settings.getByRole("heading", { name: "Account" })).toBeVisible();

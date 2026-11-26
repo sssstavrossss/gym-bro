@@ -92,6 +92,9 @@ describe("shortcuts", () => {
     expect(shortcutEffect({ ...base, key: "Escape", sheet: "exercises" })).toEqual({ effect: "prevent", action: "close-sheet" });
     // The + button sheet over the fan closes back to the fan.
     expect(shortcutEffect({ ...base, key: "Escape", sheet: "chooser", fanPagesOver: true })).toEqual({ effect: "prevent", action: "close-fan-pages" });
+    // Your training over Settings closes back to Settings; from Train it closes the usual way.
+    expect(shortcutEffect({ ...base, key: "Escape", sheet: "settings", trainingOver: true })).toEqual({ effect: "prevent", action: "close-training" });
+    expect(shortcutEffect({ ...base, key: "Escape", sheet: "training" })).toEqual({ effect: "prevent", action: "close-sheet" });
     // From Home it is its own sheet, which Esc closes the usual way.
     expect(shortcutEffect({ ...base, key: "Escape", sheet: "card-pages" })).toEqual({ effect: "prevent", action: "close-sheet" });
   });

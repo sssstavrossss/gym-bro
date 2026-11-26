@@ -24,7 +24,9 @@ import type { FoodUnit } from "../lib/foodUnits";
 import type { HeightUnit, WeightUnit } from "../lib/units";
 import { applySettings, clearAllDrafts, deviceTimeZone, foodCountry, profile, setFoodUnit, setUnits } from "../state/profile";
 import { foodUnit } from "../state/units";
-import { closeSheet, openFanPages, ui } from "../ui";
+import { usingLine } from "../lib/training";
+import { training } from "../state/training";
+import { closeSheet, openFanPages, openTraining, ui } from "../ui";
 import { fanSummary as summarizeFan } from "../lib/fanPages";
 import { fanLayout } from "../state/fanPages";
 import { setOps } from "../state/outbox";
@@ -248,6 +250,17 @@ async function onSignOut() {
           <span class="col grow">
             <span class="t-body">+ button</span>
             <span class="t-capn c2 hnames">{{ fanSummary }}</span>
+          </span>
+          <Icon name="right" :size="16" class="fchev" />
+        </button>
+      </section>
+
+      <section class="col group" aria-labelledby="set-training">
+        <h3 id="set-training" class="t-bodys gtitle"><Icon name="dumbbell" :size="16" /> Training</h3>
+        <button type="button" class="frow" data-training-row @click="openTraining">
+          <span class="col grow">
+            <span class="t-body">Your training</span>
+            <span class="t-capn c2 hnames" data-training-line>{{ usingLine(training) }}</span>
           </span>
           <Icon name="right" :size="16" class="fchev" />
         </button>

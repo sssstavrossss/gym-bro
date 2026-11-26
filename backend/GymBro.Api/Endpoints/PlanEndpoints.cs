@@ -133,6 +133,12 @@ public static class PlanEndpoints
         plan.BlockWeeks = PlanRules.BlockWeeks;
         plan.Workouts = PlanWorkouts.Serialize(workouts);
         plan.UpdatedAt = now;
+        // The next plan starts from these answers (Your training).
+        if (await db.Profiles.FirstOrDefaultAsync(row => row.UserId == userId, cancellationToken) is { } profile)
+        {
+            TrainingSettings.From(answers).SaveTo(profile);
+        }
+
         await db.SaveChangesAsync(cancellationToken);
         return Results.Json(await ViewAsync(db, plan, cancellationToken), statusCode: created ? StatusCodes.Status201Created : StatusCodes.Status200OK);
     }
