@@ -55,7 +55,7 @@ const folded = computed(() => {
   return `${sets} ${sets === 1 ? "set" : "sets"}`;
 });
 const subtitle = computed(() => {
-  const target = props.exercise.target ? targetLine(props.exercise.target) : "";
+  const target = props.exercise.target ? targetLine(props.exercise.target, props.exercise.part === "warmup") : "";
   if (props.past) return target;
   const first = advice.value === FIRST_TIME_LINE ? "" : "First time";
   return [target, last.value ? `Last time ${shortDay(last.value.date)}` : first].filter(Boolean).join(" · ");
@@ -202,7 +202,7 @@ function onInput(event: Event, index: number, field: SetField) {
 
     <div class="row acts">
       <button type="button" class="btn sm secondary t-label" @click="addSet(exercise.key)"><Icon name="plus" :size="14" /> Set</button>
-      <button type="button" class="btn sm secondary t-label" data-add-warmup @click="warmUp"><Icon name="plus" :size="14" /> Warm-up</button>
+      <button v-if="!exercise.part" type="button" class="btn sm secondary t-label" data-add-warmup @click="warmUp"><Icon name="plus" :size="14" /> Warm-up</button>
       <span class="row ends">
       <button type="button" class="cbtn" aria-label="Remove the last set" :disabled="!canRemoveSet" @click="removeSet(exercise.key, exercise.sets.length - 1)"><Icon name="minus" :size="18" /></button>
       <button type="button" class="cbtn" :aria-label="`Swap ${name}`" data-swap @click="emit('swap')"><Icon name="swap" :size="18" /></button>

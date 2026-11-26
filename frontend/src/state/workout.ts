@@ -3,6 +3,7 @@ import { ApiError, deleteWorkout, getPreviousSets, getWorkout, listWorkouts, put
 import { describedExercises } from "../lib/describeWorkout";
 import { addDays, todayInZone } from "../lib/dates";
 import {
+  addIndex,
   dropUndone,
   emptySet,
   swapExercise as swapSets,
@@ -21,8 +22,9 @@ import {
   type DraftWorkout,
   type SetField,
   type SetType,
+  type WorkoutPart,
 } from "../lib/workout";
-import { targetOf, weekSets, type UpNext } from "../lib/plan";
+import { targetOf, weekSets, type PlanExercise, type UpNext } from "../lib/plan";
 import { loadTargetOf, suggestLoad, type LoadSuggestion, type LoadTarget } from "../lib/progression";
 import { newBests, type NewBest } from "../lib/records";
 import { warmupRamp, workingKg } from "../lib/warmup";
@@ -127,7 +129,7 @@ export function startPlanWorkout(next: UpNext, now = new Date()): DraftWorkout {
   active.name = next.workout.name;
   active.plan = { workoutId: next.workout.id, position: next.position };
   // A plan circuit starts joined, and on the clock when it's done for time, as an EMOM or as an AMRAP (with its minutes).
-  active.exercises = next.workout.exercises.map((exercise, index) => ({
+  const main: DraftExercise[] = next.workout.exercises.map((exercise, index) => ({
     key: `e${++keySeq}`,
     exerciseId: exercise.exerciseId,
     sets: Array.from({ length: weekSets(exercise, next.lighter) }, () => emptySet()),
@@ -137,6 +139,11 @@ export function startPlanWorkout(next: UpNext, now = new Date()): DraftWorkout {
       ? { ...newTimed(exercise.format), ...(exercise.format !== "for_time" && exercise.minutes ? { minutes: exercise.minutes } : {}) }
       : null,
   }));
+  // The warm-up's moves and the cool-down's stretches are one set each, whatever the week.
+  const mobility = (list: PlanExercise[] | null | undefined, part: WorkoutPart): DraftExercise[] => (list ?? []).map((exercise) => ({
+    key: `e${++keySeq}`, exerciseId: exercise.exerciseId, sets: Array.from({ length: exercise.sets }, () => emptySet()), target: targetOf(exercise, next), part,
+  }));
+  active.exercises = [...mobility(next.workout.warmUp, "warmup"), ...main, ...mobility(next.workout.coolDown, "cooldown")];
   // An EMOM gets a set each round, whatever the plan's (or the lighter week's) count.
   for (const exercise of [...active.exercises]) if (exercise.timed) fitEmom(active, exercise.key);
   save();
@@ -190,7 +197,7 @@ export async function addExercise(exerciseId: string): Promise<string> {
   const count = last ? Math.min(Math.max(last.sets.filter((set) => set.type !== "warmup").length, 1), 10) : exerciseItem(exerciseId)?.category === "cardio" ? 1 : 3;
   const sets = Array.from({ length: count }, () => emptySet());
   const key = `e${++keySeq}`;
-  active.exercises.push({ key, exerciseId, sets });
+  active.exercises.splice(addIndex(active.exercises), 0, { key, exerciseId, sets });
   save();
   return key;
 }

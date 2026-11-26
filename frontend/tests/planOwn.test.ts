@@ -12,7 +12,7 @@ describe("your own plan", () => {
   });
 
   it("previews empty workouts in turn", () => {
-    expect(previewSummary({ split: "custom", easeIn: false, blockWeeks: 6, workouts: own.workouts })).toEqual({
+    expect(previewSummary({ split: "custom", easeIn: false, warmUp: false, coolDown: false, blockWeeks: 6, workouts: own.workouts })).toEqual({
       title: "Your own, 3 workouts in turn",
       line: "They start empty: after saving, tap each one on the Plan card to add exercises.",
     });
