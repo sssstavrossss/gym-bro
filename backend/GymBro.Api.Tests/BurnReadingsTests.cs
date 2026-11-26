@@ -170,6 +170,60 @@ public sealed class BurnReadingsTests(ITestOutputHelper output)
         Assert.Equal(2660m, down.Burn);
     }
 
+    [Fact]
+    public void A_new_weigh_in_is_expected_from_the_last_one_and_the_food_since()
+    {
+        // 2,000 a day and a 3,500 Sunday at a 2,900 burn: the week loses (6 × 900 − 600) / 7700 kg.
+        var food = Food(60, date => date.DayOfWeek == DayOfWeek.Sunday ? 3500m : 2000m);
+        var weighIns = Scale(food, 2900m, 85m, 21, 14, 7);
+
+        var expect = BurnReadings.Expect(Today, Long, weighIns, food, 2900m)!;
+
+        Assert.Equal(Today.AddDays(-7), expect.From);
+        Assert.Equal(7, expect.Days);
+        Assert.Equal(7, expect.LoggedDays);
+        Assert.Equal(15500m, expect.AteKcal);
+        Assert.Equal(decimal.Round(weighIns[^1].Item2 - 4800m / 7700m, 3), decimal.Round(expect.ExpectedKg, 3));
+        // Sunday was big before every Monday weigh-in: a habit, so this one still counts fully.
+        Assert.Equal(3500m, expect.BigDayKcal);
+        Assert.Equal(Target, expect.BigDayTargetKcal);
+        Assert.True(expect.Habit);
+        Assert.True(expect.Sure);
+    }
+
+    [Fact]
+    public void An_odd_big_day_or_few_logs_make_a_new_weigh_in_less_sure()
+    {
+        var feast = Food(60, date => date == Today.AddDays(-1) ? 3500m : 2200m);
+        var weighIns = Scale(feast, 2700m, 85m, 14, 10, 7, 3);
+
+        var bloated = BurnReadings.Expect(Today, Long, weighIns, feast, 2700m)!;
+
+        Assert.Equal(3500m, bloated.BigDayKcal);
+        Assert.False(bloated.Habit);
+        Assert.False(bloated.Sure);
+
+        // Two of the three days since the last weigh-in unlogged: filled with the average, less sure.
+        var patchy = Food(60, date => date >= Today.AddDays(-2) ? null : 2200m);
+        var few = BurnReadings.Expect(Today, Long, Scale(patchy, 2700m, 85m, 14, 10, 7, 3), patchy, 2700m)!;
+
+        Assert.Equal(1, few.LoggedDays);
+        Assert.Equal(6600m, few.AteKcal);
+        Assert.Null(few.BigDayKcal);
+        Assert.False(few.Sure);
+    }
+
+    [Fact]
+    public void No_weigh_in_in_four_weeks_or_before_the_earliest_day_has_no_expectation()
+    {
+        var food = Food(60, _ => 2200m);
+
+        Assert.Null(BurnReadings.Expect(Today, Long, Scale(food, 2700m, 85m, 40, 29), food, 2700m));
+        Assert.Null(BurnReadings.Expect(Today, Today.AddDays(-3), Scale(food, 2700m, 85m, 14, 7), food, 2700m));
+        Assert.Null(BurnReadings.Expect(Today, Long, Scale(food, 2700m, 85m, 14, 7), Food(60, _ => null), 2700m));
+        Assert.NotNull(BurnReadings.Expect(Today, Today.AddDays(-7), Scale(food, 2700m, 85m, 14, 7), food, 2700m));
+    }
+
     private static BurnReading Part(DateOnly from, int days, decimal startKg, decimal lost, decimal share = 1m, bool bloated = false) =>
         new(from, from.AddDays(days), days, startKg, startKg - lost, startKg + days * (2200m - 2900m) / NutritionMath.KcalPerKg,
             2200m * days, 2200m + lost * NutritionMath.KcalPerKg / days, share, bloated, bloated, !bloated && share >= BurnReadings.SureLoggedShare);

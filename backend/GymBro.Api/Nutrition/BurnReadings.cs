@@ -49,6 +49,26 @@ public sealed record BurnWindow(
     decimal? Sd,
     string? Blocked);
 
+/// <summary>
+/// The weight a weigh-in on <see cref="Date"/> is expected to show: the last weigh-in
+/// (<see cref="From"/>, <see cref="StartKg"/>) plus the food since, less the current burn.
+/// <see cref="BigDayKcal"/> is set when the day before was big; <see cref="Habit"/> when most
+/// weigh-ins follow one. <see cref="Sure"/> says whether this weigh-in counts fully for the burn.
+/// </summary>
+public sealed record WeighInExpectation(
+    DateOnly Date,
+    DateOnly From,
+    int Days,
+    decimal StartKg,
+    decimal ExpectedKg,
+    decimal AteKcal,
+    int LoggedDays,
+    decimal Burn,
+    decimal? BigDayKcal,
+    int? BigDayTargetKcal,
+    bool Habit,
+    bool Sure);
+
 /// <summary>One move of the burn toward what the readings point to, at most <see cref="Cap"/> either way.</summary>
 public sealed record CappedStep(decimal Prior, decimal Target, decimal TargetSd, decimal Gain, decimal Cap, decimal Burn, decimal BurnSd, bool Capped);
 
@@ -162,6 +182,64 @@ public static class BurnReadings
 
         var (burn, sd) = Fit(today, points, byDate, fill, habit);
         return new BurnWindow(from, today, tier, points.Count, readings, (decimal)burn, (decimal)sd, null);
+    }
+
+    /// <summary>
+    /// What a weigh-in on <paramref name="date"/> should show, from the last weigh-in before it and
+    /// the food since, the same way a reading's expected weight is worked out. Null when there is no
+    /// weigh-in in the 28 days before it (on or after <paramref name="earliest"/>), or nothing was
+    /// logged in that time to stand in for days without a log.
+    /// </summary>
+    public static WeighInExpectation? Expect(
+        DateOnly date,
+        DateOnly earliest,
+        IReadOnlyList<(DateOnly Date, decimal Kg)> weighIns,
+        IReadOnlyList<IntakeDay> days,
+        decimal currentBurn)
+    {
+        var windowFrom = Max(date.AddDays(-WindowDays), earliest);
+        var before = weighIns
+            .Where(row => row.Date >= windowFrom && row.Date < date)
+            .OrderBy(row => row.Date)
+            .ToList();
+        if (before.Count == 0)
+        {
+            return null;
+        }
+
+        var (from, startKg) = before[^1];
+        var byDate = days.Where(day => day.Date >= windowFrom.AddDays(-1) && day.Date < date).ToDictionary(day => day.Date);
+        var known = byDate.Values.Where(day => day.Date >= windowFrom && day.Kcal is not null).Select(day => day.Kcal!.Value).ToList();
+        if (known.Count == 0)
+        {
+            return null;
+        }
+
+        var fill = known.Average();
+        var span = date.DayNumber - from.DayNumber;
+        var ate = 0m;
+        var logged = 0;
+        for (var day = from; day < date; day = day.AddDays(1))
+        {
+            if (byDate.TryGetValue(day, out var row) && row.Kcal is decimal kcal)
+            {
+                ate += kcal;
+                logged++;
+            }
+            else
+            {
+                ate += fill;
+            }
+        }
+
+        var big = BigDayBefore(date, byDate);
+        var dates = before.Select(row => row.Date).Append(date).ToList();
+        var habit = dates.Count(day => BigDayBefore(day, byDate)) * 2 > dates.Count;
+        var expected = startKg + (ate - currentBurn * span) / NutritionMath.KcalPerKg;
+        var dayBefore = big ? byDate[date.AddDays(-1)] : null;
+        var sure = !(big && !habit) && (decimal)logged / span >= SureLoggedShare;
+        return new WeighInExpectation(date, from, span, startKg, expected, ate, logged, currentBurn,
+            dayBefore?.Kcal, dayBefore?.TargetKcal, habit, sure);
     }
 
     /// <summary>

@@ -7,6 +7,7 @@ import Icon from "./Icon.vue";
 import InfoTip from "./InfoTip.vue";
 import Keypad from "./Keypad.vue";
 import ProgressChart from "./ProgressChart.vue";
+import WeighReading from "./WeighReading.vue";
 import type { ProgressDay } from "../api";
 import { dayMonth, diffDays, shortDate, todayIso } from "../lib/dates";
 import { kgTo, toKg, typoGuardDetail, weightRange } from "../lib/units";
@@ -379,6 +380,7 @@ const diffText = computed(() => (
       <p class="t-capn c2 m0 grow" aria-live="polite">{{ hint }}<template v-if="trendNote"> · {{ trendNote }}</template></p>
       <button v-if="canDelete" type="button" class="btn sm secondary t-label" @click="del"><Icon name="trash" :size="14" /> Delete</button>
     </div>
+    <WeighReading :open="open" :date="ui.weightDate" :today="today" :kg="parsed ?? ownKg" />
     <div v-if="!profile.weighIns.length" class="card outline wempty">
       <span class="t-label c2">Your chart starts with this weigh-in</span>
       <span class="t-capn c2">Your trend starts with it, and gets more accurate with 2+ weigh-ins a week.</span>

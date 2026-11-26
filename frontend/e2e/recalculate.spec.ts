@@ -138,5 +138,14 @@ test.describe("measured", () => {
     await expect(details).toContainText("Usual for you");
     await expect(details).toContainText("3 low");
     await expect(details).toContainText("Weigh-ins");
+
+    // Log weight shows what today's weigh-in was expected to be from yesterday's and the food since.
+    await page.goto("/today");
+    await page.getByRole("button", { name: /Open weight|Log weight|Weigh in/ }).first().click();
+    const weight = page.getByRole("dialog", { name: "Log weight" });
+    const reading = weight.locator("[data-weigh-reading]");
+    await expect(reading).toContainText(/Expected about [\d.]+ kg/);
+    await expect(reading).toContainText(/From your food since yesterday and your burn of [\d,]+ kcal\./);
+    await expect(reading.locator("[data-weigh-gap]")).toHaveText(/^([+−][\d.]+ kg|as expected)$/);
   });
 });

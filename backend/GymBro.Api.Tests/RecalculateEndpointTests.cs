@@ -201,6 +201,37 @@ public sealed class RecalculateEndpointTests(ApiFactory factory)
         Assert.Equal(JsonValueKind.Null, setupRow.GetProperty("changes").ValueKind);
     }
 
+    [Fact]
+    public async Task A_new_weigh_in_is_expected_from_the_last_one_and_the_food_since()
+    {
+        var setup = new DateOnly(2026, 10, 1);
+        var today = setup.AddDays(28);
+        var owner = TestData.NewUser("expected-owner");
+        using var client = factory.AsUser(owner);
+        using var stranger = factory.AsUser(TestData.NewUser("expected-other"));
+        await Seed(client, owner, setup, today, kcal: 2000m, startKg: 84m, lossPerDay: 0.5m / 7m, every: 7);
+
+        var body = await client.GetFromJsonAsync<JsonElement>("/api/weight/expected?date=2026-10-29");
+        var expected = body.GetProperty("expected");
+        Assert.Equal("2026-10-22", expected.GetProperty("from").GetString());
+        Assert.Equal(7, expected.GetProperty("days").GetInt32());
+        Assert.Equal(7, expected.GetProperty("loggedDays").GetInt32());
+        Assert.Equal(14000, expected.GetProperty("ateKcal").GetInt32());
+        Assert.Equal(82.5m, expected.GetProperty("startKg").GetDecimal());
+        var burn = expected.GetProperty("burn").GetInt32();
+        Assert.Equal(decimal.Round(82.5m + (14000m - burn * 7m) / 7700m, 2), expected.GetProperty("expectedKg").GetDecimal());
+        Assert.Equal(JsonValueKind.Null, expected.GetProperty("bigDay").ValueKind);
+        Assert.True(expected.GetProperty("sure").GetBoolean());
+
+        // The settling week has nothing to go on, nor does someone else's account.
+        var settling = await client.GetFromJsonAsync<JsonElement>("/api/weight/expected?date=2026-10-08");
+        Assert.Equal(JsonValueKind.Null, settling.GetProperty("expected").ValueKind);
+        var other = await stranger.GetFromJsonAsync<JsonElement>("/api/weight/expected?date=2026-10-29");
+        Assert.Equal(JsonValueKind.Null, other.GetProperty("expected").ValueKind);
+        Assert.Equal(HttpStatusCode.BadRequest, (await client.GetAsync("/api/weight/expected?date=2026-10-30")).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await client.GetAsync("/api/weight/expected")).StatusCode);
+    }
+
     /// <summary>Sets up on <paramref name="setup"/>, then fills weigh-ins and one log a day straight into the database, and moves the clock to <paramref name="today"/>.</summary>
     private async Task Seed(HttpClient client, string userId, DateOnly setup, DateOnly today, decimal kcal, decimal startKg, decimal lossPerDay, int every = 1)
     {
