@@ -4,16 +4,13 @@ import AccuracyDot from "../components/AccuracyDot.vue";
 import TrainingToday from "../components/TrainingToday.vue";
 import AddFoodPill from "../components/AddFoodPill.vue";
 import Bar from "../components/Bar.vue";
-import FreshStart from "../components/FreshStart.vue";
 import HomeProgress from "../components/HomeProgress.vue";
-import GoalReached from "../components/GoalReached.vue";
 import Icon from "../components/Icon.vue";
 import InfoTip from "../components/InfoTip.vue";
 import MacroBars from "../components/MacroBars.vue";
 import OfflineLine from "../components/OfflineLine.vue";
 import Sparkline from "../components/Sparkline.vue";
-import RecalcPrompt from "../components/RecalcPrompt.vue";
-import WeighNudge from "../components/WeighNudge.vue";
+import PromptStack from "../components/PromptStack.vue";
 import Timeline from "../components/Timeline.vue";
 import WeekStrip from "../components/WeekStrip.vue";
 import WeightChart from "../components/WeightChart.vue";
@@ -205,10 +202,7 @@ const weekRows = computed(() => {
       </div>
       <div v-if="layout === 'phone' ? !nothingShown : columns.a" class="stack c-a">
         <template v-if="sectionShown('suggestions') && selected === today">
-          <FreshStart v-if="showFresh" />
-          <RecalcPrompt v-if="!showFresh" />
-          <WeighNudge v-if="!showFresh" />
-          <GoalReached v-if="showGoal" />
+          <PromptStack :fresh="showFresh" :goal="showGoal" />
         </template>
 
         <TrainingToday v-if="sectionShown('training') && selected === today" />

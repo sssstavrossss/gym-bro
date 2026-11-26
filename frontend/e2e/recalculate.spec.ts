@@ -87,6 +87,26 @@ test.describe("measured", () => {
     const tip = page.locator("[data-weigh-nudge]");
     await expect(tip).toContainText("Weigh in once a week");
     await expect(tip).toContainText("So Gym Bro can learn your burn. Your last weigh-in was 5 weeks ago.");
+    // It stacks behind this week's recalculate prompt; a sideways swipe brings it to the front, and another wraps back.
+    const place = (key: string) => page.locator(`[data-stack-card="${key}"]`);
+    await expect(place("recalc")).toHaveAttribute("data-place", "front");
+    await expect(place("weigh")).toHaveAttribute("data-place", "back");
+    const swipe = async (dx: number) => {
+      const box = await page.locator("[data-stack-card][data-place=front] .txt").boundingBox();
+      if (!box) throw new Error("no front card");
+      await page.mouse.move(box.x + 10, box.y + box.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(box.x + 10 + dx, box.y + box.height / 2, { steps: 8 });
+      await page.mouse.up();
+    };
+    await swipe(-140);
+    await expect(place("weigh")).toHaveAttribute("data-place", "front");
+    await expect(place("recalc")).toHaveAttribute("data-place", "back");
+    await swipe(140);
+    await expect(place("recalc")).toHaveAttribute("data-place", "front");
+    // Tabbing into the card behind brings it forward, so it can be reached without swiping.
+    await tip.getByRole("button", { name: "Log weight" }).focus();
+    await expect(place("weigh")).toHaveAttribute("data-place", "front");
 
     await page.goto("/today?recalculate=1");
     const burn = page.getByRole("dialog", { name: "Recalculate" }).locator("[data-burn-card]");
@@ -96,8 +116,11 @@ test.describe("measured", () => {
 
     // ✕ hides the tip for a week on this device.
     await page.goto("/today");
+    await swipe(-140);
+    await expect(place("weigh")).toHaveAttribute("data-place", "front");
     await tip.getByRole("button", { name: "Hide for a week" }).click();
     await expect(tip).toHaveCount(0);
+    await expect(place("recalc")).toHaveAttribute("data-place", "front");
     await page.reload();
     await expect(page.getByRole("main", { name: "Today" })).toBeVisible();
     await expect(tip).toHaveCount(0);

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import Icon from "./Icon.vue";
 import { todayIso } from "../lib/dates";
 import { lastWeighInLine, nudgeBackOn, nudgeDismissed } from "../lib/weightDisplay";
@@ -11,6 +11,7 @@ import { openWeight } from "../ui";
  * a weigh-in a week lets Recalculate learn it. ✕ hides it on this device for a week.
  */
 const KEY = "gymbro-weigh-nudge-back-on";
+const emit = defineEmits<{ shown: [boolean] }>();
 function read(): string | null {
   try { return localStorage.getItem(KEY); } catch { return null; }
 }
@@ -26,6 +27,8 @@ function dismiss() {
   backOn.value = nudgeBackOn(today.value);
   try { localStorage.setItem(KEY, backOn.value); } catch { /* still hidden for this visit */ }
 }
+/** Home's suggestion stack needs to know whether this card shows. */
+watch(() => show.value, (value) => emit("shown", value), { immediate: true });
 </script>
 
 <template>
