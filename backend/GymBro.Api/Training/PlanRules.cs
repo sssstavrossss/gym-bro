@@ -6,7 +6,10 @@ public static class PlanGoals
     public const string Strength = "strength";
     public const string Fitness = "fitness";
 
-    public static readonly IReadOnlySet<string> All = new HashSet<string>([Muscle, Strength, Fitness]);
+    /// <summary>Hyrox: strength days between the race's stations and runs (docs/training.md, phase 6). Its split is <see cref="Splits.Hyrox"/>.</summary>
+    public const string Hyrox = "hyrox";
+
+    public static readonly IReadOnlySet<string> All = new HashSet<string>([Muscle, Strength, Fitness, Hyrox]);
 }
 
 public static class Experience
@@ -30,7 +33,7 @@ public static class EquipmentPresets
     /// <summary>What each preset holds, as the generator's kit (<see cref="Kit"/>). Body weight comes with all of them.</summary>
     public static readonly IReadOnlyDictionary<string, string[]> Holds = new Dictionary<string, string[]>
     {
-        [Gym] = [Kit.Barbell, Kit.Dumbbell, Kit.Kettlebell, Kit.Cable, Kit.Machine, Kit.Bar, Kit.Bodyweight],
+        [Gym] = [Kit.Barbell, Kit.Dumbbell, Kit.Kettlebell, Kit.Cable, Kit.Machine, Kit.Bar, Kit.Stations, Kit.Bodyweight],
         [Home] = [Kit.Barbell, Kit.Dumbbell, Kit.Bar, Kit.Bodyweight],
         [Dumbbells] = [Kit.Dumbbell, Kit.Bodyweight],
         [Kettlebells] = [Kit.Kettlebell, Kit.Bodyweight],
@@ -50,6 +53,9 @@ public static class Kit
     public const string Cable = "cable";
     public const string Machine = "machine";
     public const string Bar = "bar";
+
+    /// <summary>A sled, a sandbag and a wall-ball target: Hyrox's stations, which a full gym has.</summary>
+    public const string Stations = "stations";
     public const string Bodyweight = "bodyweight";
 }
 
@@ -78,10 +84,13 @@ public static class Splits
     /// <summary>Your own: one empty workout a day, filled in by hand (docs/training.md, phase 5).</summary>
     public const string Custom = "custom";
 
-    public static readonly IReadOnlySet<string> All = new HashSet<string>([FullBody, UpperLower, PushPullLegs, PplUpperLower, Custom]);
+    /// <summary>The Hyrox goal's own: strength, stations and runs in turn. Only that goal has it.</summary>
+    public const string Hyrox = "hyrox";
 
-    /// <summary>The split that follows from the days a week (docs/training.md, decision 3).</summary>
-    public static string For(int days) => days switch
+    public static readonly IReadOnlySet<string> All = new HashSet<string>([FullBody, UpperLower, PushPullLegs, PplUpperLower, Custom, Hyrox]);
+
+    /// <summary>The split that follows from the goal and the days a week (docs/training.md, decision 3).</summary>
+    public static string For(int days, string? goal = null) => goal == PlanGoals.Hyrox ? Hyrox : days switch
     {
         <= 3 => FullBody,
         4 => UpperLower,
@@ -136,7 +145,7 @@ public static class PlanRules
     /// <summary>About five weeks stepping from 3 to 1 in reserve, then a lighter week (docs/training.md, Rules).</summary>
     public const int BlockWeeks = 6;
 
-    public const string UnknownGoal = "Pick a goal: muscle, strength or fitness.";
+    public const string UnknownGoal = "Pick a goal: muscle, strength, fitness or Hyrox.";
     public const string NeedsDays = "Pick at least one day of the week.";
     public const string BadDay = "Days of the week are 0 (Monday) to 6 (Sunday).";
     public const string BadMinutes = "Time per workout is 10 to 120 minutes, in steps of 5.";
@@ -194,8 +203,9 @@ public static class PlanRules
             return (null, UnknownJoint);
         }
 
-        var split = string.IsNullOrWhiteSpace(request.Split) ? Splits.For(days.Count) : request.Split.Trim();
-        if (!Splits.All.Contains(split))
+        var split = string.IsNullOrWhiteSpace(request.Split) ? Splits.For(days.Count, goal) : request.Split.Trim();
+        // Hyrox has its own split (or your own); the other goals don't take it.
+        if (!Splits.All.Contains(split) || ((split == Splits.Hyrox) != (goal == PlanGoals.Hyrox) && split != Splits.Custom))
         {
             return (null, UnknownSplit);
         }

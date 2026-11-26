@@ -12,6 +12,10 @@ import {
   stepRest,
   stepSeconds,
   stepSets,
+  movedExercise,
+  removed,
+  tidyCircuits,
+  workSeconds,
 } from "../src/lib/planEdit";
 
 const item = (over: Partial<ExerciseItem>): ExerciseItem => ({
@@ -86,6 +90,53 @@ describe("estimateMinutes", () => {
     expect(estimateMinutes([plank, squat, run], 60)).toBe(30);
     expect(estimateMinutes([], 20)).toBe(5);
   });
+
+  it("counts a distance's time as the server does", () => {
+    const run = { exerciseId: "run", sets: 1, repMin: null, repMax: null, seconds: null, restSeconds: 0 };
+    expect(workSeconds({ ...run, metres: 1000 })).toBe(300);
+    expect(workSeconds({ ...run, metres: 25 })).toBe(57);
+    expect(workSeconds(run)).toBe(40);
+    // 5 min warm-up, 4 × (5 min + 90 s) and a minute's changeover: 32 min, to the nearest 5.
+    expect(estimateMinutes([{ ...run, sets: 4, metres: 1000, restSeconds: 90 }], 45)).toBe(30);
+  });
+});
+
+describe("tidyCircuits", () => {
+  const run: PlanExercise = { exerciseId: "run", sets: 2, repMin: null, repMax: null, seconds: null, restSeconds: 0, metres: 1000, format: "for_time" };
+  const ski: PlanExercise = { exerciseId: "skierg", sets: 2, repMin: null, repMax: null, seconds: null, restSeconds: 0, metres: 500, superset: true };
+  const wall: PlanExercise = { exerciseId: "wall-ball", sets: 2, repMin: 20, repMax: 20, seconds: null, restSeconds: 0, superset: true };
+
+  it("hands the clock on when the circuit's first exercise goes", () => {
+    const [first, second] = removed([run, ski, wall], 0);
+    expect(first).toMatchObject({ exerciseId: "skierg", superset: false, format: "for_time" });
+    expect(second).toMatchObject({ exerciseId: "wall-ball", superset: true });
+    // One from the middle leaves the rest joined.
+    expect(removed([run, ski, wall], 1).map((item) => item.exerciseId)).toEqual(["run", "wall-ball"]);
+    expect(removed([run, ski, wall], 1)[0].format).toBe("for_time");
+  });
+
+  it("only reorders inside a circuit: the join and the clock stay in place", () => {
+    const next = movedExercise([run, ski, wall], 0, 1);
+    expect(next.map((item) => [item.exerciseId, !!item.superset, item.format ?? null])).toEqual([
+      ["skierg", false, "for_time"], ["run", true, null], ["wall-ball", true, null],
+    ]);
+    expect(movedExercise([run, ski, wall], 2, 1)).toEqual([run, ski, wall]);
+  });
+
+  it("moves out of a circuit on its own, and the circuit keeps its clock", () => {
+    const next = movedExercise([lift, run, ski, wall], 1, -1);
+    expect(next.map((item) => [item.exerciseId, !!item.superset, item.format ?? null])).toEqual([
+      ["run", false, null], ["barbell-squat", false, null], ["skierg", false, "for_time"], ["wall-ball", true, null],
+    ]);
+    const down = movedExercise([run, ski, wall, lift], 2, 1);
+    expect(down.map((item) => [item.exerciseId, !!item.superset, item.format ?? null])).toEqual([
+      ["run", false, "for_time"], ["skierg", true, null], ["barbell-squat", false, null], ["wall-ball", false, null],
+    ]);
+  });
+
+  it("leaves a whole circuit as it is", () => {
+    expect(tidyCircuits([run, ski, wall])).toEqual([run, ski, wall]);
+  });
 });
 
 describe("lines and checks", () => {
@@ -104,5 +155,8 @@ describe("lines and checks", () => {
     expect(sameExercises([lift], [{ ...lift }])).toBe(true);
     expect(sameExercises([lift], [{ ...lift, sets: 4 }])).toBe(false);
     expect(sameExercises([lift], [])).toBe(false);
+    expect(sameExercises([lift], [{ ...lift, superset: false, metres: null, format: null }])).toBe(true);
+    expect(sameExercises([lift], [{ ...lift, metres: 800 }])).toBe(false);
+    expect(sameExercises([lift], [{ ...lift, superset: true }])).toBe(false);
   });
 });

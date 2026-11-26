@@ -48,6 +48,7 @@ Phase 6 (circuits, EMOM, AMRAP, for time, Hyrox and kettlebell plans, cardio, "d
 - Supersets and circuits in a workout: join an exercise to the one before; they open together and rest comes after each round. Saved as a shared `block`, no migration. See *Supersets and circuits* in the README.
 - EMOM, AMRAP and for time: a superset or circuit can be done on the clock, with Start, Round done and Stop, and keeps its score (AMRAP rounds + reps, EMOM rounds of the planned, for time the time). Saved as `workout_sessions.blocks` (migration `20261205090000_AddTimedBlocks`). See *EMOM, AMRAP and for time* in the README.
 - Cardio: runs, walks, rides, rows and swims log distance and time with a pace in each sport's unit, start with one set, and add up to a distance in the summary and history. A workout's kind comes from its exercises (cardio, hybrid, mobility, strength). Swim and Walk joined the library. No migration. See *Cardio* in the README.
+- Hyrox plans: a `hyrox` goal and split. Strength days come between station circuits done for time (Stations A and B, a 1 km run and four stations at shorter distances) and run intervals (1 km or 500 m repeats). Stand-ins cover missing kit and areas to go easy on, and rounds fit the minutes and experience. Plan exercises gained `metres`, `superset` and `format`, and the plan editor keeps them. No migration. See *Hyrox* in the README.
 
 ## Decisions (agreed 2026-11-25)
 

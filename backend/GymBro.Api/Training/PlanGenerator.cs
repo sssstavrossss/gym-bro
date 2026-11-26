@@ -1,10 +1,21 @@
 namespace GymBro.Api.Training;
 
 /// <summary>
-/// One exercise in a plan workout: how many working sets, the rep range (or seconds, for a hold) and the rest.
-/// The load is not set here: the first session asks for a weight that leaves about 3 reps (docs/training.md, Rules).
+/// One exercise in a plan workout: how many working sets, the rep range (or seconds, for a hold, or metres, for a
+/// run or a carry) and the rest. The load is not set here: the first session asks for a weight that leaves about 3
+/// reps (docs/training.md, Rules). <paramref name="Superset"/> joins it to the exercise before, as a workout's
+/// superset or circuit; the first of a circuit can carry a clock, <paramref name="Format"/> (a <see cref="BlockFormats"/> value).
 /// </summary>
-public sealed record PlanExercise(string ExerciseId, int Sets, int? RepMin, int? RepMax, int? Seconds, int RestSeconds);
+public sealed record PlanExercise(
+    string ExerciseId,
+    int Sets,
+    int? RepMin,
+    int? RepMax,
+    int? Seconds,
+    int RestSeconds,
+    int? Metres = null,
+    bool Superset = false,
+    string? Format = null);
 
 /// <summary>
 /// A workout in the plan's sequence, like Upper A. Its id is what a session done from it points at.
@@ -39,7 +50,7 @@ public static class PlanGenerator
     private const int ShortMinutes = 20;
 
     /// <summary>Moving to the next exercise: setting up, loading, finding the bench.</summary>
-    private const int Changeover = 60;
+    public const int Changeover = 60;
 
     /// <summary>A working set of reps, in seconds.</summary>
     private const int SetWork = 40;
@@ -48,6 +59,11 @@ public static class PlanGenerator
     public static IReadOnlyList<(string Name, string Template, int Variant)> Sequence(string split, int days) => split switch
     {
         Splits.Custom => [.. Enumerable.Range(0, days).Select(index => (CustomName(index), "", 0))],
+        // Hyrox: strength days between circuits of the race's stations, and run intervals from three days a week.
+        Splits.Hyrox when days >= 3 =>
+            [("Strength A", "full-a", 0), ("Stations A", HyroxPlan.StationsA, 0), ("Runs A", HyroxPlan.RunsA, 0),
+             ("Strength B", "full-b", 1), ("Stations B", HyroxPlan.StationsB, 1), ("Runs B", HyroxPlan.RunsB, 1)],
+        Splits.Hyrox => [("Strength A", "full-a", 0), ("Stations A", HyroxPlan.StationsA, 0), ("Strength B", "full-b", 1), ("Stations B", HyroxPlan.StationsB, 1)],
         Splits.UpperLower => [("Upper A", "upper-a", 0), ("Lower A", "lower-a", 0), ("Upper B", "upper-b", 1), ("Lower B", "lower-b", 1)],
         Splits.PushPullLegs when days >= 6 =>
             [("Push A", "push", 0), ("Pull A", "pull", 0), ("Legs A", "legs", 0), ("Push B", "push", 1), ("Pull B", "pull", 1), ("Legs B", "legs", 1)],
@@ -76,7 +92,9 @@ public static class PlanGenerator
                 continue;
             }
 
-            var (exercises, seconds) = Fill(Templates[template], variant, kit, answers, library);
+            var (exercises, seconds) = HyroxPlan.IsConditioning(template)
+                ? HyroxPlan.Fill(template, kit, answers, library, WarmUpFor(answers.Minutes))
+                : Fill(Templates[template], variant, kit, answers, library);
             workouts.Add(new PlanWorkout(id, name, RoundMinutes(seconds), exercises));
         }
 
@@ -86,7 +104,7 @@ public static class PlanGenerator
     private static (List<PlanExercise> Exercises, int Seconds) Fill(Slot[] slots, int variant, IReadOnlySet<string> kit, PlanAnswers answers, ExerciseLibrary library)
     {
         var budget = answers.Minutes * 60;
-        var total = answers.Minutes <= ShortMinutes ? ShortWarmUp : WarmUp;
+        var total = WarmUpFor(answers.Minutes);
         var picked = new List<PlanExercise>();
         var seen = new Dictionary<Slot, int>();
         foreach (var slot in slots)
@@ -189,7 +207,16 @@ public static class PlanGenerator
     }
 
     /// <summary>An exercise's time in the workout: each set's work and rest, and the changeover to it.</summary>
-    public static int Duration(PlanExercise exercise) => exercise.Sets * ((exercise.Seconds ?? SetWork) + exercise.RestSeconds) + Changeover;
+    public static int Duration(PlanExercise exercise) => exercise.Sets * (Work(exercise) + exercise.RestSeconds) + Changeover;
+
+    /// <summary>
+    /// One set's work, in seconds: a hold's time; a distance at about 5:00 a km (a run, a row) or, under 300 m, a slow
+    /// 45 s and a half second a metre (a sled, a carry); else 40 s of reps.
+    /// </summary>
+    public static int Work(PlanExercise exercise) => exercise.Seconds
+        ?? (exercise.Metres is { } metres ? (metres >= 300 ? metres * 3 / 10 : 45 + metres / 2) : SetWork);
+
+    private static int WarmUpFor(int minutes) => minutes <= ShortMinutes ? ShortWarmUp : WarmUp;
 
     /// <summary>"Workout A" to "Workout G": your own plan's workouts until you name them.</summary>
     public static string CustomName(int index) => $"Workout {(char)('A' + index)}";
@@ -217,7 +244,7 @@ public static class PlanGenerator
 
     /// <summary>A workout's estimate: the warm-up and each exercise's time, to the nearest 5 minutes.</summary>
     public static int Minutes(IEnumerable<PlanExercise> exercises, int planMinutes) =>
-        RoundMinutes((planMinutes <= ShortMinutes ? ShortWarmUp : WarmUp) + exercises.Sum(Duration));
+        RoundMinutes(WarmUpFor(planMinutes) + exercises.Sum(Duration));
 
     /// <summary>To the nearest 5 minutes, as "~55 min" shows it.</summary>
     private static int RoundMinutes(int seconds) => Math.Max(5, (int)Math.Round(seconds / 300.0) * 5);

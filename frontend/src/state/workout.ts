@@ -125,11 +125,14 @@ export function startPlanWorkout(next: UpNext, now = new Date()): DraftWorkout {
   const active = startWorkout(now);
   active.name = next.workout.name;
   active.plan = { workoutId: next.workout.id, position: next.position };
-  active.exercises = next.workout.exercises.map((exercise) => ({
+  // A plan circuit starts joined, and on the clock when it's done for time.
+  active.exercises = next.workout.exercises.map((exercise, index) => ({
     key: `e${++keySeq}`,
     exerciseId: exercise.exerciseId,
     sets: Array.from({ length: weekSets(exercise, next.lighter) }, () => emptySet()),
     target: targetOf(exercise, next),
+    superset: index > 0 && !!exercise.superset,
+    timed: exercise.format && !exercise.superset ? newTimed(exercise.format) : null,
   }));
   save();
   for (const exercise of active.exercises) void loadPrevious(exercise.exerciseId);

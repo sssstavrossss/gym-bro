@@ -71,7 +71,11 @@ public sealed class PlanRulesTests
     [Fact]
     public void Bad_answers_are_refused_with_a_reason()
     {
-        Assert.Equal(PlanRules.UnknownGoal, PlanRules.Check(Request(goal: "hyrox")).Error);
+        Assert.Equal(PlanRules.UnknownGoal, PlanRules.Check(Request(goal: "crossfit")).Error);
+        // Only Hyrox takes its split, and Hyrox takes no other but your own.
+        Assert.Equal(PlanRules.UnknownSplit, PlanRules.Check(Request(split: "hyrox")).Error);
+        Assert.Equal(PlanRules.UnknownSplit, PlanRules.Check(Request(goal: "hyrox", split: "full_body")).Error);
+        Assert.Equal("custom", Answers(Request(goal: "hyrox", split: "custom")).Split);
         Assert.Equal(PlanRules.NeedsDays, PlanRules.Check(Request(days: [])).Error);
         Assert.Equal(PlanRules.BadDay, PlanRules.Check(Request(days: [7])).Error);
         Assert.Equal(PlanRules.BadMinutes, PlanRules.Check(Request(minutes: 5)).Error);
@@ -83,6 +87,60 @@ public sealed class PlanRulesTests
         Assert.Equal(PlanRules.UnknownJoint, PlanRules.Check(Request(goEasy: ["neck"])).Error);
         Assert.Equal(PlanRules.UnknownSplit, PlanRules.Check(Request(split: "bro_split")).Error);
     }
+
+    [Fact]
+    public void A_hyrox_plan_puts_strength_days_between_station_circuits_and_runs()
+    {
+        var answers = Answers(Request(goal: "hyrox", days: [0, 2, 4]));
+        Assert.Equal("hyrox", answers.Split);
+        var workouts = PlanGenerator.Generate(answers, ExerciseCatalog.Current);
+        Assert.Equal(["Strength A", "Stations A", "Runs A", "Strength B", "Stations B", "Runs B"], workouts.Select(item => item.Name));
+        Assert.Equal(4, Generate(Request(goal: "hyrox", days: [1, 4])).Count);
+
+        // A full gym does the race's own stations, a circuit done for time, each round a 1 km run first.
+        var stations = workouts[1].Exercises;
+        Assert.Equal(["run", "skierg", "sled-push", "sled-pull", "burpee-broad-jump"], stations.Select(item => item.ExerciseId));
+        Assert.Equal("for_time", stations[0].Format);
+        Assert.False(stations[0].Superset);
+        Assert.All(stations.Skip(1), item => Assert.True(item.Superset));
+        Assert.Equal(1000, stations[0].Metres);
+        Assert.Single(stations.Select(item => item.Sets).Distinct());
+        Assert.All(stations, item => Assert.Equal(0, item.RestSeconds));
+        Assert.Equal(["run", "rowing-stationary", "farmers-walk", "sandbag-lunge", "wall-ball"], workouts[4].Exercises.Select(item => item.ExerciseId));
+        Assert.Equal(20, workouts[4].Exercises[4].RepMin);
+
+        // Runs: 1 km repeats, then twice as many 500 m.
+        var runs = Assert.Single(workouts[2].Exercises);
+        Assert.Equal(("run", 1000, 90), (runs.ExerciseId, runs.Metres, runs.RestSeconds));
+        Assert.Equal(runs.Sets * 2, workouts[5].Exercises[0].Sets);
+        Assert.Equal(500, workouts[5].Exercises[0].Metres);
+
+        // The strength days are the usual full-body workouts.
+        Assert.Contains(workouts[0].Exercises, item => item.ExerciseId == "barbell-squat");
+        Assert.All(workouts, workout => Assert.InRange(workout.Minutes, 5, 70));
+    }
+
+    [Fact]
+    public void A_hyrox_plan_stands_in_for_stations_the_kit_or_a_go_easy_area_rules_out()
+    {
+        var home = Generate(Request(goal: "hyrox", days: [0, 2, 4], equipment: ["kettlebells"]));
+        Assert.Equal(["run", "mountain-climbers", "goblet-squat", "one-arm-kettlebell-row", "burpee-broad-jump"], home[1].Exercises.Select(item => item.ExerciseId));
+        Assert.Equal(["run", "mountain-climbers", "farmers-walk", "lunge-pass-through", "kettlebell-thruster"], home[4].Exercises.Select(item => item.ExerciseId));
+        Assert.Equal(30, home[1].Exercises[1].RepMin);
+
+        // Going easy on knees: a machine for the runs (the bike twice as far), and no lunges, squats or jumps.
+        var knees = Generate(Request(goal: "hyrox", days: [0, 2, 4], goEasy: ["knees"]));
+        Assert.Equal(("rowing-stationary", 1000), (knees[2].Exercises[0].ExerciseId, knees[2].Exercises[0].Metres));
+        Assert.Equal(2000, knees[1].Exercises[0].Metres);
+        Assert.Equal(["fan-bike", "skierg", "sled-pull"], knees[1].Exercises.Select(item => item.ExerciseId));
+    }
+
+    [Theory]
+    [InlineData("new", 30, 1)]
+    [InlineData("new", 120, 2)]
+    [InlineData("experienced", 120, 4)]
+    public void A_circuits_rounds_fit_the_time_and_the_experience(string experience, int minutes, int rounds) =>
+        Assert.Equal(rounds, Generate(Request(goal: "hyrox", minutes: minutes, experience: experience))[1].Exercises[0].Sets);
 
     [Fact]
     public void Every_core_exercise_is_in_the_library()
@@ -332,7 +390,7 @@ public sealed class PlanEndpointTests(ApiFactory factory)
             {
                 new { exerciseId = "plank", sets = 3, repMin = (int?)null, repMax = (int?)null, seconds = 45, restSeconds = 60 },
                 new { exerciseId = "barbell-squat", sets = 5, repMin = 3, repMax = 5, seconds = (int?)null, restSeconds = 180 },
-                new { exerciseId = "run", sets = 1, repMin = (int?)null, repMax = (int?)null, seconds = (int?)null, restSeconds = 0 },
+                new { exerciseId = "run", sets = 1, repMin = (int?)null, repMax = (int?)null, seconds = (int?)null, restSeconds = 0, metres = 800, superset = true },
             },
         };
         var saved = await client.PutAsJsonAsync($"/api/plan/workouts/{ids[1]}", edit);
@@ -344,8 +402,11 @@ public sealed class PlanEndpointTests(ApiFactory factory)
         Assert.False(json.RootElement.GetProperty("workouts")[0].GetProperty("edited").GetBoolean());
         Assert.Equal(["plank", "barbell-squat", "run"], workout.GetProperty("exercises").EnumerateArray().Select(item => item.GetProperty("exerciseId").GetString()));
         Assert.Equal(5, workout.GetProperty("exercises")[1].GetProperty("sets").GetInt32());
-        // 5 min warm-up, 3 × (45 + 60) + 60, 5 × (40 + 180) + 60, 1 × 40 + 60: 1,935 s, so 30.
-        Assert.Equal(30, workout.GetProperty("minutes").GetInt32());
+        // 5 min warm-up, 3 × (45 + 60) + 60, 5 × (40 + 180) + 60, 1 × 240 (800 m at 5:00 a km) + 60: 2,135 s, so 35.
+        Assert.Equal(35, workout.GetProperty("minutes").GetInt32());
+        // The run keeps its distance and stays joined to the squat.
+        Assert.Equal(800, workout.GetProperty("exercises")[2].GetProperty("metres").GetInt32());
+        Assert.True(workout.GetProperty("exercises")[2].GetProperty("superset").GetBoolean());
 
         using (var read = JsonDocument.Parse(await client.GetStringAsync("/api/plan")))
         {
@@ -371,6 +432,10 @@ public sealed class PlanEndpointTests(ApiFactory factory)
         Assert.Contains(PlanEdits.BadRest, await Refused(One("barbell-squat", rest: 601)));
         var twice = new { exercises = new[] { new { exerciseId = "barbell-squat", sets = 3, repMin = 5, repMax = 8, restSeconds = 120 }, new { exerciseId = "barbell-squat", sets = 3, repMin = 5, repMax = 8, restSeconds = 120 } } };
         Assert.Contains(PlanEdits.Twice, await Refused(twice));
+        Assert.Contains(PlanEdits.BadMetres, await Refused(new { exercises = new[] { new { exerciseId = "barbell-squat", sets = 3, repMin = 5, repMax = 8, restSeconds = 120, metres = 100 } } }));
+        Assert.Contains(PlanEdits.BadMetres, await Refused(new { exercises = new[] { new { exerciseId = "run", sets = 1, restSeconds = 0, metres = 50_000 } } }));
+        Assert.Contains(PlanEdits.BadCircuit, await Refused(new { exercises = new[] { new { exerciseId = "run", sets = 1, restSeconds = 0, superset = true } } }));
+        Assert.Contains(PlanEdits.BadCircuit, await Refused(new { exercises = new[] { new { exerciseId = "run", sets = 1, restSeconds = 0, format = "amrap" } } }));
 
         // Someone else's plan, or a workout not in it, isn't there.
         var other = factory.AsUser(TestData.NewUser("plan-edit-other"));

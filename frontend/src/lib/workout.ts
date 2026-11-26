@@ -122,13 +122,15 @@ export function setHints(
     : lastTime.filter((set) => set.type !== "warmup")[index - warmupsBefore(exercise, index)] ?? lastTime[lastTime.length - 1];
   // A working set not following one done today takes the suggested weight, and the reps to aim for.
   const suggested = !fromBefore && suggestion && exercise.sets[index]?.type === "working" ? suggestion : null;
-  // A plan's target sets this week's reps in reserve, and a hold's time until there is a last time.
+  // A plan's target sets this week's reps in reserve, a hold's time until there is a last time, a set number of reps
+  // (20 wall balls) the same way, and the distance to cover.
+  const fixed = exercise.target?.repMin != null && exercise.target.repMin === exercise.target.repMax ? exercise.target.repMin : null;
   return {
     kg: suggested?.kg ?? source?.kg ?? null,
-    reps: suggested?.reps ?? source?.reps ?? null,
-    rir: exercise.target?.rir ?? source?.rir ?? null,
+    reps: suggested?.reps ?? source?.reps ?? fixed,
+    rir: exercise.target?.circuit ? null : exercise.target?.rir ?? source?.rir ?? null,
     seconds: source?.seconds ?? exercise.target?.seconds ?? null,
-    metres: source?.metres ?? null,
+    metres: exercise.target?.metres ?? source?.metres ?? null,
   };
 }
 

@@ -20,12 +20,13 @@ import {
   previewSummary,
   remakes,
   splitFor,
-  SPLITS,
+  splitsFor,
   stepMinutes,
   toggled,
   WEEKDAYS,
   type PlanAnswers,
   type PlanPreview,
+  type Split,
 } from "../lib/plan";
 import { endPlan, plan, savePlan } from "../state/plan";
 import { closeSheet, toast, toastError, ui } from "../ui";
@@ -77,7 +78,12 @@ async function refreshPreview() {
   }
 }
 
-const split = computed(() => answers.value.split ?? splitFor(answers.value.weekdays.length));
+const split = computed(() => answers.value.split ?? splitFor(answers.value.weekdays.length, answers.value.goal));
+const splits = computed(() => splitsFor(answers.value.goal));
+// Hyrox has its own split: a split picked by hand that the new goal can't take goes back to the goal's own.
+watch(() => answers.value.goal, (goal) => {
+  if (answers.value.split && !splitsFor(goal).some((item) => item.id === answers.value.split)) answers.value.split = null;
+});
 const summary = computed(() => (preview.value ? previewSummary(preview.value) : null));
 const easeIn = computed(() => easeInFor(answers.value));
 /** Saving remakes every workout from the answers, so hand edits go. */
@@ -101,8 +107,8 @@ function toggleJoint(id: (typeof JOINTS)[number]["id"]) {
   answers.value.goEasy = toggled(answers.value.goEasy, id, JOINTS.map((item) => item.id));
 }
 
-function pickSplit(id: (typeof SPLITS)[number]["id"]) {
-  answers.value.split = id === splitFor(answers.value.weekdays.length) ? null : id;
+function pickSplit(id: Split) {
+  answers.value.split = id === splitFor(answers.value.weekdays.length, answers.value.goal) ? null : id;
 }
 
 async function save() {
@@ -222,7 +228,7 @@ async function end() {
         <button type="button" class="btn sm secondary t-label splitbtn" :aria-expanded="choosingSplit" @click="choosingSplit = !choosingSplit">Change split</button>
         <div v-if="choosingSplit" class="row wrap" role="radiogroup" aria-label="Split">
           <button
-            v-for="item in SPLITS" :key="item.id" type="button" role="radio" class="chip t-label" :class="{ on: split === item.id }"
+            v-for="item in splits" :key="item.id" type="button" role="radio" class="chip t-label" :class="{ on: split === item.id }"
             :aria-checked="split === item.id" @click="pickSplit(item.id)"
           ><span>{{ item.label }}</span></button>
         </div>

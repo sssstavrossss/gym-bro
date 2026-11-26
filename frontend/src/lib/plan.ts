@@ -1,12 +1,13 @@
 // Training plans (docs/training.md, phase 3; README → Training plans). The server makes the workouts;
 // this file holds the setup's choices, their labels and the lines the app shows.
+import { distanceText } from "./cardio";
 import { addDays, parse } from "./dates";
 
-export type PlanGoal = "muscle" | "strength" | "fitness";
+export type PlanGoal = "muscle" | "strength" | "fitness" | "hyrox";
 export type Experience = "new" | "some" | "experienced";
 export type EquipmentPreset = "gym" | "home" | "dumbbells" | "kettlebells" | "bodyweight";
 export type Joint = "shoulders" | "elbows" | "wrists" | "lower-back" | "hips" | "knees" | "ankles";
-export type Split = "full_body" | "upper_lower" | "push_pull_legs" | "ppl_upper_lower" | "custom";
+export type Split = "full_body" | "upper_lower" | "push_pull_legs" | "ppl_upper_lower" | "custom" | "hyrox";
 
 export interface PlanExercise {
   exerciseId: string;
@@ -16,6 +17,12 @@ export interface PlanExercise {
   /** A hold's target, in seconds, instead of reps. */
   seconds: number | null;
   restSeconds: number;
+  /** A run's, row's or carry's distance. Missing from plans made before it was added. */
+  metres?: number | null;
+  /** Joined to the exercise before, as a circuit (lib/workout.ts `superset`). */
+  superset?: boolean;
+  /** On a circuit's first exercise: done on the clock, for time (lib/timed.ts). */
+  format?: "for_time" | null;
 }
 
 export interface PlanWorkout {
@@ -70,6 +77,7 @@ export const GOALS: { value: PlanGoal; label: string }[] = [
   { value: "muscle", label: "Muscle" },
   { value: "strength", label: "Strength" },
   { value: "fitness", label: "Fitness" },
+  { value: "hyrox", label: "Hyrox" },
 ];
 
 export const EXPERIENCES: { value: Experience; label: string }[] = [
@@ -102,7 +110,13 @@ export const SPLITS: { id: Split; label: string }[] = [
   { id: "push_pull_legs", label: "Push / Pull / Legs" },
   { id: "ppl_upper_lower", label: "Push / Pull / Legs + Upper / Lower" },
   { id: "custom", label: "Your own" },
+  { id: "hyrox", label: "Hyrox" },
 ];
+
+/** The splits a goal can take: Hyrox has its own (or your own), and the others don't take it. */
+export function splitsFor(goal: PlanGoal): typeof SPLITS {
+  return SPLITS.filter((item) => item.id === "custom" || (item.id === "hyrox") === (goal === "hyrox"));
+}
 
 export const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
@@ -128,8 +142,9 @@ export function answersOf(plan: Plan): PlanAnswers {
   };
 }
 
-/** The split that follows from the days a week, as the server picks it. */
-export function splitFor(days: number): Split {
+/** The split that follows from the goal and the days a week, as the server picks it. */
+export function splitFor(days: number, goal?: PlanGoal): Split {
+  if (goal === "hyrox") return "hyrox";
   if (days <= 3) return "full_body";
   if (days === 4) return "upper_lower";
   if (days === 5) return "ppl_upper_lower";
@@ -164,18 +179,23 @@ export function setCount(workout: PlanWorkout): number {
   return workout.exercises.reduce((sum, exercise) => sum + exercise.sets, 0);
 }
 
-/** "6 exercises · 16 sets · ~55 min"; "No exercises yet" for one of your own not filled in. */
+/** "6 exercises · 16 sets · ~55 min", "5 exercises · 2 rounds · ~45 min" for a circuit; "No exercises yet" for one of your own not filled in. */
 export function workoutLine(workout: PlanWorkout): string {
   const count = workout.exercises.length;
   if (!count) return EMPTY_WORKOUT;
+  const [first] = workout.exercises;
+  if (first.format && workout.exercises.every((item, index) => index === 0 || item.superset)) {
+    return `${count} ${count === 1 ? "exercise" : "exercises"} · ${first.sets} ${first.sets === 1 ? "round" : "rounds"} · ~${workout.minutes} min`;
+  }
   const sets = setCount(workout);
   return `${count} ${count === 1 ? "exercise" : "exercises"} · ${sets} ${sets === 1 ? "set" : "sets"} · ~${workout.minutes} min`;
 }
 
-/** "Muscle · Upper / Lower · 4 days · 60 min" */
+/** "Muscle · Upper / Lower · 4 days · 60 min", "Hyrox · 4 days · 45 min" */
 export function planLine(plan: Pick<Plan, "goal" | "split" | "weekdays" | "minutes">): string {
   const days = plan.weekdays.length;
-  return `${goalLabel(plan.goal)} · ${splitLabel(plan.split)} · ${days} ${days === 1 ? "day" : "days"} · ${plan.minutes} min`;
+  const split = plan.split === "hyrox" ? [] : [splitLabel(plan.split)];
+  return [goalLabel(plan.goal), ...split, `${days} ${days === 1 ? "day" : "days"}`, `${plan.minutes} min`].join(" · ");
 }
 
 export const EMPTY_WORKOUT = "No exercises yet";
@@ -211,9 +231,11 @@ export function previewSummary(preview: PlanPreview): { title: string; line: str
   };
 }
 
-/** "3 × 6–10", "3 × 45 s" */
+/** "3 × 6–10", "3 × 20", "3 × 45 s", "4 × 1 km" */
 export function prescription(exercise: PlanExercise): string {
   if (exercise.seconds != null) return `${exercise.sets} × ${exercise.seconds} s`;
+  if (exercise.metres != null) return `${exercise.sets} × ${distanceText(exercise.metres)}`;
+  if (exercise.repMin != null && exercise.repMin === exercise.repMax) return `${exercise.sets} × ${exercise.repMin}`;
   if (exercise.repMin != null && exercise.repMax != null) return `${exercise.sets} × ${exercise.repMin}–${exercise.repMax}`;
   return `${exercise.sets} sets`;
 }
@@ -223,6 +245,10 @@ export interface PlanTarget {
   repMin: number | null;
   repMax: number | null;
   seconds: number | null;
+  /** A distance to cover each set. Missing on drafts from before it was added. */
+  metres?: number | null;
+  /** In a plan circuit: done on the clock, so no reps in reserve. */
+  circuit?: boolean;
   rir: number;
   restSeconds: number;
   /** Ease in's first weeks: load suggestions take half steps. Missing on drafts from before it was added. */
@@ -291,9 +317,17 @@ export function weekSets(exercise: PlanExercise, lighter: boolean): number {
 }
 
 /** "Week 2 of 6 · 3 reps in reserve", "Week 6 of 6 · lighter week". */
-export function weekLine(next: Pick<UpNext, "week" | "rir" | "lighter">, blockWeeks: number): string {
-  const tail = next.lighter ? "lighter week" : `${next.rir} ${next.rir === 1 ? "rep" : "reps"} in reserve`;
-  return `Week ${next.week} of ${blockWeeks} · ${tail}`;
+export function weekLine(next: Pick<UpNext, "week" | "rir" | "lighter"> & { workout?: PlanWorkout }, blockWeeks: number): string {
+  if (next.lighter) return `Week ${next.week} of ${blockWeeks} · lighter week`;
+  // A circuit on the clock or run intervals go by time, not reps in reserve.
+  if (next.workout && conditioning(next.workout)) return `Week ${next.week} of ${blockWeeks}`;
+  return `Week ${next.week} of ${blockWeeks} · ${next.rir} ${next.rir === 1 ? "rep" : "reps"} in reserve`;
+}
+
+/** A Hyrox conditioning workout: a circuit done for time, or only distances (run intervals). */
+export function conditioning(workout: PlanWorkout): boolean {
+  return workout.exercises.length > 0
+    && (workout.exercises.some((item) => item.format) || workout.exercises.every((item) => item.metres != null));
 }
 
 /** "5 exercises · 8 sets · ~30 min" for the week: a lighter week counts its halved sets and not its time. */
@@ -306,14 +340,21 @@ export function nextLine(next: UpNext): string {
 
 /** An exercise's target for this session. */
 export function targetOf(exercise: PlanExercise, next: Pick<UpNext, "rir"> & Partial<Pick<UpNext, "easing">>): PlanTarget {
-  return { repMin: exercise.repMin, repMax: exercise.repMax, seconds: exercise.seconds, rir: next.rir, restSeconds: exercise.restSeconds, easing: next.easing ?? false };
+  return {
+    repMin: exercise.repMin, repMax: exercise.repMax, seconds: exercise.seconds, metres: exercise.metres ?? null,
+    rir: next.rir, restSeconds: exercise.restSeconds, easing: next.easing ?? false,
+    ...(exercise.superset || exercise.format ? { circuit: true } : {}),
+  };
 }
 
-/** "6–10 reps · 2 in reserve", "45 s hold". The line over a plan exercise's set table. */
+/** "6–10 reps · 2 in reserve", "45 s hold", "1 km". The line over a plan exercise's set table. */
 export function targetLine(target: PlanTarget): string {
   if (target.seconds != null) return `${target.seconds} s hold`;
-  const reps = target.repMin != null && target.repMax != null ? `${target.repMin}–${target.repMax} reps` : "";
-  return [reps, `${target.rir} in reserve`].filter(Boolean).join(" · ");
+  if (target.metres != null) return distanceText(target.metres);
+  const reps = target.repMin != null && target.repMax != null
+    ? target.repMin === target.repMax ? `${target.repMin} reps` : `${target.repMin}–${target.repMax} reps`
+    : "";
+  return [reps, target.circuit ? "" : `${target.rir} in reserve`].filter(Boolean).join(" · ");
 }
 
 /** A coming plan workout on a projected day. */
