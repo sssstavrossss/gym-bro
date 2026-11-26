@@ -749,6 +749,31 @@ export async function getWeightChart(days = 30): Promise<WeightChartResponse> {
   return cachedJson(`/api/weight/chart?days=${days}`);
 }
 
+/**
+ * What a weigh-in on a day should show: the last weigh-in plus the food since, less the current
+ * burn. `bigDay` is the day before when it was over 130% of its target; `habit` when most weigh-ins
+ * follow a big day (then it evens out). `sure` says whether the weigh-in counts fully for the burn.
+ */
+export interface WeighInExpectation {
+  date: string;
+  from: string;
+  days: number;
+  startKg: number;
+  expectedKg: number;
+  ateKcal: number;
+  loggedDays: number;
+  burn: number;
+  bigDay: { date: string; kcal: number; targetKcal: number } | null;
+  habit: boolean;
+  sure: boolean;
+}
+
+/** Null when there is no weigh-in in the 4 weeks before (after the settling week) or no food logged. */
+export async function getExpectedWeight(date: string): Promise<WeighInExpectation | null> {
+  const body = await jsonOrThrow<{ expected: WeighInExpectation | null }>(await request(`/api/weight/expected?date=${encodeURIComponent(date)}`));
+  return body.expected;
+}
+
 export async function decideFreshStart(accept: boolean): Promise<FreshStartDecisionResponse> {
   return jsonOrThrow(await request("/api/weight/fresh-start", {
     method: "POST",

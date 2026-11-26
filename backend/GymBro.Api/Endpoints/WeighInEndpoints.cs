@@ -40,6 +40,7 @@ public static class WeighInEndpoints
         api.MapGet("/weigh-ins", List);
         api.MapGet("/weight/trend", Trend);
         api.MapGet("/weight/chart", Chart);
+        api.MapGet("/weight/expected", Expected);
         api.MapPost("/weight/fresh-start", FreshStart);
         api.MapPost("/weight/keep-goal", KeepGoal);
         return api;
@@ -218,6 +219,55 @@ public static class WeighInEndpoints
         var asOf = date ?? today;
         var weight = await WeightReader.ReadAsync(db, userId, asOf, cancellationToken);
         return Results.Ok(ProfileEndpoints.ToWeight(weight));
+    }
+
+    /// <summary>
+    /// What a weigh-in on <paramref name="date"/> is expected to show from the last one and the
+    /// food since. <c>{ expected: null }</c> when there is nothing to go on.
+    /// </summary>
+    private static async Task<IResult> Expected(
+        ClaimsPrincipal principal,
+        DateOnly? date,
+        AppDbContext db,
+        TimeProvider clock,
+        CancellationToken cancellationToken)
+    {
+        if (Caller.MissingOid(principal) is { } denied)
+        {
+            return denied;
+        }
+
+        var today = await TodayAsync(principal, db, clock, cancellationToken);
+        if (date is not DateOnly day || day > today)
+        {
+            return ApiResults.Error("Ask for a day up to today.");
+        }
+
+        var expectation = await ExpectedWeight.ReadAsync(db, Caller.Id(principal), day, cancellationToken);
+        if (expectation is null)
+        {
+            return Results.Ok(new { expected = (object?)null });
+        }
+
+        return Results.Ok(new
+        {
+            expected = new
+            {
+                date = expectation.Date,
+                from = expectation.From,
+                days = expectation.Days,
+                startKg = decimal.Round(expectation.StartKg, 2, MidpointRounding.AwayFromZero),
+                expectedKg = decimal.Round(expectation.ExpectedKg, 2, MidpointRounding.AwayFromZero),
+                ateKcal = (int)Math.Round(expectation.AteKcal),
+                loggedDays = expectation.LoggedDays,
+                burn = (int)Math.Round(expectation.Burn),
+                bigDay = expectation.BigDayKcal is decimal kcal && expectation.BigDayTargetKcal is int target
+                    ? new { date = day.AddDays(-1), kcal = (int)Math.Round(kcal), targetKcal = target }
+                    : null,
+                habit = expectation.Habit,
+                sure = expectation.Sure,
+            },
+        });
     }
 
     private static async Task<IResult> Chart(
