@@ -60,6 +60,9 @@ public static class MealKinds
 
     /// <summary>A recipe's ingredients matched for New recipe, from a link or pasted text. Found means the list came back.</summary>
     public const string Recipe = "recipe";
+
+    /// <summary>A workout described for the workout screen. Found means at least one exercise came back.</summary>
+    public const string Workout = "workout";
 }
 
 public static class MealOutcomes

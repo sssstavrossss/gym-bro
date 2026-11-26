@@ -7,6 +7,7 @@ import Icon from "./Icon.vue";
 import Keypad from "./Keypad.vue";
 import WorkoutExercise, { type CellEdit } from "./WorkoutExercise.vue";
 import TimedBlock from "./TimedBlock.vue";
+import WorkoutDescribe from "./WorkoutDescribe.vue";
 import { keyboardEntry } from "../lib/viewport";
 import {
   clock,
@@ -51,6 +52,11 @@ import {
 import type { DraftExercise } from "../lib/workout";
 import { distanceText } from "../lib/cardio";
 import { formatLabel, scoreLine } from "../lib/timed";
+import { canDescribe } from "../lib/describeWorkout";
+import { leftLine, describeLeftShownAt } from "../lib/describe";
+import { connection } from "../state/connection";
+import { describe, loadDescribe } from "../state/describe";
+import { findExercises, resetWorkoutDescribe, workoutDescribe } from "../state/workoutDescribe";
 import { closeSheet, toast, toastError, ui } from "../ui";
 
 // The workout being logged (docs/training.md, phase 2), and its summary once finished. Closing the sheet
@@ -63,7 +69,7 @@ const past = computed(() => workout.past);
 const current = computed(() => past.value?.draft ?? active.value);
 const pastError = ref("");
 const today = computed(() => todayInZone(deviceTimeZone(), new Date(now.value)));
-const view = ref<"log" | "add" | "swap">("log");
+const view = ref<"log" | "add" | "swap" | "describe">("log");
 /** The exercise being swapped, on the swap screen. */
 const swapping = ref<{ key: string; exerciseId: string } | null>(null);
 const confirming = ref<null | "undone" | "empty" | "discard">(null);
@@ -91,9 +97,11 @@ watch(open, (shown) => {
     confirming.value = null;
     pastError.value = "";
     closePast();
+    resetWorkoutDescribe();
     return;
   }
   void loadExercises();
+  void loadDescribe();
   tick();
   timer = window.setInterval(tick, 1000);
   view.value = current.value && !current.value.exercises.length ? "add" : "log";
@@ -177,6 +185,22 @@ async function pick(exerciseId: string) {
   view.value = "log";
   await nextTick();
   document.querySelector(`[data-workout-exercise="${exerciseId}"][data-open]`)?.scrollIntoView({ block: "nearest" });
+}
+
+const canFind = computed(() => !workoutDescribe.finding && !connection.offline && describe.left > 0 && canDescribe(workoutDescribe.text));
+const describeLeft = computed(() => (describe.left <= describeLeftShownAt ? leftLine({ limit: describe.limit, left: describe.left, nextAt: describe.nextAt }, deviceTimeZone()) : ""));
+
+function startDescribe() {
+  workoutDescribe.error = "";
+  view.value = "describe";
+}
+
+async function findNow() {
+  if (!canFind.value) return;
+  // Back on the workout, the first exercise with sets to do opens.
+  if (!(await findExercises())) return;
+  chosen.value = null;
+  view.value = "log";
 }
 
 function startSwap(exercise: { key: string; exerciseId: string }) {
@@ -269,7 +293,7 @@ const summary = computed(() => {
 const showSummary = computed(() => summary.value != null && !active.value && !past.value);
 const pastTitle = computed(() => (past.value?.isNew ? "Log a workout" : "Edit workout"));
 const swapTitle = computed(() => `Swap ${swapping.value ? exerciseItem(swapping.value.exerciseId)?.name ?? "exercise" : "exercise"}`);
-const label = computed(() => (showSummary.value ? "Workout done" : view.value === "add" ? "Add exercise" : view.value === "swap" ? swapTitle.value : past.value ? pastTitle.value : active.value?.name ?? "Workout"));
+const label = computed(() => (showSummary.value ? "Workout done" : view.value === "add" ? "Add exercise" : view.value === "describe" ? "Describe a workout" : view.value === "swap" ? swapTitle.value : past.value ? pastTitle.value : active.value?.name ?? "Workout"));
 
 function setPastDate(event: Event) {
   const value = (event.target as HTMLInputElement).value;
@@ -312,6 +336,11 @@ async function deletePastNow() {
       <div v-else-if="view === 'add'" class="row hdr">
         <button type="button" class="cbtn" aria-label="Back to the workout" @click="view = 'log'"><Icon name="left" :size="18" /></button>
         <h2 class="t-head m0 grow">Add exercise</h2>
+        <button v-if="describe.available" type="button" class="btn sm secondary t-label" data-describe-workout @click="startDescribe"><Icon name="sparkle" :size="14" /> Describe</button>
+      </div>
+      <div v-else-if="view === 'describe'" class="row hdr">
+        <button type="button" class="cbtn" aria-label="Back to the workout" @click="view = 'log'"><Icon name="left" :size="18" /></button>
+        <h2 class="t-head m0 grow">Describe a workout</h2>
       </div>
       <div v-else-if="view === 'swap'" class="row hdr">
         <button type="button" class="cbtn" aria-label="Back to the workout" @click="view = 'log'"><Icon name="left" :size="18" /></button>
@@ -356,6 +385,7 @@ async function deletePastNow() {
     </div>
 
     <ExerciseBrowser v-else-if="view === 'add'" title="Exercises" title-id="workout-add-title" action="add" @pick="pick" />
+    <WorkoutDescribe v-else-if="view === 'describe'" @find="findNow" />
     <SwapList v-else-if="view === 'swap' && swapping" :key="swapping.key" :exercise-id="swapping.exerciseId" @pick="swapTo" />
 
     <div v-else-if="past" class="col body" data-past-workout>
@@ -364,6 +394,10 @@ async function deletePastNow() {
         <input class="t-body" type="date" :value="past.draft.date" :max="today" min="2000-01-01" aria-label="Day of the workout" data-no-autofocus @change="setPastDate" />
       </label>
       <p v-if="pastError" class="t-label m0" role="alert">{{ pastError }}</p>
+      <div v-if="workoutDescribe.unmatched" class="well row unmatched" role="status" data-describe-unmatched>
+        <span class="t-label grow">{{ workoutDescribe.unmatched }}</span>
+        <button type="button" class="cbtn" aria-label="Dismiss" @click="workoutDescribe.unmatched = ''"><Icon name="x" :size="16" /></button>
+      </div>
       <div v-if="!past.draft.exercises.length" class="card inset empty">
         <span class="t-label c2">No exercises yet. Add one, then tick off each set you did.</span>
       </div>
@@ -380,6 +414,7 @@ async function deletePastNow() {
       </div>
       <div class="row more">
         <button type="button" class="btn sm secondary t-label" @click="view = 'add'"><Icon name="plus" :size="14" /> Exercise</button>
+        <button v-if="describe.available" type="button" class="btn sm secondary t-label" data-describe-workout @click="startDescribe"><Icon name="sparkle" :size="14" /> Describe</button>
       </div>
     </div>
 
@@ -403,6 +438,10 @@ async function deletePastNow() {
         </template>
       </div>
 
+      <div v-if="workoutDescribe.unmatched" class="well row unmatched" role="status" data-describe-unmatched>
+        <span class="t-label grow">{{ workoutDescribe.unmatched }}</span>
+        <button type="button" class="cbtn" aria-label="Dismiss" @click="workoutDescribe.unmatched = ''"><Icon name="x" :size="16" /></button>
+      </div>
       <div v-if="!active.exercises.length" class="card inset empty">
         <span class="t-label c2">No exercises yet. Add the first one to start ticking off sets.</span>
       </div>
@@ -419,6 +458,7 @@ async function deletePastNow() {
       </div>
       <div class="row more">
         <button type="button" class="btn sm secondary t-label" @click="view = 'add'"><Icon name="plus" :size="14" /> Exercise</button>
+        <button v-if="describe.available" type="button" class="btn sm secondary t-label" data-describe-workout @click="startDescribe"><Icon name="sparkle" :size="14" /> Describe</button>
         <span class="grow" />
         <button type="button" class="btn sm secondary t-label" @click="confirming = 'discard'"><Icon name="trash" :size="14" /> Discard</button>
       </div>
@@ -435,6 +475,14 @@ async function deletePastNow() {
           <button type="button" class="btn secondary t-bodys" @click="nextCell">Next</button>
           <button type="button" class="btn primary t-bodys" @click="doneTyping">Done</button>
         </div>
+      </div>
+    </template>
+    <template v-else-if="view === 'describe'" #footer>
+      <div class="col">
+        <button type="button" class="btn primary block t-bodys" :disabled="!canFind" @click="findNow">
+          <Icon name="sparkle" :size="18" /><span>{{ workoutDescribe.finding ? "Finding…" : "Find exercises" }}</span>
+        </button>
+        <p v-if="describeLeft" class="t-capn c3 dleft" role="status">{{ describeLeft }}</p>
       </div>
     </template>
     <template v-else-if="past && view === 'log'" #footer>
@@ -473,6 +521,8 @@ async function deletePastNow() {
 .solo { display: contents; }
 .ss { gap: var(--space-s); padding-left: var(--space-s); border-left: var(--line-rail) solid var(--color-action); }
 .more { gap: var(--space-s); padding-top: var(--space-xs); }
+.row.unmatched { gap: var(--space-s); flex-wrap: nowrap; align-items: center; }
+.dleft { margin: var(--space-s) 0 0; text-align: center; }
 .pad { gap: var(--space-s); }
 .padacts { gap: var(--space-s); flex-wrap: nowrap; }
 .padacts .btn { flex: 1 1 0; }
