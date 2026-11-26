@@ -37,7 +37,7 @@ const workout = (name: string, sets: number[], minutes = 50): PlanWorkout => ({
 describe("plan setup", () => {
   it("starts with three days, an hour and a full gym", () => {
     expect(defaultAnswers()).toEqual({
-      goal: "muscle", weekdays: [0, 2, 4], minutes: 60, experience: "some", equipment: ["gym"], goEasy: [], easeIn: null, split: null,
+      goal: "muscle", weekdays: [0, 2, 4], minutes: 60, experience: "some", equipment: ["gym"], goEasy: [], easeIn: null, split: null, warmUp: false, coolDown: false,
     });
   });
 
@@ -79,10 +79,10 @@ describe("plan setup", () => {
   it("copies a saved plan's answers without sharing its lists", () => {
     const plan: Plan = {
       id: "p", goal: "strength", weekdays: [1, 3], minutes: 45, experience: "new", equipment: ["dumbbells"], goEasy: ["wrists"],
-      easeIn: true, split: "full_body", blockWeeks: 6, startDate: "2026-11-25", updatedAt: "", workouts: [], lastPosition: null,
+      easeIn: true, split: "full_body", warmUp: false, coolDown: true, blockWeeks: 6, startDate: "2026-11-25", updatedAt: "", workouts: [], lastPosition: null,
     };
     const answers = answersOf(plan);
-    expect(answers).toEqual({ goal: "strength", weekdays: [1, 3], minutes: 45, experience: "new", equipment: ["dumbbells"], goEasy: ["wrists"], easeIn: true, split: "full_body" });
+    expect(answers).toEqual({ goal: "strength", weekdays: [1, 3], minutes: 45, experience: "new", equipment: ["dumbbells"], goEasy: ["wrists"], easeIn: true, split: "full_body", warmUp: false, coolDown: true });
     answers.weekdays.push(5);
     expect(plan.weekdays).toEqual([1, 3]);
   });
@@ -130,7 +130,7 @@ describe("plan lines", () => {
 
   it("sums the preview with rounded averages", () => {
     const summary = previewSummary({
-      split: "upper_lower", easeIn: false, blockWeeks: 6,
+      split: "upper_lower", easeIn: false, warmUp: false, coolDown: false, blockWeeks: 6,
       workouts: [workout("Upper A", [3, 3, 3, 3, 3]), workout("Lower A", [3, 3, 3, 3]), workout("Upper B", [3, 3, 3, 3, 3]), workout("Lower B", [3, 3, 3, 3, 3])],
     });
     expect(summary).toEqual({

@@ -34,6 +34,9 @@ export interface PlanWorkout {
   exercises: PlanExercise[];
   /** Changed by hand in the editor. Remaking the plan from the answers drops it. */
   edited?: boolean;
+  /** Dynamic moves before its exercises and stretches after, when the plan has them on; null when off. */
+  warmUp?: PlanExercise[] | null;
+  coolDown?: PlanExercise[] | null;
 }
 
 /** The setup's answers, as `PUT /api/plan` takes them. Null takes the server's default. */
@@ -47,6 +50,9 @@ export interface PlanAnswers {
   goEasy: Joint[];
   easeIn: boolean | null;
   split: Split | null;
+  /** A mobility warm-up and a cool-down of stretches in each workout. Off unless on. */
+  warmUp: boolean;
+  coolDown: boolean;
 }
 
 export interface Plan {
@@ -59,6 +65,8 @@ export interface Plan {
   goEasy: Joint[];
   easeIn: boolean;
   split: Split;
+  warmUp: boolean;
+  coolDown: boolean;
   blockWeeks: number;
   startDate: string;
   updatedAt: string;
@@ -70,6 +78,8 @@ export interface Plan {
 export interface PlanPreview {
   split: Split;
   easeIn: boolean;
+  warmUp: boolean;
+  coolDown: boolean;
   blockWeeks: number;
   workouts: PlanWorkout[];
 }
@@ -126,7 +136,7 @@ export const MAX_MINUTES = 120;
 export const MINUTE_STEP = 5;
 
 export function defaultAnswers(): PlanAnswers {
-  return { goal: "muscle", weekdays: [0, 2, 4], minutes: 60, experience: "some", equipment: ["gym"], goEasy: [], easeIn: null, split: null };
+  return { goal: "muscle", weekdays: [0, 2, 4], minutes: 60, experience: "some", equipment: ["gym"], goEasy: [], easeIn: null, split: null, warmUp: false, coolDown: false };
 }
 
 /** A saved plan's answers, for editing it. */
@@ -140,6 +150,9 @@ export function answersOf(plan: Plan): PlanAnswers {
     goEasy: [...plan.goEasy],
     easeIn: plan.easeIn,
     split: plan.split,
+    // A plan from before these settings has neither.
+    warmUp: plan.warmUp ?? false,
+    coolDown: plan.coolDown ?? false,
   };
 }
 
@@ -204,6 +217,14 @@ export function planLine(plan: Pick<Plan, "goal" | "split" | "weekdays" | "minut
 
 export const EMPTY_WORKOUT = "No exercises yet";
 
+/** "With a warm-up and cool-down", "With a warm-up", "With a cool-down", or "" when it has neither. */
+export function mobilityLine(workout: Pick<PlanWorkout, "warmUp" | "coolDown">): string {
+  const parts = [workout.warmUp?.length ? "a warm-up" : "", workout.coolDown?.length ? "cool-down" : ""].filter(Boolean);
+  if (!parts.length) return "";
+  if (parts.length === 2) return "With a warm-up and cool-down";
+  return parts[0] === "a warm-up" ? "With a warm-up" : "With a cool-down";
+}
+
 /**
  * Saving answers for your own plan keeps its workouts; fewer days drop the last ones. These are their names, or
  * none when nothing would go (or when the plan is made again anyway).
@@ -213,9 +234,22 @@ export function droppedOwn(current: Pick<Plan, "split" | "workouts"> | null, spl
   return current.workouts.slice(Math.max(1, days)).map((workout) => workout.name);
 }
 
-/** Saving these answers makes the workouts again from scratch, so edits by hand go. Your own plan keeps its own. */
-export function remakes(current: Pick<Plan, "split"> | null, split: Split): boolean {
-  return !!current && !(current.split === "custom" && split === "custom");
+/**
+ * Saving these answers makes the workouts again from scratch, so edits by hand go. Your own plan keeps its own,
+ * and so does a change to only the warm-up or cool-down (`answers` against `current`'s).
+ */
+export function remakes(current: (Pick<Plan, "split"> & Partial<Plan>) | null, split: Split, answers?: PlanAnswers): boolean {
+  if (!current || (current.split === "custom" && split === "custom")) return false;
+  return !(answers && current.workouts && onlyMobilityChanged(answersOf(current as Plan), answers));
+}
+
+/** Only the warm-up or cool-down differs: the server keeps the workouts and makes just those again. */
+export function onlyMobilityChanged(current: PlanAnswers, next: PlanAnswers): boolean {
+  const same = (a: readonly unknown[], b: readonly unknown[]) => a.length === b.length && [...a].sort().every((item, index) => item === [...b].sort()[index]);
+  return (current.warmUp !== next.warmUp || current.coolDown !== next.coolDown)
+    && current.goal === next.goal && same(current.weekdays, next.weekdays) && current.minutes === next.minutes
+    && current.experience === next.experience && same(current.equipment, next.equipment) && same(current.goEasy, next.goEasy)
+    && easeInFor(current) === easeInFor(next) && (current.split ?? splitFor(current.weekdays.length, current.goal)) === (next.split ?? splitFor(next.weekdays.length, next.goal));
 }
 
 /** The setup's summary of what the answers make: a title and a line under it. */
@@ -364,9 +398,12 @@ export function targetOf(exercise: PlanExercise, next: Pick<UpNext, "rir"> & Par
   };
 }
 
-/** "6–10 reps · 2 in reserve", "45 s hold", "1 km". The line over a plan exercise's set table. */
-export function targetLine(target: PlanTarget): string {
-  if (target.seconds != null) return `${target.seconds} s hold`;
+/**
+ * "6–10 reps · 2 in reserve", "45 s hold", "1 km". The line over a plan exercise's set table.
+ * A warm-up move keeps going rather than holding, so it's just "30 s".
+ */
+export function targetLine(target: PlanTarget, moving = false): string {
+  if (target.seconds != null) return moving ? `${target.seconds} s` : `${target.seconds} s hold`;
   if (target.metres != null) return distanceText(target.metres);
   const reps = target.repMin != null && target.repMax != null
     ? target.repMin === target.repMax ? `${target.repMin} reps` : `${target.repMin}–${target.repMax} reps`

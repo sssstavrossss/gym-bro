@@ -86,9 +86,9 @@ watch(() => answers.value.goal, (goal) => {
 });
 const summary = computed(() => (preview.value ? previewSummary(preview.value) : null));
 const easeIn = computed(() => easeInFor(answers.value));
-/** Saving remakes every workout from the answers, so hand edits go. */
+/** Saving remakes every workout from the answers, so hand edits go (not when only the warm-up or cool-down changes). */
 const editedNames = computed(() =>
-  remakes(plan.current, split.value) ? (plan.current?.workouts ?? []).filter((item) => item.edited).map((item) => item.name) : []);
+  remakes(plan.current, split.value, answers.value) ? (plan.current?.workouts ?? []).filter((item) => item.edited).map((item) => item.name) : []);
 /** Your own plan with fewer days: the last workouts go. */
 const dropped = computed(() => droppedOwn(plan.current, split.value, answers.value.weekdays.length));
 const missing = computed(() =>
@@ -204,6 +204,8 @@ async function end() {
           </div>
         </div>
         <SwitchRow title="Ease in" caption="The first 2 weeks stop further from failure, with smaller load steps." :on="easeIn" @toggle="answers.easeIn = !easeIn" />
+        <SwitchRow title="Mobility warm-up" caption="A few moves for the muscles you'll train, in place of a plain warm-up." :on="answers.warmUp" data-plan-warm-up @toggle="answers.warmUp = !answers.warmUp" />
+        <SwitchRow title="Cool-down" caption="A few stretches at the end for the muscles you trained, about 3 minutes." :on="answers.coolDown" data-plan-cool-down @toggle="answers.coolDown = !answers.coolDown" />
         <span class="t-capn c3">Training suggestions, not medical advice.</span>
       </section>
 

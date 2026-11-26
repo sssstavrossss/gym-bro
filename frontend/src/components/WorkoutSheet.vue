@@ -20,7 +20,9 @@ import {
   fieldDecimals,
   measureFields,
   parseField,
+  partHeading,
   restLeft,
+  samePart,
   shortDay,
   typeKey,
   undoneSets,
@@ -113,6 +115,7 @@ const shownKey = computed(() => {
   return exercises.some((exercise) => exercise.key === chosen.value) ? chosen.value : active.value ? currentExercise(active.value) : null;
 });
 /** The open exercise's whole superset opens with it, so its sets can be done in turn. */
+const activeRuns = computed(() => (active.value ? exerciseGroups(active.value.exercises) : []));
 const shownKeys = computed(() => (active.value && shownKey.value ? groupOf(active.value.exercises, shownKey.value).map((exercise) => exercise.key) : []));
 const left = computed(() => (active.value ? restLeft(active.value, now.value) : null));
 const restShare = computed(() => (left.value == null || !active.value?.restFor ? 0 : Math.min(1, left.value / active.value.restFor)));
@@ -132,7 +135,11 @@ watch(() => (active.value && chosen.value ? groupOf(active.value.exercises, chos
 
 const nameOf = (exercise: DraftExercise | undefined) => (exercise ? exerciseItem(exercise.exerciseId)?.name ?? "Exercise" : "");
 /** The exercise each superset button joins to: the one before. */
-const prevName = (exercises: readonly DraftExercise[], exercise: DraftExercise) => nameOf(exercises[exercises.indexOf(exercise) - 1]);
+/** The one before, for the superset button; none across the warm-up, the workout and the cool-down. */
+const prevName = (exercises: readonly DraftExercise[], exercise: DraftExercise) => {
+  const before = exercises[exercises.indexOf(exercise) - 1];
+  return before && samePart(before, exercise) ? nameOf(before) : nameOf(undefined);
+};
 /** A superset or circuit, or one exercise left on a clock: shown under a heading. */
 const isRun = (run: readonly DraftExercise[]) => run.length > 1 || !!run[0]?.timed;
 function runLabel(run: readonly DraftExercise[]) {
@@ -445,17 +452,20 @@ async function deletePastNow() {
       <div v-if="!active.exercises.length" class="card inset empty">
         <span class="t-label c2">No exercises yet. Add the first one to start ticking off sets.</span>
       </div>
-      <div
-        v-for="run in exerciseGroups(active.exercises)" :key="run[0].key" :class="isRun(run) ? 'col ss' : 'solo'"
-        :role="isRun(run) ? 'group' : undefined" :aria-label="isRun(run) ? runLabel(run) : undefined" :data-superset="isRun(run) ? run.length : undefined"
-      >
-        <TimedBlock v-if="isRun(run)" :run="run" :live="true" :now="now" />
-        <WorkoutExercise
-          v-for="exercise in run" :key="exercise.key" :exercise="exercise" :open="shownKeys.includes(exercise.key)" :edit="edit"
-          :prev-name="prevName(active.exercises, exercise)"
-          @expand="chosen = exercise.key" @remove="remove(exercise.key)" @swap="startSwap(exercise)" @superset="join(active.exercises, exercise.key)"
-        />
-      </div>
+      <template v-for="(run, index) in activeRuns" :key="run[0].key">
+        <h3 v-if="partHeading(activeRuns, index)" class="t-cap c2 m0 part" :data-part="run[0].part ?? 'main'">{{ partHeading(activeRuns, index) }}</h3>
+        <div
+          :class="isRun(run) ? 'col ss' : 'solo'"
+          :role="isRun(run) ? 'group' : undefined" :aria-label="isRun(run) ? runLabel(run) : undefined" :data-superset="isRun(run) ? run.length : undefined"
+        >
+          <TimedBlock v-if="isRun(run)" :run="run" :live="true" :now="now" />
+          <WorkoutExercise
+            v-for="exercise in run" :key="exercise.key" :exercise="exercise" :open="shownKeys.includes(exercise.key)" :edit="edit"
+            :prev-name="prevName(active.exercises, exercise)"
+            @expand="chosen = exercise.key" @remove="remove(exercise.key)" @swap="startSwap(exercise)" @superset="join(active.exercises, exercise.key)"
+          />
+        </div>
+      </template>
       <div class="row more">
         <button type="button" class="btn sm secondary t-label" @click="view = 'add'"><Icon name="plus" :size="14" /> Exercise</button>
         <button v-if="describe.available" type="button" class="btn sm secondary t-label" data-describe-workout @click="startDescribe"><Icon name="sparkle" :size="14" /> Describe</button>
@@ -519,6 +529,8 @@ async function deletePastNow() {
 .empty { padding: var(--space-m); }
 /* A superset or circuit: its exercises under one heading, joined by a rail down the left. */
 .solo { display: contents; }
+/* Warm-up, Workout, Cool-down: a little more room above each, so the parts read apart. */
+.part { padding-top: var(--space-s); }
 .ss { gap: var(--space-s); padding-left: var(--space-s); border-left: var(--line-rail) solid var(--color-action); }
 .more { gap: var(--space-s); padding-top: var(--space-xs); }
 .row.unmatched { gap: var(--space-s); flex-wrap: nowrap; align-items: center; }

@@ -4,7 +4,7 @@ import ExerciseBrowser from "../components/ExerciseBrowser.vue";
 import Icon from "../components/Icon.vue";
 import OfflineLine from "../components/OfflineLine.vue";
 import { todayInZone } from "../lib/dates";
-import { dayLabel, nextLine, planLine, projectDays, upNext, weekLine, workoutLine } from "../lib/plan";
+import { dayLabel, mobilityLine, nextLine, planLine, projectDays, upNext, weekLine, workoutLine } from "../lib/plan";
 import { historyLine, shortDay, workoutStatus, workoutTotals } from "../lib/workout";
 import { exercises, loadExercises } from "../state/exercises";
 import { loadPlan, plan } from "../state/plan";
@@ -152,6 +152,7 @@ function logPast() {
             <span class="col grow pwtext">
               <span class="row pwhead"><span class="t-bodys grow">{{ item.name }}</span><span class="t-label c2">{{ workoutLine(item) }}</span></span>
               <span class="t-capn c2">{{ item.exercises.map((exercise) => nameOf(exercise.exerciseId)).join(" · ") }}</span>
+              <span v-if="mobilityLine(item)" class="t-capn c2" data-plan-mobility>{{ mobilityLine(item) }}</span>
               <span v-if="item.edited" class="t-capn c3" data-plan-edited>Edited by you</span>
             </span>
             <Icon name="right" :size="16" class="c3" />

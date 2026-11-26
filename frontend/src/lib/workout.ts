@@ -35,7 +35,11 @@ export interface DraftExercise {
   superset?: boolean;
   /** On the first exercise of a run done on the clock: its format, clock and score (lib/timed.ts). */
   timed?: TimedState | null;
+  /** From a plan with a warm-up or cool-down: which one it's in. The plan's own exercises have none. */
+  part?: WorkoutPart | null;
 }
+
+export type WorkoutPart = "warmup" | "cooldown";
 
 export interface DraftWorkout {
   /** The app's own id, sent with PUT /api/workouts/{id}. */
@@ -405,7 +409,10 @@ export function swapExercise(exercise: DraftExercise, exerciseId: string, newKey
   const ticked = exercise.sets.filter((set) => set.doneAt);
   const left = exercise.sets.filter((set) => !set.doneAt);
   const types = (left.length ? left : exercise.sets).map((set) => set.type);
-  const next: DraftExercise = { key: ticked.length ? newKey : exercise.key, exerciseId, sets: types.map((type) => emptySet(type)), target: exercise.target ?? null };
+  const next: DraftExercise = {
+    key: ticked.length ? newKey : exercise.key, exerciseId, sets: types.map((type) => emptySet(type)), target: exercise.target ?? null,
+    ...(exercise.part ? { part: exercise.part } : {}),
+  };
   return { keep: ticked.length ? { ...exercise, sets: ticked } : null, next: exercise.superset ? { ...next, superset: true } : next };
 }
 
@@ -443,7 +450,8 @@ export function roundDone(exercises: readonly DraftExercise[], key: string, inde
 /** Joins an exercise to the run before it, or splits it off again. The first exercise has nothing to join. */
 export function toggleSuperset(exercises: readonly DraftExercise[], key: string): DraftExercise[] {
   const at = exercises.findIndex((exercise) => exercise.key === key);
-  if (at < 1) return [...exercises];
+  // Never across the warm-up, the workout and the cool-down.
+  if (at < 1 || !samePart(exercises[at - 1], exercises[at])) return [...exercises];
   // Joined, it follows its new run's clock; a clock it led goes.
   return exercises.map((exercise, index) => (index === at ? { ...exercise, superset: !exercise.superset, timed: null } : exercise));
 }
@@ -457,4 +465,28 @@ export function withoutExercise(exercises: readonly DraftExercise[], at: number)
   const led = !exercises[at]?.superset && !!exercises[at + 1]?.superset;
   if (led) rest[at] = { ...rest[at], superset: false, timed: exercises[at].timed ?? null };
   return { exercises: rest, led };
+}
+
+/** Whether two exercises are in the same part: both warm-up, both the workout itself, or both cool-down. */
+export function samePart(a: Pick<DraftExercise, "part"> | undefined, b: Pick<DraftExercise, "part"> | undefined): boolean {
+  return (a?.part ?? null) === (b?.part ?? null);
+}
+
+const PART_TITLES: Record<WorkoutPart | "main", string> = { warmup: "Warm-up", main: "Workout", cooldown: "Cool-down" };
+
+/**
+ * The heading over a run of exercises: "Warm-up", "Workout" or "Cool-down" where the part changes, else null.
+ * A workout with no warm-up or cool-down has no headings at all.
+ */
+export function partHeading(runs: readonly (readonly Pick<DraftExercise, "part">[])[], index: number): string | null {
+  if (!runs.some((run) => run[0]?.part)) return null;
+  const part = runs[index]?.[0]?.part ?? "main";
+  const before = index > 0 ? (runs[index - 1][0]?.part ?? "main") : null;
+  return part === before ? null : PART_TITLES[part];
+}
+
+/** Where an added exercise goes: before the cool-down, so it's part of the workout itself. */
+export function addIndex(exercises: readonly Pick<DraftExercise, "part">[]): number {
+  const at = exercises.findIndex((exercise) => exercise.part === "cooldown");
+  return at < 0 ? exercises.length : at;
 }
