@@ -419,6 +419,37 @@ html.dt-xl .preview .panel-title {
 .tdisc.done { background: var(--color-action); color: var(--color-on-action); }
 .tdisc.rest { color: var(--text-tertiary); }
 
+/* Three figures in a tinted well (Profile's goal, the plan's split and time). One column at the largest text size. */
+.gstats { display: grid; grid-template-columns: repeat(3, auto); justify-content: space-between; gap: var(--space-m); margin: 0; padding: var(--space-m); border-radius: var(--radius-m); background: var(--color-surface-2); box-shadow: var(--d-edge); }
+.gstats > div { display: flex; flex-direction: column; gap: var(--space-2xs); min-width: 0; }
+.gstats dt, .gstats dd { margin: 0; }
+.gstats dd { color: var(--text-primary); font-weight: 600; overflow-wrap: anywhere; }
+html.dt-xl .gstats { grid-template-columns: minmax(0, 1fr); }
+
+/* A week, Monday to Sunday, as Home's week strip reads it (Up next, a new plan's preview). A tick for a day
+   trained, a ring for today, a raised disc for a plan day, plain for the rest. */
+.wkstrip { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); justify-items: center; list-style: none; margin: 0; padding: 0; }
+.wkday { display: flex; flex-direction: column; align-items: center; gap: var(--space-2xs); }
+.wkdisc {
+  width: 36px; height: 36px; border-radius: var(--radius-pill); display: flex; align-items: center; justify-content: center;
+  font-size: min(0.8824rem, 20px); line-height: 1; color: var(--text-tertiary);
+}
+.wkday[data-state="done"] .wkdisc { background: var(--color-action); color: var(--color-on-action); box-shadow: var(--d-action); }
+.wkday[data-state="today"] .wkdisc { box-shadow: inset 0 0 0 2px var(--color-action); color: var(--color-action); }
+.wkday[data-state="planned"] .wkdisc { background: var(--color-surface-2); box-shadow: var(--d-edge); color: var(--text-primary); }
+.wkday[data-state="skipped"] .wkdisc { text-decoration: line-through; }
+
+/* Days you train, picked on the week strip's discs: a filled disc is a day on, in a 44px hit. */
+.dpick { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); justify-items: center; }
+.dbtn {
+  width: var(--control-hit); height: var(--control-hit); max-width: 100%; border: 0; padding: 0; background: none; cursor: pointer;
+  display: grid; place-items: center; color: var(--text-secondary); position: relative; isolation: isolate;
+}
+.dbtn::before { content: ""; position: absolute; inset: 4px; z-index: -1; border-radius: 50%; background: var(--color-surface-2); box-shadow: var(--d-edge); }
+.dbtn[aria-pressed="true"] { color: var(--color-on-action); }
+.dbtn[aria-pressed="true"]::before { background: var(--color-action); box-shadow: var(--d-action); }
+.dbtn:focus-visible { outline: 2px solid var(--text-primary); outline-offset: -2px; border-radius: 50%; }
+
 /* A prompt card: a title and caption you can tap, with its actions on the right (Home's "Log your first food
    today", Train's "Start a workout"). */
 .card.prompt { flex-direction: row; align-items: center; gap: var(--space-m); text-align: left; width: 100%; min-width: 0; }

@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 
 function headers(oid: string) {
   return { "X-Test-Oid": oid, "X-Test-Name": "Test User", "Content-Type": "application/json" };
@@ -30,6 +30,12 @@ async function setup(page: Page): Promise<string> {
   return oid;
 }
 
+/** Until a sheet has slid in, WebKit can drop a tap on it. */
+async function settled(sheet: Locator) {
+  await expect(sheet).toBeVisible();
+  await sheet.evaluate((el) => Promise.all(el.getAnimations({ subtree: true }).map((animation) => animation.finished)));
+}
+
 test("Build your own: empty workouts in turn, fill and rename one, and fewer days drop the last", async ({ page }) => {
   await page.goto("/");
   await setup(page);
@@ -37,8 +43,12 @@ test("Build your own: empty workouts in turn, fill and rename one, and fewer day
 
   await page.locator("[data-build-own]").click();
   const setupSheet = page.getByRole("dialog", { name: "New plan" });
+  await settled(setupSheet);
+  await expect(setupSheet.locator("[data-plan-preview]")).toContainText("Your own");
+  await expect(setupSheet.locator("[data-plan-new-workout]")).toHaveCount(3);
+  await expect(setupSheet.locator("[data-plan-block-note]")).toContainText("The workouts start empty.");
+  await setupSheet.getByRole("button", { name: "Change split" }).click();
   await expect(setupSheet.getByRole("radio", { name: "Your own" })).toHaveAttribute("aria-checked", "true");
-  await expect(setupSheet.locator("[data-plan-preview]")).toContainText("Your own, 3 workouts in turn");
   await setupSheet.locator("[data-plan-save]").click();
   await expect(page.getByText("Plan made")).toBeVisible();
 

@@ -357,11 +357,7 @@ function onTextCommit() {
 .gfield { display: inline-flex; align-items: center; gap: var(--space-xs); flex: none; margin-left: auto; min-height: 36px; padding: 0 var(--space-m); border-radius: var(--radius-m); background: var(--color-surface-2); box-shadow: var(--d-sunk); }
 .gnum { color: var(--text-primary); font-variant-numeric: tabular-nums; }
 .gfield .c3 { align-self: center; margin-left: var(--space-2xs); }
-/* What is left, how long, and when, as three figures. 16px above and below inside the card. */
-.gstats { display: grid; grid-template-columns: repeat(3, auto); justify-content: space-between; gap: var(--space-m); margin: 0; padding: var(--space-m); border-radius: var(--radius-m); background: var(--color-surface-2); box-shadow: var(--d-edge); }
-.gstats > div { display: flex; flex-direction: column; gap: var(--space-2xs); min-width: 0; }
-.gstats dt, .gstats dd { margin: 0; }
-.gstats dd { color: var(--text-primary); font-weight: 600; overflow-wrap: anywhere; }
+/* The goal's three figures use the shared .gstats (main.css). */
 .gstats.reached { display: block; }
 .macts { gap: var(--space-s); flex-wrap: wrap; }
 .macts .btn { display: inline-flex; align-items: center; gap: var(--space-xs); }
@@ -398,6 +394,5 @@ h2 { margin: 0; }
 .dt-l .lowrow { white-space: normal; max-width: 100%; }
 .dt-xl .stats { flex-direction: column; align-items: stretch; }
 .dt-xl .stats > div { width: 100%; max-width: 100%; }
-.dt-xl .gstats { grid-template-columns: minmax(0, 1fr); }
 .dt-xl .pcol > p { max-width: 100%; overflow-wrap: anywhere; }
 </style>

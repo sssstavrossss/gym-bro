@@ -78,20 +78,23 @@ test("Your training: set in Settings, kept on the account, and a new plan starts
 
   // A new plan starts from it.
   await page.goto("/train");
-  await page.getByRole("button", { name: "Make a plan" }).click();
+  await expect(page.locator("[data-plan-using]")).toContainText("Dumbbells · 45 min · New to training");
+  await page.locator("[data-see-plan]").click();
   const planSheet = page.getByRole("dialog", { name: "New plan" });
   await settled(planSheet);
-  await expect(planSheet.locator("[data-plan-minutes]")).toHaveText("45 min");
-  await expect(planSheet.getByRole("radio", { name: "New" })).toHaveAttribute("aria-checked", "true");
-  await expect(planSheet.getByRole("button", { name: "Dumbbells" })).toHaveAttribute("aria-pressed", "true");
-  await expect(planSheet.getByRole("button", { name: "Full gym" })).toHaveAttribute("aria-pressed", "false");
-  await expect(planSheet.getByRole("button", { name: "Knees" })).toHaveAttribute("aria-pressed", "true");
-  await expect(planSheet.locator("[data-plan-warm-up]")).toHaveAttribute("aria-checked", "true");
-
-  // Changed in the plan, the change goes back to Your training.
-  await planSheet.getByRole("button", { name: "5 minutes more" }).click();
+  await expect(planSheet.locator('[data-plan-new-workout="Full body A"]')).toContainText("With a warm-up");
   await planSheet.locator("[data-plan-save]").click();
   await expect(planSheet).toBeHidden();
+  const saved = (await (await page.request.get("/api/plan", { headers: headers(oid) })).json()).plan;
+  expect([saved.minutes, saved.experience, saved.equipment, saved.goEasy, saved.warmUp]).toEqual([45, "new", ["dumbbells"], ["knees"], true]);
+
+  // Changed in Edit plan, the change goes back to Your training.
+  await page.locator("[data-plan-card]").getByRole("button", { name: "Edit", exact: true }).click();
+  const edit = page.getByRole("dialog", { name: "Edit plan" });
+  await settled(edit);
+  await edit.getByRole("button", { name: "5 minutes more" }).click();
+  await edit.locator("[data-plan-save]").click();
+  await expect(edit).toBeHidden();
   await page.goto("/profile");
   await page.getByRole("button", { name: "Settings" }).click();
   await settled(settings);

@@ -1,6 +1,6 @@
 import { markRaw, reactive } from "vue";
 import { ApiError, deletePlan, getPlan, putPlan, putPlanWorkout } from "../api";
-import type { Plan, PlanAnswers, PlanExercise } from "../lib/plan";
+import { defaultAnswers, type Plan, type PlanAnswers, type PlanExercise, type PlanGoal } from "../lib/plan";
 import { trainingFrom } from "../lib/training";
 import { deviceTimeZone, profile } from "./profile";
 
@@ -10,6 +10,9 @@ export const plan = reactive({
   current: null as Plan | null,
   saving: false,
 });
+
+/** A new plan's goal and days, picked on Train's Make a plan card. The rest comes from Your training. */
+export const planDraft = reactive({ goal: defaultAnswers().goal as PlanGoal, weekdays: defaultAnswers().weekdays });
 
 export const PLAN_OFFLINE = "You're offline. Making or changing a plan needs a connection.";
 

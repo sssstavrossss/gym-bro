@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 
 function headers(oid: string) {
   return { "X-Test-Oid": oid, "X-Test-Name": "Test User", "Content-Type": "application/json" };
@@ -30,17 +30,26 @@ async function setup(page: Page): Promise<string> {
   return oid;
 }
 
+/** Until a sheet has slid in, WebKit can drop a tap on it. */
+async function settled(sheet: Locator) {
+  await expect(sheet).toBeVisible();
+  await sheet.evaluate((el) => Promise.all(el.getAnimations({ subtree: true }).map((animation) => animation.finished)));
+}
+
 test("a Hyrox plan: strength days between station circuits and runs, and Stations A runs for time", async ({ page }) => {
   await page.goto("/");
   const oid = await setup(page);
   await page.goto("/train");
 
-  await page.getByRole("button", { name: "Make a plan" }).click();
+  const make = page.locator("[data-plan-card]");
+  await make.getByRole("radiogroup", { name: "Goal" }).getByRole("radio", { name: "Hyrox" }).click();
+  await expect(make.locator("[data-plan-stats]")).toContainText("Hyrox");
+  await make.locator("[data-see-plan]").click();
   const sheet = page.getByRole("dialog", { name: "New plan" });
-  await sheet.getByRole("radiogroup", { name: "Goal" }).getByRole("radio", { name: "Hyrox" }).click();
-  const preview = sheet.locator("[data-plan-preview]");
-  await expect(preview).toContainText("Hyrox, 6 workouts in turn");
-  await expect(preview).toContainText("Strength A → Stations A → Runs A → Strength B → Stations B → Runs B");
+  await settled(sheet);
+  await expect(sheet.locator("[data-plan-new-workout]")).toHaveText([/^Strength A/, /^Stations A/, /^Runs A/, /^Strength B/, /^Stations B/, /^Runs B/]);
+  // Three days take the first three; the rest come the week after.
+  await expect(sheet.locator('[data-plan-new-workout="Strength B"]')).toContainText("From week 2");
   // Hyrox has its own split; the others aren't offered.
   await sheet.getByRole("button", { name: "Change split" }).click();
   const splits = sheet.getByRole("radiogroup", { name: "Split" }).getByRole("radio");

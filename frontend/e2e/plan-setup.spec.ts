@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 
 function headers(oid: string) {
   return { "X-Test-Oid": oid, "X-Test-Name": "Test User", "Content-Type": "application/json" };
@@ -30,34 +30,51 @@ async function setup(page: Page): Promise<string> {
   return oid;
 }
 
+/** Until a sheet has slid in, WebKit can drop a tap on it. */
+async function settled(sheet: Locator) {
+  await expect(sheet).toBeVisible();
+  await sheet.evaluate((el) => Promise.all(el.getAnimations({ subtree: true }).map((animation) => animation.finished)));
+}
+
 test("A plan: answer the questions, see the preview, create it, edit it and end it", async ({ page }) => {
   await page.goto("/");
   const oid = await setup(page);
   await page.goto("/train");
 
-  await page.getByRole("button", { name: "Make a plan" }).click();
+  // Goal and days on the card: three days make a full-body plan, a fourth makes it Upper / Lower.
+  const make = page.locator("[data-plan-card]");
+  const stats = make.locator("[data-plan-stats]");
+  await expect(stats).toContainText("Full body");
+  await expect(stats).toContainText("3 workouts");
+  await make.getByRole("button", { name: "Thursday" }).click();
+  await expect(make.getByRole("button", { name: "Thursday" })).toHaveAttribute("aria-pressed", "true");
+  await expect(stats).toContainText("Upper / Lower");
+  await expect(stats).toContainText("4 workouts");
+
+  // The rest is Your training, behind the line under them.
+  await make.locator("[data-plan-using]").click();
+  const training = page.getByRole("dialog", { name: "Your training" });
+  await settled(training);
+  await training.getByRole("button", { name: "5 minutes less" }).click();
+  await expect(training.locator("[data-training-minutes]")).toHaveText("55 min");
+  await training.getByRole("button", { name: "Knees" }).click();
+  await training.getByRole("button", { name: "Dumbbells" }).click();
+  await training.getByRole("button", { name: "Full gym" }).click();
+  await training.getByRole("button", { name: "Close" }).click();
+  await expect(make.locator("[data-plan-using]")).toContainText("Dumbbells · 55 min · Some experience");
+
+  // See my plan: the plan before it starts, with its week and each workout's days.
+  await make.getByRole("button", { name: "See my plan" }).click();
   const sheet = page.getByRole("dialog", { name: "New plan" });
-  await expect(sheet).toBeVisible();
-  // Three days make a full-body plan; a fourth day makes it Upper / Lower.
-  await expect(sheet.locator("[data-plan-preview]")).toContainText("Full body, 2 workouts in turn");
-  await sheet.getByRole("button", { name: "Thursday" }).click();
-  await expect(sheet.getByRole("button", { name: "Thursday" })).toHaveAttribute("aria-pressed", "true");
-  await expect(sheet.locator("[data-plan-preview]")).toContainText("Upper / Lower, 4 workouts in turn");
-  await expect(sheet.locator("[data-plan-preview]")).toContainText("Upper A → Lower A → Upper B → Lower B");
-  await sheet.getByRole("button", { name: "5 minutes less" }).click();
-  await expect(sheet.locator("[data-plan-minutes]")).toHaveText("55 min");
-
-  // A yes to the heart question only shows a note; going easy on an area turns Ease in on.
-  await sheet.getByRole("radio", { name: "Yes" }).click();
-  await expect(sheet.getByText("Check with a doctor before you start training.")).toBeVisible();
-  await sheet.getByRole("button", { name: "Knees" }).click();
-  await expect(sheet.getByRole("switch", { name: "Ease in" })).toHaveAttribute("aria-checked", "true");
-
-  // With no equipment there's nothing to make.
-  await sheet.getByRole("button", { name: "Full gym" }).click();
-  await expect(sheet.locator("[data-plan-preview]")).toContainText("Pick the equipment you have.");
-  await expect(sheet.locator("[data-plan-save]")).toBeDisabled();
-  await sheet.getByRole("button", { name: "Dumbbells" }).click();
+  await settled(sheet);
+  const preview = sheet.locator("[data-plan-preview]");
+  await expect(preview).toContainText("Upper / Lower");
+  await expect(sheet.locator("[data-plan-new-workout]")).toHaveCount(4);
+  await expect(sheet.locator('[data-plan-new-workout="Upper A"]')).toContainText("Mon");
+  await expect(sheet.locator('[data-plan-week] [data-state="planned"]')).toHaveCount(4);
+  // Going easy on an area eases in.
+  await expect(sheet.locator("[data-plan-block-note]")).toContainText("The first 2 weeks ease in.");
+  await expect(sheet.getByText("check with them before you start")).toBeVisible();
 
   await sheet.locator("[data-plan-save]").click();
   await expect(sheet).toBeHidden();
@@ -93,6 +110,6 @@ test("A plan: answer the questions, see the preview, create it, edit it and end 
   await confirm.getByRole("button", { name: "End plan" }).click();
   await expect(edit).toBeHidden();
   await expect(page.getByText("Plan ended")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Make a plan" })).toBeVisible();
+  await expect(page.locator("[data-see-plan]")).toBeVisible();
   expect((await (await page.request.get("/api/plan", { headers: headers(oid) })).json()).plan).toBeNull();
 });

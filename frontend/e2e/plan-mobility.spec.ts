@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 
 function headers(oid: string) {
   return { "X-Test-Oid": oid, "X-Test-Name": "Test User", "Content-Type": "application/json" };
@@ -30,21 +30,34 @@ async function setup(page: Page): Promise<string> {
   return oid;
 }
 
+/** Until a sheet has slid in, WebKit can drop a tap on it. */
+async function settled(sheet: Locator) {
+  await expect(sheet).toBeVisible();
+  await sheet.evaluate((el) => Promise.all(el.getAnimations({ subtree: true }).map((animation) => animation.finished)));
+}
+
 test("Plan: a mobility warm-up and cool-down frame each workout", async ({ page }) => {
   await page.goto("/");
   const oid = await setup(page);
   await page.goto("/train");
 
-  await page.getByRole("button", { name: "Make a plan" }).click();
-  const sheet = page.getByRole("dialog", { name: "New plan" });
-  const warm = sheet.getByRole("switch", { name: "Mobility warm-up" });
-  const cool = sheet.getByRole("switch", { name: "Cool-down" });
-  // Both are off until asked for.
+  // Both are off until asked for, in Your training.
+  await page.locator("[data-plan-using]").click();
+  const training = page.getByRole("dialog", { name: "Your training" });
+  await settled(training);
+  const warm = training.getByRole("switch", { name: "Mobility warm-up" });
+  const cool = training.getByRole("switch", { name: "Cool-down" });
   await expect(warm).toHaveAttribute("aria-checked", "false");
   await expect(cool).toHaveAttribute("aria-checked", "false");
   await warm.click();
   await cool.click();
   await expect(warm).toHaveAttribute("aria-checked", "true");
+  await training.getByRole("button", { name: "Close" }).click();
+
+  await page.locator("[data-see-plan]").click();
+  const sheet = page.getByRole("dialog", { name: "New plan" });
+  await settled(sheet);
+  await expect(sheet.locator('[data-plan-new-workout="Full body A"]')).toContainText("With a warm-up and cool-down");
   await sheet.locator("[data-plan-save]").click();
   await expect(sheet).toBeHidden();
 

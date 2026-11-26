@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   answersOf,
+  blockNote,
+  dayNames,
+  eachMinutes,
+  workoutDays,
   dayLabel,
   defaultAnswers,
   easeInFor,
@@ -246,5 +250,27 @@ describe("the plan's calendar", () => {
     expect(dayLabel("2026-11-25", "2026-11-25")).toBe("Today");
     expect(dayLabel("2026-11-26", "2026-11-25")).toBe("Tomorrow");
     expect(dayLabel("2026-11-30", "2026-11-25")).toBe("Mon 30 Nov");
+  });
+});
+
+describe("a new plan's preview", () => {
+  it("gives each workout its days, the training days taking them in turn", () => {
+    expect(workoutDays([4, 0, 2], 2)).toEqual([[0, 4], [2]]);
+    // More workouts than days: the rest come the next week.
+    expect(workoutDays([0, 3], 3)).toEqual([[0], [3], []]);
+    expect(workoutDays([0], 0)).toEqual([]);
+    expect(dayNames([0, 4])).toBe("Mon, Fri");
+  });
+
+  it("says how long each workout takes, or the time asked for while they're empty", () => {
+    const workout = (minutes: number, count: number) => ({ minutes, exercises: Array.from({ length: count }, () => ({ exerciseId: "x", sets: 3, repMin: 6, repMax: 10, seconds: null, restSeconds: 90 })) });
+    expect(eachMinutes([workout(50, 5), workout(60, 6)], 60)).toBe(55);
+    expect(eachMinutes([workout(0, 0), workout(0, 0)], 45)).toBe(45);
+  });
+
+  it("says how the block runs", () => {
+    expect(blockNote({ split: "full_body", easeIn: false, blockWeeks: 6 })).toBe("Each week adds a little, then week 6 is lighter so you recover.");
+    expect(blockNote({ split: "upper_lower", easeIn: true, blockWeeks: 6 })).toMatch(/^The first 2 weeks ease in\. /);
+    expect(blockNote({ split: "custom", easeIn: false, blockWeeks: 6 })).toMatch(/start empty/);
   });
 });
