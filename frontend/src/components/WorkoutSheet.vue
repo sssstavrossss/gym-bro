@@ -107,6 +107,12 @@ watch(open, (shown) => {
   tick();
   timer = window.setInterval(tick, 1000);
   view.value = current.value && !current.value.exercises.length ? "add" : "log";
+  // Train's start card can open it on Describe a workout (once; the next open is the usual one).
+  if (ui.workoutView === "describe" && !past.value) {
+    workoutDescribe.error = "";
+    view.value = "describe";
+  }
+  ui.workoutView = null;
 }, { immediate: true });
 onBeforeUnmount(() => window.clearInterval(timer));
 

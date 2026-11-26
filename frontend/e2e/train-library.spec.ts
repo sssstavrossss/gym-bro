@@ -47,6 +47,8 @@ test("Train opens the exercise library in a sheet: search, body areas, rows a st
   const library = page.getByRole("dialog", { name: "Exercises" });
   await expect(library).toBeVisible();
   await expect(library.locator("[data-exercise-total]")).toHaveText("886");
+  // The search button opens it ready to type.
+  await expect(library.getByLabel("Search exercises")).toBeFocused();
 
   // Rows draw 40 at a time; scrolling near the end draws more (Show more does it by hand). A click would chase
   // the button, since scrolling to it already draws the next rows.

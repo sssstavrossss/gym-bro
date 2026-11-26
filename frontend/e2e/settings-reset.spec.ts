@@ -69,7 +69,7 @@ test("Reset training deletes the workouts and the one going on, and leaves the f
 
   // A workout going on this phone goes too.
   await page.goto("/train");
-  await page.getByRole("button", { name: "Start", exact: true }).click();
+  await page.getByRole("button", { name: "Empty workout" }).click();
   await expect.poll(() => page.evaluate((id) => localStorage.getItem(`gymbro-workout:${id}`), oid)).not.toBeNull();
 
   const sheet = await openReset(page);

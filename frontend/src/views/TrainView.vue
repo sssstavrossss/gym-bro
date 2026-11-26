@@ -3,8 +3,11 @@ import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import Icon from "../components/Icon.vue";
 import OfflineLine from "../components/OfflineLine.vue";
 import { todayInZone } from "../lib/dates";
+import { EXERCISE_AREAS } from "../lib/exercises";
 import { dayLabel, mobilityLine, nextLine, planLine, projectDays, upNext, weekLine, workoutLine } from "../lib/plan";
+import { startText, trainCards } from "../lib/train";
 import { historyLine, shortDay, workoutStatus, workoutTotals } from "../lib/workout";
+import { describe, loadDescribe } from "../state/describe";
 import { exercises, loadExercises } from "../state/exercises";
 import { loadPlan, plan } from "../state/plan";
 import { deviceTimeZone } from "../state/profile";
@@ -19,6 +22,7 @@ onMounted(() => {
   void loadExercises();
   void loadHistory();
   void loadPlan();
+  void loadDescribe();
   timer = window.setInterval(() => (now.value = Date.now()), 1000);
 });
 onBeforeUnmount(() => window.clearInterval(timer));
@@ -29,6 +33,23 @@ function start() {
   startWorkout();
   openWorkout();
 }
+
+/** Starts a workout on Describe a workout: type what you did or will do, and the exercises are found. */
+function startDescribed() {
+  startWorkout();
+  openWorkout("describe");
+}
+
+const cards = computed(() => trainCards({
+  active: !!workout.active,
+  planState: plan.state,
+  hasPlan: !!plan.current,
+  historyState: workoutHistory.state,
+  historyRows: workoutHistory.rows.length,
+  waiting: workout.pending.length,
+}));
+const startCopy = computed(() => startText(!!plan.current, describe.available));
+const areas = EXERCISE_AREAS.filter((area) => area.id !== "all");
 
 // Up next: the plan's next workout, counting finished ones still waiting to send.
 const next = computed(() => {
@@ -101,24 +122,31 @@ function logPast() {
   <main class="screen train">
     <header class="screen-head">
       <h1 class="t-title grow">Train</h1>
-      <button type="button" class="cbtn hbtn" aria-label="Exercises" data-open-exercises @click="openExercises"><Icon name="search" :size="18" /></button>
+      <button type="button" class="cbtn hbtn" aria-label="Exercises" data-open-exercises @click="openExercises('all', true)"><Icon name="search" :size="18" /></button>
     </header>
     <OfflineLine />
 
-    <section class="card" aria-labelledby="workout-title" data-workout-card>
-      <div class="row wrow">
-        <span class="col grow g2">
-          <h2 id="workout-title" class="t-head m0">{{ workout.active ? "Workout in progress" : "Workout" }}</h2>
-          <span v-if="workout.active" class="t-capn c2">{{ status }}</span>
-          <span v-else class="t-capn c2">Add exercises as you go and tick off each set.</span>
-        </span>
-        <button v-if="workout.active" type="button" class="btn primary t-label" @click="openWorkout"><Icon name="play" :size="16" /> Resume</button>
-        <button v-else type="button" class="btn primary t-label" @click="start"><Icon name="play" :size="16" /> Start</button>
-      </div>
-      <p v-if="workout.pending.length" class="t-capn c2 m0" role="status">
-        {{ workout.pending.length === 1 ? "1 workout is" : `${workout.pending.length} workouts are` }} waiting to send. They go when you're back online.
-      </p>
+    <!-- A workout going on: the Home training card's look, with Resume. -->
+    <section v-if="cards.inProgress" class="card prompt row" aria-labelledby="workout-title" data-workout-card>
+      <span class="tdisc" aria-hidden="true"><Icon name="dumbbell" :size="18" :sw="2.2" /></span>
+      <span class="col grow g2">
+        <h2 id="workout-title" class="t-bodys m0">{{ workout.active?.name ?? "Workout" }} in progress</h2>
+        <span class="t-capn c2">{{ status }}</span>
+      </span>
+      <button type="button" class="btn sm primary t-label" @click="openWorkout()"><Icon name="play" :size="14" /> Resume</button>
     </section>
+
+    <!-- Start one now: empty, or described in words. Home's "Log your first food today" shape. -->
+    <div v-if="cards.start" class="card prompt row" data-start-workout>
+      <button type="button" class="ptext col grow" @click="start">
+        <span class="t-bodys">{{ startCopy.title }}</span>
+        <span class="t-capn c2">{{ startCopy.caption }}</span>
+      </button>
+      <span class="apill" role="group" :aria-label="startCopy.title">
+        <button type="button" aria-label="Empty workout" data-start-empty @click="start"><Icon name="plus" :size="16" :sw="2.6" /></button>
+        <button v-if="describe.available" type="button" aria-label="Describe a workout" data-start-describe @click="startDescribed"><Icon name="sparkle" :size="16" /></button>
+      </span>
+    </div>
 
     <section v-if="plan.current" class="card" aria-labelledby="plan-title" data-plan-card>
       <div class="chead">
@@ -161,22 +189,48 @@ function logPast() {
         </li>
       </ol>
     </section>
-    <section v-else-if="plan.state === 'ready'" class="card" aria-labelledby="plan-title" data-plan-card>
-      <span class="col g2">
-        <h2 id="plan-title" class="t-head m0">Plan</h2>
-        <span class="t-capn c2">Answer a few questions and get workouts that fit your week and your time, or build your own.</span>
-      </span>
+    <section v-else-if="cards.makePlan" class="card" aria-labelledby="plan-title" data-plan-card>
+      <h2 id="plan-title" class="section-title c2 m0">Make a plan</h2>
+      <span class="t-label c2">Answer a few questions. You get workouts that fit your days and your time, and they get harder week by week.</span>
       <div class="row g8 mkbtns">
-        <button type="button" class="btn secondary t-label" @click="openPlan()">Make a plan</button>
-        <button type="button" class="btn secondary t-label" data-build-own @click="openPlan(true)">Build your own</button>
+        <button type="button" class="btn sm primary t-label" @click="openPlan()">Make a plan</button>
+        <button type="button" class="btn sm secondary t-label" data-build-own @click="openPlan(true)">Build your own</button>
       </div>
     </section>
 
-    <section class="col hist" aria-labelledby="history-title" data-workout-history>
+    <!-- New here: look around the library first. -->
+    <section v-if="cards.explore" class="card" aria-labelledby="explore-title" data-explore>
+      <h2 id="explore-title" class="section-title c2 m0">Explore</h2>
+      <button type="button" class="row xrow" data-explore-exercises @click="openExercises()">
+        <span class="tdisc" aria-hidden="true"><Icon name="dumbbell" :size="18" :sw="2.2" /></span>
+        <span class="col grow g2">
+          <span class="t-bodys">Exercises</span>
+          <span class="t-capn c2">{{ exercises.state === "ready" ? `${exercises.items.length} with photos and how-tos` : "With photos and how-tos" }}</span>
+        </span>
+        <Icon name="right" :size="16" class="c3" />
+      </button>
+      <div class="xareas" role="group" aria-label="Exercises by body area">
+        <button v-for="area in areas" :key="area.id" type="button" class="chip t-label" :data-explore-area="area.id" @click="openExercises(area.id)">{{ area.label }}</button>
+      </div>
+    </section>
+
+    <!-- Nothing logged yet: bring in what you did before. -->
+    <div v-if="cards.trainedBefore" class="card prompt row" data-trained-before>
+      <span class="col grow g2">
+        <span class="t-bodys">Trained before?</span>
+        <span class="t-capn c2">Log past workouts, so weight suggestions and new bests start from them</span>
+      </span>
+      <button type="button" class="btn sm secondary t-label" @click="logPast"><Icon name="plus" :size="14" /> Log past</button>
+    </div>
+
+    <section v-if="cards.history" class="card" aria-labelledby="history-title" data-workout-history>
       <div class="chead">
-        <h2 id="history-title" class="t-cap c3 section-title grow">History</h2>
+        <h2 id="history-title" class="section-title c2 grow">History</h2>
         <button type="button" class="btn sm secondary t-label" @click="logPast"><Icon name="plus" :size="14" /> Log past</button>
       </div>
+      <p v-if="workout.pending.length" class="t-capn c2 m0" role="status">
+        {{ workout.pending.length === 1 ? "1 workout is" : `${workout.pending.length} workouts are` }} waiting to send. They go when you're back online.
+      </p>
       <ul v-if="waitingRows.length || rows.length" class="list">
         <li v-for="row in waitingRows" :key="row.id" class="row hrow waiting">
           <span class="col grow text">
@@ -194,12 +248,10 @@ function logPast() {
           </button>
         </li>
       </ul>
-      <p v-else-if="workoutHistory.state === 'loading' || workoutHistory.state === 'idle'" class="t-label c2 m0 note">Loading workouts…</p>
       <div v-else-if="workoutHistory.state === 'failed'" class="row note">
         <span class="t-label c2 grow">Couldn't load your workouts.</span>
         <button type="button" class="btn sm secondary t-label" @click="loadHistory">Try again</button>
       </div>
-      <p v-else class="t-label c2 m0 note">No workouts yet. Finished ones show here, newest first.</p>
       <button v-if="workoutHistory.rows.length > shown" type="button" class="btn sm secondary t-label more" @click="shown += 10">Show more</button>
     </section>
   </main>
@@ -211,8 +263,12 @@ function logPast() {
 .hbtn { color: var(--text-secondary); }
 .hbtn:last-child { margin-right: calc((var(--control-s) - var(--control-hit)) / 2); }
 .g2 { gap: var(--space-2xs); min-width: 0; }
-.wrow { gap: var(--space-m); }
-.dt-xl .wrow .btn { flex: 1 1 100%; }
+.dt-xl .card.prompt { flex-wrap: wrap; }
+/* At XL the library row keeps its disc beside the words; only the words wrap. */
+.dt-xl .xrow { flex-wrap: nowrap; }
+/* Explore: a library row, then its body areas as chips that open it there. */
+.xrow { width: 100%; min-height: 56px; gap: var(--space-m); padding: 0; background: none; border: 0; color: inherit; text-align: left; flex-wrap: nowrap; }
+.xareas { display: flex; flex-wrap: wrap; column-gap: var(--space-xs); margin-block: calc((var(--control-hit) - var(--control-chip)) / -2); }
 .pws { display: flex; flex-direction: column; }
 .pw {
   width: 100%; min-height: var(--control-hit); gap: var(--space-m); padding: var(--space-s) 0; flex-wrap: nowrap;
@@ -229,13 +285,12 @@ function logPast() {
 .dt-xl .mkbtns .btn { flex: 1 1 100%; }
 .then { border-top: 1px solid var(--color-border); padding-top: var(--space-xs); }
 .trow { gap: var(--space-s); padding-block: var(--space-2xs); }
-.hist { gap: var(--space-s); }
-.hist .chead { padding-top: var(--space-s); }
 .list { list-style: none; margin: 0; padding: 0; }
 .hrow {
   width: 100%; min-height: 56px; gap: var(--space-m); padding: var(--space-s) 0; flex-wrap: nowrap;
   background: none; border: 0; border-bottom: 1px solid var(--color-border); color: inherit; text-align: left;
 }
+.list > li:last-child > .hrow, .list > li.hrow:last-child { border-bottom: 0; }
 .text { gap: var(--space-2xs); min-width: 0; }
 .line { overflow-wrap: anywhere; }
 .note { padding-block: var(--space-m); gap: var(--space-s); }

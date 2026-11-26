@@ -3,6 +3,7 @@ import { todayInZone, todayIso } from "./lib/dates";
 import { lastPlanDate } from "./lib/dayLog";
 import { primeKeyboard, rememberOpener } from "./lib/focusField";
 import type { PageCard } from "./lib/cardPages";
+import type { ExerciseArea } from "./lib/exercises";
 import type { FoodPage } from "./lib/foodPages";
 import type { SheetName } from "./lib/layout";
 import { emptySelection, type Selection } from "./lib/selection";
@@ -68,6 +69,12 @@ export const ui = reactive({
   exercise: null as string | null,
   /** The how-to is open over the workout sheet, which stays open under it. */
   exerciseOver: false,
+  /** The body area the library sheet opens on (Train's Explore chips). */
+  exercisesArea: "all" as ExerciseArea,
+  /** The library opens with the search field focused only from Train's search button, so browsing an area doesn't raise the keyboard. */
+  exercisesSearch: false,
+  /** The view the workout sheet opens on, once: Describe from Train's start card. */
+  workoutView: null as null | "describe",
   /** A new plan opens on the Your own split (Train's Build your own). */
   planOwn: false,
   /** The plan workout open in the editor (components/PlanWorkoutSheet.vue). */
@@ -188,8 +195,10 @@ export function openNutrient(key: string, kcalTarget: number | null): void {
   ui.sheet = "nutrient";
 }
 
-/** The exercise library on its own sheet, from the search button on Train. */
-export function openExercises(): void {
+/** The exercise library on its own sheet, from the search button on Train or an Explore chip (its area). */
+export function openExercises(area: ExerciseArea = "all", search = false): void {
+  ui.exercisesArea = area;
+  ui.exercisesSearch = search;
   ui.exerciseOver = false;
   ui.sheet = "exercises";
 }
@@ -210,8 +219,10 @@ export function closeExercise(): void {
   else closeSheet();
 }
 
-/** The workout being logged, full height. Starting one is up to the caller (state/workout.ts). */
-export function openWorkout(): void {
+/** The workout being logged, full height. Starting one is up to the caller (state/workout.ts). `describe` opens it on
+ * Describe a workout instead of the list. */
+export function openWorkout(view: "describe" | null = null): void {
+  ui.workoutView = view;
   ui.exerciseOver = false;
   ui.sheet = "workout";
 }
