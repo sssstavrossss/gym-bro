@@ -155,7 +155,7 @@ function setFront(el: unknown, index: number) {
 .is-desktop .toast.lift { bottom: 140px; }
 .undo { margin: calc((var(--control-chip) - var(--control-hit)) / 2) 0; }
 /* Over a sheet, keep it near the default size so the largest text doesn't cover the sheet. */
-:global(html.dt-xl) .toast .t-label { font-size: 15px; line-height: 1.3; }
+html.dt-xl .toast .t-label { font-size: 15px; line-height: 1.3; }
 .toast-enter-from { opacity: 0; transform: translateY(var(--space-s)); }
 .toast-enter-from.back { transform: translateY(calc(-1 * var(--space-s) - var(--space-2xs))) scale(.9); }
 .toast-leave-to { opacity: 0; transform: translateY(var(--space-s)); }

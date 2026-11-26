@@ -499,7 +499,7 @@ async function onSignOut() {
 /* Theme and accent: a name on the left, six 28px circles in 44px hit boxes on the right. A long
    name wraps onto two lines; with large text the circles move under the name. */
 .look { min-height: 56px; padding: var(--space-xs) 0; column-gap: 0; }
-:global(html.dt-l) .look { flex-wrap: wrap; }
+html.dt-l .look { flex-wrap: wrap; }
 .look .grow { gap: var(--space-2xs); }
 .dots { display: flex; margin: 0 calc(var(--space-s) * -1) 0 auto; }
 .dot { width: var(--control-hit); height: var(--control-hit); display: inline-flex; align-items: center; justify-content: center; padding: 0; border-radius: 50%; }
@@ -537,6 +537,6 @@ async function onSignOut() {
 .zoff { flex: none; white-space: nowrap; font-variant-numeric: tabular-nums; }
 /* The tables a country's foods come from. Long ones ("Matvaretabellen · Kassalapp") wrap rather than squeeze the name. */
 .ztables { flex: 0 1 auto; text-align: right; max-width: 55%; }
-:global(html.dt-l) .frow { flex-wrap: wrap; }
-:global(html.dt-l) .zval { max-width: 100%; }
+html.dt-l .frow { flex-wrap: wrap; }
+html.dt-l .zval { max-width: 100%; }
 </style>
