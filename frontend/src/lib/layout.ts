@@ -33,7 +33,7 @@ export function screenLayoutFromFlags(flags: LayoutFlags): ScreenLayout {
 /** Shown in the desktop sidebar. The same keys work on every width. */
 export const shortcutHint = "N or / add food · Q quick add · W weight · Esc close";
 
-export type SheetName = "weight" | "goal-weight" | "accuracy" | "chooser" | "food" | "copy" | "group" | "recipe" | "recalculate" | "settings" | "notifications" | "nutrient" | "card-pages" | "fan-pages" | "offline" | "exercise" | "workout" | "plan" | "plan-workout";
+export type SheetName = "weight" | "goal-weight" | "accuracy" | "chooser" | "food" | "copy" | "group" | "recipe" | "recalculate" | "settings" | "notifications" | "nutrient" | "card-pages" | "fan-pages" | "offline" | "exercise" | "exercises" | "workout" | "plan" | "plan-workout";
 
 export interface ShortcutContext {
   key: string;
@@ -48,7 +48,7 @@ export interface ShortcutContext {
   cardPagesOver?: boolean;
   /** The + fan's editor is open over the fan. Esc closes it first, back to the fan. */
   fanPagesOver?: boolean;
-  /** An exercise's how-to is open over the workout. Esc closes it first, back to the workout. */
+  /** An exercise's how-to is open over the workout or the library. Esc closes it first, back to that sheet. */
   exerciseOver?: boolean;
   selecting: boolean;
   /** False on setup, before the app shell is available. */

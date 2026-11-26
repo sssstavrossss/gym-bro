@@ -808,12 +808,13 @@ Today, the food log, Train, Progress, saved groups, recipes, and recalculate are
 
 **Tabs.** The tab bar (and the side nav on wider screens) is Today · Train · + · Progress · Profile. Train took Log's place. The Log page is still at `/log` and `/log/<date>`, and on tablet and desktop Today's food card links to it with "Open log". On a phone nothing links there any more, so its fasting switch can't be reached; nobody had used it.
 
-**Train** (`TrainView.vue`) starts with the **Workout** card (see *Logging a workout* below), then **Exercises**, the library from `GET /api/exercises` (see *Exercise library*), with the number shown on the right:
+**Train** (`TrainView.vue`) starts with the **Workout** card (see *Logging a workout* below). The search button in its header opens **Exercises**, the library from `GET /api/exercises` (see *Exercise library*), on its own full-height sheet (`ExercisesSheet.vue`, `openExercises` in `ui.ts`) with the number of exercises beside the title. Train still loads the list once a visit, for the exercise names on the plan and in history; the sheet doesn't load it again.
+- **Rows draw 40 at a time** (`LIST_STEP`, `moreRows` in `lib/exercises.ts`): the next 40 come as you scroll near the end, or with **Show more**, and a new search or area starts again at 40. Every library list does this: this sheet, Add exercise, a swap's All exercises and a plan workout's Add.
 - **Search** matches every word you type against the start of a word in the name, the equipment or a main muscle ("barb squ", "dumbbell", "biceps"). Names that start with what you typed come first, then names that hold every word, then matches on equipment or muscle, each by name (`searchExercises` in `lib/exercises.ts`).
 - **Area chips**, in one row that scrolls sideways: All, Chest, Back, Shoulders, Arms, Legs, Core, Cardio and Stretching. A body area matches the exercise's main muscles; Cardio and Stretching match its category, so a hamstring stretch shows only under Stretching.
 - **Rows** show a small first photo, the name, and the equipment with the main muscles ("Barbell · Quadriceps"). One without photos shows the dumbbell icon instead.
 
-The list is kept on the device, and an unchanged library costs a 304 on the next visit. Tapping a row opens **how to** (`ExerciseSheet.vue`, `openExercise` in `ui.ts`):
+The list is kept on the device, and an unchanged library costs a 304 on the next visit. Tapping a row opens **how to** (`ExerciseSheet.vue`, `openExercise` in `ui.ts`) over the library, which stays open under it; Esc or × goes back to the list:
 - the name and "Barbell · compound · beginner";
 - the start and end photos side by side;
 - the **body map** (`MuscleMap.vue`, shapes in `lib/muscleMap.ts`): our own front and back drawing, with the main muscles in the action colour and the helping ones in a mix of it. Beside it, **Main** and **Helping** list the same muscles as tags, each with a dot in its map colour. The map is decorative for screen readers, since the tags say the same. It has a shape for each of the 17 muscle groups the library names, and a test fails if the library gains one it can't draw;

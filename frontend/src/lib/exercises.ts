@@ -120,3 +120,11 @@ export function photoUrl(base: string, id: string, index: number): string {
 export function demoUrl(name: string): string {
   return `https://www.youtube.com/results?search_query=${encodeURIComponent(`${name} exercise form`)}`;
 }
+
+/** Library rows drawn at a time: a long list grows by this much as you near its end, so 886 rows never draw at once. */
+export const LIST_STEP = 40;
+
+/** How many of `total` rows to draw after asking for more: one step more, never past the end. */
+export function moreRows(shown: number, total: number, step = LIST_STEP): number {
+  return Math.min(total, Math.max(shown, 0) + step);
+}

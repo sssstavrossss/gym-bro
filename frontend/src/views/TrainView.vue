@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
-import ExerciseBrowser from "../components/ExerciseBrowser.vue";
 import Icon from "../components/Icon.vue";
 import OfflineLine from "../components/OfflineLine.vue";
 import { todayInZone } from "../lib/dates";
@@ -10,9 +9,10 @@ import { exercises, loadExercises } from "../state/exercises";
 import { loadPlan, plan } from "../state/plan";
 import { deviceTimeZone } from "../state/profile";
 import { loadHistory, newPast, openPast, skipPlanWorkout, startPlanWorkout, startWorkout, unskipPlanWorkout, workout, workoutHistory } from "../state/workout";
-import { openExercise, openPlan, openPlanWorkout, openWorkout, toast, toastError } from "../ui";
+import { openExercises, openPlan, openPlanWorkout, openWorkout, toast, toastError } from "../ui";
 
-// Training (docs/training.md): start or resume a workout, the plan, the history and the exercise library.
+// Training (docs/training.md): start or resume a workout, the plan and the history. The exercise library is its own
+// sheet behind the search button; the list still loads here, for the names on the plan and in history.
 const now = ref(Date.now());
 let timer: number | undefined;
 onMounted(() => {
@@ -100,7 +100,8 @@ function logPast() {
 <template>
   <main class="screen train">
     <header class="screen-head">
-      <h1 class="t-title">Train</h1>
+      <h1 class="t-title grow">Train</h1>
+      <button type="button" class="cbtn hbtn" aria-label="Exercises" data-open-exercises @click="openExercises"><Icon name="search" :size="18" /></button>
     </header>
     <OfflineLine />
 
@@ -201,13 +202,14 @@ function logPast() {
       <p v-else class="t-label c2 m0 note">No workouts yet. Finished ones show here, newest first.</p>
       <button v-if="workoutHistory.rows.length > shown" type="button" class="btn sm secondary t-label more" @click="shown += 10">Show more</button>
     </section>
-
-    <ExerciseBrowser title="Exercises" title-id="exercises-title" @pick="openExercise" />
   </main>
 </template>
 
 <style scoped>
 .m0 { margin: 0; }
+/* Profile's header buttons: grey, and the last one's face lines up with the cards' edge. */
+.hbtn { color: var(--text-secondary); }
+.hbtn:last-child { margin-right: calc((var(--control-s) - var(--control-hit)) / 2); }
 .g2 { gap: var(--space-2xs); min-width: 0; }
 .wrow { gap: var(--space-m); }
 .dt-xl .wrow .btn { flex: 1 1 100%; }

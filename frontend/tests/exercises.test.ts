@@ -5,6 +5,8 @@ import {
   exerciseFacts,
   exerciseLine,
   inArea,
+  LIST_STEP,
+  moreRows,
   muscleLabel,
   photoUrl,
   searchExercises,
@@ -77,5 +79,16 @@ describe("labels", () => {
   it("builds photo and demo addresses", () => {
     expect(photoUrl("/exercise-photos/f00c92c", "barbell-squat", 1)).toBe("/exercise-photos/f00c92c/barbell-squat/1.webp");
     expect(demoUrl("Barbell Squat")).toBe("https://www.youtube.com/results?search_query=Barbell%20Squat%20exercise%20form");
+  });
+});
+
+describe("moreRows", () => {
+  it("grows the drawn rows a step at a time and stops at the end", () => {
+    expect(LIST_STEP).toBe(40);
+    expect(moreRows(40, 886)).toBe(80);
+    expect(moreRows(880, 886)).toBe(886);
+    expect(moreRows(886, 886)).toBe(886);
+    expect(moreRows(0, 10)).toBe(10);
+    expect(moreRows(10, 100, 25)).toBe(35);
   });
 });
