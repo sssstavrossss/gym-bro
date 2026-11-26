@@ -543,7 +543,8 @@ public static class ProfileEndpoints
         weight.UsedKg,
         weight.Source,
         weight.GoalReached,
-        ToFreshStart(weight));
+        ToFreshStart(weight),
+        weight.WeighInNudge);
 
     public static FreshStartResponse? ToFreshStart(WeightSnapshot weight) => weight.FreshStart is { } fresh
         ? new FreshStartResponse(
@@ -625,7 +626,8 @@ public sealed record WeightResponse(
     decimal? UsedKg,
     string Source,
     bool GoalReached,
-    FreshStartResponse? FreshStart);
+    FreshStartResponse? FreshStart,
+    bool WeighInNudge = false);
 
 public sealed record FreshStartResponse(
     DateOnly Date,

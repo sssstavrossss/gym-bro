@@ -118,6 +118,8 @@ export interface WeightResponse {
   usedKg: number | null;
   source: "trend" | "setup" | "none";
   goalReached: boolean;
+  /** Too few weigh-ins to measure the burn, two weeks past setup or a fresh start: Home asks for weekly ones. */
+  weighInNudge?: boolean;
   freshStart: FreshStartResponse | null;
 }
 

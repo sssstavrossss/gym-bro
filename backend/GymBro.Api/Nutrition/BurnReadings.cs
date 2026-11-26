@@ -185,6 +185,28 @@ public static class BurnReadings
     }
 
     /// <summary>
+    /// How often someone weighs in, as <see cref="Measure"/> sorts it: the weigh-in days from
+    /// <paramref name="earliest"/> in the last 28 days, else the last 56.
+    /// </summary>
+    public static BurnTier TierFor(DateOnly today, DateOnly earliest, IReadOnlyList<(DateOnly Date, decimal Kg)> weighIns)
+    {
+        var dates = weighIns.Select(row => row.Date).Where(date => date >= earliest && date <= today).Distinct().ToList();
+        if (dates.Count(date => date >= today.AddDays(-WindowDays)) >= RegularWeighIns)
+        {
+            return BurnTier.Regular;
+        }
+
+        return dates.Count(date => date >= today.AddDays(-SparseWindowDays)) >= MinimumWeighIns ? BurnTier.Sparse : BurnTier.Rare;
+    }
+
+    /// <summary>
+    /// Whether Home should ask for weekly weigh-ins: the burn can't be measured for lack of them,
+    /// and it has been a week past <paramref name="earliest"/> (the settling week) to weigh in.
+    /// </summary>
+    public static bool NeedsNudge(DateOnly today, DateOnly earliest, IReadOnlyList<(DateOnly Date, decimal Kg)> weighIns) =>
+        today >= earliest.AddDays(7) && TierFor(today, earliest, weighIns) == BurnTier.Rare;
+
+    /// <summary>
     /// What a weigh-in on <paramref name="date"/> should show, from the last weigh-in before it and
     /// the food since, the same way a reading's expected weight is worked out. Null when there is no
     /// weigh-in in the 28 days before it (on or after <paramref name="earliest"/>), or nothing was
