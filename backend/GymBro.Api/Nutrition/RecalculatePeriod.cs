@@ -1,9 +1,10 @@
 namespace GymBro.Api.Nutrition;
 
 /// <summary>
-/// Which days a recalculation reads. Intake runs from the day after the last
-/// period start (a measured or formula recalculation, or an accepted fresh
-/// start) through yesterday, never before the latest fresh start and never more
+/// Which days a recalculation reads. Intake runs from the last period start (a
+/// measured or formula recalculation, or an accepted fresh start) through
+/// yesterday. The start day itself counts: the recalculation before it read
+/// only up to the day before, so a Monday-to-Monday week is seven days, never before the latest fresh start and never more
 /// than <see cref="BurnEstimate.MaxPeriodDays"/> back. The slope also reads a few
 /// weigh-ins before the period and today's, but skips the settling week after
 /// setup or a fresh start.
@@ -24,7 +25,7 @@ public sealed record RecalculatePeriod(
         DateOnly? freshStart)
     {
         var origin = firstLog is DateOnly logged && logged < setup ? logged : setup;
-        var from = lastStart is DateOnly last ? last.AddDays(1) : origin;
+        var from = lastStart ?? origin;
         if (freshStart is DateOnly fresh && fresh > from)
         {
             from = fresh;
