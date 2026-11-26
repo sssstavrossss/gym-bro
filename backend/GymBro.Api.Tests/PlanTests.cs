@@ -381,6 +381,17 @@ public sealed class PlanRulesTests
     }
 
     [Fact]
+    public void Only_a_change_to_the_warm_up_or_cool_down_keeps_the_workouts()
+    {
+        var current = Answers(Request());
+        Assert.True(PlanRules.OnlyMobilityChanged(current, Answers(Request(warmUp: true))));
+        Assert.True(PlanRules.OnlyMobilityChanged(current, Answers(Request(coolDown: true, equipment: ["gym"]))));
+        Assert.False(PlanRules.OnlyMobilityChanged(current, Answers(Request())));
+        Assert.False(PlanRules.OnlyMobilityChanged(current, Answers(Request(warmUp: true, minutes: 45))));
+        Assert.False(PlanRules.OnlyMobilityChanged(current, Answers(Request(warmUp: true, goEasy: ["knees"]))));
+    }
+
+    [Fact]
     public void Mobility_passes_over_moves_that_load_a_go_easy_area()
     {
         var workouts = Generate(Request(days: [0, 1, 3, 4], goEasy: ["shoulders", "hips"], warmUp: true, coolDown: true));
@@ -766,9 +777,12 @@ public sealed class PlanEndpointTests(ApiFactory factory)
         Assert.DoesNotContain("hamstring-stretch", cool);
         Assert.NotEmpty(cool);
 
-        // Turned off, they go.
+        // Turned off, they go. Changing only them keeps the workouts, the hand edit included.
         using var off = JsonDocument.Parse(await (await client.PutAsJsonAsync("/api/plan", body with { warmUp = false, coolDown = false })).Content.ReadAsStringAsync());
         Assert.False(off.RootElement.GetProperty("warmUp").GetBoolean());
+        var kept = off.RootElement.GetProperty("workouts")[0];
+        Assert.True(kept.GetProperty("edited").GetBoolean());
+        Assert.Equal(["barbell-bench-press-medium-grip", "pullups"], kept.GetProperty("exercises").EnumerateArray().Select(item => item.GetProperty("exerciseId").GetString()));
         Assert.All(off.RootElement.GetProperty("workouts").EnumerateArray(), item =>
         {
             Assert.Equal(JsonValueKind.Null, item.GetProperty("warmUp").ValueKind);

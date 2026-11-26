@@ -163,6 +163,20 @@ public static class PlanRules
     public const string UnknownJoint = "Pick areas to go easy on from the list.";
     public const string UnknownSplit = "Pick a split from the list.";
 
+    /// <summary>A saved plan's answers.</summary>
+    public static PlanAnswers AnswersOf(Data.TrainingPlan plan) => new(
+        plan.Goal, plan.Weekdays, plan.Minutes, plan.Experience, plan.Equipment, plan.GoEasy, plan.EaseIn, plan.Split, plan.WarmUp, plan.CoolDown);
+
+    /// <summary>
+    /// Only the warm-up or cool-down changed. Then the plan keeps its workouts, hand edits and all, and only their
+    /// warm-ups and cool-downs are made again; any other change remakes the workouts.
+    /// </summary>
+    public static bool OnlyMobilityChanged(PlanAnswers current, PlanAnswers next) =>
+        (current.WarmUp != next.WarmUp || current.CoolDown != next.CoolDown)
+        && current.Goal == next.Goal && current.Weekdays.SequenceEqual(next.Weekdays) && current.Minutes == next.Minutes
+        && current.Experience == next.Experience && current.Equipment.Order().SequenceEqual(next.Equipment.Order())
+        && current.GoEasy.SequenceEqual(next.GoEasy) && current.EaseIn == next.EaseIn && current.Split == next.Split;
+
     /// <summary>Checks the answers and fills in the defaults, or returns the first thing wrong.</summary>
     public static (PlanAnswers? Answers, string? Error) Check(PlanRequest request)
     {
