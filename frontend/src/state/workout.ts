@@ -16,6 +16,7 @@ import {
   toggleSuperset as joinNext,
   withoutExercise,
   setHints,
+  startingSets,
   toggleSet,
   toRequest,
   type DraftExercise,
@@ -25,6 +26,7 @@ import {
   type WorkoutPart,
 } from "../lib/workout";
 import { targetOf, weekSets, type PlanExercise, type UpNext } from "../lib/plan";
+import type { RepeatSource } from "../lib/train";
 import { loadTargetOf, suggestLoad, type LoadSuggestion, type LoadTarget } from "../lib/progression";
 import { newBests, type NewBest } from "../lib/records";
 import { warmupRamp, workingKg } from "../lib/warmup";
@@ -194,12 +196,38 @@ export async function addExercise(exerciseId: string): Promise<string> {
   const active = editing() ?? startWorkout();
   await loadPrevious(exerciseId);
   const last = workout.previous[exerciseId];
-  const count = last ? Math.min(Math.max(last.sets.filter((set) => set.type !== "warmup").length, 1), 10) : exerciseItem(exerciseId)?.category === "cardio" ? 1 : 3;
-  const sets = Array.from({ length: count }, () => emptySet());
+  const sets = Array.from({ length: startingSets(last, exerciseItem(exerciseId)?.category === "cardio") }, () => emptySet());
   const key = `e${++keySeq}`;
   active.exercises.splice(addIndex(active.exercises), 0, { key, exerciseId, sets });
   save();
   return key;
+}
+
+/**
+ * Starts a workout again (Train's Repeat): its name and exercises in order, each with as many empty sets as last
+ * time, so the set table's "last time" and the load suggestions guide it. Not tied to a plan.
+ */
+export async function repeatWorkout(source: RepeatSource, now = new Date()): Promise<DraftWorkout> {
+  if (workout.active) return workout.active;
+  const ids = source.exercises.filter((id) => !(id in workout.previous));
+  if (ids.length) {
+    try {
+      const found = await getPreviousSets(ids);
+      for (const id of ids) workout.previous[id] = found[id] ? markRaw(found[id]) : null;
+    } catch {
+      // Offline with nothing kept: each exercise starts with the usual sets.
+    }
+  }
+  if (workout.active) return workout.active;
+  const active = startWorkout(now);
+  active.name = source.name;
+  active.exercises = source.exercises.map((exerciseId) => ({
+    key: `e${++keySeq}`,
+    exerciseId,
+    sets: Array.from({ length: startingSets(workout.previous[exerciseId], exerciseItem(exerciseId)?.category === "cardio") }, () => emptySet()),
+  }));
+  save();
+  return active;
 }
 
 /**

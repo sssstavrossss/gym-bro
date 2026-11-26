@@ -490,3 +490,9 @@ export function addIndex(exercises: readonly Pick<DraftExercise, "part">[]): num
   const at = exercises.findIndex((exercise) => exercise.part === "cooldown");
   return at < 0 ? exercises.length : at;
 }
+
+/** A new exercise's sets: as many as last time's working sets (1–10), else 3, or 1 for cardio (one run). */
+export function startingSets(last: { sets: readonly { type: string }[] } | null | undefined, cardio: boolean): number {
+  if (last) return Math.min(Math.max(last.sets.filter((set) => set.type !== "warmup").length, 1), 10);
+  return cardio ? 1 : 3;
+}

@@ -5,13 +5,13 @@ import OfflineLine from "../components/OfflineLine.vue";
 import { todayInZone } from "../lib/dates";
 import { EXERCISE_AREAS } from "../lib/exercises";
 import { dayLabel, mobilityLine, nextLine, planLine, projectDays, upNext, weekLine, workoutLine } from "../lib/plan";
-import { startText, trainCards } from "../lib/train";
+import { lastWorkout, repeatName, startText, trainCards, weekDiscs } from "../lib/train";
 import { historyLine, shortDay, workoutStatus, workoutTotals } from "../lib/workout";
 import { describe, loadDescribe } from "../state/describe";
 import { exercises, loadExercises } from "../state/exercises";
 import { loadPlan, plan } from "../state/plan";
 import { deviceTimeZone } from "../state/profile";
-import { loadHistory, newPast, openPast, skipPlanWorkout, startPlanWorkout, startWorkout, unskipPlanWorkout, workout, workoutHistory } from "../state/workout";
+import { loadHistory, newPast, openPast, repeatWorkout, skipPlanWorkout, startPlanWorkout, startWorkout, unskipPlanWorkout, workout, workoutHistory } from "../state/workout";
 import { openExercises, openPlan, openPlanWorkout, openWorkout, toast, toastError } from "../ui";
 
 // Training (docs/training.md): start or resume a workout, the plan and the history. The exercise library is its own
@@ -48,7 +48,17 @@ const cards = computed(() => trainCards({
   historyRows: workoutHistory.rows.length,
   waiting: workout.pending.length,
 }));
-const startCopy = computed(() => startText(!!plan.current, describe.available));
+// Repeat: the last workout done, again, off the plan.
+const again = computed(() => lastWorkout(workout.pending, workoutHistory.rows));
+const startCopy = computed(() => startText(!!plan.current, describe.available, again.value));
+const repeating = ref(false);
+async function repeat() {
+  if (!again.value || repeating.value) return;
+  repeating.value = true;
+  await repeatWorkout(again.value);
+  repeating.value = false;
+  openWorkout();
+}
 const areas = EXERCISE_AREAS.filter((area) => area.id !== "all");
 
 // Up next: the plan's next workout, counting finished ones still waiting to send.
@@ -68,6 +78,12 @@ const doneToday = computed(() =>
   || workout.pending.some((draft) => draft.plan && draft.date === today.value));
 const coming = computed(() => (plan.current && next.value ? projectDays(plan.current, next.value, today.value, doneToday.value, plan.current.weekdays.length) : []));
 const nextDay = computed(() => (coming.value[0] ? dayLabel(coming.value[0].date, today.value) : ""));
+// This week under Up next: days trained, skipped, today and the plan's coming days.
+const week = computed(() => {
+  const done = [...workoutHistory.rows.filter((row) => row.status === "done").map((row) => row.date), ...workout.pending.map((draft) => draft.date)];
+  const skipped = workoutHistory.rows.filter((row) => row.status === "skipped").map((row) => row.date);
+  return weekDiscs(today.value, coming.value, done, skipped);
+});
 
 function startNext() {
   if (!next.value) return;
@@ -136,7 +152,35 @@ function logPast() {
       <button type="button" class="btn sm primary t-label" @click="openWorkout()"><Icon name="play" :size="14" /> Resume</button>
     </section>
 
-    <!-- Start one now: empty, or described in words. Home's "Log your first food today" shape. -->
+    <!-- Up next: the plan's next workout, with this week above it. -->
+    <section v-if="plan.current && next" class="card" aria-labelledby="next-title" data-up-next :data-position="next.position">
+      <div class="row thead">
+        <h2 id="next-title" class="section-title c2 grow m0">Up next</h2>
+        <span v-if="nextDay" class="t-capn c3" data-next-day>{{ nextDay }}</span>
+      </div>
+      <ol class="wk" aria-label="This week" data-week>
+        <li v-for="day in week" :key="day.date" class="wday" :data-state="day.state" :data-date="day.date">
+          <span class="t-cap c3" aria-hidden="true">{{ day.letter }}</span>
+          <span class="wdisc t-bodys" aria-hidden="true"><Icon v-if="day.state === 'done'" name="check" :size="16" :sw="2.6" /><template v-else>{{ day.number }}</template></span>
+          <span class="sr-only">{{ day.label }}</span>
+        </li>
+      </ol>
+      <span class="col g2">
+        <span class="t-bodys">{{ next.workout.name }}</span>
+        <span class="t-capn c2">{{ nextLine(next) }}</span>
+        <span class="t-capn c2">{{ weekLine(next, plan.current.blockWeeks) }}</span>
+        <span v-if="next.workout.exercises.length" class="t-capn c3 names">{{ next.workout.exercises.map((exercise) => nameOf(exercise.exerciseId)).join(" · ") }}</span>
+      </span>
+      <p v-if="workout.active && !nextRunning" class="t-capn c2 m0">Finish the workout in progress to start this one.</p>
+      <div class="row g8 nbtns">
+        <span v-if="nextRunning" class="t-label c2" data-up-next-running>In progress</span>
+        <button v-else-if="!next.workout.exercises.length" type="button" class="btn sm primary t-label" :aria-label="`Add exercises to ${next.workout.name}`" data-up-next-fill @click="openPlanWorkout(next.workout.id)"><Icon name="plus" :size="14" /> Add exercises</button>
+        <button v-else-if="!workout.active" type="button" class="btn sm primary t-label" :aria-label="`Start ${next.workout.name}`" @click="startNext"><Icon name="play" :size="14" /> Start</button>
+        <button v-if="!nextRunning" type="button" class="btn sm secondary t-label" :aria-label="`Skip ${next.workout.name}`" :disabled="skipping" @click="skipNext">Skip</button>
+      </div>
+    </section>
+
+    <!-- Start one now: empty, described in words, or the last one again. Home's "Log your first food today" shape. -->
     <div v-if="cards.start" class="card prompt row" data-start-workout>
       <button type="button" class="ptext col grow" @click="start">
         <span class="t-bodys">{{ startCopy.title }}</span>
@@ -145,35 +189,17 @@ function logPast() {
       <span class="apill" role="group" :aria-label="startCopy.title">
         <button type="button" aria-label="Empty workout" data-start-empty @click="start"><Icon name="plus" :size="16" :sw="2.6" /></button>
         <button v-if="describe.available" type="button" aria-label="Describe a workout" data-start-describe @click="startDescribed"><Icon name="sparkle" :size="16" /></button>
+        <button v-if="again" type="button" :aria-label="`Repeat ${repeatName(again)}`" :disabled="repeating" data-start-repeat @click="repeat"><Icon name="refresh" :size="16" /></button>
       </span>
     </div>
 
     <section v-if="plan.current" class="card" aria-labelledby="plan-title" data-plan-card>
-      <div class="chead">
-        <h2 id="plan-title" class="t-head section-title grow">Plan</h2>
-        <button type="button" class="btn sm secondary t-label" @click="openPlan()">Edit</button>
-      </div>
-      <span class="t-body">{{ planLine(plan.current) }}</span>
-      <div v-if="next" class="well col g8 upnext" data-up-next :data-position="next.position">
-        <span class="t-cap c3 section-title">Up next<template v-if="nextDay"> · {{ nextDay }}</template></span>
-        <span class="col g2">
-          <span class="t-bodys">{{ next.workout.name }}</span>
-          <span class="t-label c2">{{ nextLine(next) }}</span>
-          <span class="t-label c2">{{ weekLine(next, plan.current.blockWeeks) }}</span>
+      <div class="row thead">
+        <span class="col grow g2">
+          <h2 id="plan-title" class="section-title c2 m0">Your plan</h2>
+          <span class="t-capn c2">{{ planLine(plan.current) }}</span>
         </span>
-        <p v-if="workout.active && !nextRunning" class="t-capn c2 m0">Finish the workout in progress to start this one.</p>
-        <div class="row g8 nbtns">
-          <span v-if="nextRunning" class="t-label c2" data-up-next-running>In progress</span>
-          <button v-else-if="!next.workout.exercises.length" type="button" class="btn sm primary t-label" :aria-label="`Add exercises to ${next.workout.name}`" data-up-next-fill @click="openPlanWorkout(next.workout.id)"><Icon name="plus" :size="14" /> Add exercises</button>
-          <button v-else-if="!workout.active" type="button" class="btn sm primary t-label" :aria-label="`Start ${next.workout.name}`" @click="startNext"><Icon name="play" :size="14" /> Start</button>
-          <button v-if="!nextRunning" type="button" class="btn sm secondary t-label" :aria-label="`Skip ${next.workout.name}`" :disabled="skipping" @click="skipNext">Skip</button>
-        </div>
-        <ul v-if="coming.length > 1" class="list col then" aria-label="Then" data-plan-coming>
-          <li v-for="day in coming.slice(1)" :key="day.position" class="row trow" :data-date="day.date">
-            <span class="t-label grow">{{ day.workout.name }}</span>
-            <span class="t-label c2">{{ dayLabel(day.date, today) }}</span>
-          </li>
-        </ul>
+        <button type="button" class="btn sm secondary t-label" @click="openPlan()">Edit</button>
       </div>
       <ol class="list pws">
         <li v-for="item in plan.current.workouts" :key="item.id" :data-plan-workout="item.name" :aria-current="next?.workout.id === item.id ? 'step' : undefined">
@@ -283,8 +309,19 @@ function logPast() {
 .nbtns { flex-wrap: wrap; }
 .mkbtns { flex-wrap: wrap; }
 .dt-xl .mkbtns .btn { flex: 1 1 100%; }
-.then { border-top: 1px solid var(--color-border); padding-top: var(--space-xs); }
-.trow { gap: var(--space-s); padding-block: var(--space-2xs); }
+.thead { gap: var(--space-s); flex-wrap: nowrap; }
+.names { overflow-wrap: anywhere; }
+/* This week: Home's week strip, read-only. A tick for a day trained, a ring for today, a disc for a plan day. */
+.wk { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); justify-items: center; list-style: none; margin: 0; padding: 0; }
+.wday { display: flex; flex-direction: column; align-items: center; gap: var(--space-2xs); }
+.wdisc {
+  width: 36px; height: 36px; border-radius: var(--radius-pill); display: flex; align-items: center; justify-content: center;
+  font-size: min(0.8824rem, 20px); line-height: 1; color: var(--text-tertiary);
+}
+.wday[data-state="done"] .wdisc { background: var(--color-action); color: var(--color-on-action); box-shadow: var(--d-action); }
+.wday[data-state="today"] .wdisc { box-shadow: inset 0 0 0 2px var(--color-action); color: var(--color-action); }
+.wday[data-state="planned"] .wdisc { background: var(--color-surface-2); box-shadow: var(--d-edge); color: var(--text-primary); }
+.wday[data-state="skipped"] .wdisc { text-decoration: line-through; }
 .list { list-style: none; margin: 0; padding: 0; }
 .hrow {
   width: 100%; min-height: 56px; gap: var(--space-m); padding: var(--space-s) 0; flex-wrap: nowrap;
