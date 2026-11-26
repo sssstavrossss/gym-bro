@@ -6,6 +6,7 @@ import { dayMonth, dayNum, weekdayShort } from "../lib/dates";
 import { int } from "../lib/format";
 import { burnStrip, farNote, farTitle, moveCaption, readingNote, readingsCaption } from "../lib/recalculate";
 import { weightUnit, wt } from "../state/units";
+import { openWeight } from "../ui";
 
 /**
  * How the recalculate sheet got its burn: each stretch of weigh-ins against the weight the food
@@ -46,7 +47,10 @@ const eaten = computed(() => `${props.review.includedDays} of ${props.review.per
 <template>
   <section class="burn" aria-labelledby="burn-h" data-burn-card>
     <h3 id="burn-h" class="bh"><Icon name="scale" :size="16" class="c2" /> {{ step ? "How your burn was measured" : "Your burn was kept" }}</h3>
-    <p v-if="!step" class="t-body cap" role="status" data-burn-blocked>{{ review.blocked }}</p>
+    <div v-if="!step" class="blocked">
+      <p class="t-body cap grow" role="status" data-burn-blocked>{{ review.blocked }}</p>
+      <button v-if="review.tier === 'rare'" type="button" class="btn sm secondary t-label" data-burn-weigh @click="openWeight">Log weight</button>
+    </div>
     <div class="list t-label">
       <template v-if="readings.length">
         <div class="brow">
@@ -109,6 +113,8 @@ const eaten = computed(() => `${props.review.includedDays} of ${props.review.per
 .burn { background: var(--color-surface-2); border-radius: var(--radius-l); padding: var(--space-m) var(--space-l); display: flex; flex-direction: column; gap: var(--space-s); box-shadow: var(--d-edge); }
 .bh { display: flex; align-items: center; gap: var(--space-s); margin: 0; font-size: 15px; font-weight: 600; color: var(--text-primary); }
 .cap { margin: 0; }
+.blocked { display: flex; align-items: center; gap: var(--space-m); }
+html.dt-l .blocked { flex-wrap: wrap; }
 .list { display: flex; flex-direction: column; }
 .brow { display: flex; align-items: baseline; gap: var(--space-s); padding: var(--space-s) 0; }
 .brow + .brow, .reads + .brow { border-top: 1px solid var(--color-border); }

@@ -17,7 +17,8 @@ public sealed record WeightSnapshot(
     bool GoalReached,
     bool RecalculatePending,
     FreshStartFacts? FreshStart,
-    TrendSeries Series);
+    TrendSeries Series,
+    bool WeighInNudge = false);
 
 public static class WeightReader
 {
@@ -41,7 +42,7 @@ public static class WeightReader
         var series = rows.Select(row => (row.LocalDate, row.Kg)).ToList();
         var profile = await db.Profiles.AsNoTracking()
             .Where(row => row.UserId == userId)
-            .Select(row => new { row.Goal, row.GoalWeightKg, row.FreshStartDeclinedOn, row.GoalKeptOn, row.GoalKeptKg })
+            .Select(row => new { row.Goal, row.GoalWeightKg, row.FreshStartDeclinedOn, row.GoalKeptOn, row.GoalKeptKg, row.CreatedAt, row.TimeZone })
             .FirstOrDefaultAsync(cancellationToken);
         var computed = TrendWeight.Compute(series, asOf);
         var promptSettled = false;
@@ -72,7 +73,20 @@ public static class WeightReader
         var kept = snapshot.GoalReached
             && profile?.GoalKeptOn is { } keptOn && keptOn == snapshot.LatestDate
             && profile.GoalKeptKg == profile.GoalWeightKg;
-        return kept ? snapshot with { GoalReached = false } : snapshot;
+        if (kept)
+        {
+            snapshot = snapshot with { GoalReached = false };
+        }
+
+        // Too few weigh-ins to measure the burn, a week past the settling week: Home asks for weekly ones.
+        if (profile is not null && series.Count > 0 && LocalDates.TryZone(profile.TimeZone, out var zone))
+        {
+            var created = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(profile.CreatedAt, zone).DateTime);
+            var earliest = RecalculatePeriod.Settled(created, RecalculatePeriod.LatestFreshStart(series, asOf));
+            snapshot = snapshot with { WeighInNudge = BurnReadings.NeedsNudge(asOf, earliest, series) };
+        }
+
+        return snapshot;
     }
 
     /// <summary>

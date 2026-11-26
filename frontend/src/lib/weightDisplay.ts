@@ -91,3 +91,19 @@ export function accuracyCopy(weight: WeightResponse | null, unit: WeightUnit = "
   }
   return { short, lines };
 }
+
+/** "Your last weigh-in was 5 weeks ago.", "…12 days ago.", or null without one. */
+export function lastWeighInLine(latestDate: string | null | undefined, today: string): string | null {
+  if (!latestDate) return null;
+  const days = diffDays(today, latestDate);
+  if (days < 1) return null;
+  const ago = days === 1 ? "yesterday" : days < 14 ? `${days} days ago` : `${Math.floor(days / 7)} weeks ago`;
+  return `Your last weigh-in was ${ago}.`;
+}
+
+/** The Home weigh-in tip stays away for a week after ✕: the day it may come back. */
+export const nudgeBackOn = (today: string) => addDays(today, 7);
+
+export function nudgeDismissed(backOn: string | null, today: string): boolean {
+  return backOn != null && today < backOn;
+}

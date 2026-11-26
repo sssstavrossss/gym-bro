@@ -33,6 +33,9 @@ public sealed class RecalculateEndpointTests(ApiFactory factory)
         Assert.Equal(2218, review.GetProperty("proposed").GetProperty("kcal").GetInt32());
         Assert.Equal(JsonValueKind.Null, review.GetProperty("step").ValueKind);
         var from = review.GetProperty("from").GetString();
+        // Too few weigh-ins, but it's the first day: Home doesn't ask for more yet.
+        var profile = await client.GetFromJsonAsync<JsonElement>("/api/profile");
+        Assert.False(profile.GetProperty("weight").GetProperty("weighInNudge").GetBoolean());
 
         var denied = await stranger.GetAsync("/api/recalculate");
         Assert.Equal(HttpStatusCode.BadRequest, denied.StatusCode);
@@ -230,6 +233,27 @@ public sealed class RecalculateEndpointTests(ApiFactory factory)
         Assert.Equal(JsonValueKind.Null, other.GetProperty("expected").ValueKind);
         Assert.Equal(HttpStatusCode.BadRequest, (await client.GetAsync("/api/weight/expected?date=2026-10-30")).StatusCode);
         Assert.Equal(HttpStatusCode.BadRequest, (await client.GetAsync("/api/weight/expected")).StatusCode);
+    }
+
+    [Fact]
+    public async Task Home_asks_for_weekly_weigh_ins_when_there_are_too_few_to_measure_the_burn()
+    {
+        var setup = new DateOnly(2026, 10, 1);
+        var owner = TestData.NewUser("nudge-owner");
+        using var client = factory.AsUser(owner);
+        await Seed(client, owner, setup, setup.AddDays(21), kcal: 2000m, startKg: 84m, lossPerDay: 0m, every: 30);
+
+        var profile = await client.GetFromJsonAsync<JsonElement>("/api/profile");
+        Assert.True(profile.GetProperty("weight").GetProperty("weighInNudge").GetBoolean());
+        var review = await client.GetFromJsonAsync<JsonElement>("/api/recalculate");
+        Assert.Equal("rare", review.GetProperty("tier").GetString());
+
+        // Two weigh-ins a week apart after the settling week are enough: the ask goes away.
+        await TestData.PutWeighIn(client, "2026-10-15", """{"kg":83.8,"timeZone":"UTC"}""");
+        var saved = await client.PutAsync("/api/weigh-ins/2026-10-22", new StringContent("""{"kg":83.6,"timeZone":"UTC"}""", System.Text.Encoding.UTF8, "application/json"));
+        Assert.True(saved.IsSuccessStatusCode);
+        var trend = (await saved.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("trend");
+        Assert.False(trend.GetProperty("weighInNudge").GetBoolean());
     }
 
     /// <summary>Sets up on <paramref name="setup"/>, then fills weigh-ins and one log a day straight into the database, and moves the clock to <paramref name="today"/>.</summary>

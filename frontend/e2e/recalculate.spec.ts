@@ -69,6 +69,40 @@ test("without enough data the burn is kept, and saving still writes the target",
 test.describe("measured", () => {
   test.use({ timezoneId: "UTC" });
 
+  test("a rare weigher is asked on Home and in Recalculate to weigh in weekly", async ({ page }) => {
+    const oid = `e2e-recalc-rare-${Date.now()}-${test.info().project.name}`;
+    const when = await clock(page);
+    const headers = { "X-Test-Oid": oid, "X-Test-Name": "Test User", "Content-Type": "application/json" };
+    expect((await page.request.put(`/api/weigh-ins/${when.today}`, { headers, data: { kg: 84.1, timeZone: "UTC" } })).ok()).toBeTruthy();
+    expect((await page.request.put("/api/profile", { headers, data: body("UTC") })).ok()).toBeTruthy();
+    // Set up five weeks ago with no weigh-in since.
+    sql(`
+      UPDATE profiles SET created_at = now() - interval '35 days' WHERE user_id = '${oid}';
+      UPDATE target_history SET effective_date = current_date - 35, created_at = now() - interval '35 days' WHERE user_id = '${oid}';
+      UPDATE weigh_ins SET local_date = current_date - 35 WHERE user_id = '${oid}';`);
+    await signIn(page, oid);
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/today");
+    const tip = page.locator("[data-weigh-nudge]");
+    await expect(tip).toContainText("Weigh in once a week");
+    await expect(tip).toContainText("So Gym Bro can learn your burn. Your last weigh-in was 5 weeks ago.");
+
+    await page.goto("/today?recalculate=1");
+    const burn = page.getByRole("dialog", { name: "Recalculate" }).locator("[data-burn-card]");
+    await expect(burn.locator("[data-burn-blocked]")).toHaveText("Weigh in at least once a week so your burn can be measured.");
+    await burn.locator("[data-burn-weigh]").click();
+    await expect(page.getByRole("dialog", { name: "Log weight" })).toBeVisible();
+
+    // ✕ hides the tip for a week on this device.
+    await page.goto("/today");
+    await tip.getByRole("button", { name: "Hide for a week" }).click();
+    await expect(tip).toHaveCount(0);
+    await page.reload();
+    await expect(page.getByRole("main", { name: "Today" })).toBeVisible();
+    await expect(tip).toHaveCount(0);
+  });
+
   test("low days must be answered, the burn is measured, and history keeps how", async ({ page }) => {
     const oid = `e2e-recalc-m-${Date.now()}-${test.info().project.name}`;
     const when = await clock(page);

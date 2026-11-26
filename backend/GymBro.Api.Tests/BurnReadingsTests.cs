@@ -171,6 +171,26 @@ public sealed class BurnReadingsTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void Home_asks_for_weekly_weigh_ins_only_when_the_burn_cant_be_measured_after_two_weeks()
+    {
+        var setup = Today.AddDays(-30);
+        var earliest = setup.AddDays(7);
+        (DateOnly, decimal) At(int back) => (Today.AddDays(-back), 85m);
+
+        // Only the setup weigh-in, a month on: rare, so Home asks.
+        Assert.Equal(BurnTier.Rare, BurnReadings.TierFor(Today, earliest, [(setup, 85m)]));
+        Assert.True(BurnReadings.NeedsNudge(Today, earliest, [(setup, 85m)]));
+        // In the first two weeks it doesn't ask yet.
+        Assert.False(BurnReadings.NeedsNudge(earliest.AddDays(6), earliest, [(setup, 85m)]));
+        // Two weigh-ins in eight weeks are enough to measure (sparse); four in four weeks are regular.
+        Assert.Equal(BurnTier.Sparse, BurnReadings.TierFor(Today, Long, [At(50), At(20)]));
+        Assert.False(BurnReadings.NeedsNudge(Today, Long, [At(50), At(20)]));
+        Assert.Equal(BurnTier.Regular, BurnReadings.TierFor(Today, Long, [At(21), At(14), At(7), At(0)]));
+        // The same day twice counts once.
+        Assert.Equal(BurnTier.Rare, BurnReadings.TierFor(Today, Long, [At(3), At(3)]));
+    }
+
+    [Fact]
     public void A_new_weigh_in_is_expected_from_the_last_one_and_the_food_since()
     {
         // 2,000 a day and a 3,500 Sunday at a 2,900 burn: the week loses (6 × 900 − 600) / 7700 kg.

@@ -13,6 +13,7 @@ import MacroBars from "../components/MacroBars.vue";
 import OfflineLine from "../components/OfflineLine.vue";
 import Sparkline from "../components/Sparkline.vue";
 import RecalcPrompt from "../components/RecalcPrompt.vue";
+import WeighNudge from "../components/WeighNudge.vue";
 import Timeline from "../components/Timeline.vue";
 import WeekStrip from "../components/WeekStrip.vue";
 import WeightChart from "../components/WeightChart.vue";
@@ -206,6 +207,7 @@ const weekRows = computed(() => {
         <template v-if="sectionShown('suggestions') && selected === today">
           <FreshStart v-if="showFresh" />
           <RecalcPrompt v-if="!showFresh" />
+          <WeighNudge v-if="!showFresh" />
           <GoalReached v-if="showGoal" />
         </template>
 
