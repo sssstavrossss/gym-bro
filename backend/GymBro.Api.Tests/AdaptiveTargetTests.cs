@@ -231,9 +231,16 @@ public sealed class AdaptiveTargetTests
         var setup = new DateOnly(2026, 1, 1);
 
         var weekly = RecalculatePeriod.For(today, setup, null, today.AddDays(-8), null);
-        Assert.Equal(today.AddDays(-7), weekly.From);
+        Assert.Equal(today.AddDays(-8), weekly.From);
         Assert.Equal(today.AddDays(-1), weekly.To);
-        Assert.Equal(today.AddDays(-10), weekly.SlopeFrom);
+        Assert.Equal(today.AddDays(-11), weekly.SlopeFrom);
+
+        // Recalculating every Monday reads the whole week, the last Monday included.
+        var monday = new DateOnly(2026, 11, 16);
+        var week = RecalculatePeriod.For(monday, setup, null, monday.AddDays(-7), null);
+        Assert.Equal(new DateOnly(2026, 11, 9), week.From);
+        Assert.Equal(new DateOnly(2026, 11, 15), week.To);
+        Assert.Equal(7, week.To.DayNumber - week.From.DayNumber + 1);
         Assert.False(weekly.Capped);
         Assert.Null(weekly.SettledFrom);
 

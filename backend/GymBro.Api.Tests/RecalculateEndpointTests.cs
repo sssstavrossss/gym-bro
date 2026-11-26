@@ -49,7 +49,7 @@ public sealed class RecalculateEndpointTests(ApiFactory factory)
         var after = await client.GetFromJsonAsync<JsonElement>("/api/targets?date=2026-11-10");
         Assert.Equal(RecalculationReasons.Formula, after.GetProperty("targets").GetProperty("reason").GetString());
         var restarted = await client.GetFromJsonAsync<JsonElement>("/api/recalculate");
-        Assert.Equal("2026-11-11", restarted.GetProperty("from").GetString());
+        Assert.Equal("2026-11-10", restarted.GetProperty("from").GetString());
         Assert.Equal(0, restarted.GetProperty("periodDays").GetInt32());
 
         await using var scope = factory.Services.CreateAsyncScope();
