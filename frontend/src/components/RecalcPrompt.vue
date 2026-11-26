@@ -10,6 +10,7 @@ import { openRecalculate, toastError, ui } from "../ui";
  * This week's recalculate reminder, on Home while it is open. It closes itself once a
  * recalculation is saved this week; ✕ dismisses it until next Monday.
  */
+const emit = defineEmits<{ shown: [boolean] }>();
 const show = ref(false);
 async function load() {
   try {
@@ -35,6 +36,8 @@ watch(() => ui.sheet, (sheet, previous) => {
     void refreshInbox();
   }
 });
+/** Home's suggestion stack needs to know whether this card shows. */
+watch(() => show.value && !connection.offline, (value) => emit("shown", value), { immediate: true });
 </script>
 
 <template>
