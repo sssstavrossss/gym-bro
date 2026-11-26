@@ -93,10 +93,21 @@ export function workSeconds(item: PlanExercise): number {
   return 40;
 }
 
-/** The server's estimate (PlanGenerator.Minutes): the warm-up, then each exercise's sets, rest and changeover. */
+/**
+ * The server's estimate (PlanGenerator.Minutes): the warm-up, then each exercise's sets, rest and changeover; an
+ * EMOM or AMRAP block runs for its minutes and a changeover.
+ */
 export function estimateMinutes(exercises: readonly PlanExercise[], planMinutes: number): number {
-  const warmUp = planMinutes <= 20 ? 120 : 300;
-  const seconds = exercises.reduce((sum, item) => sum + item.sets * (workSeconds(item) + item.restSeconds) + 60, warmUp);
+  let seconds = planMinutes <= 20 ? 120 : 300;
+  for (let index = 0; index < exercises.length; index++) {
+    const item = exercises[index];
+    if ((item.format === "emom" || item.format === "amrap") && item.minutes != null) {
+      seconds += item.minutes * 60 + 60;
+      while (exercises[index + 1]?.superset) index++;
+      continue;
+    }
+    seconds += item.sets * (workSeconds(item) + item.restSeconds) + 60;
+  }
   return Math.max(5, Math.round(seconds / 300) * 5);
 }
 
@@ -112,7 +123,7 @@ export function sameExercises(a: readonly PlanExercise[], b: readonly PlanExerci
     return item.exerciseId === other.exerciseId && item.sets === other.sets && item.repMin === other.repMin
       && item.repMax === other.repMax && item.seconds === other.seconds && item.restSeconds === other.restSeconds
       && (item.metres ?? null) === (other.metres ?? null) && !!item.superset === !!other.superset
-      && (item.format ?? null) === (other.format ?? null);
+      && (item.format ?? null) === (other.format ?? null) && (item.minutes ?? null) === (other.minutes ?? null);
   });
 }
 
@@ -128,14 +139,17 @@ export function movedExercise(exercises: readonly PlanExercise[], index: number,
   if (exercises[lower].superset) {
     // The same circuit: the lower of the two is joined to the upper.
     const next = moved(exercises, index, by);
-    for (const at of [index, to]) next[at] = { ...next[at], superset: exercises[at].superset, format: exercises[at].format };
+    for (const at of [index, to]) {
+      next[at] = { ...next[at], superset: exercises[at].superset, format: exercises[at].format, minutes: exercises[at].minutes };
+    }
     return next;
   }
   const gone = exercises[index];
   const handed = exercises.map((item, at) =>
-    at === index + 1 && gone.format && item.superset ? { ...item, superset: false, format: gone.format } : item);
+    at === index + 1 && gone.format && item.superset ? { ...item, superset: false, format: gone.format, minutes: gone.minutes } : item);
   const next = moved(handed, index, by);
-  next[to] = { ...next[to], superset: false, format: gone.format && exercises[index + 1]?.superset ? null : gone.format };
+  const handedOn = !!gone.format && !!exercises[index + 1]?.superset;
+  next[to] = { ...next[to], superset: false, format: handedOn ? null : gone.format, minutes: handedOn ? null : gone.minutes };
   next[index] = { ...next[index], superset: false };
   return tidyCircuits(next);
 }
@@ -144,7 +158,7 @@ export function movedExercise(exercises: readonly PlanExercise[], index: number,
 export function removed(exercises: readonly PlanExercise[], index: number): PlanExercise[] {
   const gone = exercises[index];
   const next = exercises.map((item, at) =>
-    at === index + 1 && gone?.format && !gone.superset && item.superset ? { ...item, superset: false, format: gone.format } : item);
+    at === index + 1 && gone?.format && !gone.superset && item.superset ? { ...item, superset: false, format: gone.format, minutes: gone.minutes } : item);
   return tidyCircuits(next.filter((_, at) => at !== index));
 }
 
@@ -159,8 +173,8 @@ export function tidyCircuits(exercises: readonly PlanExercise[]): PlanExercise[]
       // A clock inside a run moves to the run's head, unless the head has one.
       let head = index;
       while (head > 0 && next[head].superset) head--;
-      if (!next[head].format) next[head] = { ...next[head], format: next[index].format };
-      next[index] = { ...next[index], format: null };
+      if (!next[head].format) next[head] = { ...next[head], format: next[index].format, minutes: next[index].minutes };
+      next[index] = { ...next[index], format: null, minutes: null };
     }
   }
   return next;

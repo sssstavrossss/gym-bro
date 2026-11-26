@@ -21,8 +21,9 @@ export interface PlanExercise {
   metres?: number | null;
   /** Joined to the exercise before, as a circuit (lib/workout.ts `superset`). */
   superset?: boolean;
-  /** On a circuit's first exercise: done on the clock, for time (lib/timed.ts). */
-  format?: "for_time" | null;
+  /** On a circuit's first exercise: done on the clock (lib/timed.ts): for time, or an EMOM or AMRAP of `minutes`. */
+  format?: "for_time" | "emom" | "amrap" | null;
+  minutes?: number | null;
 }
 
 export interface PlanWorkout {
@@ -187,8 +188,11 @@ export function workoutLine(workout: PlanWorkout): string {
   if (first.format && workout.exercises.every((item, index) => index === 0 || item.superset)) {
     return `${count} ${count === 1 ? "exercise" : "exercises"} · ${first.sets} ${first.sets === 1 ? "round" : "rounds"} · ~${workout.minutes} min`;
   }
-  const sets = setCount(workout);
-  return `${count} ${count === 1 ? "exercise" : "exercises"} · ${sets} ${sets === 1 ? "set" : "sets"} · ~${workout.minutes} min`;
+  // A finisher on the clock is its minutes, not its sets: "6 exercises · 12 sets + EMOM 10 min · ~45 min".
+  const finisher = finisherOf(workout);
+  const sets = setCount(finisher ? { ...workout, exercises: workout.exercises.slice(0, finisher.at) } : workout);
+  const tail = finisher ? ` + ${finisher.label}` : "";
+  return `${count} ${count === 1 ? "exercise" : "exercises"} · ${sets} ${sets === 1 ? "set" : "sets"}${tail} · ~${workout.minutes} min`;
 }
 
 /** "Muscle · Upper / Lower · 4 days · 60 min", "Hyrox · 4 days · 45 min" */
@@ -327,7 +331,20 @@ export function weekLine(next: Pick<UpNext, "week" | "rir" | "lighter"> & { work
 /** A Hyrox conditioning workout: a circuit done for time, or only distances (run intervals). */
 export function conditioning(workout: PlanWorkout): boolean {
   return workout.exercises.length > 0
-    && (workout.exercises.some((item) => item.format) || workout.exercises.every((item) => item.metres != null));
+    && (workout.exercises.some((item) => item.format === "for_time") || workout.exercises.every((item) => item.metres != null));
+}
+
+/** "EMOM 10 min", "AMRAP 8 min", "For time": a plan circuit's clock. */
+export function clockLabel(exercise: Pick<PlanExercise, "format" | "minutes">): string {
+  if (exercise.format === "emom") return `EMOM ${exercise.minutes ?? 10} min`;
+  if (exercise.format === "amrap") return `AMRAP ${exercise.minutes ?? 12} min`;
+  return exercise.format === "for_time" ? "For time" : "";
+}
+
+/** A finisher: the EMOM or AMRAP block at the end of a kettlebell plan's workout (README → Kettlebell plans). */
+export function finisherOf(workout: PlanWorkout): { at: number; label: string } | null {
+  const at = workout.exercises.findIndex((item) => item.format === "emom" || item.format === "amrap");
+  return at > 0 ? { at, label: clockLabel(workout.exercises[at]) } : null;
 }
 
 /** "5 exercises · 8 sets · ~30 min" for the week: a lighter week counts its halved sets and not its time. */

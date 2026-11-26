@@ -217,7 +217,9 @@ function logPast() {
 }
 .pws li + li .pw { border-top: 1px solid var(--color-border); }
 .pwtext { gap: var(--space-2xs); min-width: 0; }
-.pwhead { gap: var(--space-s); }
+/* The name keeps its line; a long summary (a finisher's "+ EMOM 10 min") goes under it rather than squeezing it. */
+.row.pwhead { gap: 0 var(--space-s); flex-wrap: wrap; }
+.pwhead > .grow { flex-shrink: 0; }
 .g8 { gap: var(--space-s); }
 .nbtns { flex-wrap: wrap; }
 .mkbtns { flex-wrap: wrap; }
