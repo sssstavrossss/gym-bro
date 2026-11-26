@@ -492,6 +492,16 @@ export function discardWorkout(): void {
   save();
 }
 
+/** After Settings → Reset data: the workout in progress and the unsent ones go too. */
+export function forgetWorkouts(): void {
+  workout.active = null;
+  workout.pending = [];
+  workout.summary = null;
+  workout.past = null;
+  save();
+  writeJson(pendingKey(), workout.pending);
+}
+
 /**
  * Finishes the workout: sets not ticked off are left out, and it is sent. Offline it waits on the
  * phone and goes when the server answers. A refusal ("failed") keeps the workout open.

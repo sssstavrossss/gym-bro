@@ -12,7 +12,7 @@ import { deviceTimeZone } from "./state/profile";
 /** Add food tabs. Describe shows only when the server can describe meals. */
 export type FoodTab = "search" | "describe" | "quick";
 
-export type SettingsView = "main" | "home" | "country";
+export type SettingsView = "main" | "home" | "country" | "reset";
 
 export const ui = reactive({
   sheet: null as SheetName | null,

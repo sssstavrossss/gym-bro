@@ -5,7 +5,7 @@ import BottomSheet from "./BottomSheet.vue";
 import Segmented from "./Segmented.vue";
 import Icon from "./Icon.vue";
 import SwitchRow from "./SwitchRow.vue";
-import { ApiError, getExport, putSettings, type SettingsBody } from "../api";
+import { ApiError, getExport, getResetSummary, putSettings, resetNutrition, resetTraining, type SettingsBody } from "../api";
 import { signOut } from "../auth/session";
 import { buildLabel } from "../lib/buildInfo";
 import { allCountries, countryName, countryTables, searchCountries } from "../lib/foodCountries";
@@ -15,8 +15,10 @@ import { sectionRows, sectionsSummary, WEEK_ROW } from "../lib/homeSections";
 import { screenLayoutFromFlags } from "../lib/layout";
 import { vp } from "../lib/viewport";
 import { allZones, searchZones, suggestedZones, zoneLabel, zoneOffset, zoneTime } from "../lib/timeZones";
+import { confirmLine, doneLine, hasNutrition, hasTraining, logLine, ownLine, RESET_FLASH_KEY, trainingLine, type ResetKind, type ResetSummary } from "../lib/reset";
 import { forgetAnswers } from "../offline/cache";
 import { boot } from "../state/boot";
+import { connection } from "../state/connection";
 import { homeSections, sectionShown, setSectionShown } from "../state/homeSections";
 import type { FoodUnit } from "../lib/foodUnits";
 import type { HeightUnit, WeightUnit } from "../lib/units";
@@ -25,10 +27,12 @@ import { foodUnit } from "../state/units";
 import { closeSheet, openFanPages, ui } from "../ui";
 import { fanSummary as summarizeFan } from "../lib/fanPages";
 import { fanLayout } from "../state/fanPages";
+import { setOps } from "../state/outbox";
+import { forgetWorkouts } from "../state/workout";
 
 const open = computed(() => ui.sheet === "settings");
-const view = ref<"main" | "zone" | "home" | "country">("main");
-const titles = { main: "Settings", zone: "Time zone", home: "Home sections", country: "Food country" } as const;
+const view = ref<"main" | "zone" | "home" | "country" | "reset">("main");
+const titles = { main: "Settings", zone: "Time zone", home: "Home sections", country: "Food country", reset: "Reset data" } as const;
 const theme = ref<ThemeId>(readTheme());
 const accent = ref<AccentId>(readAccent());
 const themeLabel = computed(() => themes.find((item) => item.id === theme.value)?.label ?? "");
@@ -61,6 +65,8 @@ watch(open, (value) => {
   error.value = "";
   unitsError.value = "";
   exportError.value = "";
+  resetConfirm.value = null;
+  alsoFoods.value = false;
   theme.value = readTheme();
   accent.value = readAccent();
 });
@@ -124,6 +130,60 @@ async function onExport() {
     exportError.value = failure instanceof ApiError ? failure.message : "Couldn't export. Check your connection and try again.";
   } finally {
     exporting.value = false;
+  }
+}
+
+// Settings → Reset data (README → Reset data). The counts load each time the view opens.
+const resetSummary = ref<ResetSummary | null>(null);
+const resetState = ref<"idle" | "loading" | "failed">("idle");
+const resetConfirm = ref<ResetKind | null>(null);
+const alsoFoods = ref(false);
+const resetting = ref(false);
+const resetError = ref("");
+
+watch([open, view], ([isOpen, current]) => {
+  if (isOpen && current === "reset") void loadReset();
+}, { immediate: true });
+
+async function loadReset() {
+  resetConfirm.value = null;
+  resetError.value = "";
+  if (!resetSummary.value) resetState.value = "loading";
+  try {
+    resetSummary.value = await getResetSummary();
+    resetState.value = "idle";
+  } catch {
+    if (!resetSummary.value) resetState.value = "failed";
+  }
+}
+
+const canResetTraining = computed(() => !!resetSummary.value && hasTraining(resetSummary.value.training) && !connection.offline);
+const canResetNutrition = computed(() => !!resetSummary.value && hasNutrition(resetSummary.value.nutrition, alsoFoods.value) && !connection.offline);
+
+/** Deletes on the server, forgets what this phone holds of it, and starts the app again with a toast. */
+async function onReset(kind: ResetKind) {
+  if (resetting.value) return;
+  resetting.value = true;
+  resetError.value = "";
+  try {
+    let done: string;
+    if (kind === "training") {
+      done = doneLine(kind, await resetTraining());
+      forgetWorkouts();
+    } else {
+      done = doneLine(kind, await resetNutrition(alsoFoods.value));
+      setOps([]);
+    }
+    await forgetAnswers(boot.accountId);
+    try {
+      sessionStorage.setItem(RESET_FLASH_KEY, done);
+    } catch {
+      // No toast after the reload, that's all.
+    }
+    location.reload();
+  } catch (failure) {
+    resetError.value = failure instanceof ApiError ? failure.message : "Couldn't reset. Check your connection and try again.";
+    resetting.value = false;
   }
 }
 
@@ -244,6 +304,13 @@ async function onSignOut() {
           </button>
         </div>
         <p v-if="exportError" class="t-body m0" role="alert">{{ exportError }}</p>
+        <button type="button" class="frow" data-reset-row @click="view = 'reset'">
+          <span class="col grow">
+            <span class="t-body">Reset data</span>
+            <span class="t-capn c2">Start training or nutrition over</span>
+          </span>
+          <Icon name="right" :size="16" class="fchev" />
+        </button>
       </section>
 
       <section class="col group" aria-labelledby="set-account">
@@ -258,6 +325,64 @@ async function onSignOut() {
       </section>
 
       <p v-if="build" class="t-capn c3 m0 build" data-build>{{ build }}</p>
+    </div>
+
+    <div v-else-if="view === 'reset'" class="col body" data-reset>
+      <p v-if="resetState === 'loading'" class="t-body c2 m0">Loading…</p>
+      <p v-else-if="resetState === 'failed'" class="t-body c2 m0" role="alert">Couldn't load your data. Check your connection and try again.</p>
+      <template v-else-if="resetSummary">
+        <p v-if="connection.offline" class="t-body c2 m0" data-reset-offline>Resetting needs a connection.</p>
+        <p v-if="resetError" class="t-body m0" role="alert">{{ resetError }}</p>
+
+        <section class="col group" aria-labelledby="reset-training" data-reset-training>
+          <h3 id="reset-training" class="t-bodys gtitle"><Icon name="dumbbell" :size="16" /> Training</h3>
+          <div class="frow">
+            <span class="col grow">
+              <span class="t-body">Workouts and plan</span>
+              <span class="t-capn c2" data-reset-count>{{ trainingLine(resetSummary.training) }}</span>
+            </span>
+            <button type="button" class="btn sm secondary t-label rbtn" :disabled="!canResetTraining || resetting" :aria-expanded="resetConfirm === 'training'" data-reset-open @click="resetConfirm = 'training'">
+              <Icon name="trash" :size="14" /> Reset
+            </button>
+          </div>
+          <div v-if="resetConfirm === 'training'" class="rconfirm" role="alertdialog" aria-labelledby="rt-h" aria-describedby="rt-d">
+            <h4 id="rt-h" class="t-bodys m0">Reset training?</h4>
+            <p id="rt-d" class="t-label c2 m0">{{ confirmLine("training", resetSummary) }}</p>
+            <div class="row cbtns">
+              <button type="button" class="btn sm secondary t-label" :disabled="!canResetTraining || resetting" data-reset-go @click="onReset('training')">
+                {{ resetting ? "Resetting…" : "Reset training" }}
+              </button>
+              <button type="button" class="btn sm primary t-label" :disabled="resetting" @click="resetConfirm = null">Keep</button>
+            </div>
+          </div>
+          <span class="t-capn c2 gnote">Strength, new bests and This week start from nothing.</span>
+        </section>
+
+        <section class="col group" aria-labelledby="reset-nutrition" data-reset-nutrition>
+          <h3 id="reset-nutrition" class="t-bodys gtitle"><Icon name="food" :size="16" /> Nutrition</h3>
+          <div class="frow">
+            <span class="col grow">
+              <span class="t-body">Food log</span>
+              <span class="t-capn c2" data-reset-count>{{ logLine(resetSummary.nutrition) }}</span>
+            </span>
+            <button type="button" class="btn sm secondary t-label rbtn" :disabled="!canResetNutrition || resetting" :aria-expanded="resetConfirm === 'nutrition'" data-reset-open @click="resetConfirm = 'nutrition'">
+              <Icon name="trash" :size="14" /> Reset
+            </button>
+          </div>
+          <SwitchRow title="Also my foods, recipes and groups" :caption="ownLine(resetSummary.nutrition)" :on="alsoFoods" data-reset-foods @toggle="alsoFoods = !alsoFoods" />
+          <div v-if="resetConfirm === 'nutrition'" class="rconfirm" role="alertdialog" aria-labelledby="rn-h" aria-describedby="rn-d">
+            <h4 id="rn-h" class="t-bodys m0">Reset nutrition?</h4>
+            <p id="rn-d" class="t-label c2 m0">{{ confirmLine("nutrition", resetSummary, alsoFoods) }}</p>
+            <div class="row cbtns">
+              <button type="button" class="btn sm secondary t-label" :disabled="!canResetNutrition || resetting" data-reset-go @click="onReset('nutrition')">
+                {{ resetting ? "Resetting…" : "Reset nutrition" }}
+              </button>
+              <button type="button" class="btn sm primary t-label" :disabled="resetting" @click="resetConfirm = null">Keep</button>
+            </div>
+          </div>
+          <span class="t-capn c2 gnote">Settings, units and the Home layout stay. Export first to keep a copy.</span>
+        </section>
+      </template>
     </div>
 
     <div v-else-if="view === 'home'" class="col body" data-home-sections>
@@ -397,6 +522,9 @@ async function onSignOut() {
 [data-home-row] { padding-block: var(--space-xs); }
 .body[data-home-sections] { gap: var(--space-s); }
 .signout { flex: none; }
+.rbtn { flex: none; }
+.rconfirm { display: flex; flex-direction: column; gap: var(--space-s); padding: var(--space-m) 0; }
+.cbtns { gap: var(--space-s); flex-wrap: wrap; }
 .build { text-align: center; }
 .body[data-zone-picker], .body[data-country-picker] { gap: var(--space-m); }
 .zsearch { width: 100%; font-size: 16px; }
