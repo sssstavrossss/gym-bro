@@ -25,7 +25,11 @@ public sealed class RecalculateEndpointTests(ApiFactory factory)
         var review = await client.GetFromJsonAsync<JsonElement>("/api/recalculate");
         Assert.True(review.GetProperty("includedDays").GetInt32() < 7);
         Assert.False(review.GetProperty("measured").GetBoolean());
-        Assert.Equal(AdaptiveTarget.NeedMoreDays, review.GetProperty("blocked").GetString());
+        // The only weigh-in is in the settling week, so nothing can be read yet.
+        Assert.Equal(BurnReadings.NeedWeighIns, review.GetProperty("blocked").GetString());
+        Assert.Equal("rare", review.GetProperty("tier").GetString());
+        Assert.Equal(2, review.GetProperty("weighInsNeeded").GetInt32());
+        Assert.Equal(0, review.GetProperty("readings").GetArrayLength());
         Assert.Equal(2218, review.GetProperty("proposed").GetProperty("kcal").GetInt32());
         Assert.Equal(JsonValueKind.Null, review.GetProperty("step").ValueKind);
         var from = review.GetProperty("from").GetString();
@@ -76,9 +80,26 @@ public sealed class RecalculateEndpointTests(ApiFactory factory)
         Assert.Equal(22, review.GetProperty("fit").GetProperty("weighIns").GetInt32());
         Assert.Equal(-0.5m, review.GetProperty("fit").GetProperty("rateKgPerWeek").GetDecimal());
         Assert.Equal(2000, review.GetProperty("averageKcal").GetInt32());
-        Assert.InRange(review.GetProperty("step").GetProperty("measured").GetInt32(), 2540, 2560);
+        Assert.Equal("regular", review.GetProperty("tier").GetString());
+        Assert.Equal("2026-10-08", review.GetProperty("window").GetProperty("from").GetString());
+        // 21 daily readings, shown a week at a time.
+        Assert.Equal(3, review.GetProperty("readings").GetArrayLength());
+        var reading = review.GetProperty("readings")[2];
+        Assert.Equal("2026-10-22", reading.GetProperty("from").GetString());
+        Assert.Equal("2026-10-29", reading.GetProperty("to").GetString());
+        Assert.Equal(7, reading.GetProperty("days").GetInt32());
+        Assert.Equal(14000, reading.GetProperty("ateKcal").GetInt32());
+        Assert.True(reading.GetProperty("sure").GetBoolean());
+        var step = review.GetProperty("step");
+        Assert.InRange(step.GetProperty("measured").GetInt32(), 2540, 2560);
+        // The formula's burn moves 5% toward the 2,550 measured.
+        Assert.True(step.GetProperty("capped").GetBoolean());
+        var prior = step.GetProperty("prior").GetInt32();
+        Assert.Equal(prior, review.GetProperty("formula").GetProperty("tdee").GetInt32());
+        Assert.InRange(step.GetProperty("cap").GetInt32(), prior * 0.05 - 1, prior * 0.05 + 1);
         var burn = review.GetProperty("burn").GetInt32();
-        Assert.InRange(burn, 2540, 2600);
+        Assert.InRange(burn, prior - step.GetProperty("cap").GetInt32() - 1, prior - step.GetProperty("cap").GetInt32() + 1);
+        Assert.Equal(JsonValueKind.Null, review.GetProperty("farShare").ValueKind);
         Assert.Equal(burn - 550, review.GetProperty("proposed").GetProperty("kcal").GetInt32());
 
         var saved = await client.PostAsJsonAsync("/api/recalculate", new { mode = "adaptive" });
@@ -91,10 +112,22 @@ public sealed class RecalculateEndpointTests(ApiFactory factory)
         Assert.Contains(RecalculationReasons.Adaptive, row.Reasons);
         Assert.Equal(burn, row.Tdee);
         Assert.Equal(review.GetProperty("formula").GetProperty("tdee").GetInt32(), row.FormulaTdee);
-        Assert.True(row.BurnSdKcal < 100);
+        Assert.True(row.BurnSdKcal < 200);
         Assert.Contains("\"measuredBurn\":", row.Details);
+        var details = GymBro.Api.Profiles.TargetDetails.Parse(row.Details)!.Recalculation!;
+        Assert.True(details.Capped);
+        Assert.Equal(3, details.Readings);
+        Assert.Equal(0, details.LessSure);
+        Assert.Equal("regular", details.Tier);
+        Assert.Equal(burn, details.Burn);
+        Assert.False(details.Far);
         var distance = row.Tdee - row.FormulaTdee;
         Assert.True(distance < -100);
+
+        // Recalculating again the same day redoes the step from the burn before it.
+        var redo = await client.GetFromJsonAsync<JsonElement>("/api/recalculate");
+        Assert.Equal(burn, redo.GetProperty("burn").GetInt32());
+        Assert.Equal(prior, redo.GetProperty("step").GetProperty("prior").GetInt32());
 
         // Less activity lowers the formula; the measured distance from it stays.
         var edited = await TestData.PutProfile(client, TestData.Profile(activity: "light"));
@@ -105,8 +138,12 @@ public sealed class RecalculateEndpointTests(ApiFactory factory)
         Assert.Contains("\"changes\":", after.Details);
         Assert.Contains("\"measuredBurn\":", after.Details);
 
+        // Opening it again today redoes today's: the same period, from the burn before it.
         var next = await client.GetFromJsonAsync<JsonElement>("/api/recalculate");
-        Assert.Equal(0, next.GetProperty("periodDays").GetInt32());
+        Assert.Equal("2026-10-01", next.GetProperty("from").GetString());
+        Assert.Equal(28, next.GetProperty("periodDays").GetInt32());
+        // The burn before today's is the setup's formula one, now with the lighter activity.
+        Assert.Equal(after.FormulaTdee, next.GetProperty("step").GetProperty("prior").GetInt32());
     }
 
     [Fact]

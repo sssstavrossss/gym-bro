@@ -39,11 +39,17 @@ public sealed record RecalculatePeriod(
             from = earliest;
         }
 
-        var restart = freshStart is DateOnly restarted && restarted > setup ? restarted : setup;
-        var settled = restart.AddDays(BurnEstimate.SettlingDays);
+        var settled = Settled(setup, freshStart);
         var lookback = from.AddDays(-BurnEstimate.LookbackDays);
         var skips = settled > lookback;
         return new RecalculatePeriod(from, to, skips ? settled : lookback, capped, lastStart, skips ? settled : null);
+    }
+
+    /// <summary>The first day a weigh-in counts toward the burn: a week after setup or the latest fresh start.</summary>
+    public static DateOnly Settled(DateOnly setup, DateOnly? freshStart)
+    {
+        var restart = freshStart is DateOnly restarted && restarted > setup ? restarted : setup;
+        return restart.AddDays(BurnEstimate.SettlingDays);
     }
 
     /// <summary>The latest weigh-in on or before <paramref name="asOf"/> that came after a gap of more than 28 days.</summary>

@@ -6,8 +6,9 @@ namespace GymBro.Api.Tests;
 
 /// <summary>
 /// Synthetic people whose real burn is known, recalculating every Monday for 12 weeks. Each
-/// scenario runs many times with different random days, through the period maths the app uses
-/// today (<see cref="AdaptiveTarget"/>) and through the rolling readings (<see cref="BurnReadings"/>).
+/// scenario runs many times with different random days, through the period maths Recalculate used
+/// before (kept here as <c>OldReview</c>) and through the app's review (<see cref="AdaptiveTarget"/>
+/// with the rolling readings, <see cref="BurnReadings"/>).
 /// The body: food beyond the burn goes on as tissue at 7,700 kcal a kg, a big day leaves water and
 /// food that fade over a few days, and the scale wobbles. An under-logger logs a share of what they
 /// eat, so the burn worth learning is the one in logged calories.
@@ -101,7 +102,6 @@ public static class BurnSimulation
         var tissue = 84.0;
         var water = 0.0;
         var weighIns = new List<(DateOnly Date, decimal Kg)>();
-        var days = new List<IntakeDay>();
         var facts = new List<DayFact>();
         var trueIntake = new List<double>();
         var trueBurn = new List<double>();
@@ -130,27 +130,26 @@ public static class BurnSimulation
             {
                 // Monday recalculation, both ways, before this day's food.
                 var period = RecalculatePeriod.For(date, Setup, null, lastStart, null);
-                var review = AdaptiveTarget.Review(
-                    new ReviewInput(period.From, period.To, facts, weighIns.Where(row => row.Date >= period.SlopeFrom && row.Date <= date).ToList(), Person, (int)oldBurn, oldSd),
-                    new HashSet<DateOnly>());
                 var oldBefore = oldBurn;
-                if (review.Measured)
+                if (OldReview(period, date, facts, weighIns, (int)oldBurn, oldSd) is { } old)
                 {
-                    oldBurn = review.Burn;
-                    oldSd = review.BurnSdKcal;
+                    oldBurn = old.Burn;
+                    oldSd = old.Sd;
                     lastStart = date;
                     oldMeasured++;
                 }
 
                 oldSteps.Add(Math.Abs((double)(oldBurn - oldBefore)));
 
-                var window = BurnReadings.Measure(date, Setup.AddDays(BurnEstimate.SettlingDays), weighIns, days, newBurn);
+                // The app's own review, as Recalculate runs it.
+                var review = AdaptiveTarget.Review(
+                    new ReviewInput(period.From, period.To, date, RecalculatePeriod.Settled(Setup, null), facts, weighIns, Person, (int)newBurn, (int)newSd, date.DayNumber - newLast.DayNumber),
+                    new HashSet<DateOnly>());
                 var newBefore = newBurn;
-                if (window.Burn is not null)
+                if (review.Measured)
                 {
-                    var step = BurnReadings.Step(newBurn, newSd, date.DayNumber - newLast.DayNumber, window);
-                    newBurn = Math.Max(step.Burn, Bmr);
-                    newSd = step.BurnSd;
+                    newBurn = review.Burn;
+                    newSd = review.BurnSdKcal;
                     newLast = date;
                     newMeasured++;
                 }
@@ -183,7 +182,6 @@ public static class BurnSimulation
             trueBurn.Add(burnToday);
             var missed = random.NextDouble() < scenario.MissedDays;
             decimal? logged = missed ? null : (decimal)Math.Round(eaten * (1 - scenario.UnderLog));
-            days.Add(new IntakeDay(date, logged, target));
             facts.Add(new DayFact(date, logged ?? 0, logged is not null, target));
 
             tissue += (eaten - burnToday) / 7700;
@@ -191,6 +189,36 @@ public static class BurnSimulation
         }
 
         return new Run1(oldError, newError, oldSteps, newSteps, oldMeasured, newMeasured, maxShare);
+    }
+
+    /// <summary>
+    /// The maths Recalculate used before the rolling readings: a least-squares slope through the
+    /// period's weigh-ins, the period's average intake, and an uncapped Kalman step. Null when it
+    /// couldn't measure (fewer than 7 logged days, or too few weigh-ins).
+    /// </summary>
+    private static (decimal Burn, int Sd)? OldReview(
+        RecalculatePeriod period,
+        DateOnly today,
+        List<DayFact> facts,
+        List<(DateOnly Date, decimal Kg)> weighIns,
+        int prior,
+        int priorSd)
+    {
+        var counted = facts.Where(fact => fact.Date >= period.From && fact.Date <= period.To && fact.HasLog).ToList();
+        var fit = BurnEstimate.Fit(weighIns.Where(row => row.Date >= period.SlopeFrom && row.Date <= today).ToList());
+        if (counted.Count < 7 || fit is null)
+        {
+            return null;
+        }
+
+        var measured = counted.Average(fact => fact.LoggedKcal) - fit.SlopeKgPerDay * NutritionMath.KcalPerKg;
+        var measuredSd = fit.SlopeSeKgPerDay * NutritionMath.KcalPerKg;
+        var weeks = (period.To.DayNumber - period.From.DayNumber + 1) / 7m;
+        var variance = BurnEstimate.SpreadAfter(priorSd, weeks);
+        variance *= variance;
+        var gain = variance / (variance + measuredSd * measuredSd);
+        var burn = Math.Max(prior + gain * (measured - prior), Bmr);
+        return (Math.Round(burn), (int)Math.Round(Math.Sqrt((double)((1 - gain) * variance))));
     }
 
     private static bool Weighs(Scale scale, int day, Random random) => scale switch

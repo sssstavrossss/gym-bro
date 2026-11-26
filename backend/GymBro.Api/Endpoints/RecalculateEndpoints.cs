@@ -268,37 +268,59 @@ public static class RecalculateEndpoints
             .Where(day => day.Real && day.WeighInKg is not null)
             .Select(day => (day.Date, Kg: day.WeighInKg!.Value))
             .ToList();
-        var lastStart = history.LastOrDefault(row => row.Reasons.Any(RecalculationReasons.StartsPeriod));
+        // Recalculating again today redoes today's recalculation: the same period, from the burn before it.
+        var priorRow = current;
+        if (current.EffectiveDate == today && current.Reasons.Any(RecalculationReasons.IsRecalculation))
+        {
+            priorRow = history.LastOrDefault(row => row.EffectiveDate < today) ?? current;
+        }
+
+        var lastStart = history.LastOrDefault(row => row.EffectiveDate <= priorRow.EffectiveDate && row.Reasons.Any(RecalculationReasons.StartsPeriod));
+        var freshStart = RecalculatePeriod.LatestFreshStart(weighIns, today);
         var period = RecalculatePeriod.For(
             today,
             created,
             firstLog,
             lastStart?.EffectiveDate,
-            RecalculatePeriod.LatestFreshStart(weighIns, today));
+            freshStart);
 
-        var facts = new List<DayFact>();
-        if (period.From <= period.To)
+        // The burn reads a rolling window that can reach back further than the period.
+        var factsFrom = today.AddDays(-(BurnReadings.SparseWindowDays + 1));
+        if (period.From < factsFrom)
         {
-            var rawLogs = await db.LogEntries.AsNoTracking()
-                .Where(row => row.UserId == userId && row.DeletedAt == null && row.LocalDate >= period.From && row.LocalDate <= period.To)
-                .Select(row => new { row.LocalDate, row.Kcal })
-                .ToListAsync(cancellationToken);
-            var byDay = rawLogs
-                .GroupBy(row => row.LocalDate)
-                .ToDictionary(group => group.Key, group => group.Sum(row => row.Kcal));
-            for (var day = period.From; day <= period.To; day = day.AddDays(1))
-            {
-                var target = history.LastOrDefault(row => row.EffectiveDate <= day);
-                var logged = byDay.TryGetValue(day, out var kcal);
-                facts.Add(new DayFact(day, kcal, logged, target?.Kcal));
-            }
+            factsFrom = period.From;
         }
 
-        var slope = weighIns.Where(row => row.Date >= period.SlopeFrom && row.Date <= today).ToList();
+        var facts = new List<DayFact>();
+        var rawLogs = await db.LogEntries.AsNoTracking()
+            .Where(row => row.UserId == userId && row.DeletedAt == null && row.LocalDate >= factsFrom && row.LocalDate <= period.To)
+            .Select(row => new { row.LocalDate, row.Kcal })
+            .ToListAsync(cancellationToken);
+        var byDay = rawLogs
+            .GroupBy(row => row.LocalDate)
+            .ToDictionary(group => group.Key, group => group.Sum(row => row.Kcal));
+        for (var day = factsFrom; day <= period.To; day = day.AddDays(1))
+        {
+            var target = history.LastOrDefault(row => row.EffectiveDate <= day);
+            var logged = byDay.TryGetValue(day, out var kcal);
+            facts.Add(new DayFact(day, kcal, logged, target?.Kcal));
+        }
+
+        var since = today.DayNumber - (lastStart?.EffectiveDate ?? created).DayNumber;
         var input = ProfileRules.ToInput(profile, weightKg, today.Year);
-        var (prior, priorSd) = TargetBook.CarriedBurn(current, NutritionMath.Calculate(input));
+        var (prior, priorSd) = TargetBook.CarriedBurn(priorRow, NutritionMath.Calculate(input));
         var review = AdaptiveTarget.Review(
-            new ReviewInput(period.From, period.To, facts, slope, input, prior, priorSd),
+            new ReviewInput(
+                period.From,
+                period.To,
+                today,
+                RecalculatePeriod.Settled(created, freshStart),
+                facts,
+                weighIns,
+                input,
+                prior,
+                priorSd,
+                since),
             excluded,
             includeZero);
         return new Built(review, period, input, today, weightKg, null);
@@ -335,14 +357,39 @@ public static class RecalculateEndpoints
                 last = fit.Last,
                 rateKgPerWeek = decimal.Round(fit.RateKgPerWeek, 2, MidpointRounding.AwayFromZero),
             } : null,
+            tier = review.Window.Tier.ToString().ToLowerInvariant(),
+            window = new
+            {
+                from = review.Window.From,
+                to = review.Window.To,
+                weighIns = review.Window.WeighIns,
+            },
+            readings = BurnReadings.Stretches(review.Window.Readings).Select(reading => new
+            {
+                from = reading.From,
+                to = reading.To,
+                days = reading.Days,
+                startKg = decimal.Round(reading.StartKg, 2, MidpointRounding.AwayFromZero),
+                endKg = decimal.Round(reading.EndKg, 2, MidpointRounding.AwayFromZero),
+                expectedKg = decimal.Round(reading.ExpectedKg, 2, MidpointRounding.AwayFromZero),
+                ateKcal = NutritionMath.Round(reading.AteKcal),
+                burn = NutritionMath.Round(reading.Burn),
+                loggedShare = decimal.Round(reading.LoggedShare, 2, MidpointRounding.AwayFromZero),
+                bigDayBefore = reading.BigDayBefore,
+                bloated = reading.Bloated,
+                sure = reading.Sure,
+            }),
             step = review.Step is { } step ? new
             {
                 prior = NutritionMath.Round(step.Prior),
-                measured = NutritionMath.Round(step.Measured),
-                measuredSd = NutritionMath.Round(step.MeasuredSd),
+                measured = NutritionMath.Round(step.Target),
+                measuredSd = NutritionMath.Round(step.TargetSd),
                 burn = NutritionMath.Round(step.Burn),
                 gain = decimal.Round(step.Gain, 2, MidpointRounding.AwayFromZero),
+                cap = NutritionMath.Round(step.Cap),
+                capped = step.Capped,
             } : null,
+            farShare = review.FarShare is decimal far ? decimal.Round(far, 2, MidpointRounding.AwayFromZero) : (decimal?)null,
             burn = review.Burn,
             burnSdKcal = review.BurnSdKcal,
             proposed = Target(review.Proposed),

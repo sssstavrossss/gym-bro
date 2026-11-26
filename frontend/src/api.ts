@@ -1253,14 +1253,39 @@ export interface RecalculateFit {
   rateKgPerWeek: number;
 }
 
-/** The confidence-weighted step from the old burn toward the measured one. */
+/** The confidence-weighted step from the old burn toward where the readings point, at most `cap` kcal either way. */
 export interface RecalculateStep {
   prior: number;
+  /** Where the readings point, ± measuredSd. */
   measured: number;
   measuredSd: number;
   burn: number;
   gain: number;
+  cap: number;
+  capped: boolean;
 }
+
+/** A stretch of weigh-ins (about a week; a weekly weigher's are one each): the weight the food in between predicts, and the burn the change implies. */
+export interface BurnReading {
+  from: string;
+  to: string;
+  days: number;
+  startKg: number;
+  endKg: number;
+  /** The weight the food in between predicts with the burn before this recalculation. */
+  expectedKg: number;
+  ateKcal: number;
+  burn: number;
+  /** The share of its days with a log; the rest are filled with the average logged day. */
+  loggedShare: number;
+  bigDayBefore: boolean;
+  /** The big day before it counts against it: it isn't a weekly habit. */
+  bloated: boolean;
+  sure: boolean;
+}
+
+/** regular: 4+ weigh-ins in 28 days. sparse: fewer, but 2+ in 56 days (looks back 8 weeks, moves at most 3%). rare: not measured. */
+export type BurnTier = "regular" | "sparse" | "rare";
 
 export interface RecalculateReview {
   from: string;
@@ -1279,9 +1304,15 @@ export interface RecalculateReview {
   weighInsNeeded: number;
   averageKcal: number | null;
   fit: RecalculateFit | null;
+  tier: BurnTier;
+  /** The weigh-ins the burn reads: the last 4 weeks, or 8 when there are few, from the end of the settling week. */
+  window: { from: string; to: string; weighIns: number };
+  readings: BurnReading[];
   step: RecalculateStep | null;
   burn: number;
   burnSdKcal: number;
+  /** How far the burn is from the formula's, as a share (0.28 = 28% above), when that is more than 25%. */
+  farShare: number | null;
   proposed: RecalculateNumbers;
   formula: RecalculateNumbers;
   /** The target with every low day counted, and with every one left out. Null without low days. */
@@ -1356,6 +1387,16 @@ export interface TargetRecalculationDetails {
   measuredSd: number | null;
   priorBurn: number | null;
   stepPercent: number | null;
+  /** Saved from the rolling readings on; older rows leave these out. */
+  readings?: number | null;
+  lessSure?: number | null;
+  tier?: BurnTier | null;
+  burn?: number | null;
+  burnSd?: number | null;
+  capKcal?: number | null;
+  capped?: boolean | null;
+  formulaBurn?: number | null;
+  far?: boolean | null;
 }
 
 export interface TargetProfileChange {

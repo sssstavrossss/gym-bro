@@ -6,6 +6,7 @@ public sealed record IntakeDay(DateOnly Date, decimal? Kcal, int? TargetKcal);
 /// <summary>
 /// What one weigh-in says, compared with the one before it: the weight the food in between
 /// predicts with the current burn, the burn the change actually implies, and how sure it is.
+/// <see cref="Bloated"/>: the big day before it counts against it (it isn't the person's habit).
 /// </summary>
 public sealed record BurnReading(
     DateOnly From,
@@ -18,6 +19,7 @@ public sealed record BurnReading(
     decimal Burn,
     decimal LoggedShare,
     bool BigDayBefore,
+    bool Bloated,
     bool Sure);
 
 /// <summary>How often someone weighs in decides how far back the burn looks and how far it may move.</summary>
@@ -163,6 +165,65 @@ public static class BurnReadings
     }
 
     /// <summary>
+    /// The readings joined into stretches of at least <paramref name="minDays"/> days, oldest first,
+    /// as Recalculate and the history show them. A day-to-day change is mostly water, so a daily
+    /// weigher's readings show a week at a time; weekly or rarer ones stay as they are. Stretches end
+    /// at the latest weigh-in, and a short one left at the start joins the next. A big day before a
+    /// weigh-in in the middle washes out, so only the last one's counts; the stretch is sure when that
+    /// isn't against it and enough of its days are logged.
+    /// </summary>
+    public static IReadOnlyList<BurnReading> Stretches(IReadOnlyList<BurnReading> readings, int minDays = 7)
+    {
+        var groups = new List<List<BurnReading>>();
+        var current = new List<BurnReading>();
+        var days = 0;
+        for (var i = readings.Count - 1; i >= 0; i--)
+        {
+            current.Insert(0, readings[i]);
+            days += readings[i].Days;
+            if (days >= minDays)
+            {
+                groups.Insert(0, current);
+                current = [];
+                days = 0;
+            }
+        }
+
+        if (current.Count > 0)
+        {
+            if (groups.Count > 0)
+            {
+                groups[0].InsertRange(0, current);
+            }
+            else
+            {
+                groups.Add(current);
+            }
+        }
+
+        return groups.Select(Join).ToList();
+    }
+
+    private static BurnReading Join(List<BurnReading> parts)
+    {
+        if (parts.Count == 1)
+        {
+            return parts[0];
+        }
+
+        var first = parts[0];
+        var last = parts[^1];
+        var days = parts.Sum(part => part.Days);
+        var ate = parts.Sum(part => part.AteKcal);
+        var share = parts.Sum(part => part.LoggedShare * part.Days) / days;
+        // Each part's expected weight is its start plus its food less the burn, so they add up.
+        var expected = first.StartKg + parts.Sum(part => part.ExpectedKg - part.StartKg);
+        var burn = (ate - (last.EndKg - first.StartKg) * NutritionMath.KcalPerKg) / days;
+        return new BurnReading(first.From, last.To, days, first.StartKg, last.EndKg, expected, ate, burn, share,
+            last.BigDayBefore, last.Bloated, !last.Bloated && share >= SureLoggedShare);
+    }
+
+    /// <summary>
     /// Moves the burn toward the window's result by how sure each is (a Kalman step), and never
     /// past the tier's cap. The current burn grows less sure each week it goes unmeasured. The
     /// window overlaps the last one, so its spread is widened by how few of its days are new:
@@ -292,7 +353,8 @@ public static class BurnReadings
             var big = BigDayBefore(to, byDate);
             var expected = startKg + (ate - currentBurn * days) / NutritionMath.KcalPerKg;
             var burn = (ate - (endKg - startKg) * NutritionMath.KcalPerKg) / days;
-            readings.Add(new BurnReading(from, to, days, startKg, endKg, expected, ate, burn, share, big, !(big && !habit) && share >= SureLoggedShare));
+            var bloated = big && !habit;
+            readings.Add(new BurnReading(from, to, days, startKg, endKg, expected, ate, burn, share, big, bloated, !bloated && share >= SureLoggedShare));
         }
 
         return readings;

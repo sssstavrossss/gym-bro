@@ -42,7 +42,7 @@ test("without enough data the burn is kept, and saving still writes the target",
   await expect(sheet).toBeVisible();
   const burn = sheet.locator("[data-burn-card]");
   await expect(burn.getByRole("heading", { name: "Your burn was kept" })).toBeVisible();
-  await expect(burn.getByRole("status")).toContainText("Fewer than 7 days");
+  await expect(burn.getByRole("status")).toContainText("Weigh in at least once a week");
   await expect(burn.locator("[data-kept-burn]")).toBeVisible();
   await expect(sheet.locator("[data-low-days]")).toHaveCount(0);
   // The burn is still the formula's, so there is nothing different to offer.
@@ -108,8 +108,11 @@ test.describe("measured", () => {
 
     const burn = sheet.locator("[data-burn-card]");
     await expect(burn.getByRole("heading", { name: "How your burn was measured" })).toBeVisible();
-    await expect(burn.locator("[data-measured-burn]")).toContainText(/[\d,]+ ± [\d,]+/);
-    await expect(burn.locator("[data-burn-step]")).toContainText(/moved \d+% of the way/);
+    await expect(burn.locator("[data-measured-burn]")).toContainText(/Readings point to.*[\d,]+ ± [\d,]+/s);
+    // Two weeks of near-daily weigh-ins after the settling week, shown a week at a time.
+    await expect(burn.locator("[data-reading]")).toHaveCount(2);
+    await expect(burn.locator("[data-reading]").first()).toContainText(/Expected [\d.]+, weighed [\d.]+ kg/);
+    await expect(burn.locator("[data-burn-step]")).toContainText(/moved \d+% of the way|Moved [\d,]+ of [\d,]+ kcal: a burn moves at most 5% per update/);
     await expect(sheet.locator("[data-recalc-formula]")).toBeVisible();
 
     await low.getByRole("button", { name: "Change" }).click();
@@ -127,11 +130,12 @@ test.describe("measured", () => {
     await history.scrollIntoViewIfNeeded();
     const top = history.locator("[data-history-item='row']").first();
     await expect(top).toContainText("Recalculated");
-    await expect(top).toContainText(/Burn [\d,]+ → [\d,]+/);
+    await expect(top).toContainText(/Burn [\d,]+( → [\d,]+| · moved [\d,]+ of [\d,]+ \(5% cap\))/);
     await expect(top.locator("[data-change-chip]")).toBeVisible();
     await top.getByRole("button").click();
     const details = top.locator("[data-history-details]");
-    await expect(details).toContainText("Measured burn");
+    await expect(details).toContainText("Readings point to");
+    await expect(details).toContainText("Usual for you");
     await expect(details).toContainText("3 low");
     await expect(details).toContainText("Weigh-ins");
   });

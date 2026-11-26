@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { TargetHistoryRow } from "../src/api";
-import { changeChip, changeLabel, detailRows, historyItems, historySub, historyTitle, type HistoryUnits } from "../src/lib/targetHistory";
+import { changeChip, changeLabel, detailRows, historyFar, historyItems, historySub, historyTitle, type HistoryUnits } from "../src/lib/targetHistory";
 
 const units: HistoryUnits = {
   weight: (kg) => String(kg),
@@ -70,6 +70,39 @@ describe("history rows", () => {
       ["Macros", "P167 · F57 · C215"],
     ]);
     expect(detailRows(row({}), units)).toEqual([]);
+  });
+
+  it("explains a recalculation saved from the rolling readings", () => {
+    const base = {
+      from: "2026-11-16", to: "2026-11-22", periodDays: 7, countedDays: 7, lowDays: 0, lowCounted: 0, measured: true,
+      weighIns: 8, rateKgPerWeek: -0.4, averageKcal: 2214, measuredBurn: 2880, measuredSd: 210, priorBurn: 3050, stepPercent: 90,
+      readings: 7, lessSure: 1, tier: "regular" as const, burn: 2900, burnSd: 210, capKcal: 153, capped: true, formulaBurn: 2500, far: false,
+    };
+    const capped = row({ burn: 2900, previousBurn: 3050, recalculation: base });
+    expect(historySub(capped, units)).toBe("Burn 2,900 · moved 150 of 170 (5% cap)");
+    expect(historyFar(capped)).toBeNull();
+    expect(detailRows(capped, units)).toEqual([
+      ["Period", "16 – 22 Nov"],
+      ["Days counted", "7 of 7"],
+      ["Weigh-ins", "8 · 1 less sure"],
+      ["Ate", "2,214 a day"],
+      ["Readings point to", "2,880 ± 210"],
+      ["Burn", "3,050 → 2,900"],
+      ["Range", "2,690–3,110"],
+      ["Usual for you", "2,500"],
+      ["Macros", "P167 · F57 · C215"],
+    ]);
+
+    const far = row({ burn: 3200, recalculation: { ...base, measuredBurn: 3330, measuredSd: 300, burn: 3200, burnSd: 400, lessSure: 0, far: true } });
+    expect(historyFar(far)).toBeCloseTo(0.28, 6);
+    expect(historySub(far, units)).toBe("Burn 3,200 · well above usual");
+    const rows = detailRows(far, units);
+    expect(rows).toContainEqual(["Weigh-ins", "8 · all sure"]);
+    expect(rows).toContainEqual(["Range", "2,800–3,600 (wide)"]);
+    expect(rows).toContainEqual(["Usual for you", "2,500 · burn 28% above"]);
+
+    // Not capped: the plain move.
+    expect(historySub(row({ burn: 2990, previousBurn: 3050, recalculation: { ...base, burn: 2990, capped: false } }), units)).toBe("Burn 3,050 → 2,990");
   });
 });
 
