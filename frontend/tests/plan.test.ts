@@ -17,6 +17,7 @@ import {
   prescription,
   previewSummary,
   splitFor,
+  splitsFor,
   stepMinutes,
   toggled,
   workoutLine,
@@ -38,8 +39,16 @@ describe("plan setup", () => {
     });
   });
 
+  it("gives Hyrox its own split, and the others don't take it", () => {
+    expect(splitFor(2, "hyrox")).toBe("hyrox");
+    expect(splitFor(5, "hyrox")).toBe("hyrox");
+    expect(splitsFor("hyrox").map((item) => item.id)).toEqual(["custom", "hyrox"]);
+    expect(splitsFor("muscle").map((item) => item.id)).not.toContain("hyrox");
+    expect(splitsFor("muscle").map((item) => item.id)).toContain("custom");
+  });
+
   it("picks the split from the days, as the server does", () => {
-    expect([1, 2, 3, 4, 5, 6, 7].map(splitFor)).toEqual([
+    expect([1, 2, 3, 4, 5, 6, 7].map((days) => splitFor(days))).toEqual([
       "full_body", "full_body", "full_body", "upper_lower", "ppl_upper_lower", "push_pull_legs", "push_pull_legs",
     ]);
   });
@@ -86,6 +95,22 @@ describe("plan lines", () => {
   it("sums the plan", () => {
     expect(planLine({ goal: "muscle", split: "upper_lower", weekdays: [0, 1, 3, 4], minutes: 60 })).toBe("Muscle · Upper / Lower · 4 days · 60 min");
     expect(planLine({ goal: "fitness", split: "full_body", weekdays: [2], minutes: 30 })).toBe("Fitness · Full body · 1 day · 30 min");
+    expect(planLine({ goal: "hyrox", split: "hyrox", weekdays: [0, 2, 4], minutes: 45 })).toBe("Hyrox · 3 days · 45 min");
+  });
+
+  it("counts a circuit in rounds", () => {
+    const stations: PlanWorkout = {
+      id: "s", name: "Stations A", minutes: 45,
+      exercises: [
+        { exerciseId: "run", sets: 2, repMin: null, repMax: null, seconds: null, restSeconds: 0, metres: 1000, format: "for_time" },
+        { exerciseId: "skierg", sets: 2, repMin: null, repMax: null, seconds: null, restSeconds: 0, metres: 500, superset: true },
+        { exerciseId: "wall-ball", sets: 2, repMin: 20, repMax: 20, seconds: null, restSeconds: 0, superset: true },
+      ],
+    };
+    expect(workoutLine(stations)).toBe("3 exercises · 2 rounds · ~45 min");
+    // Done on the clock, so no reps in reserve.
+    expect(weekLine({ week: 1, rir: 3, lighter: false, workout: stations }, 6)).toBe("Week 1 of 6");
+    expect(weekLine({ week: 1, rir: 3, lighter: false, workout: workout("Upper A", [3]) }, 6)).toBe("Week 1 of 6 · 3 reps in reserve");
   });
 
   it("sums the preview with rounded averages", () => {
@@ -103,6 +128,9 @@ describe("plan lines", () => {
     expect(prescription({ exerciseId: "a", sets: 3, repMin: 6, repMax: 10, seconds: null, restSeconds: 120 })).toBe("3 × 6–10");
     expect(prescription({ exerciseId: "b", sets: 3, repMin: null, repMax: null, seconds: 45, restSeconds: 60 })).toBe("3 × 45 s");
     expect(prescription({ exerciseId: "c", sets: 2, repMin: null, repMax: null, seconds: null, restSeconds: 60 })).toBe("2 sets");
+    expect(prescription({ exerciseId: "run", sets: 4, repMin: null, repMax: null, seconds: null, restSeconds: 90, metres: 1000 })).toBe("4 × 1 km");
+    expect(prescription({ exerciseId: "sled-push", sets: 2, repMin: null, repMax: null, seconds: null, restSeconds: 0, metres: 25 })).toBe("2 × 25 m");
+    expect(prescription({ exerciseId: "wall-ball", sets: 3, repMin: 20, repMax: 20, seconds: null, restSeconds: 0 })).toBe("3 × 20");
   });
 });
 
@@ -162,9 +190,13 @@ describe("up next", () => {
 
   it("gives each exercise its target", () => {
     const target = targetOf({ exerciseId: "a", sets: 3, repMin: 6, repMax: 10, seconds: null, restSeconds: 120 }, { rir: 2 });
-    expect(target).toEqual({ repMin: 6, repMax: 10, seconds: null, rir: 2, restSeconds: 120, easing: false });
+    expect(target).toEqual({ repMin: 6, repMax: 10, seconds: null, metres: null, rir: 2, restSeconds: 120, easing: false });
     expect(targetLine(target)).toBe("6–10 reps · 2 in reserve");
     expect(targetLine({ ...target, repMin: null, repMax: null, seconds: 45 })).toBe("45 s hold");
+    expect(targetLine({ ...target, repMin: null, repMax: null, metres: 1000 })).toBe("1 km");
+    expect(targetLine({ ...target, repMin: 20, repMax: 20 })).toBe("20 reps · 2 in reserve");
+    expect(targetLine(targetOf({ exerciseId: "wall-ball", sets: 3, repMin: 20, repMax: 20, seconds: null, restSeconds: 0, superset: true }, { rir: 2 })))
+      .toBe("20 reps");
   });
 });
 

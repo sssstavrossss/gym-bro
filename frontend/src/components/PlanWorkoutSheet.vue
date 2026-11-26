@@ -16,7 +16,8 @@ import {
   MAX_SECONDS,
   MAX_SETS,
   MIN_SECONDS,
-  moved,
+  movedExercise,
+  removed,
   prescribedBy,
   restLine,
   sameExercises,
@@ -70,20 +71,23 @@ const title = computed(() => {
   if (view.value === "swap" && swapIndex.value != null) return `Swap ${nameOf(list.value[swapIndex.value]?.exerciseId ?? "")}`;
   return source.value ? `Edit ${source.value.name}` : "Edit workout";
 });
-const line = (item: PlanExercise) => [prescription(item), restLine(item.restSeconds)].join(" · ");
+/** In a circuit (a Hyrox station round) there's no rest between exercises: the line says it's a circuit instead. */
+const inCircuit = (index: number) => !!list.value[index]?.superset || !!list.value[index + 1]?.superset;
+const line = (item: PlanExercise, index: number) =>
+  [prescription(item), item.format ? "Circuit, for time" : inCircuit(index) ? "Circuit" : restLine(item.restSeconds)].join(" · ");
 
 function update(index: number, next: PlanExercise) {
   list.value = list.value.map((item, at) => (at === index ? next : item));
 }
 
 function move(index: number, by: -1 | 1) {
-  list.value = moved(list.value, index, by);
+  list.value = movedExercise(list.value, index, by);
   openIndex.value = index + by;
 }
 
 function remove(index: number) {
   const name = nameOf(list.value[index].exerciseId);
-  list.value = list.value.filter((_, at) => at !== index);
+  list.value = removed(list.value, index);
   openIndex.value = null;
   toast(`Removed ${name}`);
 }
@@ -117,7 +121,9 @@ function swapTo(id: string) {
   }
   const fresh = defaultPrescription(item, plan.current);
   const sameKind = measureOf(before.exerciseId) === prescribedBy(item.measure);
-  update(index, sameKind ? { ...before, exerciseId: id } : { ...fresh, sets: before.sets });
+  // A swap stays in its circuit, with the circuit's rest.
+  const circuit = { superset: before.superset, format: before.format, ...(inCircuit(index) ? { restSeconds: before.restSeconds } : {}) };
+  update(index, sameKind ? { ...before, exerciseId: id } : { ...fresh, sets: before.sets, ...circuit });
   toast(`Swapped ${nameOf(before.exerciseId)} for ${item.name}`);
   view.value = "edit";
   swapIndex.value = null;
@@ -172,7 +178,7 @@ function back() {
           <button type="button" class="row phead" :aria-expanded="openIndex === index" @click="openIndex = openIndex === index ? null : index">
             <span class="col grow g2">
               <span class="t-body pname">{{ nameOf(item.exerciseId) }}</span>
-              <span class="t-capn c2" data-plan-exercise-line>{{ line(item) }}</span>
+              <span class="t-capn c2" data-plan-exercise-line>{{ line(item, index) }}</span>
             </span>
             <Icon name="down" :size="16" class="c3 chev" :class="{ flip: openIndex === index }" />
           </button>

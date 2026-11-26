@@ -68,6 +68,14 @@ describe("hints and ticking", () => {
     expect(setHints(exercise("b"), 0, [])).toEqual({ kg: null, reps: null, rir: null, seconds: null, metres: null });
   });
 
+  it("hints a plan circuit's distance and set reps, with no reps in reserve", () => {
+    const target = { repMin: null, repMax: null, seconds: null, metres: 1000, rir: 2, restSeconds: 0, circuit: true };
+    const run = { ...exercise("r", [emptySet()]), exerciseId: "run", target };
+    expect(setHints(run, 0, [])).toMatchObject({ metres: 1000, rir: null });
+    const wall = { ...exercise("w", [emptySet()]), exerciseId: "wall-ball", target: { ...target, metres: null, repMin: 20, repMax: 20 } };
+    expect(setHints(wall, 0, [])).toMatchObject({ reps: 20, metres: null, rir: null });
+  });
+
   it("hints the suggested weight on working sets until one is done today, and not after a warm-up", () => {
     const squat = exercise("a", [emptySet("warmup"), emptySet(), emptySet()]);
     const up = { kg: 82.5, reps: 6 };
