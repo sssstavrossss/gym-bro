@@ -91,6 +91,14 @@ describe("estimateMinutes", () => {
     expect(estimateMinutes([], 20)).toBe(5);
   });
 
+  it("counts an EMOM or AMRAP by its minutes", () => {
+    const swing = { exerciseId: "kettlebell-swing", sets: 10, repMin: 15, repMax: 15, seconds: null, restSeconds: 0, format: "emom" as const, minutes: 10 };
+    const pushups = { exerciseId: "pushups", sets: 10, repMin: 5, repMax: 5, seconds: null, restSeconds: 0, superset: true };
+    // 5 min warm-up, 3 × (40 s + 3 min) + 1 min, then 10 min and a minute: 28 min, to the nearest 5.
+    expect(estimateMinutes([lift, swing, pushups], 45)).toBe(30);
+    expect(sameExercises([swing], [{ ...swing, minutes: 12 }])).toBe(false);
+  });
+
   it("counts a distance's time as the server does", () => {
     const run = { exerciseId: "run", sets: 1, repMin: null, repMax: null, seconds: null, restSeconds: 0 };
     expect(workSeconds({ ...run, metres: 1000 })).toBe(300);

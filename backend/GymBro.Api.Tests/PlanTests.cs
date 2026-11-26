@@ -121,6 +121,42 @@ public sealed class PlanRulesTests
     }
 
     [Fact]
+    public void A_kettlebell_plan_ends_each_workout_with_a_finisher_on_the_clock()
+    {
+        var workouts = Generate(Request(goal: "fitness", days: [0, 2, 4], minutes: 45, equipment: ["kettlebells"]));
+        // A: a swing EMOM, a set each minute. The swing is the A workout's hinge, so the one-arm swing stands in.
+        var a = workouts[0].Exercises;
+        var emom = a.SkipWhile(item => item.Format is null).ToList();
+        Assert.Equal("emom", emom[0].Format);
+        Assert.Equal(10, emom[0].Minutes);
+        Assert.Equal(10, emom[0].Sets);
+        Assert.False(emom[0].Superset);
+        Assert.All(emom.Skip(1), item => Assert.True(item.Superset));
+        Assert.Contains(emom[0].ExerciseId, new[] { "kettlebell-swing", "one-arm-kettlebell-swings" });
+        Assert.Equal("pushups", emom[1].ExerciseId);
+        Assert.All(emom, item => Assert.Equal((0, item.RepMin), (item.RestSeconds, item.RepMax)));
+        Assert.Equal(a.Count, a.Select(item => item.ExerciseId).Distinct().Count());
+
+        // B: an AMRAP of a clean, a press and a squat.
+        var amrap = workouts[1].Exercises.SkipWhile(item => item.Format is null).ToList();
+        Assert.Equal(("amrap", 8, 3), (amrap[0].Format, amrap[0].Minutes, amrap[0].Sets));
+        Assert.Equal(3, amrap.Count);
+        Assert.Equal("one-arm-kettlebell-clean", amrap[0].ExerciseId);
+
+        // The finisher's minutes come out of the workout's time, so it still fits.
+        Assert.All(workouts, workout => Assert.InRange(workout.Minutes, 30, 50));
+        Assert.Equal(workouts[0].Minutes, PlanGenerator.Minutes(a, 45));
+
+        // Experience sets the minutes; short workouts, more kit or Hyrox have none; going easy swaps the swing.
+        Assert.Equal(12, Generate(Request(days: [0, 2, 4], experience: "experienced", equipment: ["kettlebells"]))[0].Exercises.Single(item => item.Format is not null).Minutes);
+        Assert.DoesNotContain(Generate(Request(days: [0, 2, 4], minutes: 25, equipment: ["kettlebells"])).SelectMany(item => item.Exercises), item => item.Format is not null);
+        Assert.DoesNotContain(Generate(Request(days: [0, 2, 4], equipment: ["kettlebells", "dumbbells"])).SelectMany(item => item.Exercises), item => item.Format is not null);
+        var back = Generate(Request(days: [0, 2, 4], equipment: ["kettlebells"], goEasy: ["lower-back"]));
+        Assert.Equal("amrap", back[1].Exercises.Single(item => item.Format is not null).Format);
+        Assert.DoesNotContain(back.SelectMany(item => item.Exercises), item => item.ExerciseId.Contains("swing") || item.ExerciseId.Contains("clean"));
+    }
+
+    [Fact]
     public void A_hyrox_plan_stands_in_for_stations_the_kit_or_a_go_easy_area_rules_out()
     {
         var home = Generate(Request(goal: "hyrox", days: [0, 2, 4], equipment: ["kettlebells"]));
@@ -435,7 +471,9 @@ public sealed class PlanEndpointTests(ApiFactory factory)
         Assert.Contains(PlanEdits.BadMetres, await Refused(new { exercises = new[] { new { exerciseId = "barbell-squat", sets = 3, repMin = 5, repMax = 8, restSeconds = 120, metres = 100 } } }));
         Assert.Contains(PlanEdits.BadMetres, await Refused(new { exercises = new[] { new { exerciseId = "run", sets = 1, restSeconds = 0, metres = 50_000 } } }));
         Assert.Contains(PlanEdits.BadCircuit, await Refused(new { exercises = new[] { new { exerciseId = "run", sets = 1, restSeconds = 0, superset = true } } }));
-        Assert.Contains(PlanEdits.BadCircuit, await Refused(new { exercises = new[] { new { exerciseId = "run", sets = 1, restSeconds = 0, format = "amrap" } } }));
+        Assert.Contains(PlanEdits.BadCircuit, await Refused(new { exercises = new[] { new { exerciseId = "run", sets = 1, restSeconds = 0, format = "tabata" } } }));
+        Assert.Contains(PlanEdits.BadClock, await Refused(new { exercises = new[] { new { exerciseId = "run", sets = 1, restSeconds = 0, format = "amrap" } } }));
+        Assert.Contains(PlanEdits.BadClock, await Refused(new { exercises = new[] { new { exerciseId = "run", sets = 1, restSeconds = 0, format = "for_time", minutes = 10 } } }));
 
         // Someone else's plan, or a workout not in it, isn't there.
         var other = factory.AsUser(TestData.NewUser("plan-edit-other"));

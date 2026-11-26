@@ -4,7 +4,8 @@ namespace GymBro.Api.Training;
 /// One exercise in a plan workout: how many working sets, the rep range (or seconds, for a hold, or metres, for a
 /// run or a carry) and the rest. The load is not set here: the first session asks for a weight that leaves about 3
 /// reps (docs/training.md, Rules). <paramref name="Superset"/> joins it to the exercise before, as a workout's
-/// superset or circuit; the first of a circuit can carry a clock, <paramref name="Format"/> (a <see cref="BlockFormats"/> value).
+/// superset or circuit; the first of a circuit can carry a clock, <paramref name="Format"/> (a <see cref="BlockFormats"/> value),
+/// and an EMOM's or AMRAP's <paramref name="Minutes"/>.
 /// </summary>
 public sealed record PlanExercise(
     string ExerciseId,
@@ -15,7 +16,8 @@ public sealed record PlanExercise(
     int RestSeconds,
     int? Metres = null,
     bool Superset = false,
-    string? Format = null);
+    string? Format = null,
+    int? Minutes = null);
 
 /// <summary>
 /// A workout in the plan's sequence, like Upper A. Its id is what a session done from it points at.
@@ -92,18 +94,30 @@ public static class PlanGenerator
                 continue;
             }
 
-            var (exercises, seconds) = HyroxPlan.IsConditioning(template)
-                ? HyroxPlan.Fill(template, kit, answers, library, WarmUpFor(answers.Minutes))
-                : Fill(Templates[template], variant, kit, answers, library);
-            workouts.Add(new PlanWorkout(id, name, RoundMinutes(seconds), exercises));
+            if (HyroxPlan.IsConditioning(template))
+            {
+                var (stations, seconds) = HyroxPlan.Fill(template, kit, answers, library, WarmUpFor(answers.Minutes));
+                workouts.Add(new PlanWorkout(id, name, RoundMinutes(seconds), stations));
+                continue;
+            }
+
+            // A kettlebell plan keeps the finisher's minutes free, then ends the workout with it.
+            var finishing = KettlebellFinisher.Applies(kit, answers);
+            var (exercises, _) = Fill(Templates[template], variant, kit, answers, library, finishing ? KettlebellFinisher.Seconds(variant, answers.Experience) : 0);
+            if (finishing)
+            {
+                exercises.AddRange(KettlebellFinisher.For(variant, exercises, answers, library));
+            }
+
+            workouts.Add(new PlanWorkout(id, name, Minutes(exercises, answers.Minutes), exercises));
         }
 
         return workouts;
     }
 
-    private static (List<PlanExercise> Exercises, int Seconds) Fill(Slot[] slots, int variant, IReadOnlySet<string> kit, PlanAnswers answers, ExerciseLibrary library)
+    private static (List<PlanExercise> Exercises, int Seconds) Fill(Slot[] slots, int variant, IReadOnlySet<string> kit, PlanAnswers answers, ExerciseLibrary library, int reserve = 0)
     {
-        var budget = answers.Minutes * 60;
+        var budget = answers.Minutes * 60 - reserve;
         var total = WarmUpFor(answers.Minutes);
         var picked = new List<PlanExercise>();
         var seen = new Dictionary<Slot, int>();
@@ -243,8 +257,35 @@ public static class PlanGenerator
     }
 
     /// <summary>A workout's estimate: the warm-up and each exercise's time, to the nearest 5 minutes.</summary>
-    public static int Minutes(IEnumerable<PlanExercise> exercises, int planMinutes) =>
-        RoundMinutes(WarmUpFor(planMinutes) + exercises.Sum(Duration));
+    public static int Minutes(IReadOnlyList<PlanExercise> exercises, int planMinutes) =>
+        RoundMinutes(WarmUpFor(planMinutes) + Seconds(exercises));
+
+    /// <summary>
+    /// The exercises' time: each one's <see cref="Duration"/>, except that an EMOM or AMRAP block runs for its
+    /// minutes (and a changeover), whatever its sets.
+    /// </summary>
+    public static int Seconds(IReadOnlyList<PlanExercise> exercises)
+    {
+        var total = 0;
+        for (var index = 0; index < exercises.Count; index++)
+        {
+            var item = exercises[index];
+            if (item.Format is BlockFormats.Emom or BlockFormats.Amrap && item.Minutes is { } minutes)
+            {
+                total += minutes * 60 + Changeover;
+                while (index + 1 < exercises.Count && exercises[index + 1].Superset)
+                {
+                    index++;
+                }
+
+                continue;
+            }
+
+            total += Duration(item);
+        }
+
+        return total;
+    }
 
     /// <summary>To the nearest 5 minutes, as "~55 min" shows it.</summary>
     private static int RoundMinutes(int seconds) => Math.Max(5, (int)Math.Round(seconds / 300.0) * 5);

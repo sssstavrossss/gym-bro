@@ -5,7 +5,7 @@ import ExerciseBrowser from "./ExerciseBrowser.vue";
 import Icon from "./Icon.vue";
 import SwapList from "./SwapList.vue";
 import type { PlanExercise } from "../lib/plan";
-import { prescription } from "../lib/plan";
+import { clockLabel, prescription } from "../lib/plan";
 import {
   defaultPrescription,
   estimateMinutes,
@@ -74,7 +74,7 @@ const title = computed(() => {
 /** In a circuit (a Hyrox station round) there's no rest between exercises: the line says it's a circuit instead. */
 const inCircuit = (index: number) => !!list.value[index]?.superset || !!list.value[index + 1]?.superset;
 const line = (item: PlanExercise, index: number) =>
-  [prescription(item), item.format ? "Circuit, for time" : inCircuit(index) ? "Circuit" : restLine(item.restSeconds)].join(" · ");
+  [prescription(item), item.format ? `Circuit, ${clockLabel(item).replace(/^For/, "for")}` : inCircuit(index) ? "Circuit" : restLine(item.restSeconds)].join(" · ");
 
 function update(index: number, next: PlanExercise) {
   list.value = list.value.map((item, at) => (at === index ? next : item));
@@ -122,7 +122,7 @@ function swapTo(id: string) {
   const fresh = defaultPrescription(item, plan.current);
   const sameKind = measureOf(before.exerciseId) === prescribedBy(item.measure);
   // A swap stays in its circuit, with the circuit's rest.
-  const circuit = { superset: before.superset, format: before.format, ...(inCircuit(index) ? { restSeconds: before.restSeconds } : {}) };
+  const circuit = { superset: before.superset, format: before.format, minutes: before.minutes, ...(inCircuit(index) ? { restSeconds: before.restSeconds } : {}) };
   update(index, sameKind ? { ...before, exerciseId: id } : { ...fresh, sets: before.sets, ...circuit });
   toast(`Swapped ${nameOf(before.exerciseId)} for ${item.name}`);
   view.value = "edit";

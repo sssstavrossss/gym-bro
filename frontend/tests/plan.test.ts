@@ -18,6 +18,8 @@ import {
   previewSummary,
   splitFor,
   splitsFor,
+  clockLabel,
+  finisherOf,
   stepMinutes,
   toggled,
   workoutLine,
@@ -108,6 +110,19 @@ describe("plan lines", () => {
       ],
     };
     expect(workoutLine(stations)).toBe("3 exercises · 2 rounds · ~45 min");
+    // A kettlebell finisher counts its minutes, not its sets.
+    const finished: PlanWorkout = {
+      ...workout("Full body A", [3, 3, 3], 45),
+      exercises: [
+        ...workout("x", [3, 3, 3]).exercises,
+        { exerciseId: "kettlebell-swing", sets: 10, repMin: 15, repMax: 15, seconds: null, restSeconds: 0, format: "emom", minutes: 10 },
+        { exerciseId: "pushups", sets: 10, repMin: 5, repMax: 5, seconds: null, restSeconds: 0, superset: true },
+      ],
+    };
+    expect(workoutLine(finished)).toBe("5 exercises · 9 sets + EMOM 10 min · ~45 min");
+    expect(finisherOf(finished)).toEqual({ at: 3, label: "EMOM 10 min" });
+    expect(clockLabel({ format: "amrap", minutes: 8 })).toBe("AMRAP 8 min");
+    expect(weekLine({ week: 2, rir: 2, lighter: false, workout: finished }, 6)).toBe("Week 2 of 6 · 2 reps in reserve");
     // Done on the clock, so no reps in reserve.
     expect(weekLine({ week: 1, rir: 3, lighter: false, workout: stations }, 6)).toBe("Week 1 of 6");
     expect(weekLine({ week: 1, rir: 3, lighter: false, workout: workout("Upper A", [3]) }, 6)).toBe("Week 1 of 6 · 3 reps in reserve");

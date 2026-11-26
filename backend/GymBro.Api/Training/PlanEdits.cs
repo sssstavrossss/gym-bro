@@ -13,7 +13,8 @@ public sealed record PlanExerciseRequest(
     int RestSeconds,
     int? Metres = null,
     bool Superset = false,
-    string? Format = null);
+    string? Format = null,
+    int? Minutes = null);
 
 /// <summary>
 /// Editing one workout of a plan by hand: its exercises, in order, with their sets, reps or hold, and rest. The rules
@@ -42,7 +43,8 @@ public static class PlanEdits
     public static readonly string BadRest = $"Rest is 0 to {MaxRest} seconds.";
     public const int MaxMetres = 42_195;
     public static readonly string BadMetres = $"A distance is 1 to {MaxMetres:N0} metres, for a run, a row or a carry.";
-    public const string BadCircuit = "A circuit joins an exercise to the one before it, and only its first can be done for time.";
+    public const string BadCircuit = "A circuit joins an exercise to the one before it, and only its first can be on the clock.";
+    public static readonly string BadClock = $"An EMOM or AMRAP runs for 1 to {TimedBlocks.MaxMinutes} minutes; for time has no minutes.";
 
     /// <summary>The name to store: the new one trimmed, or the current one when none is sent.</summary>
     public static (string? Name, string? Error) CheckName(string? name, string current)
@@ -115,13 +117,21 @@ public static class PlanEdits
                 return (null, BadMetres);
             }
 
-            // A circuit's first exercise isn't joined to anything, and carries its clock: for time, as plans make it.
-            if ((item.Superset && exercises.Count == 0) || (item.Format is not null && (item.Superset || item.Format != BlockFormats.ForTime)))
+            // A circuit's first exercise isn't joined to anything, and carries its clock: for time, an EMOM or an AMRAP,
+            // as plans make them.
+            if ((item.Superset && exercises.Count == 0)
+                || (item.Format is not null && (item.Superset || item.Format is not (BlockFormats.ForTime or BlockFormats.Emom or BlockFormats.Amrap))))
             {
                 return (null, BadCircuit);
             }
 
-            exercises.Add(new PlanExercise(exercise.Id, item.Sets, item.RepMin, item.RepMax, item.Seconds, item.RestSeconds, item.Metres, item.Superset, item.Format));
+            var clocked = item.Format is BlockFormats.Emom or BlockFormats.Amrap;
+            if (clocked ? item.Minutes is not (>= 1 and <= TimedBlocks.MaxMinutes) : item.Minutes is not null)
+            {
+                return (null, BadClock);
+            }
+
+            exercises.Add(new PlanExercise(exercise.Id, item.Sets, item.RepMin, item.RepMax, item.Seconds, item.RestSeconds, item.Metres, item.Superset, item.Format, item.Minutes));
         }
 
         return (exercises, null);
