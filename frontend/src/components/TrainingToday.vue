@@ -60,7 +60,7 @@ function start() {
       <span class="t-bodys">{{ workout.active?.name ?? "Workout" }} in progress</span>
       <span class="t-capn c2">{{ workout.active ? workoutStatus(workout.active, now) : "" }}</span>
     </span>
-    <button type="button" class="btn sm primary t-label" @click="openWorkout"><Icon name="play" :size="14" /> Resume</button>
+    <button type="button" class="btn sm primary t-label" @click="openWorkout()"><Icon name="play" :size="14" /> Resume</button>
   </section>
 
   <section v-else-if="state === 'today' && next" class="card row tcard" aria-label="Today's workout" data-training-today="today">
@@ -96,13 +96,6 @@ function start() {
 <style scoped>
 .card.tcard { flex-direction: row; gap: var(--space-m); align-items: center; flex-wrap: nowrap; text-align: left; width: 100%; min-width: 0; }
 .ttext { gap: var(--space-2xs); min-width: 0; }
-.tdisc {
-  width: var(--control-hit); height: var(--control-hit); border-radius: 50%; flex: none;
-  display: inline-flex; align-items: center; justify-content: center;
-  background: var(--color-surface-2); color: var(--text-primary);
-}
-.tdisc.done { background: var(--color-action); color: var(--color-on-action); }
-.tdisc.rest { color: var(--text-tertiary); }
 .dt-xl .card.tcard { flex-wrap: wrap; }
 .dt-xl .tcard .btn { flex: 1 1 100%; }
 </style>

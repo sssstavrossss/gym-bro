@@ -7,10 +7,10 @@ import { exercises, loadExercises } from "../state/exercises";
 
 // The exercise library: search, body-area chips and the list. The library sheet opens the how-to from it; the
 // workout sheet adds the picked exercise. `bare` leaves the title to the sheet around it.
-withDefaults(defineProps<{ title: string; titleId: string; action?: "open" | "add" | "swap"; bare?: boolean }>(), { action: "open", bare: false });
+const props = withDefaults(defineProps<{ title: string; titleId: string; action?: "open" | "add" | "swap"; bare?: boolean; startArea?: ExerciseArea; focusSearch?: boolean }>(), { action: "open", bare: false, startArea: "all", focusSearch: true });
 const emit = defineEmits<{ pick: [string] }>();
 const query = ref("");
-const area = ref<ExerciseArea>("all");
+const area = ref<ExerciseArea>(props.startArea);
 const found = computed(() => searchExercises(exercises.items, query.value, area.value));
 /** Thumbnails that failed to load (no photos in development, or offline before they were kept). */
 const broken = reactive(new Set<string>());
@@ -48,7 +48,7 @@ onBeforeUnmount(() => observer?.disconnect());
     <label class="field row">
       <Icon name="search" :size="18" class="c2" />
       <input
-        v-model="query" class="t-body grow" type="search" placeholder="Squat, dumbbell, chest…" aria-label="Search exercises"
+        v-model="query" :data-no-autofocus="focusSearch ? undefined : ''" class="t-body grow" type="search" placeholder="Squat, dumbbell, chest…" aria-label="Search exercises"
         autocomplete="off" enterkeyhint="search"
       />
       <button v-if="query" type="button" class="clr c2" aria-label="Clear search" @click="query = ''"><Icon name="x" :size="16" /></button>

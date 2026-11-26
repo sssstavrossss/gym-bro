@@ -410,6 +410,47 @@ html.dt-xl .preview .panel-title {
   background: var(--color-surface-2); color: var(--text-primary);
 }
 .disc.filled { background: var(--color-action); color: var(--color-on-action); }
+/* The larger disc that leads a training card or row (Home's training card, Train's cards): a 44px circle. */
+.tdisc {
+  width: var(--control-hit); height: var(--control-hit); border-radius: 50%; flex: none;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--color-surface-2); color: var(--text-primary);
+}
+.tdisc.done { background: var(--color-action); color: var(--color-on-action); }
+.tdisc.rest { color: var(--text-tertiary); }
+
+/* A prompt card: a title and caption you can tap, with its actions on the right (Home's "Log your first food
+   today", Train's "Start a workout"). */
+.card.prompt { flex-direction: row; align-items: center; gap: var(--space-m); text-align: left; width: 100%; min-width: 0; }
+.ptext { gap: 2px; min-width: 0; min-height: var(--control-hit); justify-content: center; padding: 0; border: 0; background: none; color: inherit; text-align: left; cursor: pointer; }
+
+/* A group of icon buttons joined into one pill (Add food's + / scan / describe, Start a workout's + / describe).
+   Each is a 44px hit around the 30px face. */
+.apill { --inset: calc((var(--control-hit) - var(--control-chip)) / 2); display: inline-flex; flex: none; margin-block: calc(var(--inset) * -1); }
+.apill button {
+  position: relative; isolation: isolate;
+  width: var(--control-hit); height: var(--control-hit);
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 0; border: 0; background: none; cursor: pointer;
+  color: var(--color-on-action);
+}
+.apill button::before {
+  content: ""; position: absolute; inset: var(--inset) 0; z-index: -1;
+  background: var(--color-action);
+  box-shadow: var(--d-action);
+}
+.apill button:first-child::before { border-radius: var(--radius-pill) 0 0 var(--radius-pill); }
+.apill button:last-child::before { border-radius: 0 var(--radius-pill) var(--radius-pill) 0; }
+.apill button:only-child::before { border-radius: var(--radius-pill); }
+.apill button + button::after {
+  content: ""; position: absolute; left: 0; top: var(--inset); bottom: var(--inset); width: 1px;
+  background: color-mix(in srgb, var(--color-on-action) 22%, transparent);
+}
+@media (hover: hover) {
+  .apill button:hover::before { filter: brightness(1.06); }
+}
+.apill button:active::before { filter: brightness(.94); }
+.apill button:focus-visible { outline: 2px solid var(--text-primary); outline-offset: -2px; border-radius: var(--radius-m); }
 
 /* Chips: options to choose from. .on is the chosen one. Padding keeps the visible face compact; min-height is the touch target. */
 .chip {

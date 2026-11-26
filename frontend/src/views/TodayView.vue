@@ -368,8 +368,6 @@ html.dt-xl .foodhead .foods, html.dt-xl .loghead .foods { overflow: hidden; text
   display: block; line-height: 44px; text-overflow: ellipsis; white-space: nowrap;
   background: none; color: inherit; font: inherit; letter-spacing: inherit; text-align: left;
 }
-.prompt { flex-direction: row; align-items: center; gap: var(--space-m); text-align: left; width: 100%; min-width: 0; }
-.ptext { gap: 2px; min-width: 0; min-height: var(--control-hit); justify-content: center; padding: 0; border: 0; background: none; color: inherit; text-align: left; cursor: pointer; }
 .sk { display: block; height: 12px; width: 40%; border-radius: var(--radius-xs); background: var(--color-surface-2); }
 .logc { min-width: 0; }
 [data-num] { max-width: 100%; overflow-wrap: anywhere; }

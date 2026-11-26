@@ -35,7 +35,7 @@ test("Describe a workout: the words become exercises with their sets ticked off,
   await setup(page);
   await page.goto("/train");
 
-  await page.getByRole("button", { name: "Start", exact: true }).click();
+  await page.getByRole("button", { name: "Empty workout" }).click();
   await page.getByRole("dialog", { name: "Add exercise" }).getByRole("button", { name: "Describe" }).click();
   const sheet = page.getByRole("dialog", { name: "Describe a workout" });
   await expect(sheet).toBeVisible();

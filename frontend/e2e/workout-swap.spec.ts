@@ -34,7 +34,7 @@ test("Swap an exercise: similar ones first, ticked sets stay, the rest move", as
   await page.goto("/");
   await setup(page);
   await page.goto("/train");
-  await page.getByRole("button", { name: "Start", exact: true }).click();
+  await page.getByRole("button", { name: "Empty workout" }).click();
   const adding = page.getByRole("dialog", { name: "Add exercise" });
   await adding.getByLabel("Search exercises").fill("barbell squat");
   await adding.getByRole("button", { name: "Add Barbell Squat", exact: true }).click();

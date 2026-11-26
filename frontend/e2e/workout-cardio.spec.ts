@@ -34,7 +34,7 @@ test("a run saves as cardio with its pace and distance", async ({ page }) => {
   await page.goto("/");
   const oid = await setup(page);
   await page.goto("/train");
-  await page.getByRole("button", { name: "Start", exact: true }).click();
+  await page.getByRole("button", { name: "Empty workout" }).click();
   const adding = page.getByRole("dialog", { name: "Add exercise" });
   await adding.getByLabel("Search exercises").fill("run");
   await adding.getByRole("button", { name: "Add Run", exact: true }).click();

@@ -60,7 +60,8 @@ test("Up next: skip with Undo, start the plan workout prefilled, finish it, and 
   await expect(page.locator("[data-workout-history]")).toContainText("Skipped");
   await page.getByRole("button", { name: "Undo" }).click();
   await expect(next).toContainText("Upper A");
-  await expect(page.locator("[data-workout-history]")).not.toContainText("Skipped");
+  // With nothing left in it, History goes away.
+  await expect(page.locator("[data-workout-history]")).toHaveCount(0);
 
   // Start opens the plan workout with its exercises, sets and targets.
   await next.getByRole("button", { name: "Start Upper A" }).click();

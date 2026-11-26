@@ -35,7 +35,7 @@ test("A workout: start it, add an exercise, tick off sets, rest, finish, and see
   const oid = await setup(page);
   await page.goto("/train");
 
-  await page.getByRole("button", { name: "Start", exact: true }).click();
+  await page.getByRole("button", { name: "Empty workout" }).click();
   const sheet = page.getByRole("dialog", { name: "Add exercise" });
   await expect(sheet).toBeVisible();
   await sheet.getByLabel("Search exercises").fill("barbell bench press");
@@ -76,7 +76,7 @@ test("A workout: start it, add an exercise, tick off sets, rest, finish, and see
   await expect(done.locator("[data-workout-summary]")).toContainText("1,200 kg");
   await expect(done.locator("[data-workout-summary]")).toContainText("60 kg × 10, 10");
   await done.getByRole("button", { name: "Done", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Start", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Empty workout" })).toBeVisible();
 
   const today = await page.evaluate(() => new Intl.DateTimeFormat("en-CA", { year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date()));
   const list = await page.request.get(`/api/workouts?from=${today}&to=${today}`, { headers: headers(oid) });
@@ -85,7 +85,7 @@ test("A workout: start it, add an exercise, tick off sets, rest, finish, and see
   expect(saved[0]).toMatchObject({ exercises: ["barbell-bench-press-medium-grip"], sets: 2, volumeKg: 1200 });
 
   // Next time, the exercise starts with last time's two sets, shown beside each one.
-  await page.getByRole("button", { name: "Start", exact: true }).click();
+  await page.getByRole("button", { name: "Empty workout" }).click();
   await page.getByRole("dialog", { name: "Add exercise" }).getByLabel("Search exercises").fill("barbell bench press");
   await page.getByRole("button", { name: "Add Barbell Bench Press - Medium Grip" }).click();
   await expect(card.locator("[data-set]")).toHaveCount(2);
@@ -101,7 +101,7 @@ test("A workout: start it, add an exercise, tick off sets, rest, finish, and see
   // Discard throws it away.
   await workout.getByRole("button", { name: "Discard" }).click();
   await workout.getByRole("alertdialog").getByRole("button", { name: "Discard" }).click();
-  await expect(page.getByRole("button", { name: "Start", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Empty workout" })).toBeVisible();
 });
 
 test("History: open a past workout to edit it, delete it with Undo, and log one afterwards", async ({ page }) => {

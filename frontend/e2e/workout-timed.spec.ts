@@ -33,7 +33,7 @@ async function setup(page: Page): Promise<string> {
 /** A new workout with pull-ups and push-ups done as a superset, on the clock in `format`. */
 async function circuit(page: Page, format: string) {
   await page.goto("/train");
-  await page.getByRole("button", { name: "Start", exact: true }).click();
+  await page.getByRole("button", { name: "Empty workout" }).click();
   const adding = page.getByRole("dialog", { name: "Add exercise" });
   await adding.getByLabel("Search exercises").fill("pullups");
   await adding.getByRole("button", { name: "Add Pullups", exact: true }).click();
