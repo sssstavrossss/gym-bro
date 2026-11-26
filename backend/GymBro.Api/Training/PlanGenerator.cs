@@ -22,8 +22,17 @@ public sealed record PlanExercise(
 /// <summary>
 /// A workout in the plan's sequence, like Upper A. Its id is what a session done from it points at.
 /// <paramref name="Edited"/> is set once its exercises were changed by hand; remaking the plan drops that.
+/// <paramref name="WarmUp"/> and <paramref name="CoolDown"/> are its mobility moves before and stretches after, when
+/// the plan has them on (<see cref="Mobility"/>); they're made from its exercises, so an edit makes them again.
 /// </summary>
-public sealed record PlanWorkout(Guid Id, string Name, int Minutes, IReadOnlyList<PlanExercise> Exercises, bool Edited = false);
+public sealed record PlanWorkout(
+    Guid Id,
+    string Name,
+    int Minutes,
+    IReadOnlyList<PlanExercise> Exercises,
+    bool Edited = false,
+    IReadOnlyList<PlanExercise>? WarmUp = null,
+    IReadOnlyList<PlanExercise>? CoolDown = null);
 
 /// <summary>
 /// Builds a plan from the setup's answers with fixed rules, no AI (docs/training.md, Rules). The split gives the
@@ -97,19 +106,22 @@ public static class PlanGenerator
             if (HyroxPlan.IsConditioning(template))
             {
                 var (stations, seconds) = HyroxPlan.Fill(template, kit, answers, library, WarmUpFor(answers.Minutes));
-                workouts.Add(new PlanWorkout(id, name, RoundMinutes(seconds), stations));
+                var conditioning = new PlanWorkout(id, name, RoundMinutes(seconds), stations);
+                workouts.Add(answers.WarmUp || answers.CoolDown ? Mobility.Attach(conditioning, answers, library) : conditioning);
                 continue;
             }
 
             // A kettlebell plan keeps the finisher's minutes free, then ends the workout with it.
             var finishing = KettlebellFinisher.Applies(kit, answers);
-            var (exercises, _) = Fill(Templates[template], variant, kit, answers, library, finishing ? KettlebellFinisher.Seconds(variant, answers.Experience) : 0);
+            // A cool-down keeps its minutes free too.
+            var reserve = (finishing ? KettlebellFinisher.Seconds(variant, answers.Experience) : 0) + Mobility.CoolDownSeconds(answers);
+            var (exercises, _) = Fill(Templates[template], variant, kit, answers, library, reserve);
             if (finishing)
             {
                 exercises.AddRange(KettlebellFinisher.For(variant, exercises, answers, library));
             }
 
-            workouts.Add(new PlanWorkout(id, name, Minutes(exercises, answers.Minutes), exercises));
+            workouts.Add(Mobility.Attach(new PlanWorkout(id, name, Minutes(exercises, answers.Minutes), exercises), answers, library));
         }
 
         return workouts;
@@ -259,6 +271,13 @@ public static class PlanGenerator
     /// <summary>A workout's estimate: the warm-up and each exercise's time, to the nearest 5 minutes.</summary>
     public static int Minutes(IReadOnlyList<PlanExercise> exercises, int planMinutes) =>
         RoundMinutes(WarmUpFor(planMinutes) + Seconds(exercises));
+
+    /// <summary>
+    /// The same with its mobility: a mobility warm-up takes the plain warm-up's place, and a cool-down adds its time.
+    /// </summary>
+    public static int Minutes(PlanWorkout workout, int planMinutes) =>
+        RoundMinutes((workout.WarmUp is { Count: > 0 } ? Mobility.Seconds(workout.WarmUp) : WarmUpFor(planMinutes))
+            + Seconds(workout.Exercises) + Mobility.Seconds(workout.CoolDown));
 
     /// <summary>
     /// The exercises' time: each one's <see cref="Duration"/>, except that an EMOM or AMRAP block runs for its

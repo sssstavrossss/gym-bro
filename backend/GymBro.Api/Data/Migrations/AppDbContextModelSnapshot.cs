@@ -2107,6 +2107,10 @@ namespace GymBro.Api.Data.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("block_weeks");
 
+                    b.Property<bool>("CoolDown")
+                        .HasColumnType("boolean")
+                        .HasColumnName("cool_down");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
@@ -2160,6 +2164,10 @@ namespace GymBro.Api.Data.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)")
                         .HasColumnName("user_id");
+
+                    b.Property<bool>("WarmUp")
+                        .HasColumnType("boolean")
+                        .HasColumnName("warm_up");
 
                     b.PrimitiveCollection<int[]>("Weekdays")
                         .IsRequired()

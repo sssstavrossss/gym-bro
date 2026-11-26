@@ -710,6 +710,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         plan.Property(p => p.Equipment).HasColumnName("equipment").HasColumnType("text[]");
         plan.Property(p => p.GoEasy).HasColumnName("go_easy").HasColumnType("text[]");
         plan.Property(p => p.EaseIn).HasColumnName("ease_in");
+        plan.Property(p => p.WarmUp).HasColumnName("warm_up");
+        plan.Property(p => p.CoolDown).HasColumnName("cool_down");
         plan.Property(p => p.Split).HasColumnName("split").HasMaxLength(24);
         plan.Property(p => p.BlockWeeks).HasColumnName("block_weeks");
         plan.Property(p => p.StartDate).HasColumnName("start_date");

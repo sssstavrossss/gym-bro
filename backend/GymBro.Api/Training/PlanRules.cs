@@ -121,6 +121,12 @@ public sealed class PlanRequest
     /// <summary>Null takes the split that follows from the days.</summary>
     public string? Split { get; set; }
 
+    /// <summary>A mobility warm-up of dynamic moves before each workout (<see cref="Mobility"/>). Null is off.</summary>
+    public bool? WarmUp { get; set; }
+
+    /// <summary>A cool-down of held stretches after each workout (<see cref="Mobility"/>). Null is off.</summary>
+    public bool? CoolDown { get; set; }
+
     /// <summary>The person's time zone, so a new plan starts on their today.</summary>
     public string? TimeZone { get; set; }
 }
@@ -134,7 +140,9 @@ public sealed record PlanAnswers(
     IReadOnlyList<string> Equipment,
     IReadOnlyList<string> GoEasy,
     bool EaseIn,
-    string Split);
+    string Split,
+    bool WarmUp = false,
+    bool CoolDown = false);
 
 public static class PlanRules
 {
@@ -213,6 +221,6 @@ public static class PlanRules
         // Keep the list's order, so the same answers always store the same way.
         goEasy = Joints.All.Where(goEasy.Contains).ToList();
         var easeIn = request.EaseIn ?? (experience == Training.Experience.New || goEasy.Count > 0);
-        return (new PlanAnswers(goal, days, minutes, experience, equipment, goEasy, easeIn, split), null);
+        return (new PlanAnswers(goal, days, minutes, experience, equipment, goEasy, easeIn, split, request.WarmUp ?? false, request.CoolDown ?? false), null);
     }
 }

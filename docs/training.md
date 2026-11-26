@@ -54,6 +54,9 @@ Phase 6 (circuits, EMOM, AMRAP, for time, Hyrox and kettlebell plans, cardio, "d
 
 Phase 6 is done, and with it the roadmap below.
 
+After the roadmap:
+- Warm-up and cool-down (asked for 2026-11-26): two plan settings, both off by default. A mobility warm-up of dynamic moves takes the plain warm-up's 5 minutes, and a cool-down of 2–4 held stretches for the muscles worked most takes its own few minutes from the workout. Both are picked from hand-made lists of the library's stretches (no foam rolling, no equipment), skip areas to go easy on, and are made again from a workout's exercises when it's edited. Stored as `warmUp`/`coolDown` lists on each plan workout and two booleans on the plan (migration `20261206090000_AddPlanMobility`). See *Warm-up and cool-down* in the README.
+
 ## Decisions (agreed 2026-11-25)
 
 1. **Tabs.** Today · **Train** · + · **Progress** · Profile. Train replaces Log: it holds the sequence, the calendar, the plan, the exercise library and history. Progress gets rebuilt around strength and body, and keeps nutrition's charts as pages. Home gains a training card, and more training data where it helps.
