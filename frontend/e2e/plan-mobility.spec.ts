@@ -82,8 +82,15 @@ test("Plan: a mobility warm-up and cool-down frame each workout", async ({ page 
   await page.goto("/train");
   await card.getByRole("button", { name: "Edit", exact: true }).click();
   const edit = page.getByRole("dialog", { name: "Edit plan" });
-  await edit.getByRole("switch", { name: "Mobility warm-up" }).click();
-  await edit.getByRole("switch", { name: "Cool-down" }).click();
+  await settled(edit);
+  // Your training opens over Edit plan, and the plan follows it.
+  await edit.locator("[data-plan-using]").click();
+  await settled(training);
+  await warm.click();
+  await cool.click();
+  await training.getByRole("button", { name: "Close" }).click();
+  await expect(training).toBeHidden();
+  await expect(edit.locator("[data-plan-edits-note]")).toHaveCount(0);
   await edit.locator("[data-plan-save]").click();
   await expect(edit).toBeHidden();
   await expect(card.locator("[data-plan-mobility]")).toHaveCount(0);

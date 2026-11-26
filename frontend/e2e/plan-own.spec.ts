@@ -79,6 +79,7 @@ test("Build your own: empty workouts in turn, fill and rename one, and fewer day
   // Fewer days keep what's built and drop the last workout, saying so first.
   await card.getByRole("button", { name: "Edit", exact: true }).click();
   const editSheet = page.getByRole("dialog", { name: "Edit plan" });
+  await settled(editSheet);
   await editSheet.getByRole("button", { name: "Friday" }).click();
   await expect(editSheet.locator("[data-plan-drops-note]")).toHaveText("With 2 days, saving drops Workout C from your plan.");
   await expect(editSheet.locator("[data-plan-edits-note]")).toHaveCount(0);

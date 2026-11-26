@@ -13,20 +13,13 @@ import {
   droppedOwn,
   eachMinutes,
   easeInFor,
-  EQUIPMENT,
-  EXPERIENCES,
   GOALS,
-  JOINTS,
-  MAX_MINUTES,
   mobilityLine,
-  MIN_MINUTES,
-  MINUTE_STEP,
   previewSummary,
   remakes,
   splitFor,
   splitLabel,
   splitsFor,
-  stepMinutes,
   toggled,
   WEEKDAYS,
   workoutDays,
@@ -35,7 +28,7 @@ import {
   type PlanPreview,
   type Split,
 } from "../lib/plan";
-import { usingLine, withTraining } from "../lib/training";
+import { sameTraining, trainingFrom, usingLine, withTraining } from "../lib/training";
 import { exercises } from "../state/exercises";
 import { endPlan, plan, planDraft, savePlan } from "../state/plan";
 import { training } from "../state/training";
@@ -46,8 +39,6 @@ import { closeSheet, openTraining, toast, toastError, ui } from "../ui";
 const open = computed(() => ui.sheet === "plan");
 const editing = computed(() => plan.current != null);
 const answers = ref<PlanAnswers>(defaultAnswers());
-/** Not stored: a yes only shows the note to check with a doctor first. */
-const heart = ref<"" | "no" | "yes">("");
 const choosingSplit = ref(false);
 const confirmingEnd = ref(false);
 const preview = ref<PlanPreview | null>(null);
@@ -60,16 +51,18 @@ function newAnswers(split: Split | null): PlanAnswers {
 
 watch(open, (shown) => {
   if (!shown) return;
-  // Saving a plan keeps its answers in Your training for the next one.
-  answers.value = plan.current ? answersOf(plan.current) : newAnswers(ui.planOwn ? "custom" : null);
-  heart.value = "";
+  // Goal, days, Ease in and the split are the plan's own; the rest is Your training, and saving brings the plan up to it.
+  answers.value = plan.current ? withTraining(answersOf(plan.current), training.value) : newAnswers(ui.planOwn ? "custom" : null);
   choosingSplit.value = false;
   confirmingEnd.value = false;
 });
-// Your training opens over a new plan from its line; the plan follows what changes there.
+// Your training opens over the sheet from its line; the plan follows what changes there.
 watch(training, () => {
-  if (open.value && !editing.value) answers.value = newAnswers(answers.value.split);
+  if (!open.value) return;
+  answers.value = editing.value ? withTraining(answers.value, training.value) : newAnswers(answers.value.split);
 });
+/** Your training changed after the plan was made: saving brings the plan up to it. */
+const trainingChanged = computed(() => !!plan.current && !sameTraining(trainingFrom(answersOf(plan.current)), training.value));
 
 // The preview follows the answers, a moment after the last change.
 let previewTimer: number | undefined;
@@ -122,17 +115,10 @@ const dropped = computed(() => droppedOwn(plan.current, split.value, answers.val
 const missing = computed(() =>
   !answers.value.weekdays.length ? "Pick at least one day." : !answers.value.equipment.length ? "Pick the equipment you have." : "");
 
+/** The split follows the days until one is picked by hand. A plan needs a day, so the last one stays on. */
 function toggleDay(day: number) {
-  answers.value.weekdays = toggled(answers.value.weekdays, day, [0, 1, 2, 3, 4, 5, 6]);
-  // The split follows the days until one is picked by hand.
-}
-
-function toggleEquipment(id: (typeof EQUIPMENT)[number]["id"]) {
-  answers.value.equipment = toggled(answers.value.equipment, id, EQUIPMENT.map((item) => item.id));
-}
-
-function toggleJoint(id: (typeof JOINTS)[number]["id"]) {
-  answers.value.goEasy = toggled(answers.value.goEasy, id, JOINTS.map((item) => item.id));
+  const next = toggled(answers.value.weekdays, day, [0, 1, 2, 3, 4, 5, 6]);
+  if (next.length) answers.value.weekdays = next;
 }
 
 function pickSplit(id: Split) {
@@ -230,71 +216,26 @@ async function end() {
       </div>
     </div>
 
+    <!-- Edit plan: what the plan has of its own. The rest is Your training, from its line. -->
     <div v-else class="col setup" data-plan-setup>
-      <div class="col g8">
-        <span id="plan-goal" class="t-label c2">Goal</span>
-        <Segmented v-model="answers.goal" label="Goal" :options="GOALS" />
+      <Segmented v-model="answers.goal" size="compact" class="full" label="Goal" :options="GOALS" />
+      <div class="dpick" role="group" aria-label="Days you train" data-plan-days>
+        <button
+          v-for="(day, index) in WEEKDAYS" :key="day" type="button" class="dbtn" :aria-pressed="answers.weekdays.includes(index)"
+          :aria-label="day" @click="toggleDay(index)"
+        ><span class="t-label">{{ day[0] }}</span></button>
       </div>
 
-      <div class="col g8">
-        <div class="row lrow"><span class="t-label c2 grow">Days a week</span><span class="t-capn c3">to date your workouts</span></div>
-        <div class="row wdays" role="group" aria-label="Days a week">
-          <button
-            v-for="(day, index) in WEEKDAYS" :key="day" type="button" class="chip t-label wday" :class="{ on: answers.weekdays.includes(index) }"
-            :aria-pressed="answers.weekdays.includes(index)" :aria-label="day" @click="toggleDay(index)"
-          ><span>{{ day[0] }}</span></button>
-        </div>
+      <div class="col g4">
+        <button type="button" class="row using" :aria-label="`Your training: ${usingLine(training)}. Change`" data-plan-using @click="openTraining">
+          <Icon name="user" :size="16" class="c2" />
+          <span class="t-label c2 grow">{{ usingLine(training) }}</span>
+          <Icon name="edit" :size="14" class="c3" />
+        </button>
+        <p v-if="trainingChanged" class="t-capn c2 m0" data-plan-training-changed>Your training has changed since this plan was made. Saving brings the plan up to date.</p>
       </div>
 
-      <div class="row stepper">
-        <span class="t-label c2 grow">Time per workout</span>
-        <span class="row steps">
-        <button type="button" class="cbtn" aria-label="5 minutes less" :disabled="answers.minutes <= MIN_MINUTES" @click="answers.minutes = stepMinutes(answers.minutes, -MINUTE_STEP)"><Icon name="minus" :size="16" /></button>
-        <span class="t-ns val" aria-live="polite" data-plan-minutes>{{ answers.minutes }} min</span>
-        <button type="button" class="cbtn" aria-label="5 minutes more" :disabled="answers.minutes >= MAX_MINUTES" @click="answers.minutes = stepMinutes(answers.minutes, MINUTE_STEP)"><Icon name="plus" :size="16" /></button>
-        </span>
-      </div>
-
-      <div class="col g8">
-        <span class="t-label c2">Experience</span>
-        <Segmented v-model="answers.experience" label="Experience" :options="EXPERIENCES" />
-      </div>
-
-      <div class="col g8">
-        <div class="row lrow"><span class="t-label c2 grow">Equipment</span><span class="t-capn c3">pick all you have</span></div>
-        <div class="row wrap" role="group" aria-label="Equipment">
-          <button
-            v-for="item in EQUIPMENT" :key="item.id" type="button" class="chip t-label" :class="{ on: answers.equipment.includes(item.id) }"
-            :aria-pressed="answers.equipment.includes(item.id)" @click="toggleEquipment(item.id)"
-          ><span>{{ item.label }}</span></button>
-        </div>
-      </div>
-
-      <section class="col g8" aria-labelledby="plan-before">
-        <h3 id="plan-before" class="t-cap c3 section-title m0">Before you start</h3>
-        <div class="col g8">
-          <span id="plan-heart" class="t-label">Has a doctor told you about a heart condition, or do you get chest pain, faintness or dizziness when active?</span>
-          <div class="row wrap" role="radiogroup" aria-labelledby="plan-heart">
-            <button v-for="option in (['no', 'yes'] as const)" :key="option" type="button" role="radio" class="chip t-label" :class="{ on: heart === option }" :aria-checked="heart === option" @click="heart = option">
-              <span>{{ option === "no" ? "No" : "Yes" }}</span>
-            </button>
-          </div>
-          <p v-if="heart === 'yes'" class="well t-label m0" role="status">Check with a doctor before you start training. You can still make a plan and start gently.</p>
-        </div>
-        <div class="col g8">
-          <span class="t-label c2">Go easy on</span>
-          <div class="row wrap" role="group" aria-label="Go easy on">
-            <button
-              v-for="item in JOINTS" :key="item.id" type="button" class="chip t-label" :class="{ on: answers.goEasy.includes(item.id) }"
-              :aria-pressed="answers.goEasy.includes(item.id)" @click="toggleJoint(item.id)"
-            ><span>{{ item.label }}</span></button>
-          </div>
-        </div>
-        <SwitchRow title="Ease in" caption="The first 2 weeks stop further from failure, with smaller load steps." :on="easeIn" @toggle="answers.easeIn = !easeIn" />
-        <SwitchRow title="Mobility warm-up" caption="A few moves for the muscles you'll train, in place of a plain warm-up." :on="answers.warmUp" data-plan-warm-up @toggle="answers.warmUp = !answers.warmUp" />
-        <SwitchRow title="Cool-down" caption="A few stretches at the end for the muscles you trained, about 3 minutes." :on="answers.coolDown" data-plan-cool-down @toggle="answers.coolDown = !answers.coolDown" />
-        <span class="t-capn c3">Training suggestions, not medical advice.</span>
-      </section>
+      <SwitchRow title="Ease in" caption="The first 2 weeks stop further from failure, with smaller load steps." :on="easeIn" data-plan-ease-in @toggle="answers.easeIn = !easeIn" />
 
       <div class="well col g4" data-plan-preview aria-live="polite">
         <template v-if="missing">
@@ -330,7 +271,12 @@ async function end() {
         With {{ answers.weekdays.length === 1 ? "1 day" : `${answers.weekdays.length} days` }}, saving drops {{ dropped.join(", ") }} from your plan.
       </p>
 
-      <div v-if="editing" class="col g8 endwrap">
+      <div class="col g4">
+        <span class="t-capn c2">If a doctor has told you about a heart condition, or you get chest pain, faintness or dizziness when active, check with them before you start.</span>
+        <span class="t-capn c3">Training suggestions, not medical advice.</span>
+      </div>
+
+      <div class="col g8 endwrap">
         <div v-if="confirmingEnd" class="card outline col confirm" role="alertdialog" aria-labelledby="pe-h" aria-describedby="pe-d">
           <h3 id="pe-h" class="t-head m0">End your plan?</h3>
           <p id="pe-d" class="t-label c2 m0">Workouts you've done stay in History.</p>
@@ -371,14 +317,7 @@ async function end() {
 .dt-xl .using { flex-wrap: nowrap; }
 .hdr { gap: var(--space-s); flex-wrap: nowrap; }
 .setup { gap: var(--space-l); }
-.lrow { gap: var(--space-s); }
 .wrap { flex-wrap: wrap; column-gap: var(--space-s); row-gap: 0; }
-.wdays { gap: var(--space-2xs); flex-wrap: nowrap; }
-.wday { flex: 1 1 0; min-width: 0; padding-inline: 0; }
-/* At the largest text size the buttons and the value move under the label together. */
-.stepper { gap: var(--space-s); flex-wrap: wrap; }
-.steps { gap: var(--space-s); flex-wrap: nowrap; flex: none; margin-inline-start: auto; }
-.val { min-width: var(--control-hit); text-align: center; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .splitbtn, .endbtn { align-self: flex-start; }
 .confirm { gap: var(--space-s); }
 .cbtns { gap: var(--space-s); }
