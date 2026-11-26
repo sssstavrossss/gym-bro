@@ -15,6 +15,7 @@ import SettingsSheet from "./components/SettingsSheet.vue";
 import NotificationsSheet from "./components/NotificationsSheet.vue";
 import NutrientSheet from "./components/NutrientSheet.vue";
 import ExerciseSheet from "./components/ExerciseSheet.vue";
+import ExercisesSheet from "./components/ExercisesSheet.vue";
 import PlanSheet from "./components/PlanSheet.vue";
 import PlanWorkoutSheet from "./components/PlanWorkoutSheet.vue";
 import WorkoutSheet from "./components/WorkoutSheet.vue";
@@ -180,6 +181,7 @@ function onKey(event: KeyboardEvent) {
     <PlanWorkoutSheet />
     <WorkoutSheet />
     <!-- After the workout: its how-to opens on top. -->
+    <ExercisesSheet />
     <ExerciseSheet />
     <OfflineSheet />
     <AddChooser />

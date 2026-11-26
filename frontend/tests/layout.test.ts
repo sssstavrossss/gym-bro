@@ -87,6 +87,9 @@ describe("shortcuts", () => {
     // The how-to over a workout closes first, back to the workout.
     expect(shortcutEffect({ ...base, key: "Escape", sheet: "workout", exerciseOver: true })).toEqual({ effect: "prevent", action: "close-exercise" });
     expect(shortcutEffect({ ...base, key: "Escape", sheet: "workout" })).toEqual({ effect: "prevent", action: "close-sheet" });
+    // Over the library too: Esc goes back to the list, then closes it.
+    expect(shortcutEffect({ ...base, key: "Escape", sheet: "exercises", exerciseOver: true })).toEqual({ effect: "prevent", action: "close-exercise" });
+    expect(shortcutEffect({ ...base, key: "Escape", sheet: "exercises" })).toEqual({ effect: "prevent", action: "close-sheet" });
     // The + button sheet over the fan closes back to the fan.
     expect(shortcutEffect({ ...base, key: "Escape", sheet: "chooser", fanPagesOver: true })).toEqual({ effect: "prevent", action: "close-fan-pages" });
     // From Home it is its own sheet, which Esc closes the usual way.

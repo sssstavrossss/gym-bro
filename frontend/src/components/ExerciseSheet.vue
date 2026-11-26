@@ -9,9 +9,10 @@ import { exercises } from "../state/exercises";
 import { closeExercise, ui } from "../ui";
 
 // How to do one exercise. What the list already knows shows at once; the steps load from the API.
-// From a workout it opens over the workout sheet, which stays open under it.
-const open = computed(() => (ui.sheet === "exercise" || (ui.exerciseOver && ui.sheet === "workout")) && ui.exercise != null);
-watch(() => ui.sheet, (sheet) => { if (sheet !== "workout") ui.exerciseOver = false; });
+// From a workout or the library it opens over that sheet, which stays open under it.
+const under = (sheet: string | null) => sheet === "workout" || sheet === "exercises";
+const open = computed(() => (ui.sheet === "exercise" || (ui.exerciseOver && under(ui.sheet))) && ui.exercise != null);
+watch(() => ui.sheet, (sheet) => { if (!under(sheet)) ui.exerciseOver = false; });
 const item = computed(() => exercises.items.find((entry) => entry.id === ui.exercise) ?? null);
 const detail = ref<ExerciseDetail | null>(null);
 const state = ref<"loading" | "ready" | "failed">("loading");

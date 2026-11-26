@@ -188,10 +188,16 @@ export function openNutrient(key: string, kcalTarget: number | null): void {
   ui.sheet = "nutrient";
 }
 
-/** How to do one exercise: photos, muscles and steps. From the workout it opens over it. */
+/** The exercise library on its own sheet, from the search button on Train. */
+export function openExercises(): void {
+  ui.exerciseOver = false;
+  ui.sheet = "exercises";
+}
+
+/** How to do one exercise: photos, muscles and steps. From the workout or the library it opens over it. */
 export function openExercise(id: string): void {
   ui.exercise = id;
-  if (ui.sheet === "workout") {
+  if (ui.sheet === "workout" || ui.sheet === "exercises") {
     ui.exerciseOver = true;
     return;
   }

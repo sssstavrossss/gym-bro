@@ -30,7 +30,7 @@ async function setup(page: Page) {
   }, oid);
 }
 
-test("Train holds the exercise library: search, body areas, and how to do one", async ({ page }) => {
+test("Train opens the exercise library in a sheet: search, body areas, rows a step at a time, and how to do one", async ({ page }) => {
   await page.goto("/");
   await setup(page);
   await page.goto("/today");
@@ -41,12 +41,23 @@ test("Train holds the exercise library: search, body areas, and how to do one", 
   await tabs.getByRole("link", { name: "Train" }).click();
   await expect(page).toHaveURL(/\/train$/);
   await expect(page.getByRole("heading", { name: "Train", exact: true })).toBeVisible();
-  await expect(page.locator("[data-exercise-count]")).toHaveText("886");
+  // The page itself no longer lists exercises: the search button opens the library.
+  await expect(page.locator("[data-exercise]")).toHaveCount(0);
+  await page.getByRole("button", { name: "Exercises", exact: true }).click();
+  const library = page.getByRole("dialog", { name: "Exercises" });
+  await expect(library).toBeVisible();
+  await expect(library.locator("[data-exercise-total]")).toHaveText("886");
+
+  // Rows draw 40 at a time; scrolling near the end draws more (Show more does it by hand). A click would chase
+  // the button, since scrolling to it already draws the next rows.
+  const rows = library.locator("[data-exercise]");
+  await expect(rows).toHaveCount(40);
+  await library.locator("[data-exercise-more]").scrollIntoViewIfNeeded();
+  await expect.poll(() => rows.count()).toBeGreaterThanOrEqual(80);
 
   // Every word matches the start of a word; names that start with the query come first.
-  const search = page.getByLabel("Search exercises");
+  const search = library.getByLabel("Search exercises");
   await search.fill("barbell squat");
-  const rows = page.locator("[data-exercise]");
   await expect(rows.first()).toHaveAttribute("data-exercise", "barbell-squat");
   await search.fill("no such lift");
   await expect(page.getByText("No exercises match “no such lift”.")).toBeVisible();
@@ -54,11 +65,11 @@ test("Train holds the exercise library: search, body areas, and how to do one", 
   await expect(search).toHaveValue("");
 
   // Cardio holds our own stations as well as free-exercise-db's.
-  await page.getByRole("button", { name: "Cardio", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Cardio", exact: true })).toHaveAttribute("aria-pressed", "true");
-  await expect(page.locator('[data-exercise="skierg"]')).toBeVisible();
-  await expect(page.locator('[data-exercise="barbell-squat"]')).toHaveCount(0);
-  await page.locator('[data-exercise="skierg"]').click();
+  await library.getByRole("button", { name: "Cardio", exact: true }).click();
+  await expect(library.getByRole("button", { name: "Cardio", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(library.locator('[data-exercise="skierg"]')).toBeVisible();
+  await expect(library.locator('[data-exercise="barbell-squat"]')).toHaveCount(0);
+  await library.locator('[data-exercise="skierg"]').click();
 
   const sheet = page.getByRole("dialog", { name: "SkiErg" });
   await expect(sheet).toBeVisible();
@@ -72,11 +83,13 @@ test("Train holds the exercise library: search, body areas, and how to do one", 
   const serious = results.violations.filter((item) => item.impact === "serious" || item.impact === "critical");
   expect(serious, JSON.stringify(serious.map((item) => item.id))).toEqual([]);
 
+  // The how-to opened over the library: Esc goes back to the list.
   await page.keyboard.press("Escape");
   await expect(sheet).toHaveCount(0);
+  await expect(library).toBeVisible();
 
   // A free-exercise-db exercise: its muscles, steps and credit.
-  await page.getByRole("button", { name: "All", exact: true }).click();
+  await library.getByRole("button", { name: "All", exact: true }).click();
   await search.fill("barbell squat");
   await rows.first().click();
   const squat = page.getByRole("dialog", { name: "Barbell Squat" });
@@ -90,7 +103,16 @@ test("Train holds the exercise library: search, body areas, and how to do one", 
   await expect(squat.locator("[data-exercise-steps] li").first()).toBeVisible();
   await expect(squat.getByText("Photos and steps: free-exercise-db, public domain")).toBeVisible();
 
-  const page2 = await new AxeBuilder({ page }).include("main").analyze();
+  // Esc twice: back to the list, then the library closes.
+  await page.keyboard.press("Escape");
+  await expect(squat).toHaveCount(0);
+  await expect(library).toBeVisible();
+  const page2 = await new AxeBuilder({ page }).include('[role="dialog"]').analyze();
   const serious2 = page2.violations.filter((item) => item.impact === "serious" || item.impact === "critical");
   expect(serious2, JSON.stringify(serious2.map((item) => item.id))).toEqual([]);
+  await page.keyboard.press("Escape");
+  await expect(library).toHaveCount(0);
+  const page3 = await new AxeBuilder({ page }).include("main").analyze();
+  const serious3 = page3.violations.filter((item) => item.impact === "serious" || item.impact === "critical");
+  expect(serious3, JSON.stringify(serious3.map((item) => item.id))).toEqual([]);
 });
