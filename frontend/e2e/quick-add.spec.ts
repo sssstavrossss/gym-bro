@@ -55,6 +55,15 @@ test("Quick add: the start waits for the first exercise, an empty workout closes
   await expect(add.getByRole("button", { name: "Times: starts now" })).toHaveText("Now");
   // Nothing grabs focus, so no keyboard comes up: the search waits for a tap.
   await expect(add.getByLabel("Search exercises")).not.toBeFocused();
+  // Nothing has started: Train under the sheet still shows Quick add, not a workout in progress.
+  await expect(page.locator("[data-workout-card]")).toHaveCount(0);
+  await expect(page.locator("[data-start-workout]")).toHaveCount(1);
+  // Describe and back is Add exercise again: there is no workout yet to go back to.
+  await add.locator("[data-describe-workout]").click();
+  const describe = page.getByRole("dialog", { name: "Describe a workout" });
+  await describe.getByRole("button", { name: "Back to Add exercise" }).click();
+  await expect(add.getByLabel("Search exercises")).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "Workout", exact: true })).toHaveCount(0);
   await add.getByRole("button", { name: "Close" }).click();
   await expect(add).toHaveCount(0);
   await expect(page.locator("[data-workout-card]")).toHaveCount(0);
