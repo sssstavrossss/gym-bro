@@ -53,6 +53,8 @@ test("Quick add: the start waits for the first exercise, an empty workout closes
   await page.getByRole("button", { name: "Empty workout" }).click();
   const add = page.getByRole("dialog", { name: "Add exercise" });
   await expect(add.getByRole("button", { name: "Times: starts now" })).toHaveText("Now");
+  // Nothing grabs focus, so no keyboard comes up: the search waits for a tap.
+  await expect(add.getByLabel("Search exercises")).not.toBeFocused();
   await add.getByRole("button", { name: "Close" }).click();
   await expect(add).toHaveCount(0);
   await expect(page.locator("[data-workout-card]")).toHaveCount(0);

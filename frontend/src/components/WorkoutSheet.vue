@@ -477,7 +477,8 @@ async function deletePastNow() {
 
     <div v-else-if="view === 'add'" class="col addv">
       <WorkoutTimes v-if="fresh && timesOpen" :now="now" />
-      <ExerciseBrowser title="Exercises" title-id="workout-add-title" action="add" recent @pick="pick" />
+      <!-- No keyboard on the way in: the list is there to tap, and search waits for a tap. -->
+      <ExerciseBrowser title="Exercises" title-id="workout-add-title" action="add" recent :focus-search="false" @pick="pick" />
     </div>
     <ExerciseScreen
       v-else-if="screenExercise && active" :key="screenExercise.key" :exercise="screenExercise" :target="screenTarget"
