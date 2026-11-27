@@ -2,15 +2,16 @@
 import { computed, reactive } from "vue";
 import Icon from "./Icon.vue";
 import { photoUrl, typeLabel } from "../lib/exercises";
-import { clockTime, exerciseSummary, formatSet, setHints, shortDay, type DraftExercise } from "../lib/workout";
+import { clock, clockTime, exerciseSummary, formatSet, setHints, shortDay, type DraftExercise } from "../lib/workout";
 import { setLabels } from "../lib/setEntry";
 import { FIRST_TIME_LINE, suggestionLine } from "../lib/progression";
 import { maxText } from "../lib/records";
 import { paceLine } from "../lib/cardio";
 import { plateLine } from "../lib/plates";
 import { exercises } from "../state/exercises";
-import { addWarmups, exerciseItem, exerciseLoadTarget, exerciseNewBest, exerciseSuggestion, removeSet, workout } from "../state/workout";
-import { toast } from "../ui";
+import { dialSpec, REST_HINTS, restDial } from "../lib/dial";
+import { addWarmups, exerciseItem, exerciseLoadTarget, exerciseNewBest, exerciseRest, exerciseSuggestion, removeSet, setExerciseRest, workout } from "../state/workout";
+import { openDial, toast } from "../ui";
 
 // One exercise of a quick workout on a screen of its own, like a food's amount screen (README, *Logging a workout*):
 // its photos and kind, what to lift, and the sets so far. The workout sheet's footer types and logs the next set.
@@ -68,6 +69,13 @@ const plates = computed(() => {
 const pace = computed(() => (measure.value === "distance_time" ? paceLine(props.exercise, props.target < props.exercise.sets.length ? props.target : null) : ""));
 const canRemoveSet = computed(() => props.exercise.sets.length > 1 && !props.exercise.sets[props.exercise.sets.length - 1].doneAt);
 
+/** The rest after its sets, set on the number wheel; an exercise with no rest (cardio, a stretch) has no button. */
+const rest = computed(() => exerciseRest(props.exercise));
+function setRest(event: MouseEvent) {
+  const id = restDial(item.value);
+  openDial(dialSpec(id, { label: `Rest · ${name.value}`, hint: REST_HINTS[id], value: rest.value }), event.currentTarget as Element, (seconds) => setExerciseRest(props.exercise.key, seconds));
+}
+
 function warmUp() {
   const added = addWarmups(props.exercise.key);
   if (added) toast(`${added.count} warm-up ${added.count === 1 ? "set" : "sets"}, building to ${added.workKg} kg`);
@@ -83,6 +91,10 @@ function warmUp() {
     <div v-if="item" class="row meta">
       <span class="tag t-capn">{{ typeLabel(item) }}</span>
       <span class="t-capn c2 grow">{{ meta }}</span>
+      <button
+        v-if="rest || exercise.rest != null" type="button" class="btn sm secondary t-label tnum restset" :aria-label="`Rest ${clock(rest)}, change`"
+        data-rest-setting @click="setRest"
+      ><Icon name="clock" :size="14" /> {{ clock(rest) }}</button>
     </div>
     <div v-if="advice || lastLine || newBest" class="well col g2">
       <span v-if="advice" class="t-label" :data-load-suggestion="suggestion?.kind ?? 'first'">{{ advice }}</span>
@@ -135,7 +147,8 @@ function warmUp() {
 .body { gap: var(--space-m); padding-bottom: var(--space-l); }
 .photos { gap: var(--space-s); flex-wrap: nowrap; }
 .photos img { flex: 1 1 0; min-width: 0; aspect-ratio: 16 / 9; object-fit: cover; border-radius: var(--radius-m); background: var(--color-surface-2); }
-.row.meta { gap: var(--space-s); flex-wrap: nowrap; align-items: baseline; }
+.row.meta { gap: var(--space-s); flex-wrap: nowrap; align-items: center; }
+.restset { flex: none; margin-block: calc((var(--control-chip) - var(--control-hit)) / 2); }
 .best { color: var(--color-action); display: inline-flex; align-items: baseline; gap: var(--space-2xs); }
 .best :deep(svg) { flex: none; align-self: center; }
 .list { list-style: none; margin: 0; padding: 0; }

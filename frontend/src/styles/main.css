@@ -229,6 +229,14 @@ html[data-accent]:not([data-accent="mono"]) {
   --badge-l: 22px;
   /* Text over the dark scrim, in every theme. */
   --text-on-scrim: #fff;
+  /* The number wheel (NumberDial): above the sheets, on a scrim darker at the bottom where the ring is. Its ring
+     and buttons spring out on the + fan's curve. */
+  --z-dial: 200;
+  --scrim-dial: linear-gradient(to top, rgb(0 0 0 / .97) 45%, rgb(0 0 0 / .9) 70%, rgb(0 0 0 / .7));
+  --scrim-line: rgb(255 255 255 / .35);
+  --scrim-button: rgb(255 255 255 / .14);
+  --fan-time: .32s;
+  --fan-spring: cubic-bezier(0.25, 1.25, 0.45, 1);
   /* The body map (MuscleMap): one figure's height, and its four tones. Main muscles take the
      action colour, helping ones a mix of it, the rest stay quiet, and head, hands, knees and feet
      quieter still. */

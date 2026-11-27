@@ -37,6 +37,8 @@ export interface DraftExercise {
   timed?: TimedState | null;
   /** From a plan with a warm-up or cool-down: which one it's in. The plan's own exercises have none. */
   part?: WorkoutPart | null;
+  /** The rest after its sets, in seconds, set on the number wheel in this workout. Wins over the plan's and ours. */
+  rest?: number | null;
 }
 
 export type WorkoutPart = "warmup" | "cooldown";
