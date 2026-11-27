@@ -3,6 +3,7 @@ import { todayInZone, todayIso } from "./lib/dates";
 import { lastPlanDate } from "./lib/dayLog";
 import { primeKeyboard, rememberOpener } from "./lib/focusField";
 import type { PageCard } from "./lib/cardPages";
+import type { DialSpec } from "./lib/dial";
 import type { ExerciseArea } from "./lib/exercises";
 import type { FoodPage } from "./lib/foodPages";
 import type { Split } from "./lib/plan";
@@ -18,6 +19,8 @@ export type SettingsView = "main" | "home" | "country" | "reset";
 
 export const ui = reactive({
   sheet: null as SheetName | null,
+  /** The number wheel (NumberDial), open over whatever is on screen, and where it springs out of. */
+  dial: null as null | { spec: DialSpec; origin: { x: number; y: number } | null },
   foodTab: "search" as FoodTab,
   /** The Add food page the Search tab opens on (the fan's Recipes, My foods and Groups open on theirs). */
   foodPage: "recent" as FoodPage,
@@ -561,4 +564,28 @@ export function openEdit(id: string, date?: string): void {
   ui.foodDate = date && date <= lastPlanDate(today) ? date : ui.foodDate || today;
   ui.foodTab = "quick";
   ui.sheet = "food";
+}
+
+/** What the open number wheel does with the number kept. Not reactive: only the wheel calls it. */
+let dialSave: ((value: number, step: number) => void) | null = null;
+
+/**
+ * Opens the number wheel over the screen for one number (lib/dial.ts `dialSpec`). It springs out of `from`, the
+ * number tapped. ✓ calls `save` with the number and the step it was picked on; × and the scrim close it.
+ */
+export function openDial(spec: DialSpec, from: Element | null, save: (value: number, step: number) => void): void {
+  const box = from?.getBoundingClientRect();
+  dialSave = save;
+  ui.dial = { spec, origin: box ? { x: box.left + box.width / 2, y: box.top + box.height / 2 } : null };
+}
+
+export function closeDial(): void {
+  ui.dial = null;
+  dialSave = null;
+}
+
+export function keepDial(value: number, step: number): void {
+  const save = dialSave;
+  closeDial();
+  save?.(value, step);
 }

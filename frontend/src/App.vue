@@ -10,6 +10,7 @@ import SelectBar from "./components/SelectBar.vue";
 import SideNav from "./components/SideNav.vue";
 import TabBar from "./components/TabBar.vue";
 import Toast from "./components/Toast.vue";
+import NumberDial from "./components/NumberDial.vue";
 import GoalWeightSheet from "./components/GoalWeightSheet.vue";
 import SettingsSheet from "./components/SettingsSheet.vue";
 import NotificationsSheet from "./components/NotificationsSheet.vue";
@@ -199,6 +200,8 @@ function onKey(event: KeyboardEvent) {
     <CardPagesSheet />
     <FanPagesSheet />
     <TrainingSheet />
+    <!-- Over every sheet: a number tapped in one opens the wheel on top. -->
+    <NumberDial />
     <Toast />
     <!--
       iOS Safari raises the keyboard only when focus() runs in the same turn as the tap.

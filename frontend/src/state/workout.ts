@@ -520,7 +520,7 @@ export function toggleDone(key: string, index: number, now = new Date()): void {
     active.exercises[active.exercises.indexOf(group[0])] = { ...group[0], timed: stopped(timed, now) };
   }
   const endsRound = roundDone(active.exercises, key, index);
-  const rest = next.doneAt && endsRound && !timed ? Math.max(0, ...group.map(restOf)) : 0;
+  const rest = next.doneAt && endsRound && !timed ? Math.max(0, ...group.map(exerciseRest)) : 0;
   if (rest) {
     active.restFor = rest;
     active.restEndsAt = new Date(now.getTime() + rest * 1000).toISOString();
@@ -530,9 +530,18 @@ export function toggleDone(key: string, index: number, now = new Date()): void {
   save();
 }
 
-function restOf(exercise: DraftExercise): number {
+/** The rest after an exercise's sets: the one set for it in this workout, else the plan's, else ours (lib/workout `restSeconds`). */
+export function exerciseRest(exercise: DraftExercise): number {
   const item = exerciseItem(exercise.exerciseId);
-  return exercise.target?.restSeconds ?? (item ? restSeconds(item) : 0);
+  return exercise.rest ?? exercise.target?.restSeconds ?? (item ? restSeconds(item) : 0);
+}
+
+/** Sets the rest after an exercise's sets for the rest of this workout. A rest already running keeps its length. */
+export function setExerciseRest(key: string, seconds: number): void {
+  const exercise = find(key);
+  if (!exercise) return;
+  exercise.rest = Math.max(0, Math.round(seconds));
+  save();
 }
 
 /** −15, +15 or Skip on the rest timer. */

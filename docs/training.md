@@ -87,6 +87,7 @@ After the roadmap:
 9. **Small PRs.** Each step ships on its own, with a merge and deploy in between.
 10. **Muscle map.** Our own front/back SVG, reused in the how-to sheet, This week and Progress.
 11. **Docs.** This file is the record. The README covers behaviour as it ships, and CODEMAP is updated as we go.
+12. **The workout as a timeline, numbers on the arc** (agreed 2026-11-28). The workout screen becomes one timeline drawn like a git graph: a rail down the left with a node per set, supersets as lanes that branch off and merge back, rests on the rail between sets, and a finished exercise folded to one line. The set to do is a small scoreboard (kg · reps · RIR, big, with its ✓); done and planned sets are one quiet line. A plan workout lays the timeline out ahead; a quick one starts empty and grows. Every number is picked on the number wheel ("the arc", README *Picking a number*), one component driven by a table of presets, so the keypad footer goes. Shipped in two steps: the arc first (with an exercise's rest), then the timeline in place of the set table and the exercise screen. Later the arc replaces the keypad for food, water and weigh-ins too.
 
 ## Rules (proposed)
 
