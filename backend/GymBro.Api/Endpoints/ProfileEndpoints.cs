@@ -408,6 +408,12 @@ public static class ProfileEndpoints
             }
 
             training.SaveTo(profile);
+            // The plan takes the warm-up and cool-down switches at once; the rest waits for Update plan.
+            if (await db.TrainingPlans.FirstOrDefaultAsync(row => row.UserId == profile.UserId, cancellationToken) is { } plan
+                && Mobility.Follow(plan, training, ExerciseCatalog.Current))
+            {
+                plan.UpdatedAt = clock.GetUtcNow();
+            }
         }
 
         if (request.FanPages is not null)

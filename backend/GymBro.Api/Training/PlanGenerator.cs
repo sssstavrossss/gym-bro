@@ -113,8 +113,7 @@ public static class PlanGenerator
 
             // A kettlebell plan keeps the finisher's minutes free, then ends the workout with it.
             var finishing = KettlebellFinisher.Applies(kit, answers);
-            // A cool-down keeps its minutes free too.
-            var reserve = (finishing ? KettlebellFinisher.Seconds(variant, answers.Experience) : 0) + Mobility.CoolDownSeconds(answers);
+            var reserve = finishing ? KettlebellFinisher.Seconds(variant, answers.Experience) : 0;
             var (exercises, _) = Fill(Templates[template], variant, kit, answers, library, reserve);
             if (finishing)
             {
@@ -272,12 +271,6 @@ public static class PlanGenerator
     public static int Minutes(IReadOnlyList<PlanExercise> exercises, int planMinutes) =>
         RoundMinutes(WarmUpFor(planMinutes) + Seconds(exercises));
 
-    /// <summary>
-    /// The same with its mobility: a mobility warm-up takes the plain warm-up's place, and a cool-down adds its time.
-    /// </summary>
-    public static int Minutes(PlanWorkout workout, int planMinutes) =>
-        RoundMinutes((workout.WarmUp is { Count: > 0 } ? Mobility.Seconds(workout.WarmUp) : WarmUpFor(planMinutes))
-            + Seconds(workout.Exercises) + Mobility.Seconds(workout.CoolDown));
 
     /// <summary>
     /// The exercises' time: each one's <see cref="Duration"/>, except that an EMOM or AMRAP block runs for its

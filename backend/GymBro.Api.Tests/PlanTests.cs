@@ -335,7 +335,7 @@ public sealed class PlanRulesTests
         var workouts = Generate(Request(days: [0, 1, 3, 4], warmUp: true));
         var upper = workouts.First(item => item.Name == "Upper A").WarmUp!.Select(item => item.ExerciseId).ToList();
         var lower = workouts.First(item => item.Name == "Lower A").WarmUp!.Select(item => item.ExerciseId).ToList();
-        Assert.Equal(5, upper.Count);
+        Assert.Equal(4, upper.Count);
         Assert.Contains("arm-circles", upper);
         Assert.DoesNotContain("ankle-circles", upper);
         Assert.Contains("front-leg-raises", lower);
@@ -350,24 +350,31 @@ public sealed class PlanRulesTests
         var full = Generate(Request(days: [0, 3], warmUp: true))[0].WarmUp!.Select(item => ExerciseCatalog.Current.Find(item.ExerciseId)!).ToList();
         Assert.Contains(full, move => move.PrimaryMuscles.Any(muscle => muscle is "shoulders" or "chest" or "lats"));
         Assert.Contains(full, move => move.PrimaryMuscles.Any(muscle => muscle is "hamstrings" or "quadriceps" or "glutes" or "abductors"));
-        // A short workout keeps it to two.
-        Assert.Equal(2, Generate(Request(minutes: 20, warmUp: true))[0].WarmUp!.Count);
+        // A short workout gets the same 3 minutes.
+        Assert.Equal(4, Generate(Request(minutes: 20, warmUp: true))[0].WarmUp!.Count);
     }
 
     [Fact]
-    public void The_warm_up_takes_the_plain_warm_ups_place()
+    public void The_warm_up_and_cool_down_come_on_top_of_the_workouts_time()
     {
-        var plain = Generate(Request(days: [0, 1, 3, 4]));
-        var mobile = Generate(Request(days: [0, 1, 3, 4], warmUp: true));
-        Assert.All(plain.Zip(mobile), pair => Assert.Equal(pair.First.Exercises, pair.Second.Exercises));
-        // 5 × (30 + 15) s = 3:45 in place of 5:00, so the estimate never goes up.
-        Assert.All(plain.Zip(mobile), pair => Assert.True(pair.Second.Minutes <= pair.First.Minutes));
+        foreach (var minutes in new[] { 20, 45, 60 })
+        {
+            var plain = Generate(Request(days: [0, 1, 3, 4], minutes: minutes));
+            var mobile = Generate(Request(days: [0, 1, 3, 4], minutes: minutes, warmUp: true, coolDown: true));
+            // The same exercises and the same estimate: the 3 minutes each are extra.
+            Assert.All(plain.Zip(mobile), pair => Assert.Equal(pair.First.Exercises, pair.Second.Exercises));
+            Assert.All(plain.Zip(mobile), pair => Assert.Equal(pair.First.Minutes, pair.Second.Minutes));
+            Assert.All(mobile, item =>
+            {
+                Assert.Equal(Mobility.PartSeconds, Mobility.Seconds(item.WarmUp));
+                Assert.Equal(Mobility.PartSeconds, Mobility.Seconds(item.CoolDown));
+            });
+        }
     }
 
     [Fact]
-    public void The_cool_down_stretches_the_busiest_muscles_and_keeps_its_minutes_free()
+    public void The_cool_down_stretches_the_busiest_muscles_for_3_minutes()
     {
-        var plain = Generate(Request(days: [0, 1, 3, 4], minutes: 45));
         var cooled = Generate(Request(days: [0, 1, 3, 4], minutes: 45, coolDown: true));
         var lower = cooled.First(item => item.Name == "Lower A");
         Assert.Equal(3, lower.CoolDown!.Count);
@@ -376,12 +383,11 @@ public sealed class PlanRulesTests
         Assert.Contains("hamstrings", stretched);
         Assert.All(lower.CoolDown, item => Assert.Equal((1, 45, 0), (item.Sets, item.Seconds, item.RestSeconds)));
         Assert.Equal(lower.CoolDown.Count, lower.CoolDown.Select(item => item.ExerciseId).Distinct().Count());
-        // Its 3 × (45 + 15) s comes out of the lifting, so the workout still fits the time.
-        Assert.All(plain.Zip(cooled), pair => Assert.True(pair.Second.Exercises.Count <= pair.First.Exercises.Count));
-        Assert.All(cooled, item => Assert.True(item.Minutes <= 50, $"{item.Name}: {item.Minutes}"));
-        // New to training holds for 30 s; an hour or more takes four.
-        Assert.All(Generate(Request(experience: "new", coolDown: true))[0].CoolDown!, item => Assert.Equal(30, item.Seconds));
-        Assert.Equal(4, Generate(Request(minutes: 60, coolDown: true))[0].CoolDown!.Count);
+        // New to training holds for 30 s, so four fit the 3 minutes; an hour's workout still takes three.
+        var fresh = Generate(Request(experience: "new", coolDown: true))[0].CoolDown!;
+        Assert.All(fresh, item => Assert.Equal(30, item.Seconds));
+        Assert.Equal(4, fresh.Count);
+        Assert.Equal(3, Generate(Request(minutes: 60, coolDown: true))[0].CoolDown!.Count);
     }
 
     [Fact]
@@ -762,7 +768,7 @@ public sealed class PlanEndpointTests(ApiFactory factory)
         Assert.True(json.RootElement.GetProperty("warmUp").GetBoolean());
         Assert.True(json.RootElement.GetProperty("coolDown").GetBoolean());
         var first = json.RootElement.GetProperty("workouts")[0];
-        Assert.Equal(5, first.GetProperty("warmUp").GetArrayLength());
+        Assert.Equal(4, first.GetProperty("warmUp").GetArrayLength());
         Assert.Equal(3, first.GetProperty("coolDown").GetArrayLength());
 
         // Edited to an upper-body workout, its warm-up and cool-down turn to the upper body.

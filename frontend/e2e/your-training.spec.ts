@@ -78,17 +78,17 @@ test("Your training: set in Settings, kept on the account, and a new plan starts
 
   // A new plan starts from it.
   await page.goto("/train");
-  await expect(page.locator("[data-plan-using]")).toContainText("Dumbbells · 45 min · New to training");
+  await expect(page.locator("[data-training-card]")).toContainText("Dumbbells · 45 min · New to training");
   await page.locator("[data-see-plan]").click();
   const planSheet = page.getByRole("dialog", { name: "New plan" });
   await settled(planSheet);
-  await expect(planSheet.locator('[data-plan-new-workout="Full body A"]')).toContainText("With a warm-up");
+  await expect(planSheet.locator('[data-plan-new-workout="Full body A"]')).toContainText("+ 3 min warm-up");
   await planSheet.locator("[data-plan-save]").click();
   await expect(planSheet).toBeHidden();
   const saved = (await (await page.request.get("/api/plan", { headers: headers(oid) })).json()).plan;
   expect([saved.minutes, saved.experience, saved.equipment, saved.goEasy, saved.warmUp]).toEqual([45, "new", ["dumbbells"], ["knees"], true]);
 
-  // Changed later, Your training leaves the plan as it is until Edit plan saves it.
+  // Changed later, Your training leaves the plan as it is until it's updated.
   await page.goto("/profile");
   await page.getByRole("button", { name: "Settings" }).click();
   await settled(settings);
@@ -106,7 +106,21 @@ test("Your training: set in Settings, kept on the account, and a new plan starts
   await settled(edit);
   await expect(edit.locator("[data-plan-using]")).toContainText("Dumbbells · 50 min · New to training");
   await expect(edit.locator("[data-plan-training-changed]")).toBeVisible();
-  await edit.locator("[data-plan-save]").click();
+  await edit.getByRole("button", { name: "Close" }).click();
   await expect(edit).toBeHidden();
+
+  // The Your training card says so, and Update plan shows what changes before it saves.
+  const card = page.locator("[data-training-card]");
+  await expect(card.locator("[data-training-behind]")).toHaveText("Your plan was made with 45 min.");
+  await card.locator("[data-training-update]").click();
+  const update = page.getByRole("dialog", { name: "Update plan" });
+  await settled(update);
+  await expect(update.locator("[data-plan-update-answers]")).toContainText("Time45 min50 min");
+  await expect(update.locator("[data-plan-update-workout]").first()).toBeVisible();
+  await update.locator("[data-plan-update-save]").click();
+  await expect(update).toBeHidden();
+  await expect(page.getByText("Plan updated")).toBeVisible();
   expect((await (await page.request.get("/api/plan", { headers: headers(oid) })).json()).plan.minutes).toBe(50);
+  await expect(card.locator("[data-training-behind]")).toHaveCount(0);
+  await expect(card.getByRole("button", { name: "Change Your training" })).toBeVisible();
 });

@@ -5,10 +5,11 @@ import Icon from "./Icon.vue";
 import Segmented from "./Segmented.vue";
 import SwitchRow from "./SwitchRow.vue";
 import { EQUIPMENT, EXPERIENCES, JOINTS, MAX_MINUTES, MIN_MINUTES, MINUTE_STEP, stepMinutes, toggled, type Experience } from "../lib/plan";
-import type { TrainingSettings } from "../lib/training";
+import { answersOf, MOBILITY_MINUTES } from "../lib/plan";
+import { planBehindLine, trainingChanges, trainingFrom, type TrainingSettings } from "../lib/training";
 import { loadPlan, plan } from "../state/plan";
 import { saveTraining, training } from "../state/training";
-import { closeTraining, toastError, ui } from "../ui";
+import { closeTraining, openPlanUpdate, toastError, ui } from "../ui";
 
 /**
  * Your training (README → Your training): time, experience, equipment, areas to go easy on, warm-up and
@@ -22,6 +23,15 @@ watch(() => ui.sheet, () => { ui.trainingOver = false; });
 watch(open, (shown) => { if (shown && plan.state === "idle") void loadPlan(); });
 
 const answers = computed(() => training.value);
+/** The time is the workout's own; the warm-up and cool-down add theirs. */
+const totalLine = computed(() => {
+  const { warmUp, coolDown, minutes } = answers.value;
+  const extra = (warmUp ? MOBILITY_MINUTES : 0) + (coolDown ? MOBILITY_MINUTES : 0);
+  const parts = warmUp && coolDown ? "the warm-up and cool-down" : warmUp ? "the warm-up" : "the cool-down";
+  return extra ? `The workout itself. With ${parts}, about ${minutes + extra} min in all.` : "The workout itself, warming up included.";
+});
+/** What the plan was made with that these no longer are (the warm-up and cool-down it follows at once). */
+const behind = computed(() => (plan.current ? trainingChanges(trainingFrom(answersOf(plan.current)), answers.value) : []));
 
 async function change(next: Partial<TrainingSettings>) {
   const error = await saveTraining({ ...answers.value, ...next });
@@ -51,6 +61,7 @@ function toggleJoint(id: (typeof JOINTS)[number]["id"]) {
     <div class="col setup" data-training-sheet>
       <p class="t-label c2 m0">Every plan you make starts from these. Change them here or in Settings → Training.</p>
 
+      <div class="col g2">
       <div class="row stepper">
         <span class="t-label c2 grow">Time per workout</span>
         <span class="row steps">
@@ -58,6 +69,8 @@ function toggleJoint(id: (typeof JOINTS)[number]["id"]) {
           <span class="t-ns val" aria-live="polite" data-training-minutes>{{ answers.minutes }} min</span>
           <button type="button" class="cbtn" aria-label="5 minutes more" :disabled="answers.minutes >= MAX_MINUTES" @click="change({ minutes: stepMinutes(answers.minutes, MINUTE_STEP) })"><Icon name="plus" :size="16" /></button>
         </span>
+      </div>
+      <span class="t-capn c2" data-training-total>{{ totalLine }}</span>
       </div>
 
       <div class="col g8">
@@ -86,11 +99,15 @@ function toggleJoint(id: (typeof JOINTS)[number]["id"]) {
       </div>
 
       <div class="col">
-        <SwitchRow title="Mobility warm-up" caption="A few moves for the muscles you'll train, in place of a plain warm-up." :on="answers.warmUp" data-training-warm-up @toggle="change({ warmUp: !answers.warmUp })" />
-        <SwitchRow title="Cool-down" caption="A few stretches at the end for the muscles you trained, about 3 minutes." :on="answers.coolDown" data-training-cool-down @toggle="change({ coolDown: !answers.coolDown })" />
+        <SwitchRow title="Mobility warm-up" caption="Moves for the muscles you'll train. 3 min, before the workout's time." :on="answers.warmUp" data-training-warm-up @toggle="change({ warmUp: !answers.warmUp })" />
+        <SwitchRow title="Cool-down" caption="Stretches for the muscles you trained. 3 min, after the workout's time." :on="answers.coolDown" data-training-cool-down @toggle="change({ coolDown: !answers.coolDown })" />
       </div>
 
-      <p v-if="plan.current" class="t-capn c2 m0" data-training-plan-note>Your plan keeps the answers it was made with. Edit plan to change it.</p>
+      <div v-if="plan.current && behind.length" class="well col g8" data-training-plan-note>
+        <span class="t-label">{{ planBehindLine(behind) }}</span>
+        <button type="button" class="btn sm primary t-label upd" data-training-update @click="openPlanUpdate">Update plan</button>
+      </div>
+      <p v-else-if="plan.current" class="t-capn c2 m0" data-training-plan-note>Your plan uses these. The warm-up and cool-down switch on it at once.</p>
       <span class="t-capn c3">Training suggestions, not medical advice.</span>
     </div>
   </BottomSheet>
@@ -99,6 +116,8 @@ function toggleJoint(id: (typeof JOINTS)[number]["id"]) {
 <style scoped>
 .m0 { margin: 0; }
 .g8 { gap: var(--space-s); }
+.g2 { gap: var(--space-2xs); }
+.upd { align-self: flex-start; }
 .hdr { gap: var(--space-s); flex-wrap: nowrap; }
 .setup { gap: var(--space-l); }
 .lrow { gap: var(--space-s); }

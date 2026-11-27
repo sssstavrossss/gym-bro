@@ -56,6 +56,7 @@ Phase 6 is done, and with it the roadmap below.
 
 After the roadmap:
 - Warm-up and cool-down (asked for 2026-11-26): two plan settings, both off by default. A mobility warm-up of dynamic moves takes the plain warm-up's 5 minutes, and a cool-down of 2–4 held stretches for the muscles worked most takes its own few minutes from the workout. Both are picked from hand-made lists of the library's stretches (no foam rolling, no equipment), skip areas to go easy on, and are made again from a workout's exercises when it's edited. Stored as `warmUp`/`coolDown` lists on each plan workout and two booleans on the plan (migration `20261206090000_AddPlanMobility`). See *Warm-up and cool-down* in the README.
+- Changed 2026-11-27: each is 3 minutes on top of the workout's time (4 moves; 3 or 4 stretches), so switching them never changes the exercises, and the plan follows the switches in Your training at once. Your training got its own card on Train, and its other answers reach the plan only through **Update plan**, which shows each answer's Now and New and what each workout gains, loses and takes before it saves.
 
 ## Decisions (agreed 2026-11-25)
 

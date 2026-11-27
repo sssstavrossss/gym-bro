@@ -220,11 +220,59 @@ export function planLine(plan: Pick<Plan, "goal" | "split" | "weekdays" | "minut
 export const EMPTY_WORKOUT = "No exercises yet";
 
 /** "With a warm-up and cool-down", "With a warm-up", "With a cool-down", or "" when it has neither. */
+/** The mobility warm-up's and cool-down's minutes each, on top of a workout's own (server `Mobility.PartSeconds`). */
+export const MOBILITY_MINUTES = 3;
+
+/** "+ 3 min warm-up · 3 min cool-down", or just the one, or "": what a workout adds to its own minutes. */
 export function mobilityLine(workout: Pick<PlanWorkout, "warmUp" | "coolDown">): string {
-  const parts = [workout.warmUp?.length ? "a warm-up" : "", workout.coolDown?.length ? "cool-down" : ""].filter(Boolean);
-  if (!parts.length) return "";
-  if (parts.length === 2) return "With a warm-up and cool-down";
-  return parts[0] === "a warm-up" ? "With a warm-up" : "With a cool-down";
+  const parts = [workout.warmUp?.length ? `${MOBILITY_MINUTES} min warm-up` : "", workout.coolDown?.length ? `${MOBILITY_MINUTES} min cool-down` : ""].filter(Boolean);
+  return parts.length ? `+ ${parts.join(" · ")}` : "";
+}
+
+/** One workout, as Update plan shows it: now and once updated. */
+export interface WorkoutChange {
+  name: string;
+  minutesNow: number;
+  minutesNew: number;
+  setsNow: number;
+  setsNew: number;
+  /** Exercise ids it gains and loses, in the workout's order. */
+  added: string[];
+  removed: string[];
+  /** Edited by hand, so updating makes it again. */
+  edited: boolean;
+}
+
+const setsOf = (workout: PlanWorkout) => workout.exercises.reduce((total, item) => total + item.sets, 0);
+
+/** Each of the updated plan's workouts against the one it replaces (same name, else the same place). */
+export function workoutChanges(current: readonly PlanWorkout[], next: readonly PlanWorkout[]): WorkoutChange[] {
+  return next.map((item, index) => {
+    const was = current.find((workout) => workout.name === item.name) ?? current[index];
+    const before = was?.exercises.map((exercise) => exercise.exerciseId) ?? [];
+    const after = item.exercises.map((exercise) => exercise.exerciseId);
+    return {
+      name: item.name,
+      minutesNow: was?.minutes ?? 0,
+      minutesNew: item.minutes,
+      setsNow: was ? setsOf(was) : 0,
+      setsNew: setsOf(item),
+      added: after.filter((id) => !before.includes(id)),
+      removed: before.filter((id) => !after.includes(id)),
+      edited: was?.edited ?? false,
+    };
+  });
+}
+
+/** "~40 → ~45 min · 15 → 18 sets", then "+ Lateral raise · − Curl"; or just "No change". */
+export function workoutChangeLines(change: WorkoutChange, nameOf: (id: string) => string): string[] {
+  const sizes = [
+    change.minutesNow !== change.minutesNew ? `~${change.minutesNow} → ~${change.minutesNew} min` : "",
+    change.setsNow !== change.setsNew ? `${change.setsNow} → ${change.setsNew} sets` : "",
+  ].filter(Boolean).join(" · ");
+  const swaps = [...change.added.map((id) => `+ ${nameOf(id)}`), ...change.removed.map((id) => `− ${nameOf(id)}`)].join(" · ");
+  const lines = [sizes, swaps].filter(Boolean);
+  return lines.length ? lines : ["No change"];
 }
 
 /**
