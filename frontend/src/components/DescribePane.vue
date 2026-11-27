@@ -146,9 +146,9 @@ function onDraftKey(event: KeyboardEvent) {
             <img v-if="describe.photo" :src="describe.photo.url" alt="Your photo" class="wthumb" />
             <span v-else-if="describe.fromPhoto" class="cam" aria-label="From a photo"><Icon name="camera" :size="18" /></span>
             <span class="t-body grow" :class="{ c2: !describe.text }">{{ sentText }}</span>
-            <Icon name="edit" :size="16" class="c2" />
+            <Icon name="edit" :size="20" class="c2" />
           </button>
-          <button type="button" class="clr c2" aria-label="Clear and start over" data-describe-clear :disabled="describe.adding || finding" @click="clear"><Icon name="x" :size="16" /></button>
+          <button type="button" class="clr c2" aria-label="Clear and start over" data-describe-clear :disabled="describe.adding || finding" @click="clear"><Icon name="x" :size="20" /></button>
         </div>
         <p v-if="describe.revising && describe.error" class="err t-label" role="alert">{{ describe.error }}</p>
 
