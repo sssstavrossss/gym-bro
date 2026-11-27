@@ -2,34 +2,27 @@
 import { computed, ref, watch } from "vue";
 import BottomSheet from "./BottomSheet.vue";
 import Icon from "./Icon.vue";
+import PlanWeek from "./PlanWeek.vue";
 import Segmented from "./Segmented.vue";
 import SwitchRow from "./SwitchRow.vue";
 import { previewPlan } from "../api";
 import {
   answersOf,
-  blockNote,
-  dayNames,
   defaultAnswers,
   droppedOwn,
-  eachMinutes,
   easeInFor,
   GOALS,
-  mobilityLine,
   previewSummary,
   remakes,
   splitFor,
-  splitLabel,
   splitsFor,
   toggled,
   WEEKDAYS,
-  workoutDays,
-  workoutLine,
   type PlanAnswers,
   type PlanPreview,
   type Split,
 } from "../lib/plan";
 import { sameTraining, trainingFrom, usingLine, withTraining } from "../lib/training";
-import { exercises } from "../state/exercises";
 import { endPlan, plan, planDraft, savePlan } from "../state/plan";
 import { training } from "../state/training";
 import { closeSheet, openTraining, toast, toastError, ui } from "../ui";
@@ -52,7 +45,7 @@ function newAnswers(split: Split | null): PlanAnswers {
 watch(open, (shown) => {
   if (!shown) return;
   // Goal, days, Ease in and the split are the plan's own; the rest is Your training, and saving brings the plan up to it.
-  answers.value = plan.current ? withTraining(answersOf(plan.current), training.value) : newAnswers(ui.planOwn ? "custom" : null);
+  answers.value = plan.current ? withTraining(answersOf(plan.current), training.value) : newAnswers(ui.planSplit);
   choosingSplit.value = false;
   confirmingEnd.value = false;
 });
@@ -98,14 +91,6 @@ watch(() => answers.value.goal, (goal) => {
   if (answers.value.split && !splitsFor(goal).some((item) => item.id === answers.value.split)) answers.value.split = null;
 });
 const summary = computed(() => (preview.value ? previewSummary(preview.value) : null));
-// A new plan's preview: its week, each workout's days, and the time each takes.
-const nameOf = (id: string) => exercises.items.find((item) => item.id === id)?.name ?? id;
-const days = computed(() => (preview.value ? workoutDays(answers.value.weekdays, preview.value.workouts.length) : []));
-const week = computed(() => WEEKDAYS.map((day, index) => {
-  const at = days.value.findIndex((list) => list.includes(index));
-  const name = at >= 0 ? preview.value?.workouts[at]?.name : undefined;
-  return { day, letter: day[0], name, label: name ? `${day}, ${name}` : `${day}, rest day` };
-}));
 const easeIn = computed(() => easeInFor(answers.value));
 /** Saving remakes every workout from the answers, so hand edits go (not when only the warm-up or cool-down changes). */
 const editedNames = computed(() =>
@@ -160,28 +145,7 @@ async function end() {
     <!-- A new plan: what it makes, before it starts. Goal and days come from Train's card, the rest from Your training. -->
     <div v-if="!editing" class="col setup" data-plan-new>
       <div class="col g16" data-plan-preview aria-live="polite">
-        <template v-if="preview && previewState === 'ready'">
-          <dl class="gstats">
-            <div><dt class="t-capn c2">Split</dt><dd class="t-bodys">{{ splitLabel(preview.split) }}</dd></div>
-            <div><dt class="t-capn c2">Block</dt><dd class="t-bodys">{{ preview.blockWeeks }} weeks</dd></div>
-            <div><dt class="t-capn c2">Each</dt><dd class="t-bodys">~{{ eachMinutes(preview.workouts, answers.minutes) }} min</dd></div>
-          </dl>
-          <ol class="wkstrip" aria-label="Your week" data-plan-week>
-            <li v-for="day in week" :key="day.day" class="wkday" :data-state="day.name ? 'planned' : 'rest'">
-              <span class="wkdisc t-bodys" aria-hidden="true">{{ day.letter }}</span>
-              <span class="sr-only">{{ day.label }}</span>
-            </li>
-          </ol>
-          <ol class="list nws">
-            <li v-for="(item, at) in preview.workouts" :key="item.id" class="col nw" :data-plan-new-workout="item.name">
-              <span class="row pwhead"><span class="t-bodys grow">{{ item.name }}</span><span class="t-label c2">{{ workoutLine(item) }}</span></span>
-              <span class="t-capn c2">{{ days[at]?.length ? dayNames(days[at]) : "From week 2" }}</span>
-              <span v-if="item.exercises.length" class="t-capn c3 names">{{ item.exercises.map((exercise) => nameOf(exercise.exerciseId)).join(" · ") }}</span>
-              <span v-if="mobilityLine(item)" class="t-capn c3">{{ mobilityLine(item) }}</span>
-            </li>
-          </ol>
-          <p class="t-capn c2 m0" data-plan-block-note>{{ blockNote(preview) }}</p>
-        </template>
+        <PlanWeek v-if="preview && previewState === 'ready'" :preview="preview" :weekdays="answers.weekdays" :minutes="answers.minutes" />
         <div v-else class="well col g4">
           <template v-if="previewState === 'failed'">
             <span class="t-bodys">Couldn't show the plan</span>
@@ -302,14 +266,6 @@ async function end() {
 .g4 { gap: var(--space-xs); }
 .g8 { gap: var(--space-s); }
 .g16 { gap: var(--space-m); }
-.list { list-style: none; margin: 0; padding: 0; }
-/* A new plan's workouts, one under the other with a line between. */
-.nws { display: flex; flex-direction: column; }
-.nw { gap: var(--space-2xs); padding: var(--space-s) 0; min-width: 0; }
-.nws > li + li { border-top: 1px solid var(--color-border); }
-.row.pwhead { gap: 0 var(--space-s); flex-wrap: wrap; }
-.pwhead > .grow { flex-shrink: 0; }
-.names { overflow-wrap: anywhere; }
 /* Your training, in a line you can tap to change it. */
 .using { width: 100%; min-height: var(--control-hit); gap: var(--space-s); padding: 0; background: none; border: 0; color: inherit; text-align: left; flex-wrap: nowrap; }
 .using .grow { min-width: 0; overflow-wrap: anywhere; }

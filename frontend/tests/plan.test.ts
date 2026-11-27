@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  kindDays,
+  kindGoal,
+  PLAN_KINDS,
   answersOf,
   blockNote,
   dayNames,
@@ -272,5 +275,34 @@ describe("a new plan's preview", () => {
     expect(blockNote({ split: "full_body", easeIn: false, blockWeeks: 6 })).toBe("Each week adds a little, then week 6 is lighter so you recover.");
     expect(blockNote({ split: "upper_lower", easeIn: true, blockWeeks: 6 })).toMatch(/^The first 2 weeks ease in\. /);
     expect(blockNote({ split: "custom", easeIn: false, blockWeeks: 6 })).toMatch(/start empty/);
+  });
+});
+
+describe("plan kinds", () => {
+  const kind = (split: string) => PLAN_KINDS.find((item) => item.split === split)!;
+
+  it("lists every split once, Your own last", () => {
+    expect(PLAN_KINDS.map((item) => item.split)).toEqual(["full_body", "upper_lower", "ppl_upper_lower", "push_pull_legs", "hyrox", "custom"]);
+  });
+
+  it("each kind's sample week has as many days as it is made for, and the days pick its split", () => {
+    for (const item of PLAN_KINDS) {
+      expect(item.sample.length).toBeGreaterThanOrEqual(item.minDays);
+      expect(item.sample.length).toBeLessThanOrEqual(item.maxDays);
+      if (item.split !== "hyrox" && item.split !== "custom") expect(splitFor(item.sample.length, "muscle")).toBe(item.split);
+    }
+  });
+
+  it("keeps your days when they fit, else uses the sample week", () => {
+    expect(kindDays(kind("full_body"), [3, 1])).toEqual([1, 3]);
+    expect(kindDays(kind("upper_lower"), [0, 2, 4])).toEqual([0, 1, 3, 4]);
+    expect(kindDays(kind("custom"), [6])).toEqual([6]);
+  });
+
+  it("Hyrox takes its own goal, and the others leave it", () => {
+    expect(kindGoal(kind("hyrox"), "strength")).toBe("hyrox");
+    expect(kindGoal(kind("full_body"), "hyrox")).toBe("muscle");
+    expect(kindGoal(kind("full_body"), "fitness")).toBe("fitness");
+    expect(kindGoal(kind("custom"), "hyrox")).toBe("hyrox");
   });
 });

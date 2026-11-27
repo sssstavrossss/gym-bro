@@ -484,3 +484,38 @@ export function blockNote(preview: Pick<PlanPreview, "split" | "easeIn" | "block
   const build = `Each week adds a little, then week ${preview.blockWeeks} is lighter so you recover.`;
   return preview.easeIn ? `The first 2 weeks ease in. ${build}` : build;
 }
+
+/** The kinds of plan Explore → Plans shows: the splits the days pick, Hyrox, and your own. */
+export interface PlanKind {
+  split: Split;
+  /** Days a week it's made for, the least and the most. */
+  minDays: number;
+  maxDays: number;
+  /** "1–3 days" */
+  days: string;
+  line: string;
+  goals: string;
+  /** The days its sample week uses when yours don't fit it. */
+  sample: number[];
+}
+
+export const PLAN_KINDS: PlanKind[] = [
+  { split: "full_body", minDays: 1, maxDays: 3, days: "1–3 days", line: "Every muscle each time, A and B in turn", goals: "Muscle · Strength · Fitness", sample: [0, 2, 4] },
+  { split: "upper_lower", minDays: 4, maxDays: 4, days: "4 days", line: "Two upper days and two lower days", goals: "Muscle · Strength · Fitness", sample: [0, 1, 3, 4] },
+  { split: "ppl_upper_lower", minDays: 5, maxDays: 5, days: "5 days", line: "Push, pull and legs, then upper and lower", goals: "Muscle · Strength · Fitness", sample: [0, 1, 2, 4, 5] },
+  { split: "push_pull_legs", minDays: 6, maxDays: 7, days: "6–7 days", line: "Each muscle twice a week", goals: "Muscle · Strength · Fitness", sample: [0, 1, 2, 3, 4, 5] },
+  { split: "hyrox", minDays: 1, maxDays: 7, days: "Any days", line: "Strength, the race's stations and runs", goals: "Hyrox", sample: [0, 2, 4] },
+  { split: "custom", minDays: 1, maxDays: 7, days: "Any days", line: "Empty workouts you fill and name", goals: "Any goal", sample: [0, 2, 4] },
+];
+
+/** Your days when there are as many as the kind is made for, else its sample week. */
+export function kindDays(kind: PlanKind, weekdays: number[]): number[] {
+  return weekdays.length >= kind.minDays && weekdays.length <= kind.maxDays ? [...weekdays].sort((a, b) => a - b) : [...kind.sample];
+}
+
+/** Hyrox takes its own goal; the others keep yours, or Muscle when yours is Hyrox. */
+export function kindGoal(kind: PlanKind, goal: PlanGoal): PlanGoal {
+  if (kind.split === "hyrox") return "hyrox";
+  if (kind.split === "custom") return goal;
+  return goal === "hyrox" ? "muscle" : goal;
+}
