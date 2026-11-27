@@ -21,6 +21,19 @@ public sealed class ProgressMathTests
     }
 
     [Fact]
+    public void A_year_starts_at_the_first_stored_day_but_looks_back_365_days_at_most()
+    {
+        var yearAgo = Today.AddDays(-(ProgressMath.YearDays - 1));
+        Assert.Equal(new DateOnly(2026, 10, 1), ProgressMath.WindowStart(Today, "1y", new DateOnly(2026, 10, 1)));
+        Assert.Equal(yearAgo, ProgressMath.WindowStart(Today, "1y", new DateOnly(2024, 3, 1)));
+        Assert.Equal(Today, ProgressMath.WindowStart(Today, "1y", null));
+        Assert.Equal(Today, ProgressMath.WindowStart(Today, "1y", Today.AddDays(3)));
+        Assert.Equal(Today, ProgressMath.WindowEnd(Today, "1y", Today.AddDays(-7)));
+        Assert.True(ProgressMath.TryRange("1Y", out var normalized));
+        Assert.Equal("1y", normalized);
+    }
+
+    [Fact]
     public void A_fixed_range_can_end_on_an_earlier_day_but_not_a_later_one_and_all_ends_today()
     {
         var earlier = Today.AddDays(-7);

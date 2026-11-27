@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import Icon from "./Icon.vue";
 import Segmented from "./Segmented.vue";
 import ProgressChart from "./ProgressChart.vue";
+import ProgressStrip from "./ProgressStrip.vue";
 import SwipePanels from "./SwipePanels.vue";
 import { ApiError, getProgress, type ProgressDay, type ProgressResponse } from "../api";
 import { followPage, visiblePages } from "../lib/cardPages";
@@ -10,7 +11,10 @@ import { dayMonth, spanLabel } from "../lib/dates";
 import { formatDecimal, int } from "../lib/format";
 import { fatLimits, fatLimitsOf, sodiumLimitMg, sodiumLimitOf } from "../lib/nutrientCards";
 import type { IntakeDay } from "../lib/progressChart";
-import { canGoEarlier, fiberMinimum, goalKind, intakeStats, LINE_WORDS, PAGE_TITLES, PROGRESS_PAGES, rangeEnd, type IntakePage, type ProgressPage } from "../lib/progressCard";
+import { fiberMinimum, goalKind, intakeStats, LINE_WORDS, PAGE_TITLES, PROGRESS_PAGES, WINDOW_DAYS, type IntakePage, type ProgressPage } from "../lib/progressCard";
+import {
+  centreOf, clampOffset, dayIndexAt, lineStrip, offsetForCentre, stripSpan, weekBarStrip, weightWindow, windowLength, windowOf, type StripShape,
+} from "../lib/progressWindow";
 import { rateStat } from "../lib/weightTrend";
 import { cardPages, pageOrder } from "../state/cardPages";
 import { connection } from "../state/connection";
@@ -66,10 +70,16 @@ function savePage(item: ProgressPage) {
 }
 
 const range = ref<Range>(readRange());
-/** Whole ranges back from now (‹ beside the dates). Not saved: a new range, a reload or leaving Today starts at now. */
-const back = ref(0);
-/** Today as the server last said, so stepping counts from the person's today. */
-const today = ref<string | null>(null);
+/**
+ * Days the window ends before today (the strip, or a held drag on the chart). Not saved: a reload or leaving Today
+ * starts at now.
+ */
+const offset = ref(0);
+/**
+ * Days back to the middle of the window, kept while switching range so the stretch in view stays in view (null at
+ * now, which stays at now). Set only when the window moves, so switching back and forth doesn't drift.
+ */
+let centre: number | null = null;
 const pages = computed(() => visiblePages(PROGRESS_PAGES, cardPages.progress, pageOrder.progress));
 const titles = computed(() => pages.value.map((item) => PAGE_TITLES[item]));
 const page = ref<ProgressPage>(readPage());
@@ -82,16 +92,17 @@ const pan = ref(0);
 const span = ref<{ from: string; to: string } | null>(null);
 let requestId = 0;
 
+/**
+ * One load serves every range: a year (1y) for the fixed ranges, everything for All. Each window is sliced out of it,
+ * so moving through time needs no request.
+ */
 async function load() {
   const id = ++requestId;
-  const asked = range.value;
-  const to = today.value ? rangeEnd(today.value, asked, back.value) : null;
   failed.value = false;
   try {
-    const next = await getProgress(asked, to);
-    if (id !== requestId || asked !== range.value) return;
+    const next = await getProgress(range.value === "all" ? "all" : "1y");
+    if (id !== requestId) return;
     data.value = next;
-    today.value = next.today;
   } catch (error) {
     if (id !== requestId) return;
     failed.value = data.value == null;
@@ -100,28 +111,26 @@ async function load() {
   }
 }
 
+/** A year doesn't hold all of a longer history. */
+const partial = computed(() => {
+  const loaded = data.value;
+  return !!loaded && loaded.range !== "all" && loaded.earliest != null && loaded.from > loaded.earliest;
+});
+
 function pickRange(value: Range) {
   if (value === range.value) return;
   range.value = value;
-  back.value = 0;
   pan.value = 0;
   span.value = null;
+  // The same stretch stays in view; All shows everything and leaves the middle for the way back.
+  offset.value = value === "all" ? 0 : offsetForCentre(centre, stripSpan(value, history.value), windowLength(value, history.value));
   try {
     localStorage.setItem(rangeKey, value);
   } catch {
     // The pick still applies for this visit.
   }
-  void load();
+  if (value === "all" && partial.value) void load();
 }
-const steps = computed(() => range.value !== "all" && !!data.value);
-const earlier = computed(() => canGoEarlier(range.value, data.value?.from, data.value?.earliest));
-function step(by: number) {
-  const next = Math.max(0, back.value + by);
-  if (next === back.value || (by > 0 && !earlier.value)) return;
-  back.value = next;
-  void load();
-}
-const LONG: Record<Range, string> = { "7d": "7 days", "30d": "30 days", "90d": "90 days", "6m": "6 months", all: "" };
 
 function onPage(index: number) {
   page.value = pages.value[index] ?? "weight";
@@ -142,12 +151,50 @@ watch(
 // Adding, editing or deleting food changes the intake pages.
 onLogChange(() => { void load(); });
 
-const days = computed<ProgressDay[]>(() => data.value?.days ?? []);
+/** Every loaded day, oldest first, ending today. */
+const history = computed(() => data.value?.days.length ?? 0);
+/** Days in the window: the range, or your history when that is shorter. */
+const length = computed(() => windowLength(range.value, history.value));
+/** The days the strip covers: your history, a year at most for the fixed ranges. */
+const stripSpanDays = computed(() => stripSpan(range.value, history.value));
+const stripDays = computed<ProgressDay[]>(() => (data.value?.days ?? []).slice(-stripSpanDays.value));
+const shownOffset = computed(() => clampOffset(offset.value, stripSpanDays.value, length.value));
+const days = computed<ProgressDay[]>(() => windowOf(stripDays.value, length.value, shownOffset.value));
+const first = computed(() => days.value[0]?.date ?? "");
+const last = computed(() => days.value[days.value.length - 1]?.date ?? "");
 const periodText = computed(() => {
-  if (!data.value) return "";
+  if (!days.value.length) return "";
   if (range.value === "all" && span.value) return spanLabel(span.value.from, span.value.to);
-  return spanLabel(data.value.from, data.value.to);
+  return spanLabel(first.value, last.value);
 });
+const weighIns = computed(() => data.value?.weight.weighIns ?? []);
+const shownWeighIns = computed(() => weighIns.value.filter((row) => row.date >= first.value && row.date <= last.value));
+
+/** At most one move a frame, however fast the finger goes. */
+let pending: number | null = null;
+let frame = 0;
+let afterMove: (() => void) | null = null;
+function moveTo(value: number, after?: () => void) {
+  pending = value;
+  afterMove = after ?? null;
+  if (frame) return;
+  frame = requestAnimationFrame(() => {
+    frame = 0;
+    const next = clampOffset(pending ?? 0, stripSpanDays.value, length.value);
+    pending = null;
+    if (next !== shownOffset.value) {
+      offset.value = next;
+      centre = centreOf(next, length.value);
+    }
+    const run = afterMove;
+    afterMove = null;
+    run?.();
+  });
+}
+function backToNow() {
+  offset.value = 0;
+  centre = null;
+}
 
 type Amount = number | null | undefined;
 /** Each intake page: the day's amount and its line. Saturated fat's limit follows that day's kcal target. */
@@ -161,12 +208,20 @@ const SOURCES: Record<IntakePage, { value: (day: ProgressDay) => Amount; line: (
   sodium: { value: (day) => day.sodiumMg, line: () => sodiumLimitMg(sodiumLimitOf(profile.saved?.sodiumLimit)) },
 };
 const INTAKE_PAGES = PROGRESS_PAGES.filter((item): item is IntakePage => item !== "weight" && item !== "burn");
-const intake = computed(() => Object.fromEntries(INTAKE_PAGES.map((item) => [item, days.value.map((day): IntakeDay => ({
-  date: day.date,
-  logged: day.logged,
-  value: SOURCES[item].value(day) ?? null,
-  target: SOURCES[item].line(day) ?? null,
-}))])) as Record<IntakePage, IntakeDay[]>);
+function intakeOf(item: IntakePage, list: readonly ProgressDay[]): IntakeDay[] {
+  return list.map((day) => ({ date: day.date, logged: day.logged, value: SOURCES[item].value(day) ?? null, target: SOURCES[item].line(day) ?? null }));
+}
+const intake = computed(() => Object.fromEntries(INTAKE_PAGES.map((item) => [item, intakeOf(item, days.value)])) as Record<IntakePage, IntakeDay[]>);
+/** Each shown page's strip, drawn once per load and range (not per move). */
+const strips = computed(() => {
+  const list = stripDays.value;
+  const dates = list.map((day) => day.date);
+  return Object.fromEntries(pages.value.map((item): [ProgressPage, StripShape] => {
+    if (item === "weight") return [item, lineStrip(dates, list.map((day) => ({ value: day.trendKg, spread: day.trendBandKg ?? null })))];
+    if (item === "burn") return [item, lineStrip(dates, list.map((day) => ({ value: day.burnKcal ?? null, spread: day.burnSdKcal ?? null })))];
+    return [item, weekBarStrip(intakeOf(item, list), goalKind(item))];
+  })) as Record<ProgressPage, StripShape>;
+});
 function unitOf(item: ProgressPage) {
   if (item === "weight") return weightUnit();
   return item === "kcal" || item === "burn" ? "kcal" : item === "sodium" ? "mg" : "g";
@@ -180,23 +235,27 @@ function saltText(sodiumMg: number) {
 interface Stat { label: string; value: string; sub: string }
 function statsOf(item: ProgressPage): Stat[] {
   if (item === "weight") {
-    const weight = data.value?.weight;
-    const trend = weight?.trendKg;
-    const latest = weight?.currentKg;
-    const count = weight?.weighIns.length ?? 0;
-    const band = weight?.bandKg != null ? `±${wt(weight.bandKg)} · ` : "";
+    // Read off the window's last day. At now that is the server's own today; an earlier window shows the trend as the
+    // whole series draws it there, so the line, its end and these numbers agree.
+    const at = weightWindow(data.value?.days ?? [], weighIns.value, first.value, last.value);
+    const now = shownOffset.value === 0 ? data.value?.weight : null;
+    const trend = now ? now.trendKg : at.trendKg;
+    const bandKg = now ? now.bandKg : at.bandKg;
+    const latest = now ? now.currentKg : at.latestKg;
+    const band = bandKg != null ? `±${wt(bandKg)} · ` : "";
     return [
       { label: "Trend", value: trend == null ? "–" : wtUnit(trend), sub: latest == null ? "no weigh-in" : `${band}latest ${wt(latest)}` },
-      { label: "Rate", ...rateStat(weight?.rateKgPerWeek, weightUnit()) },
-      { label: "Weigh-ins", value: String(count), sub: `in ${days.value.length} days` },
+      { label: "Rate", ...rateStat(now ? now.rateKgPerWeek : at.rateKgPerWeek, weightUnit()) },
+      { label: "Weigh-ins", value: String(at.count), sub: `in ${days.value.length} days` },
     ];
   }
   if (item === "burn") {
-    // Today's burn, not the range's: it is what today's target is built on.
-    const burn = data.value?.burn;
+    // The burn on the window's last day: at now, today's, which today's target is built on.
+    const burn = shownOffset.value === 0 ? data.value?.burn : burnOn(days.value);
     if (!burn) return [{ label: "Burn", value: "–", sub: "no target yet" }, { label: "BMR", value: "–", sub: "at rest" }, { label: "Activity", value: "–", sub: "burn − BMR" }];
+    const how = !burn.measured ? "formula" : burn.setOn ? dayMonth(burn.setOn) : "measured";
     return [
-      { label: "Burn", value: int(burn.kcal), sub: `±${int(burn.sdKcal)} · ${burn.measured ? dayMonth(burn.setOn) : "formula"}` },
+      { label: "Burn", value: int(burn.kcal), sub: `±${int(burn.sdKcal)} · ${how}` },
       { label: "BMR", value: int(burn.bmrKcal), sub: "at rest" },
       { label: "Activity", value: int(burn.kcal - burn.bmrKcal), sub: "burn − BMR" },
     ];
@@ -215,22 +274,118 @@ function statsOf(item: ProgressPage): Stat[] {
     { label: "Logged", value: `${stats.logged} ${stats.logged === 1 ? "day" : "days"}`, sub: `of ${stats.total}` },
   ];
 }
+/** The burn in effect on the last day of `list` that has one. */
+function burnOn(list: readonly ProgressDay[]) {
+  for (let i = list.length - 1; i >= 0; i--) {
+    const day = list[i];
+    if (day.burnKcal != null && day.bmrKcal != null) return { kcal: day.burnKcal, bmrKcal: day.bmrKcal, sdKcal: day.burnSdKcal ?? 0, measured: !!day.burnMeasured, setOn: null as string | null };
+  }
+  return null;
+}
+
+// Hold the chart about a quarter second, then drag: the chart follows the finger a day at a time, with the day under
+// it read out. Touch events, so a quick swipe stays the pages' and a held drag can take the touch from them.
+const HOLD_MS = 260;
+/** The y labels' column on the chart's right. */
+const YCOL = 34;
+const held = ref(false);
+const readout = ref<{ x: number; label: number; text: string; date: string } | null>(null);
+let hold: null | { x: number; y: number; lastX: number; timer: number; active: boolean; from: number; el: HTMLElement; item: ProgressPage; track: HTMLElement | null } = null;
+/** Whether the chart can be held: not while All scrolls sideways itself. */
+const holdable = computed(() => range.value !== "all" || days.value.length <= WINDOW_DAYS);
+
+function readoutText(item: ProgressPage, day: ProgressDay) {
+  const date = dayMonth(day.date);
+  if (item === "weight") return `${date} · ${day.trendKg == null ? "no trend" : wtUnit(day.trendKg)}`;
+  if (item === "burn") return `${date} · ${day.burnKcal == null ? "no target" : `${int(day.burnKcal)} kcal`}`;
+  const value = SOURCES[item].value(day);
+  return `${date} · ${!day.logged || value == null ? "not logged" : `${int(value)} ${unitOf(item)}`}`;
+}
+function readAt(el: HTMLElement, clientX: number, item: ProgressPage) {
+  const rect = el.getBoundingClientRect();
+  const plot = rect.width - YCOL;
+  const x = Math.max(0, Math.min(plot - 1, clientX - rect.left));
+  const day = days.value[dayIndexAt(x, plot, days.value.length)];
+  if (!day) return;
+  // The pill stays inside the plot; the line marks the day.
+  readout.value = { x, label: Math.max(64, Math.min(plot - 64, x)), date: day.date, text: readoutText(item, day) };
+}
+function holdStart(event: TouchEvent, item: ProgressPage) {
+  if (!holdable.value || event.touches.length !== 1) return;
+  const el = event.currentTarget as HTMLElement;
+  const point = event.touches[0];
+  const timer = window.setTimeout(() => {
+    if (!hold) return;
+    hold.active = true;
+    hold.from = shownOffset.value;
+    held.value = true;
+    // The touch is the chart's now: the pages stop tracking it, and can't scroll until it ends.
+    hold.track?.dispatchEvent(new Event("touchcancel"));
+    if (hold.track) hold.track.style.overflowX = "hidden";
+    navigator.vibrate?.(8);
+    readAt(el, hold.lastX, item);
+  }, HOLD_MS);
+  hold = { x: point.clientX, y: point.clientY, lastX: point.clientX, active: false, from: shownOffset.value, el, item, track: el.closest(".track"), timer };
+}
+function holdMove(event: TouchEvent) {
+  if (!hold) return;
+  const point = event.touches[0];
+  const dx = point.clientX - hold.x;
+  hold.lastX = point.clientX;
+  if (!hold.active) {
+    // Moved before the hold: a swipe or a scroll, not a hold.
+    if (Math.hypot(dx, point.clientY - hold.y) > 8) endHold();
+    return;
+  }
+  event.preventDefault();
+  event.stopPropagation();
+  const { el, item } = hold;
+  const plot = el.getBoundingClientRect().width - YCOL;
+  // Drag right to see earlier days, as if pulling the chart along.
+  if (range.value === "all") readAt(el, point.clientX, item);
+  else moveTo(hold.from + dx / (plot / length.value), () => readAt(el, point.clientX, item));
+}
+function endHold() {
+  if (!hold) return;
+  clearTimeout(hold.timer);
+  if (hold.active) {
+    if (hold.track) hold.track.style.overflowX = "";
+    held.value = false;
+    readout.value = null;
+  }
+  hold = null;
+}
+function holdEnd(event: TouchEvent) {
+  if (hold?.active) event.stopPropagation();
+  endHold();
+}
+const wired = new WeakSet<HTMLElement>();
+function chartRef(item: ProgressPage) {
+  return (el: unknown) => {
+    if (!(el instanceof HTMLElement) || wired.has(el)) return;
+    wired.add(el);
+    el.addEventListener("touchstart", (event) => holdStart(event, item), { passive: true });
+    el.addEventListener("touchmove", holdMove, { passive: false });
+    el.addEventListener("touchend", holdEnd);
+    el.addEventListener("touchcancel", holdEnd);
+    el.addEventListener("contextmenu", (event) => { if (hold) event.preventDefault(); });
+  };
+}
+onBeforeUnmount(() => {
+  endHold();
+  cancelAnimationFrame(frame);
+});
 </script>
 
 <template>
   <section class="card home-progress" aria-label="Progress">
     <div class="chead head">
       <h2 class="section-title panel-title ttl" data-progress-title>{{ PAGE_TITLES[page] }}</h2>
-      <!-- ‹ dates ›: step a fixed range back and forth; the dates bring it back to now. -->
-      <span v-if="steps && periodText" class="row step" data-range-step>
-        <button type="button" class="arr" :aria-label="`Earlier ${LONG[range]}`" :disabled="!earlier" data-range-earlier @click="step(1)"><Icon name="left" :size="16" /></button>
-        <button
-          type="button" class="t-capn period pbtn" :class="{ moved: back }" :disabled="!back"
-          :aria-label="back ? `${periodText}. Back to now` : periodText" data-range-period @click="back = 0; load()"
-        >{{ periodText }}</button>
-        <button type="button" class="arr" :aria-label="`Later ${LONG[range]}`" :disabled="!back" data-range-later @click="step(-1)"><Icon name="right" :size="16" /></button>
-      </span>
-      <span v-else-if="periodText" class="t-capn c3 period">{{ periodText }}</span>
+      <!-- Moved back in time, the dates stand out, and tapping them comes back to now. -->
+      <button
+        v-if="periodText" type="button" class="t-capn period pbtn" :class="{ moved: shownOffset }" :disabled="!shownOffset"
+        :aria-label="shownOffset ? `${periodText}. Back to now` : periodText" data-range-period @click="backToNow"
+      >{{ periodText }}</button>
       <!-- In the head, not the swipe track, so it stays put while the pages move. -->
       <button v-if="connection.offline" type="button" class="offc c2" aria-label="Offline: these numbers are from the last time you were online" data-offline-card @click="openOffline">
         <Icon name="cloud-off" :size="16" />
@@ -260,18 +415,25 @@ function statsOf(item: ProgressPage): Stat[] {
       @settings="openCardPages('progress')"
     >
       <div v-for="item in pages" :key="item" class="ppage" :data-page="item" role="group" :aria-label="PAGE_TITLES[item]" :aria-hidden="item === page ? undefined : 'true'">
-        <ProgressChart
-          v-model:pan="pan"
-          :page="item"
-          :title="PAGE_TITLES[item]"
-          :range="range"
-          :days="days"
-          :intake="item === 'weight' || item === 'burn' ? [] : intake[item]"
-          :weigh-ins="data?.weight.weighIns ?? []"
-          :selected="props.selected"
-          :unit="unitOf(item)"
-          @span="span = $event"
-        />
+        <div :ref="chartRef(item)" class="chartwrap" :class="{ held: held && item === page }" data-progress-chart>
+          <ProgressChart
+            v-model:pan="pan"
+            :page="item"
+            :title="PAGE_TITLES[item]"
+            :range="range"
+            :days="days"
+            :intake="item === 'weight' || item === 'burn' ? [] : intake[item]"
+            :weigh-ins="shownWeighIns"
+            :selected="readout?.date ?? props.selected"
+            :unit="unitOf(item)"
+            @span="span = $event"
+          />
+          <template v-if="readout && item === page">
+            <span class="xline" :style="{ left: `${readout.x}px` }" aria-hidden="true" />
+            <span class="t-capn readout" :style="{ left: `${readout.label}px` }" data-progress-readout>{{ readout.text }}</span>
+          </template>
+        </div>
+        <ProgressStrip :shape="strips[item]" :span="stripSpanDays" :length="length" :offset="shownOffset" :label="periodText" @move="moveTo" />
         <div class="pstats" :data-home-summary="item === 'weight' ? '' : undefined">
           <div v-for="stat in statsOf(item)" :key="stat.label" class="cell">
             <span class="t-cap c2">{{ stat.label }}</span>
@@ -291,13 +453,9 @@ function statsOf(item: ProgressPage): Stat[] {
 .ttl { margin: 0; flex: none; }
 .period { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
 .weigh { white-space: nowrap; }
-/* ‹ › around the dates: 44px hits that take no more room in the head than their 16px icons, like the offline icon. */
-.step { gap: 0; flex-wrap: nowrap; min-width: 0; }
-.arr { position: relative; z-index: 1; display: inline-grid; place-items: center; width: var(--control-hit); height: var(--control-hit); margin: calc((var(--control-hit) - 1rem) / -2) calc((16px - var(--control-hit)) / 2); padding: 0; background: none; border: 0; color: var(--text-secondary); cursor: pointer; }
-.arr:disabled { opacity: .3; cursor: default; }
 .pbtn { padding: 0 var(--space-s); background: none; border: 0; color: var(--text-tertiary); cursor: pointer; }
 .pbtn:disabled { cursor: default; opacity: 1; }
-/* Stepped back: the dates stand out, and tapping them comes back to now. */
+/* Moved back: the dates stand out, and tapping them comes back to now. */
 .pbtn.moved { color: var(--text-primary); }
 /* A 44px target that takes no more room in the head than the 16px icon. */
 .offc { display: inline-grid; place-items: center; width: 44px; height: 44px; margin: -14px -12px -14px -10px; border-radius: 50%; background: none; border: 0; color: var(--text-secondary); cursor: pointer; }
@@ -310,4 +468,9 @@ function statsOf(item: ProgressPage): Stat[] {
 .cell + .cell { border-left: 1px solid var(--color-border); }
 .num { font-size: min(1rem, 18px); line-height: 1.15; font-weight: 700; letter-spacing: -0.02em; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .cell .t-capn { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+/* A long press on the chart must not select text or open the callout. Held, it tints so the hold reads. */
+.chartwrap { position: relative; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; border-radius: var(--radius-s); transition: background-color .15s; }
+.chartwrap.held { background: color-mix(in srgb, var(--color-surface-2) 70%, transparent); }
+.xline { position: absolute; top: 0; bottom: 20px; width: 1px; background: var(--text-tertiary); pointer-events: none; }
+.readout { position: absolute; top: 2px; padding: 2px var(--space-s); border-radius: var(--radius-pill); background: var(--color-surface-2); color: var(--text-primary); white-space: nowrap; pointer-events: none; font-variant-numeric: tabular-nums; translate: -50% 0; box-shadow: 0 0 0 1px var(--color-border); }
 </style>

@@ -1,4 +1,3 @@
-import { addDays } from "./dates";
 import type { IntakeDay } from "./progressChart";
 
 /**
@@ -160,22 +159,4 @@ export function intakeScale(max: number): { top: number; ticks: number[] } {
   const ticks: number[] = [];
   for (let tick = 0; tick <= top + 1e-9; tick += step) ticks.push(Math.round(tick * 100) / 100);
   return { top, ticks };
-}
-
-/** Days in each fixed range (6m is 182 days, as on the server). All has no length: it runs from the first day. */
-export const RANGE_DAYS: Record<string, number | undefined> = { "7d": 7, "30d": 30, "90d": 90, "6m": 182 };
-
-/**
- * The last day the card shows when stepped `back` whole ranges before today (the ‹ › beside the dates), or null for
- * now. All doesn't step.
- */
-export function rangeEnd(today: string, range: string, back: number): string | null {
-  const length = RANGE_DAYS[range];
-  if (!length || back <= 0) return null;
-  return addDays(today, -back * length);
-}
-
-/** ‹ goes further back only while the range starts after the first day with a log or a weigh-in. */
-export function canGoEarlier(range: string, from: string | undefined, earliest: string | null | undefined): boolean {
-  return RANGE_DAYS[range] != null && from != null && earliest != null && from > earliest;
 }
