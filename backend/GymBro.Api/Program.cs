@@ -22,6 +22,7 @@ builder.Services.Configure<EntraOptions>(builder.Configuration.GetSection(EntraO
 builder.Services.Configure<PostgresOptions>(builder.Configuration.GetSection(PostgresOptions.SectionName));
 builder.Services.Configure<FoodOptions>(builder.Configuration.GetSection(FoodOptions.SectionName));
 builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddGymBroCompression();
 builder.Services.AddScoped<UserDirectory>();
 builder.Services.AddScoped<FoodTableImporter>();
 builder.Services.AddScoped<MatvaretabellenImporter>();
@@ -191,6 +192,8 @@ var app = builder.Build();
 
 app.UseForwardedHeaders();
 app.UseSecurityHeaders();
+// Before the static files and endpoints, so both are compressed.
+app.UseResponseCompression();
 
 if (app.Environment.IsDevelopment())
 {

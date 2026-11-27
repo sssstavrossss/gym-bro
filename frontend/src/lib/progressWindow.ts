@@ -209,3 +209,35 @@ export function weightWindow(series: readonly TrendDayRow[], weighIns: readonly 
     rateKgPerWeek: rateAt(weighIns, (date) => byDate.get(date)?.trendKg, end),
   };
 }
+
+/** What a food log changes on a day. Targets, the trend and the burn don't move with food. */
+export const INTAKE_FIELDS = ["logged", "kcal", "protein", "fat", "carbs", "fiber", "saturatedFat", "sodiumMg"] as const;
+type IntakeField = (typeof INTAKE_FIELDS)[number];
+
+/**
+ * The 7-day windows that cover the days a log change touched, as each window's last day (null: ending today), so
+ * the card fetches those days again instead of its whole year. Null when it takes more than `most` windows, or a day
+ * is after today (a new day began): then the card loads everything again.
+ */
+export function patchWindows(dates: readonly string[], today: string, most = 3): (string | null)[] | null {
+  const ends: string[] = [];
+  for (const date of [...new Set(dates)].sort().reverse()) {
+    if (date > today) return null;
+    if (ends.some((end) => date <= end && date > addDays(end, -7))) continue;
+    ends.push(date > addDays(today, -7) ? today : date);
+  }
+  if (ends.length > most) return null;
+  return ends.map((end) => (end === today ? null : end));
+}
+
+/** `days` with the intake of every day in `fresh` put in, and everything else kept. */
+export function patchIntake<T extends { date: string } & Partial<Record<IntakeField, unknown>>>(days: readonly T[], fresh: readonly T[]): T[] {
+  const byDate = new Map(fresh.map((day) => [day.date, day]));
+  return days.map((day) => {
+    const next = byDate.get(day.date);
+    if (!next) return day;
+    const merged = { ...day };
+    for (const field of INTAKE_FIELDS) (merged as Record<string, unknown>)[field] = next[field] ?? null;
+    return merged;
+  });
+}
