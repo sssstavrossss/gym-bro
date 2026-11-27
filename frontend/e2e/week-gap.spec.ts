@@ -72,7 +72,7 @@ async function paintedGap(page: Page) {
   const box = await page.evaluate(() => {
     const svg = document.querySelector(".chev")!.getBoundingClientRect();
     const stage = document.querySelector(".homeweek .stage")!.getBoundingClientRect();
-    const grip = document.querySelector(".grip")!.getBoundingClientRect();
+    const grip = document.querySelector(".grab-bar")!.getBoundingClientRect();
     const grab = document.querySelector(".grab")!.getBoundingClientRect();
     const macros = document.querySelector("main.today .macros")!.getBoundingClientRect();
     const prompt = document.querySelector("main.today .prompt")!.getBoundingClientRect();
@@ -86,6 +86,8 @@ async function paintedGap(page: Page) {
       svgTop: svg.top,
       block: prompt.top - macros.bottom,
       gripBelow: grip.top - stage.bottom,
+      // The bar sits straight over the chevron.
+      offCentre: Math.abs(grip.left + grip.width / 2 - (svg.left + svg.width / 2)),
       grabH: grab.height,
       dpr: window.devicePixelRatio,
       bg,
@@ -108,7 +110,7 @@ async function paintedGap(page: Page) {
     }
   }
   const inkBottom = box.svgTop + (last + 1) / box.dpr;
-  return { painted: box.macrosTop - inkBottom, block: box.block, gripBelow: box.gripBelow, grabH: box.grabH };
+  return { painted: box.macrosTop - inkBottom, block: box.block, gripBelow: box.gripBelow, grabH: box.grabH, offCentre: box.offCentre };
 }
 
 test.use({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, hasTouch: true, isMobile: true });
@@ -139,6 +141,7 @@ test("the painted chevron sits one block gap above the macro card", async ({ pag
   expect(closed.grabH).toBeGreaterThanOrEqual(44);
   expect(closed.gripBelow).toBeGreaterThanOrEqual(10.5);
   expect(closed.gripBelow).toBeLessThanOrEqual(11.5);
+  expect(closed.offCentre).toBeLessThan(0.5);
   expect(Math.abs(closed.painted - closed.block)).toBeLessThanOrEqual(0.5);
 
   if (test.info().project.name === "chromium") {
