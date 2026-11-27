@@ -41,26 +41,30 @@ test("A workout: start it, add an exercise, tick off sets, rest, finish, and see
   await sheet.getByLabel("Search exercises").fill("barbell bench press");
   await sheet.getByRole("button", { name: "Add Barbell Bench Press - Medium Grip" }).click();
 
-  // New to this exercise: three empty sets, no "last time".
+  // New to this exercise: its own screen with three empty sets, no "last time".
   const workout = page.getByRole("dialog", { name: "Workout" });
-  const card = workout.locator('[data-workout-exercise="barbell-bench-press-medium-grip"][data-open]');
+  const card = page.locator('[data-exercise-screen][data-workout-exercise="barbell-bench-press-medium-grip"]');
   await expect(card.getByText("First time")).toBeVisible();
   await expect(card.locator("[data-set]")).toHaveCount(3);
 
-  await card.getByLabel("Set 1, kg").fill("60");
-  await card.getByLabel("Set 1, Reps").fill("10");
-  await card.getByRole("button", { name: "Set 1 done" }).click();
-  await expect(card.getByRole("button", { name: "Set 1 done" })).toHaveAttribute("aria-pressed", "true");
-  // The next set offers the same numbers, and ticking it takes them.
-  await expect(card.getByLabel("Set 2, kg")).toHaveAttribute("placeholder", "60");
-  await card.getByRole("button", { name: "Set 2 done" }).click();
-  await expect(workout.locator("[data-workout-status]")).toContainText("2 of 3 sets");
+  await page.getByLabel("Set 1, kg").fill("60");
+  await page.getByLabel("Set 1, Reps").fill("10");
+  await page.getByRole("button", { name: "Log set 1" }).click();
+  await expect(card.locator("[data-set]").first()).toHaveAttribute("data-done", "");
+  // The next set offers the same numbers, and logging it takes them.
+  await expect(page.getByLabel("Set 2, kg")).toHaveAttribute("placeholder", "60");
+  await page.getByRole("button", { name: "Log set 2" }).click();
+  await expect(page.locator("[data-exercise-status]")).toHaveText("Set 3 of 3");
 
-  // A compound press rests 2:00; Skip ends it.
-  const rest = workout.locator("[data-rest]");
+  // A compound press rests 2:00, on a chip that skips it.
+  const rest = page.locator("[data-rest]");
   await expect(rest.getByRole("timer")).toHaveText(/^(2:00|1:5\d)$/);
-  await rest.getByRole("button", { name: "Skip" }).click();
+  await rest.click();
   await expect(rest).toHaveCount(0);
+  // Done goes back to the workout, where the exercise is a line.
+  await page.locator("[data-exercise-done]").click();
+  await expect(workout.locator("[data-workout-status]")).toContainText("2 of 3 sets");
+  await expect(workout.locator('[data-workout-exercise="barbell-bench-press-medium-grip"]')).toContainText("2 of 3 · 60 kg × 10, 10");
 
   // Closing keeps it going; Train offers to resume it, also after a reload.
   await workout.getByRole("button", { name: "Hide the workout" }).click();
@@ -84,21 +88,24 @@ test("A workout: start it, add an exercise, tick off sets, rest, finish, and see
   expect(saved).toHaveLength(1);
   expect(saved[0]).toMatchObject({ exercises: ["barbell-bench-press-medium-grip"], sets: 2, volumeKg: 1200 });
 
-  // Next time, the exercise starts with last time's two sets, shown beside each one.
+  // Next time, the exercise starts with last time's two sets, and last time above them.
   await page.getByRole("button", { name: "Empty workout" }).click();
   await page.getByRole("dialog", { name: "Add exercise" }).getByLabel("Search exercises").fill("barbell bench press");
   await page.getByRole("button", { name: "Add Barbell Bench Press - Medium Grip" }).click();
   await expect(card.locator("[data-set]")).toHaveCount(2);
-  await expect(card.locator("[data-set]").first()).toContainText("60 × 10");
+  await expect(card.locator("[data-last-time]")).toContainText("60 kg × 10, 10");
+  // Every set reached the top of the range, so the first set offers 2.5 kg more.
+  await expect(card.locator("[data-set]").first()).toContainText("62.5 × 6");
 
   // The how-to opens over the workout, and Esc goes back to it.
-  await card.getByRole("button", { name: "How to do Barbell Bench Press - Medium Grip" }).click();
-  await expect(page.getByRole("dialog", { name: "Barbell Bench Press - Medium Grip" })).toBeVisible();
+  await page.getByRole("button", { name: "How to do Barbell Bench Press - Medium Grip" }).click();
+  await expect(page.getByRole("dialog", { name: "Barbell Bench Press - Medium Grip", exact: true })).toBeVisible();
   await page.keyboard.press("Escape");
-  await expect(page.getByRole("dialog", { name: "Barbell Bench Press - Medium Grip" })).toHaveCount(0);
-  await expect(workout).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "Barbell Bench Press - Medium Grip", exact: true })).toHaveCount(0);
+  await expect(card).toBeVisible();
 
   // Discard throws it away, with Undo.
+  await page.getByRole("button", { name: "Back to the workout" }).click();
   await workout.getByRole("button", { name: "Discard" }).click();
   await expect(page.getByRole("button", { name: "Empty workout" })).toBeVisible();
   await page.locator(".toast.front").filter({ hasText: "Workout discarded" }).getByRole("button", { name: "Undo" }).click();

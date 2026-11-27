@@ -37,11 +37,13 @@ async function circuit(page: Page, format: string) {
   const adding = page.getByRole("dialog", { name: "Add exercise" });
   await adding.getByLabel("Search exercises").fill("pullups");
   await adding.getByRole("button", { name: "Add Pullups", exact: true }).click();
+  // Each opens on its own screen; joining the second to the first goes back to the workout.
+  await page.getByRole("button", { name: "Back to the workout" }).click();
   const workout = page.getByRole("dialog", { name: "Workout" });
   await workout.getByRole("button", { name: "Exercise", exact: true }).click();
   await adding.getByLabel("Search exercises").fill("pushups");
   await adding.getByRole("button", { name: "Add Pushups", exact: true }).click();
-  await workout.locator('[data-workout-exercise="pushups"][data-open]').getByRole("button", { name: "Superset with Pullups" }).click();
+  await page.locator("[data-exercise-screen]").getByRole("button", { name: "Superset with Pullups" }).click();
 
   await workout.getByRole("group", { name: "Superset: Pullups, Pushups" }).getByRole("button", { name: "Format: Rounds. Change" }).click();
   await workout.getByRole("radiogroup", { name: "Format" }).getByRole("radio", { name: format, exact: true }).click();

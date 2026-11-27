@@ -6,12 +6,15 @@ import SwapList from "./SwapList.vue";
 import Icon from "./Icon.vue";
 import Keypad from "./Keypad.vue";
 import WorkoutExercise, { type CellEdit } from "./WorkoutExercise.vue";
+import ExerciseScreen from "./ExerciseScreen.vue";
+import SetEntry from "./SetEntry.vue";
+import RestTimer from "./RestTimer.vue";
 import TimedBlock from "./TimedBlock.vue";
 import WorkoutDescribe from "./WorkoutDescribe.vue";
 import WorkoutTimes from "./WorkoutTimes.vue";
 import { keyboardEntry } from "../lib/viewport";
+import { nextSetIndex, screenStatus, usesSetScreen } from "../lib/setEntry";
 import {
-  clock,
   clockTime,
   currentExercise,
   exerciseGroups,
@@ -51,7 +54,6 @@ import {
   restoreWorkout,
   savePast,
   setValue,
-  shiftRest,
   toggleSuperset,
   workout,
 } from "../state/workout";
@@ -63,7 +65,7 @@ import { leftLine, describeLeftShownAt } from "../lib/describe";
 import { connection } from "../state/connection";
 import { describe, loadDescribe } from "../state/describe";
 import { findExercises, resetWorkoutDescribe, workoutDescribe } from "../state/workoutDescribe";
-import { closeSheet, toast, toastError, ui } from "../ui";
+import { closeSheet, openExercise, toast, toastError, ui } from "../ui";
 
 // The workout being logged (docs/training.md, phase 2), and its summary once finished. Closing the sheet
 // keeps the workout going; Train shows it to resume. A past workout (opened from the history, or logged
@@ -75,7 +77,10 @@ const past = computed(() => workout.past);
 const current = computed(() => past.value?.draft ?? active.value);
 const pastError = ref("");
 const today = computed(() => todayInZone(deviceTimeZone(), new Date(now.value)));
-const view = ref<"log" | "add" | "swap" | "describe">("log");
+const view = ref<"log" | "add" | "swap" | "describe" | "exercise">("log");
+/** A quick workout's exercise on its own screen (ExerciseScreen), and the set picked there; null follows the next to do. */
+const screenKey = ref<string | null>(null);
+const picked = ref<number | null>(null);
 /** The exercise being swapped, on the swap screen. */
 const swapping = ref<{ key: string; exerciseId: string } | null>(null);
 /** End's check, in the footer where End was tapped: sets not ticked off, or nothing ticked off at all. */
@@ -151,6 +156,32 @@ watch(() => (active.value && chosen.value ? groupOf(active.value.exercises, chos
 });
 
 const nameOf = (exercise: DraftExercise | undefined) => (exercise ? exerciseItem(exercise.exerciseId)?.name ?? "Exercise" : "");
+
+const screenExercise = computed(() => (view.value === "exercise" ? active.value?.exercises.find((exercise) => exercise.key === screenKey.value) ?? null : null));
+const screenTarget = computed(() => {
+  const sets = screenExercise.value?.sets ?? [];
+  return picked.value != null && picked.value < sets.length ? picked.value : nextSetIndex(sets);
+});
+/** Opens an exercise on its own screen, on the next set to do. */
+function openScreen(key: string) {
+  screenKey.value = key;
+  picked.value = null;
+  timesOpen.value = false;
+  edit.key = null;
+  view.value = "exercise";
+}
+function closeScreen() {
+  (document.activeElement as HTMLElement | null)?.blur();
+  edit.key = null;
+  view.value = "log";
+}
+// An exercise removed, or joined to a superset, goes back to the workout.
+watch(() => view.value === "exercise" && (!screenExercise.value || !usesSetScreen(active.value, screenExercise.value.key)), (gone) => {
+  if (gone) closeScreen();
+});
+function pickSet(index: number) {
+  picked.value = index === nextSetIndex(screenExercise.value?.sets ?? []) ? null : index;
+}
 /** The exercise each superset button joins to: the one before. */
 /** The one before, for the superset button; none across the warm-up, the workout and the cool-down. */
 const prevName = (exercises: readonly DraftExercise[], exercise: DraftExercise) => {
@@ -205,8 +236,12 @@ function doneTyping() {
 
 async function pick(exerciseId: string) {
   const key = await addExercise(exerciseId);
-  chosen.value = key;
   timesOpen.value = false;
+  if (key && !past.value && usesSetScreen(active.value, key)) {
+    openScreen(key);
+    return;
+  }
+  chosen.value = key;
   view.value = "log";
   await nextTick();
   document.querySelector(`[data-workout-exercise="${exerciseId}"][data-open]`)?.scrollIntoView({ block: "nearest" });
@@ -228,7 +263,10 @@ async function findNow() {
   view.value = "log";
 }
 
+/** Where the swap screen's ← goes: the exercise screen it was opened from, else the workout. */
+const swapBack = ref<"log" | "exercise">("log");
 function startSwap(exercise: { key: string; exerciseId: string }) {
+  swapBack.value = view.value === "exercise" ? "exercise" : "log";
   swapping.value = { key: exercise.key, exerciseId: exercise.exerciseId };
   view.value = "swap";
 }
@@ -243,6 +281,10 @@ async function swapTo(exerciseId: string) {
   chosen.value = key;
   const name = (id: string) => exerciseItem(id)?.name ?? "Exercise";
   toast(`Swapped ${name(from.exerciseId)} for ${name(exerciseId)}`);
+  if (!past.value && usesSetScreen(active.value, key)) {
+    openScreen(key);
+    return;
+  }
   await nextTick();
   document.querySelector(`[data-workout-exercise="${exerciseId}"][data-open]`)?.scrollIntoView({ block: "nearest" });
 }
@@ -326,7 +368,7 @@ const summary = computed(() => {
 const showSummary = computed(() => summary.value != null && !active.value && !past.value);
 const pastTitle = computed(() => (past.value?.isNew ? "Log a workout" : "Edit workout"));
 const swapTitle = computed(() => `Swap ${swapping.value ? exerciseItem(swapping.value.exerciseId)?.name ?? "exercise" : "exercise"}`);
-const label = computed(() => (showSummary.value ? "Workout done" : view.value === "add" ? "Add exercise" : view.value === "describe" ? "Describe a workout" : view.value === "swap" ? swapTitle.value : past.value ? pastTitle.value : active.value?.name ?? "Workout"));
+const label = computed(() => (showSummary.value ? "Workout done" : screenExercise.value ? `Workout: ${nameOf(screenExercise.value)}` : view.value === "add" ? "Add exercise" : view.value === "describe" ? "Describe a workout" : view.value === "swap" ? swapTitle.value : past.value ? pastTitle.value : active.value?.name ?? "Workout"));
 
 function setPastDate(event: Event) {
   const value = (event.target as HTMLInputElement).value;
@@ -376,12 +418,20 @@ async function deletePastNow() {
         <button v-if="describe.available" type="button" class="btn sm secondary t-label" data-describe-workout @click="startDescribe"><Icon name="sparkle" :size="14" /> Describe</button>
         <button v-if="fresh" type="button" class="cbtn" aria-label="Close" @click="closeSheet"><Icon name="x" :size="18" /></button>
       </div>
+      <div v-else-if="screenExercise" class="row hdr">
+        <button type="button" class="cbtn" aria-label="Back to the workout" @click="closeScreen"><Icon name="left" :size="18" /></button>
+        <span class="col grow g2">
+          <h2 class="t-head m0">{{ nameOf(screenExercise) }}</h2>
+          <span class="t-capn c2 tnum" data-exercise-status>{{ screenStatus(screenExercise.sets, screenTarget) }}</span>
+        </span>
+        <button type="button" class="cbtn" :aria-label="`How to do ${nameOf(screenExercise)}`" @click="openExercise(screenExercise.exerciseId)"><Icon name="info" :size="18" /></button>
+      </div>
       <div v-else-if="view === 'describe'" class="row hdr">
         <button type="button" class="cbtn" aria-label="Back to the workout" @click="view = 'log'"><Icon name="left" :size="18" /></button>
         <h2 class="t-head m0 grow">Describe a workout</h2>
       </div>
       <div v-else-if="view === 'swap'" class="row hdr">
-        <button type="button" class="cbtn" aria-label="Back to the workout" @click="view = 'log'"><Icon name="left" :size="18" /></button>
+        <button type="button" class="cbtn" :aria-label="swapBack === 'exercise' ? 'Back to the exercise' : 'Back to the workout'" @click="view = swapBack"><Icon name="left" :size="18" /></button>
         <h2 class="t-head m0 grow">{{ swapTitle }}</h2>
       </div>
       <div v-else-if="past" class="row hdr">
@@ -429,6 +479,11 @@ async function deletePastNow() {
       <WorkoutTimes v-if="fresh && timesOpen" :now="now" />
       <ExerciseBrowser title="Exercises" title-id="workout-add-title" action="add" recent @pick="pick" />
     </div>
+    <ExerciseScreen
+      v-else-if="screenExercise && active" :key="screenExercise.key" :exercise="screenExercise" :target="screenTarget"
+      :prev-name="prevName(active.exercises, screenExercise)"
+      @select="pickSet" @swap="startSwap(screenExercise)" @remove="remove(screenExercise.key)" @superset="join(active.exercises, screenExercise.key)"
+    />
     <WorkoutDescribe v-else-if="view === 'describe'" @find="findNow" />
     <SwapList v-else-if="view === 'swap' && swapping" :key="swapping.key" :exercise-id="swapping.exerciseId" @pick="swapTo" />
 
@@ -479,9 +534,9 @@ async function deletePastNow() {
         >
           <TimedBlock v-if="isRun(run)" :run="run" :live="true" :now="now" />
           <WorkoutExercise
-            v-for="exercise in run" :key="exercise.key" :exercise="exercise" :open="shownKeys.includes(exercise.key)" :edit="edit"
+            v-for="exercise in run" :key="exercise.key" :exercise="exercise" :open="!usesSetScreen(active, exercise.key) && shownKeys.includes(exercise.key)" :edit="edit"
             :prev-name="prevName(active.exercises, exercise)"
-            @expand="chosen = exercise.key" @remove="remove(exercise.key)" @swap="startSwap(exercise)" @superset="join(active.exercises, exercise.key)"
+            @expand="usesSetScreen(active, exercise.key) ? openScreen(exercise.key) : (chosen = exercise.key)" @remove="remove(exercise.key)" @swap="startSwap(exercise)" @superset="join(active.exercises, exercise.key)"
           />
         </div>
       </template>
@@ -504,6 +559,9 @@ async function deletePastNow() {
         </div>
       </div>
     </template>
+    <template v-else-if="screenExercise" #footer>
+      <SetEntry :exercise="screenExercise" :target="screenTarget" :edit="edit" :left="left" @logged="picked = null" @next="picked = null" @done="closeScreen" />
+    </template>
     <template v-else-if="view === 'describe'" #footer>
       <div class="col">
         <button type="button" class="btn primary block t-bodys" :disabled="!canFind" @click="findNow">
@@ -519,18 +577,7 @@ async function deletePastNow() {
       </div>
     </template>
     <template v-else-if="active && view === 'log'" #footer>
-      <div v-if="left != null" class="col" data-rest>
-        <div class="row rest">
-          <span class="col grow g2">
-            <span class="t-capn c2">{{ left ? "Rest" : "Rest over" }}</span>
-            <span class="t-ns" role="timer" aria-live="off">{{ clock(left) }}</span>
-          </span>
-          <button type="button" class="btn sm secondary t-label" aria-label="15 seconds less" @click="shiftRest(-15)">−15</button>
-          <button type="button" class="btn sm secondary t-label" aria-label="15 seconds more" @click="shiftRest(15)">+15</button>
-          <button type="button" class="btn sm primary t-label" @click="shiftRest(null)">{{ left ? "Skip" : "OK" }}</button>
-        </div>
-        <span class="restbar" aria-hidden="true"><span class="restfill" :style="{ transform: `scaleX(${restShare})` }" /></span>
-      </div>
+      <RestTimer v-if="left != null" :left="left" :share="restShare" />
       <!-- End's check takes End's place, so the answer is under the finger that asked. -->
       <div v-if="confirming" class="col confirm" role="alertdialog" aria-labelledby="wc-h" aria-describedby="wc-d" data-end-confirm>
         <template v-if="confirming === 'undone'">
@@ -591,9 +638,6 @@ html.dt-xl .endacts .btn { flex-basis: 100%; }
 .pastacts .btn.grow { flex: 1 1 0; }
 .body .day.row { flex-wrap: nowrap; gap: var(--space-s); }
 .day input { flex: none; background: none; border: 0; color: var(--text-primary); color-scheme: dark; min-height: var(--control-hit); text-align: right; }
-.rest { gap: var(--space-s); flex-wrap: nowrap; }
-.restbar { display: block; height: 3px; border-radius: var(--radius-pill); background: var(--color-surface-2); margin-top: var(--space-s); overflow: hidden; }
-.restfill { display: block; width: 100%; height: 100%; background: var(--color-action); transform-origin: left; transition: transform 1s linear; }
 .stats { gap: var(--space-s); flex-wrap: nowrap; }
 .stat { flex: 1 1 0; min-width: 0; gap: var(--space-2xs); padding: var(--space-m); border-radius: var(--radius-l); background: var(--color-surface-2); }
 .dt-xl .stats { flex-wrap: wrap; }

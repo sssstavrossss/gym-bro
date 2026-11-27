@@ -40,25 +40,28 @@ test("a barbell lift shows the plates a side for the set you're on", async ({ pa
   await adding.getByRole("button", { name: "Add Barbell Squat", exact: true }).click();
 
   const workout = page.getByRole("dialog", { name: "Workout" });
-  const squat = workout.locator('[data-workout-exercise="barbell-squat"][data-open]');
+  const squat = page.locator('[data-exercise-screen][data-workout-exercise="barbell-squat"]');
   const plates = squat.locator("[data-plates]");
   await expect(plates).toHaveText("Plates show for the weight you type");
 
-  await squat.getByLabel("Set 1, kg", { exact: true }).fill("100");
+  await page.getByLabel("Set 1, kg", { exact: true }).fill("100");
   await expect(plates).toHaveText("Plates for 100 kg: 25 + 15 a side");
-  await squat.getByLabel("Set 1, Reps", { exact: true }).fill("5");
-  await squat.getByRole("button", { name: "Set 1 done" }).click();
+  await page.getByLabel("Set 1, Reps", { exact: true }).fill("5");
+  await page.getByRole("button", { name: "Log set 1" }).click();
 
   // The next set takes set 1's weight until another is typed.
   await expect(plates).toHaveText("Plates for 100 kg: 25 + 15 a side");
-  await squat.getByLabel("Set 2, kg", { exact: true }).fill("102.5");
+  await page.getByLabel("Set 2, kg", { exact: true }).fill("102.5");
   await expect(plates).toHaveText("Plates for 102.5 kg: 25 + 15 + 1.25 a side");
-  await squat.getByLabel("Set 2, kg", { exact: true }).fill("101");
+  await page.getByLabel("Set 2, kg", { exact: true }).fill("101");
   await expect(plates).toHaveText("Plates for 101 kg: 25 + 15 a side (100 kg)");
 
   // Not for kit that doesn't go on a bar.
+  await page.getByRole("button", { name: "Back to the workout" }).click();
   await workout.getByRole("button", { name: "Exercise", exact: true }).click();
   await adding.getByLabel("Search exercises").fill("dumbbell bench press");
   await adding.getByRole("button", { name: "Add Dumbbell Bench Press", exact: true }).click();
-  await expect(workout.locator('[data-workout-exercise="dumbbell-bench-press"][data-open] [data-plates]')).toHaveCount(0);
+  const dumbbells = page.locator('[data-exercise-screen][data-workout-exercise="dumbbell-bench-press"]');
+  await expect(dumbbells).toBeVisible();
+  await expect(dumbbells.locator("[data-plates]")).toHaveCount(0);
 });
