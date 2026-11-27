@@ -24,6 +24,13 @@ public static class ProgressMath
     }
 
     /// <summary>
+    /// The last day shown: today, or an earlier day asked for with a fixed range (never after today).
+    /// All always ends today.
+    /// </summary>
+    public static DateOnly WindowEnd(DateOnly today, string range, DateOnly? asked) =>
+        range == "all" || asked is not DateOnly day || day > today ? today : day;
+
+    /// <summary>
     /// Inclusive start. 7d, 30d, 90d, and 6m are fixed lengths ending today
     /// (6m is 182 days, not a calendar month boundary). All begins on the
     /// earliest stored weigh-in or log, not before.

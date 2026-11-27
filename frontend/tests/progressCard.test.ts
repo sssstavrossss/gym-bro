@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { barWidth, chartLayout, fiberMinimum, goalKind, intakeScale, intakeStats, metGoal, monthTicks, PROGRESS_PAGES, targetSteps, visibleSpan } from "../src/lib/progressCard";
+import { barWidth, canGoEarlier, chartLayout, fiberMinimum, goalKind, intakeScale, intakeStats, metGoal, monthTicks, PROGRESS_PAGES, rangeEnd, targetSteps, visibleSpan } from "../src/lib/progressCard";
 
 const day = (date: string, value: number | null, target: number | null) => ({ date, logged: value != null, value, target });
 
@@ -51,5 +51,21 @@ describe("progress card", () => {
     expect(intakeScale(168)).toEqual({ top: 200, ticks: [0, 100, 200] });
     expect(intakeScale(35)).toEqual({ top: 40, ticks: [0, 20, 40] });
     expect(intakeScale(0).ticks[0]).toBe(0);
+  });
+
+  it("steps a fixed range back a whole range at a time, and All not at all", () => {
+    expect(rangeEnd("2026-11-27", "7d", 0)).toBeNull();
+    expect(rangeEnd("2026-11-27", "7d", 1)).toBe("2026-11-20");
+    expect(rangeEnd("2026-11-27", "7d", 2)).toBe("2026-11-13");
+    expect(rangeEnd("2026-11-27", "30d", 1)).toBe("2026-10-28");
+    expect(rangeEnd("2026-11-27", "6m", 1)).toBe("2026-05-29");
+    expect(rangeEnd("2026-11-27", "all", 1)).toBeNull();
+  });
+
+  it("goes earlier only while there is something before the range", () => {
+    expect(canGoEarlier("7d", "2026-11-21", "2026-10-01")).toBe(true);
+    expect(canGoEarlier("7d", "2026-10-01", "2026-10-01")).toBe(false);
+    expect(canGoEarlier("7d", "2026-11-21", null)).toBe(false);
+    expect(canGoEarlier("all", "2026-11-21", "2026-10-01")).toBe(false);
   });
 });

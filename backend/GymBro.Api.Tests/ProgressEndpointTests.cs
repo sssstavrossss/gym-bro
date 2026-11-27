@@ -160,6 +160,47 @@ public sealed class ProgressEndpointTests(ApiFactory factory)
     }
 
     [Fact]
+    public async Task A_range_can_end_on_an_earlier_day_with_its_numbers_as_of_then()
+    {
+        using var client = factory.AsUser(TestData.NewUser("progress-to"));
+        factory.Clock.UtcNow = new DateTimeOffset(2026, 11, 1, 9, 0, 0, TimeSpan.Zero);
+        await Setup(client, "2026-11-01", "85.0");
+        factory.Clock.UtcNow = new DateTimeOffset(2026, 11, 10, 9, 0, 0, TimeSpan.Zero);
+        Assert.True((await client.PutAsync("/api/weigh-ins/2026-11-09", Json("""{"kg":84.0,"timeZone":"UTC"}"""))).IsSuccessStatusCode);
+        Assert.Equal(HttpStatusCode.Created, (await client.PostAsync("/api/log-entries", Json(Quick("to-a", "2026-11-02", "1800", "120")))).StatusCode);
+        Assert.Equal(HttpStatusCode.Created, (await client.PostAsync("/api/log-entries", Json(Quick("to-b", "2026-11-09", "2400", "150")))).StatusCode);
+
+        // The 7 days before the last 7.
+        var body = await client.GetFromJsonAsync<JsonElement>("/api/progress?range=7d&to=2026-11-03");
+        Assert.Equal("2026-10-28", body.GetProperty("from").GetString());
+        Assert.Equal("2026-11-03", body.GetProperty("to").GetString());
+        Assert.Equal("2026-11-10", body.GetProperty("today").GetString());
+        Assert.Equal("2026-11-01", body.GetProperty("earliest").GetString());
+        Assert.Equal(7, body.GetProperty("days").GetArrayLength());
+        Assert.Equal(1, body.GetProperty("intake").GetProperty("loggedDays").GetInt32());
+        Assert.Equal(1800m, body.GetProperty("intake").GetProperty("averageKcal").GetDecimal());
+        // The latest weigh-in and the trend are those of 3 Nov, not today's.
+        var weight = body.GetProperty("weight");
+        Assert.Equal("2026-11-01", weight.GetProperty("currentDate").GetString());
+        Assert.Equal(85.0m, weight.GetProperty("currentKg").GetDecimal());
+        Assert.Equal(85.0m, weight.GetProperty("trendKg").GetDecimal());
+        Assert.Equal(1, weight.GetProperty("count").GetInt32());
+        // The line is drawn from those weigh-ins too, so its last day matches the Trend stat (9 Nov's 84.0 doesn't pull it).
+        var lastDay = body.GetProperty("days")[6];
+        Assert.Equal(85.0m, lastDay.GetProperty("trendKg").GetDecimal());
+
+        // A day after today is today; All always runs to today.
+        var later = await client.GetFromJsonAsync<JsonElement>("/api/progress?range=7d&to=2026-12-01");
+        Assert.Equal("2026-11-10", later.GetProperty("to").GetString());
+        var all = await client.GetFromJsonAsync<JsonElement>("/api/progress?range=all&to=2026-11-03");
+        Assert.Equal("2026-11-10", all.GetProperty("to").GetString());
+
+        var bad = await client.GetAsync("/api/progress?range=7d&to=3%20Nov");
+        Assert.Equal(HttpStatusCode.BadRequest, bad.StatusCode);
+        Assert.Equal("Use a date like 2026-10-24.", (await bad.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("error").GetString());
+    }
+
+    [Fact]
     public async Task All_starts_at_the_first_stored_day_and_one_weigh_in_has_no_change()
     {
         factory.Clock.UtcNow = new DateTimeOffset(2026, 11, 10, 9, 0, 0, TimeSpan.Zero);
