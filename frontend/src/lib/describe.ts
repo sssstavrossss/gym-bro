@@ -14,6 +14,12 @@ export const describePhotoHint = "The photo shows what's there. Words help with 
 export const describeNote = "Claude picks the foods and guesses amounts. Photos go to Claude and aren't kept. Calories come from Matvaretabellen and your own foods.";
 export const describePhotoAlone = "Your photo";
 export const describeRetryPrompt = "Not what you meant?";
+/** The toast after × on the review, with Undo: "Cleared · 2 eggs, toast". Long words are cut, so it stays one line. */
+export function clearedLine(shown: string, most = 28): string {
+  const words = shown.trim().replace(/\s+/g, " ");
+  if (!words) return "Cleared";
+  return `Cleared · ${words.length > most ? `${words.slice(0, most - 1).trimEnd()}…` : words}`;
+}
 export const describeLeftShownAt = 5;
 export const describeOfflineNote = "Describing a meal needs a connection. Your recent foods, My foods and Quick add work offline.";
 

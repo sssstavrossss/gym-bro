@@ -80,6 +80,32 @@ export function resetDescribe(): void {
   describe.adding = false;
 }
 
+/** A review taken off the screen by ×, kept so Undo can bring it back. */
+export interface ClearedReview {
+  text: string;
+  photo: MealPhoto | null;
+  id: string | null;
+  fromPhoto: boolean;
+  seen: string | null;
+  rows: DescribeRow[];
+}
+
+/** × on the review: back to an empty Describe (the box, Recent and Find foods). Null while adding, finding or editing the words. */
+export function clearReview(): ClearedReview | null {
+  if (describe.phase !== "review" || describe.adding || describe.revising) return null;
+  const kept: ClearedReview = { text: describe.text, photo: describe.photo, id: describe.id, fromPhoto: describe.fromPhoto, seen: describe.seen, rows: describe.rows };
+  resetDescribe();
+  return kept;
+}
+
+/** Undo for ×: the review comes back as it was, unless another one is being found or reviewed by then. */
+export function restoreReview(kept: ClearedReview): boolean {
+  if (describe.phase !== "write" || describe.readingPhoto) return false;
+  resetDescribe();
+  Object.assign(describe, kept, { phase: "review" });
+  return true;
+}
+
 /** The words become a text box over the list. The list stays, dimmed, until Find again brings a new one. */
 export function startRevise(): void {
   if (describe.phase !== "review" || describe.adding) return;

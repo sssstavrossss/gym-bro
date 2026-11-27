@@ -120,6 +120,26 @@ test.describe("phone", () => {
     await recent.click();
     await expect(sheet(page).getByRole("heading", { name: "2 foods" })).toBeVisible();
     await expect(sheet(page).getByRole("button", { name: "Add 2 foods · 430 kcal" })).toBeVisible();
+
+    // × on the words starts over: the empty box and Recent, with Undo in a toast. The × is a full 44px hit at the
+    // box's end, and the box keeps its height.
+    const words = sheet(page).getByRole("button", { name: "Edit what you ate" });
+    const clear = sheet(page).getByRole("button", { name: "Clear and start over" });
+    const card = (await words.locator("..").boundingBox())!;
+    const hit = (await clear.boundingBox())!;
+    expect(hit.width).toBeGreaterThanOrEqual(44);
+    expect(hit.height).toBeGreaterThanOrEqual(44);
+    expect(Math.round(hit.x + hit.width)).toBe(Math.round(card.x + card.width));
+    await clear.click();
+    await expect(sheet(page).getByRole("textbox", { name: "What you ate" })).toHaveValue("");
+    await expect(recent).toHaveCount(1);
+    await expect(sheet(page).getByRole("button", { name: "Find foods" })).toBeDisabled();
+    const toast = page.locator(".toast").filter({ hasText: "Cleared · 2 zibble eggs, 80 g wumpus…" });
+    await toast.getByRole("button", { name: "Undo" }).click();
+    await expect(sheet(page).getByRole("heading", { name: "2 foods" })).toBeVisible();
+    await expect(sheet(page).getByRole("button", { name: "Add 2 foods · 430 kcal" })).toBeVisible();
+    await clear.click();
+    await expect(sheet(page).getByRole("button", { name: "Find foods" })).toBeVisible();
   });
 
   test("a food with no match hands off to Search or Quick add", async ({ page }) => {

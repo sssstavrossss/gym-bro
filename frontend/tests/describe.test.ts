@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { DescribeItem, FoodSearchRow } from "../src/api";
-import { addLabel, chosenRows, leftLine, loggedItems, noteText, recentLine, reviewTitle, rowsFrom, searchSeed, whenLabel } from "../src/lib/describe";
+import { addLabel, chosenRows, clearedLine, leftLine, loggedItems, noteText, recentLine, reviewTitle, rowsFrom, searchSeed, whenLabel } from "../src/lib/describe";
 
 const egg: FoodSearchRow = {
   id: "egg",
@@ -102,5 +102,14 @@ describe("noteText", () => {
     expect(noteText({ text: "fried in butter", photo: true, seen: "Chicken breast, rice" })).toBe("Chicken breast, rice · fried in butter");
     expect(noteText({ text: "", photo: true, seen: "Chicken breast, rice" })).toBe("Chicken breast, rice");
     expect(noteText({ text: "fried in butter", photo: true, seen: null })).toBe("fried in butter");
+  });
+});
+
+describe("clearedLine", () => {
+  it("says what was cleared, after a dot", () => {
+    expect(clearedLine("2 eggs, toast ")).toBe("Cleared · 2 eggs, toast");
+    expect(clearedLine("")).toBe("Cleared");
+    // cut to one line
+    expect(clearedLine("2 zibble eggs, 80 g wumpus bread and mum's quibble")).toBe("Cleared · 2 zibble eggs, 80 g wumpus…");
   });
 });

@@ -5,6 +5,7 @@ import FoundRows from "./FoundRows.vue";
 import Icon from "./Icon.vue";
 import {
   addLabel,
+  clearedLine,
   describeHint,
   describeNote,
   describeOfflineNote,
@@ -23,15 +24,18 @@ import {
   attachPhoto,
   canDescribe,
   cancelRevise,
+  clearReview,
   describe,
   findAgain,
   findFoods,
   removePhoto,
+  restoreReview,
   startRevise,
   toggleRow,
   useRecent,
 } from "../state/describe";
 import { deviceTimeZone } from "../state/profile";
+import { toast } from "../ui";
 
 // The Describe tab on Add food: words, a photo or both, then the foods Claude found, then Add.
 // Logging and the amount screen belong to the food sheet, so this pane only asks for them.
@@ -59,6 +63,13 @@ const sentText = computed(() => describe.text || (describe.photo ? describePhoto
 const addText = computed(() => (props.needTime ? "Pick a time to add" : addLabel(describe.rows)));
 const canAdd = computed(() => !props.needTime && !describe.adding && !describe.revising && describe.rows.some((row) => row.on && row.food));
 const left = computed(() => leftLine(describe, deviceTimeZone()));
+
+/** × on your words: back to an empty Describe, with Undo in case it was a slip (a new find would cost one of the day's). */
+function clear() {
+  const shown = sentText.value;
+  const kept = clearReview();
+  if (kept) toast(clearedLine(shown), { label: "Undo", run: () => void restoreReview(kept) });
+}
 
 // Enter finds, like a search. Shift+Enter is a new line.
 function entered(event: KeyboardEvent): boolean {
@@ -130,12 +141,15 @@ function onDraftKey(event: KeyboardEvent) {
           @pick="attachPhoto($event, 'draftPhoto')"
           @remove="removePhoto('draftPhoto')"
         />
-        <button v-else type="button" class="well dtext" aria-label="Edit what you ate" :disabled="describe.adding || finding" @click="startRevise">
-          <img v-if="describe.photo" :src="describe.photo.url" alt="Your photo" class="wthumb" />
-          <span v-else-if="describe.fromPhoto" class="cam" aria-label="From a photo"><Icon name="camera" :size="18" /></span>
-          <span class="t-body grow" :class="{ c2: !describe.text }">{{ sentText }}</span>
-          <Icon name="edit" :size="16" class="c2" />
-        </button>
+        <div v-else class="well dcard">
+          <button type="button" class="dtext" aria-label="Edit what you ate" :disabled="describe.adding || finding" @click="startRevise">
+            <img v-if="describe.photo" :src="describe.photo.url" alt="Your photo" class="wthumb" />
+            <span v-else-if="describe.fromPhoto" class="cam" aria-label="From a photo"><Icon name="camera" :size="18" /></span>
+            <span class="t-body grow" :class="{ c2: !describe.text }">{{ sentText }}</span>
+            <Icon name="edit" :size="16" class="c2" />
+          </button>
+          <button type="button" class="clr c2" aria-label="Clear and start over" data-describe-clear :disabled="describe.adding || finding" @click="clear"><Icon name="x" :size="16" /></button>
+        </div>
         <p v-if="describe.revising && describe.error" class="err t-label" role="alert">{{ describe.error }}</p>
 
         <FoundRows v-if="finding" :rows="[]" title="" finding="Finding foods…" label="Foods found" />
@@ -191,7 +205,12 @@ function onDraftKey(event: KeyboardEvent) {
 .pick { display: flex; align-items: center; gap: var(--space-m); min-height: var(--control-hit); padding: var(--space-m) 0; background: none; border: 0; color: inherit; text-align: left; min-width: 0; width: 100%; cursor: pointer; }
 .tx { gap: 2px; min-width: 0; }
 .clamp { display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.dtext { display: flex; align-items: center; gap: var(--space-m); text-align: left; border: 0; color: inherit; cursor: pointer; flex: none; }
+/* The words (tap to edit) and × (start over) share the box. The box's padding moves onto the words' button so all of it
+   but the × edits; the × is a 44px hit at the end, as in the search field. */
+.dcard { display: flex; align-items: center; padding: 0; flex: none; }
+.dtext { display: flex; align-items: center; gap: var(--space-m); flex: 1 1 auto; min-width: 0; padding: var(--space-m) 0 var(--space-m) var(--space-m); background: none; text-align: left; border: 0; color: inherit; cursor: pointer; }
+.clr { width: var(--control-hit); height: var(--control-hit); display: inline-flex; align-items: center; justify-content: center; flex: none; background: none; border: 0; padding: 0; cursor: pointer; }
+.clr:disabled, .dtext:disabled { cursor: default; }
 .wthumb { width: var(--control-hit); height: var(--control-hit); border-radius: var(--radius-s); object-fit: cover; flex: none; }
 /* A photo isn't kept, so a camera tile stands in for it on a recent one. */
 .cam { width: var(--control-hit); height: var(--control-hit); border-radius: var(--radius-s); background: var(--color-surface-2); color: var(--text-secondary); display: inline-flex; align-items: center; justify-content: center; flex: none; }
