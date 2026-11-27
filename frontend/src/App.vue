@@ -18,6 +18,7 @@ import ExerciseSheet from "./components/ExerciseSheet.vue";
 import ExercisesSheet from "./components/ExercisesSheet.vue";
 import PlanSheet from "./components/PlanSheet.vue";
 import PlansSheet from "./components/PlansSheet.vue";
+import ImportSheet from "./components/ImportSheet.vue";
 import TrainingSheet from "./components/TrainingSheet.vue";
 import PlanWorkoutSheet from "./components/PlanWorkoutSheet.vue";
 import WorkoutSheet from "./components/WorkoutSheet.vue";
@@ -39,7 +40,7 @@ import { followDeviceZone, loadProfile, profile, retryLoad } from "./state/profi
 import { refreshInbox } from "./state/inbox";
 import { loadToday, sendQueue, viewed } from "./state/log";
 import { startSync } from "./state/sync";
-import { closeCardPages, closeCopy, closeExercise, closeFanPages, closeFoodLayer, closeGroupSheet, closeRecipeSheet, closeSheet, closeTraining, endSelect, openFood, openWeight, toast, ui } from "./ui";
+import { closeCardPages, closeCopy, closeExercise, closeFanPages, closeFoodLayer, closeGroupSheet, closeImport, closeRecipeSheet, closeSheet, closeTraining, endSelect, openFood, openWeight, toast, ui } from "./ui";
 import SignInView from "./views/SignInView.vue";
 
 const route = useRoute();
@@ -135,6 +136,7 @@ function onKey(event: KeyboardEvent) {
     exerciseOver: ui.exerciseOver,
     fanPagesOver: ui.fanPagesOver,
     trainingOver: ui.trainingOver,
+    importOver: ui.importOver,
     selecting: ui.selecting,
     nav: showNav.value,
   });
@@ -152,6 +154,7 @@ function onKey(event: KeyboardEvent) {
   else if (effect.action === "close-exercise") closeExercise();
   else if (effect.action === "close-fan-pages") closeFanPages();
   else if (effect.action === "close-training") closeTraining();
+  else if (effect.action === "close-import") closeImport();
   else if (effect.action === "end-select") endSelect();
   else if (ui.sheet === "food" && closeFoodLayer()) return;
   else closeSheet();
@@ -183,6 +186,7 @@ function onKey(event: KeyboardEvent) {
     <NutrientSheet />
     <PlanSheet />
     <PlansSheet />
+    <ImportSheet />
     <PlanWorkoutSheet />
     <WorkoutSheet />
     <!-- After the workout: its how-to opens on top. -->

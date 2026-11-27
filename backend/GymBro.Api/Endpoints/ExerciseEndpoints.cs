@@ -6,6 +6,11 @@ using Microsoft.Net.Http.Headers;
 
 namespace GymBro.Api.Endpoints;
 
+public sealed class ExerciseMatchRequest
+{
+    public List<string?>? Names { get; set; }
+}
+
 /// <summary>The exercise library. It is the same for everyone, so it needs a signed-in caller but no per-user query.</summary>
 public static class ExerciseEndpoints
 {
@@ -16,7 +21,35 @@ public static class ExerciseEndpoints
         api.MapGet("/exercises", List);
         api.MapGet("/exercises/{id}", Detail);
         api.MapGet("/exercises/{id}/swaps", SwapsFor);
+        api.MapPost("/exercises/match", Match);
         return api;
+    }
+
+    /// <summary>
+    /// The library exercise for each name from another app's export (<see cref="ExerciseMatcher"/>), or null where
+    /// the person has to pick.
+    /// </summary>
+    private static IResult Match(ClaimsPrincipal principal, ExerciseMatchRequest body)
+    {
+        if (Caller.MissingOid(principal) is { } denied)
+        {
+            return denied;
+        }
+
+        var names = body.Names ?? [];
+        if (names.Count > ExerciseMatcher.MaxNames)
+        {
+            return ApiResults.Error(ExerciseMatcher.TooManyNames);
+        }
+
+        return Results.Ok(new
+        {
+            matches = names.Select(name => new
+            {
+                name,
+                exerciseId = name?.Length > ExerciseMatcher.MaxNameLength ? null : ExerciseMatcher.Match(name),
+            }),
+        });
     }
 
     /// <summary>

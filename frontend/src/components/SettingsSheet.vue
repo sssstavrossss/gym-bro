@@ -26,7 +26,7 @@ import { applySettings, clearAllDrafts, deviceTimeZone, foodCountry, profile, se
 import { foodUnit } from "../state/units";
 import { usingLine } from "../lib/training";
 import { training } from "../state/training";
-import { closeSheet, openFanPages, openTraining, ui } from "../ui";
+import { closeSheet, openFanPages, openImport, openTraining, ui } from "../ui";
 import { fanSummary as summarizeFan } from "../lib/fanPages";
 import { fanLayout } from "../state/fanPages";
 import { setOps } from "../state/outbox";
@@ -261,6 +261,13 @@ async function onSignOut() {
           <span class="col grow">
             <span class="t-body">Your training</span>
             <span class="t-capn c2 hnames" data-training-line>{{ usingLine(training) }}</span>
+          </span>
+          <Icon name="right" :size="16" class="fchev" />
+        </button>
+        <button type="button" class="frow" data-import-row @click="openImport">
+          <span class="col grow">
+            <span class="t-body">Import workouts</span>
+            <span class="t-capn c2 hnames">From Strong or Hevy</span>
           </span>
           <Icon name="right" :size="16" class="fchev" />
         </button>

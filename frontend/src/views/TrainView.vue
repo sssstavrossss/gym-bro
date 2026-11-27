@@ -15,7 +15,7 @@ import { loadPlan, plan, planDraft } from "../state/plan";
 import { training } from "../state/training";
 import { deviceTimeZone } from "../state/profile";
 import { loadHistory, newPast, openPast, repeatWorkout, skipPlanWorkout, startPlanWorkout, startWorkout, unskipPlanWorkout, workout, workoutHistory } from "../state/workout";
-import { openExercises, openPlan, openPlans, openPlanWorkout, openTraining, openWorkout, toast, toastError } from "../ui";
+import { openExercises, openImport, openPlan, openPlans, openPlanWorkout, openTraining, openWorkout, toast, toastError } from "../ui";
 
 // Training (docs/training.md): start or resume a workout, the plan and the history. The exercise library is its own
 // sheet behind the search button; the list still loads here, for the names on the plan and in history.
@@ -279,13 +279,16 @@ function logPast() {
     </section>
 
     <!-- Nothing logged yet: bring in what you did before. -->
-    <div v-if="cards.trainedBefore" class="card prompt row" data-trained-before>
-      <span class="col grow g2">
-        <span class="t-bodys">Trained before?</span>
-        <span class="t-capn c2">Log past workouts, so weight suggestions and new bests start from them</span>
+    <section v-if="cards.trainedBefore" class="card" aria-labelledby="trained-before-title" data-trained-before>
+      <span class="col g2">
+        <h2 id="trained-before-title" class="t-bodys m0">Trained before?</h2>
+        <span class="t-capn c2">Bring your history, so loads and new bests start from it</span>
       </span>
-      <button type="button" class="btn sm secondary t-label" @click="logPast"><Icon name="plus" :size="14" /> Log past</button>
-    </div>
+      <div class="row acts">
+        <button type="button" class="btn sm secondary t-label" data-import-open @click="openImport"><Icon name="download" :size="14" /> Import from Strong or Hevy</button>
+        <button type="button" class="btn sm secondary t-label" @click="logPast"><Icon name="plus" :size="14" /> Log past</button>
+      </div>
+    </section>
 
     <section v-if="cards.history" class="card" aria-labelledby="history-title" data-workout-history>
       <div class="chead">
@@ -328,6 +331,9 @@ function logPast() {
 .hbtn:last-child { margin-right: calc((var(--control-s) - var(--control-hit)) / 2); }
 .g2 { gap: var(--space-2xs); min-width: 0; }
 .dt-xl .card.prompt { flex-wrap: wrap; }
+.acts { gap: var(--space-s); flex-wrap: wrap; }
+/* At XL each action takes the width, and a long one wraps inside its pill. */
+.dt-xl .acts .btn { flex: 1 1 100%; max-width: 100%; }
 /* At XL the library row keeps its disc beside the words; only the words wrap. */
 .dt-xl .xrow { flex-wrap: nowrap; }
 /* Explore: a library row, then its body areas as chips that open it there. */
