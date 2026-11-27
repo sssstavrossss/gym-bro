@@ -615,7 +615,8 @@ async function deletePastNow() {
 .row.hdr { gap: var(--space-s); flex-wrap: nowrap; }
 .body { gap: var(--space-s); padding-bottom: var(--space-l); }
 .confirm { gap: var(--space-xs); }
-.addv { gap: var(--space-m); }
+/* The picker fills the room under the times (if they show), and its pages scroll on their own. */
+.addv { gap: var(--space-m); flex: 1 1 auto; min-height: 0; }
 /* Discard and End side by side; End takes the room that's left. At XL they stack. */
 .row.endacts { gap: var(--space-s); flex-wrap: nowrap; }
 .confirm .endacts { padding-top: var(--space-xs); }

@@ -92,6 +92,14 @@ test("Train opens the exercise library in a sheet: search, body areas, rows a st
   await expect(library.locator('[data-exercise-page="back"] [data-exercise="run"]')).toHaveCount(0);
   await groups.getByRole("button", { name: "All", exact: true }).click();
   await expect(groups.getByRole("button", { name: "All", exact: true })).toHaveAttribute("aria-pressed", "true");
+  // The chips follow the pages: one step back from All wraps round to Core, at the far end of the row, and the row
+  // scrolls along so its chip is in view rather than lit up past the edge.
+  await library.getByLabel("Muscle groups", { exact: true }).press("ArrowLeft");
+  await expect(groups.getByRole("button", { name: "Core", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(groups.getByRole("button", { name: "Core", exact: true })).toBeInViewport({ ratio: 0.95 });
+  await library.getByLabel("Muscle groups", { exact: true }).press("ArrowRight");
+  await expect(groups.getByRole("button", { name: "All", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(groups.getByRole("button", { name: "All", exact: true })).toBeInViewport({ ratio: 0.95 });
   await library.locator('[data-exercise="skierg"]:visible').click();
 
   const sheet = page.getByRole("dialog", { name: "SkiErg" });

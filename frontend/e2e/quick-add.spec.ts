@@ -117,13 +117,18 @@ test("One set at a time: quick fills, correcting a done set, and one more after 
   await page.goto("/train");
   await page.getByRole("button", { name: "Empty workout" }).click();
   const add = page.getByRole("dialog", { name: "Add exercise" });
-  // Only the exercises scroll: the search and both rows of chips stay at the top of the sheet.
+  // Only the exercises scroll, like Add food: the sheet itself has nothing to scroll, and each muscle group's page
+  // scrolls on its own under the search and both rows of chips.
   await expect(add.getByRole("button", { name: /^Add / }).nth(12)).toBeVisible();
-  const body = add.locator(".sheet-body");
-  await body.evaluate((el) => { el.scrollTop = 800; });
-  await expect.poll(() => body.evaluate((el) => el.scrollTop)).toBeGreaterThan(400);
-  // Read both in one go: the sheet may still be sliding up.
-  await expect.poll(() => add.evaluate((d) => Math.round(d.querySelector("[data-exercise-head]")!.getBoundingClientRect().top - d.querySelector(".sheet-body")!.getBoundingClientRect().top))).toBe(0);
+  // Measured from the sheet body in one go, since the sheet may still be sliding up.
+  const headOffset = () => add.evaluate((d) => Math.round(d.querySelector("[data-exercise-head]")!.getBoundingClientRect().top - d.querySelector(".sheet-body")!.getBoundingClientRect().top));
+  const top = await headOffset();
+  const sheetBody = await add.locator(".sheet-body").evaluate((el) => ({ scroll: el.scrollHeight, client: el.clientHeight }));
+  expect(sheetBody.scroll, "the sheet scrolls, dragging the search and chips with it").toBeLessThanOrEqual(sheetBody.client);
+  const allPage = add.locator('[data-exercise-page="all"]');
+  await allPage.evaluate((el) => { el.scrollTop = 800; });
+  await expect.poll(() => allPage.evaluate((el) => el.scrollTop)).toBeGreaterThan(400);
+  expect(await headOffset()).toBe(top);
   await expect(add.getByLabel("Search exercises")).toBeInViewport();
   await add.getByLabel("Search exercises").fill("barbell squat");
   await add.getByRole("button", { name: "Add Barbell Squat", exact: true }).click();
