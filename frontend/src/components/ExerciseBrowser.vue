@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
 import ExerciseRow from "./ExerciseRow.vue";
 import Icon from "./Icon.vue";
 import PageChips from "./PageChips.vue";
@@ -97,19 +97,30 @@ const more = ref<HTMLElement | null>(null);
 const keepMore = (element: unknown) => { more.value = (element as HTMLElement | null) ?? null; };
 const root = ref<HTMLElement | null>(null);
 let observer: IntersectionObserver | undefined;
+/**
+ * Watches Show more against the box that scrolls the rows (WebKit doesn't clip by it otherwise): the page itself
+ * where the pages fill the sheet, else the sheet body (a swap's, with Similar above).
+ */
+function watchMore(element: HTMLElement | null) {
+  observer?.disconnect();
+  observer = undefined;
+  if (!element || !("IntersectionObserver" in window)) return;
+  const pageEl = element.closest<HTMLElement>(".page");
+  const scroller = pageEl && pageEl.scrollHeight > pageEl.clientHeight + 1 ? pageEl : element.closest<HTMLElement>(".sheet-body");
+  observer = new IntersectionObserver((entries) => { if (entries.some((entry) => entry.isIntersecting)) showMore(); }, { root: scroller, rootMargin: "0px 0px 600px 0px" });
+  observer.observe(element);
+}
 onMounted(() => {
   if (props.recent && workoutHistory.state === "idle") void loadHistory();
-  if (!("IntersectionObserver" in window)) return;
-  // Watch against the sheet body that scrolls the list (WebKit doesn't clip by it otherwise), else the page.
-  const scroller = root.value?.closest<HTMLElement>(".sheet-body") ?? null;
-  observer = new IntersectionObserver((entries) => { if (entries.some((entry) => entry.isIntersecting)) showMore(); }, { root: scroller, rootMargin: "0px 0px 600px 0px" });
-  if (more.value) observer.observe(more.value);
+  void nextTick(() => watchMore(more.value));
 });
-watch(more, (element, old) => {
-  if (old) observer?.unobserve(old);
-  if (element) observer?.observe(element);
-});
+watch(more, (element) => { void nextTick(() => watchMore(element)); });
 onBeforeUnmount(() => observer?.disconnect());
+
+// A new search or type starts every page back at its top.
+watch([query, type], () => {
+  root.value?.querySelectorAll<HTMLElement>("[data-exercise-page]").forEach((pageEl) => { pageEl.scrollTop = 0; });
+});
 </script>
 
 <template>
@@ -172,8 +183,13 @@ onBeforeUnmount(() => observer?.disconnect());
 
 <style scoped>
 .m0 { margin: 0; }
-.lib { gap: var(--space-s); }
-/* Pinned to the top of the scrolling sheet body, on the sheet's own colour, so rows slide under it out of sight. */
+/*
+ * Like Add food: the browser fills the room the sheet gives it and each muscle-group page scrolls on its own, so a
+ * swipe sideways never has the sheet scrolling under it too, and a page turns to its own top. Where something sits
+ * above it (a swap's Similar), the sheet body scrolls instead and the head pins to its top.
+ */
+.lib { gap: var(--space-s); flex: 1 1 auto; min-height: 0; }
+/* Pinned to the top of the sheet body when that is what scrolls, on the sheet's own colour, so rows slide under it. */
 .head {
   position: sticky; top: 0; z-index: 1; gap: var(--space-s);
   background: var(--color-surface); padding-bottom: var(--space-xs);
@@ -192,7 +208,9 @@ onBeforeUnmount(() => observer?.disconnect());
 .lib .field, .lib .types { flex-wrap: nowrap; }
 /* The chips' 44px hits overlap the gap; the type row and the page chips sit as close as Add food's. */
 .types + :deep(.pchips) { margin-top: calc((var(--control-chip) - var(--control-hit)) / 2); }
-.page { min-width: 0; }
+/* The dots' 44px hits reach 7px below their 30px strip; the padding keeps them inside the room, as Add food's. */
+.pager { flex: 1 1 auto; min-height: 200px; padding-bottom: calc((var(--control-hit) - var(--control-chip)) / 2); }
+.pager .page { min-width: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior-y: contain; }
 .sub { padding-top: var(--space-s); }
 .note { padding-block: var(--space-m); gap: var(--space-s); }
 .list { list-style: none; margin: 0; padding: 0; }
