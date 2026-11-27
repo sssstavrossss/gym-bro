@@ -360,7 +360,7 @@ onBeforeUnmount(() => {
     </div>
   </div>
   <button type="button" class="grab" :aria-expanded="expanded" :aria-label="expanded ? 'Hide the calendar' : 'Show the last 4 weeks'" @click="setExpanded(!expanded)">
-    <span class="grip" aria-hidden="true" />
+    <span class="grab-bar" aria-hidden="true" />
     <Icon name="down" :size="16" class="chev" :class="{ up: expanded }" />
   </button>
   </div>
@@ -447,7 +447,7 @@ onBeforeUnmount(() => {
      measured to the stroke) out of the layout so the screen gap starts at the ink. */
   margin-bottom: calc((var(--space-xs) + var(--space-2xs) + var(--space-l) - var(--control-hit)) / 2 - var(--space-xs));
 }
-.grip { width: 36px; height: 4px; border-radius: 2px; background: var(--color-border-strong); }
+.grab-bar { width: 36px; height: 4px; border-radius: 2px; background: var(--color-border-strong); }
 .chev { transition: transform 340ms cubic-bezier(0.22, 1.05, 0.36, 1); }
 .chev.up { transform: rotate(180deg); }
 .still .stage, .still .face, .still .chev, .still .track { transition: none; }
