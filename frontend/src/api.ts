@@ -13,6 +13,7 @@ import type { LiftProgress } from "./lib/strength";
 import type { TimedBlockBody } from "./lib/timed";
 import type { MuscleSets, VolumeTarget } from "./lib/muscleVolume";
 import type { SavedSet, WorkoutRequestBody } from "./lib/workout";
+import type { ImportRequest, WorkoutApp } from "./lib/importCsv";
 import type { FatLimitsSetting, SodiumLimitSetting } from "./lib/nutrientCards";
 import type { FoodUnit } from "./lib/foodUnits";
 import { e2eSession } from "./auth/e2e";
@@ -1622,6 +1623,25 @@ export async function putWorkout(id: string, body: WorkoutRequestBody): Promise<
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
+  }));
+}
+
+/** The library exercise for each name from another app's export, or null when it isn't clear (Import). */
+export async function matchExercises(names: readonly string[]): Promise<Record<string, string | null>> {
+  const body = await jsonOrThrow<{ matches: { name: string; exerciseId: string | null }[] }>(await request("/api/exercises/match", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ names }),
+  }));
+  return Object.fromEntries(body.matches.map((match) => [match.name, match.exerciseId]));
+}
+
+/** Saves up to 100 imported workouts as done. Ones already imported from the same file are skipped. */
+export async function importWorkouts(source: WorkoutApp, timeZone: string, workouts: ImportRequest[]): Promise<{ added: number; skipped: number }> {
+  return jsonOrThrow(await request("/api/workouts/import", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ source, timeZone, workouts }),
   }));
 }
 

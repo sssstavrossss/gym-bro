@@ -7,7 +7,7 @@ import { exercises, loadExercises } from "../state/exercises";
 
 // The exercise library: search, body-area chips and the list. The library sheet opens the how-to from it; the
 // workout sheet adds the picked exercise. `bare` leaves the title to the sheet around it.
-const props = withDefaults(defineProps<{ title: string; titleId: string; action?: "open" | "add" | "swap"; bare?: boolean; startArea?: ExerciseArea; focusSearch?: boolean }>(), { action: "open", bare: false, startArea: "all", focusSearch: true });
+const props = withDefaults(defineProps<{ title: string; titleId: string; action?: "open" | "add" | "swap" | "match"; bare?: boolean; startArea?: ExerciseArea; focusSearch?: boolean }>(), { action: "open", bare: false, startArea: "all", focusSearch: true });
 const emit = defineEmits<{ pick: [string] }>();
 const query = ref("");
 const area = ref<ExerciseArea>(props.startArea);

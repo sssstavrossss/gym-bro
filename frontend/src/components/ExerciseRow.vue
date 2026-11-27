@@ -4,10 +4,10 @@ import { exerciseLine, photoUrl, type ExerciseItem } from "../lib/exercises";
 import { exercises } from "../state/exercises";
 
 // One exercise in a list: its photo, name and line. The library's rows, and the swap list's.
-const props = defineProps<{ item: ExerciseItem; action: "open" | "add" | "swap"; broken: Set<string> }>();
+const props = defineProps<{ item: ExerciseItem; action: "open" | "add" | "swap" | "match"; broken: Set<string> }>();
 const emit = defineEmits<{ pick: [string] }>();
-const labels = { open: undefined, add: (name: string) => `Add ${name}`, swap: (name: string) => `Swap to ${name}` };
-const icons = { open: "right", add: "plus", swap: "swap" };
+const labels = { open: undefined, add: (name: string) => `Add ${name}`, swap: (name: string) => `Swap to ${name}`, match: (name: string) => `Use ${name}` };
+const icons = { open: "right", add: "plus", swap: "swap", match: "check" };
 const label = () => labels[props.action]?.(props.item.name);
 </script>
 

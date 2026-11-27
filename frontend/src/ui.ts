@@ -88,6 +88,8 @@ export const ui = reactive({
   fanPagesOver: false,
   /** Your training is open over Settings, so closing it goes back there. */
   trainingOver: false,
+  /** Import opened over Settings: closing it goes back there. */
+  importOver: false,
   /** The page Settings opens on: its list, Home sections (from Home when every card is off), or the food country (from its toast). */
   settingsView: "main" as SettingsView,
 });
@@ -255,6 +257,21 @@ export function openPlan(split: Split | null = null): void {
 export function openPlans(): void {
   ui.trainingOver = false;
   ui.sheet = "plans";
+}
+
+/** Import workouts from a Strong or Hevy export (components/ImportSheet.vue). From Settings it opens over it. */
+export function openImport(): void {
+  if (ui.sheet && ui.sheet !== "import") {
+    ui.importOver = true;
+    return;
+  }
+  ui.importOver = false;
+  ui.sheet = "import";
+}
+
+export function closeImport(): void {
+  if (ui.importOver) ui.importOver = false;
+  else closeSheet();
 }
 
 /** Edit one of the plan's workouts by hand. */

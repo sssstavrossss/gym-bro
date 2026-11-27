@@ -85,6 +85,7 @@ public static class WorkoutEndpoints
         api.MapGet("/workouts/muscles", Muscles);
         api.MapGet("/workouts/{id:guid}", Get);
         api.MapPut("/workouts/{id:guid}", Put);
+        api.MapPost("/workouts/import", Import);
         api.MapDelete("/workouts/{id:guid}", Delete);
         return api;
     }
@@ -136,6 +137,14 @@ public static class WorkoutEndpoints
             session.Sets.Clear();
         }
 
+        Fill(session, draft, userId, now, db);
+        await db.SaveChangesAsync(cancellationToken);
+        return Results.Json(ToView(session), statusCode: created ? StatusCodes.Status201Created : StatusCodes.Status200OK);
+    }
+
+    /// <summary>Puts a checked workout's fields and sets on a session (its old sets already removed).</summary>
+    private static void Fill(WorkoutSession session, WorkoutDraft draft, string userId, DateTimeOffset now, AppDbContext db)
+    {
         session.Kind = draft.Kind;
         session.LocalDate = draft.Date;
         session.Name = draft.Name;
@@ -170,9 +179,69 @@ public static class WorkoutEndpoints
             session.Sets.Add(row);
             db.WorkoutSets.Add(row);
         }
+    }
+
+    /// <summary>
+    /// Workouts from Strong or Hevy, up to 100 at a time (see <see cref="WorkoutImport"/>). Each is checked as a logged
+    /// one is; the first that fails stops the batch with what's wrong. One already imported is skipped.
+    /// </summary>
+    private static async Task<IResult> Import(
+        ClaimsPrincipal principal,
+        WorkoutImportRequest body,
+        AppDbContext db,
+        UserDirectory users,
+        TimeProvider clock,
+        CancellationToken cancellationToken)
+    {
+        if (Caller.MissingOid(principal) is { } denied)
+        {
+            return denied;
+        }
+
+        if (LogEntryRules.RejectZone(body.TimeZone, clock, out _, out var clientToday, out var serverToday) is { } zoneError)
+        {
+            return ApiResults.Error(zoneError);
+        }
+
+        if (WorkoutImport.CheckBatch(body) is { } batchError)
+        {
+            return ApiResults.Error(batchError);
+        }
+
+        var userId = Caller.Id(principal);
+        var drafts = new Dictionary<Guid, WorkoutDraft>();
+        foreach (var item in body.Workouts!)
+        {
+            var (draft, key, error) = WorkoutImport.Check(item, clientToday, serverToday);
+            if (draft is null)
+            {
+                return ApiResults.Error(error!);
+            }
+
+            drafts.TryAdd(WorkoutImport.IdFor(userId, body.Source!, key!), draft);
+        }
+
+        await users.UpsertAsync(principal, cancellationToken);
+        var ids = drafts.Keys.ToList();
+        // The ids carry the account, so one already there is this person's, imported before.
+        var there = await db.WorkoutSessions.Where(row => ids.Contains(row.Id)).Select(row => row.Id).ToListAsync(cancellationToken);
+        var now = clock.GetUtcNow();
+        var added = 0;
+        foreach (var (id, draft) in drafts)
+        {
+            if (there.Contains(id))
+            {
+                continue;
+            }
+
+            var session = new WorkoutSession { Id = id, UserId = userId, CreatedAt = now };
+            db.WorkoutSessions.Add(session);
+            Fill(session, draft, userId, now, db);
+            added++;
+        }
 
         await db.SaveChangesAsync(cancellationToken);
-        return Results.Json(ToView(session), statusCode: created ? StatusCodes.Status201Created : StatusCodes.Status200OK);
+        return Results.Ok(new { added, skipped = body.Workouts!.Count - added });
     }
 
     private static async Task<IResult> Get(ClaimsPrincipal principal, Guid id, AppDbContext db, CancellationToken cancellationToken)
