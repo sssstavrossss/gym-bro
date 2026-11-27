@@ -397,7 +397,7 @@ async function deletePastNow() {
       </ul>
     </div>
 
-    <ExerciseBrowser v-else-if="view === 'add'" title="Exercises" title-id="workout-add-title" action="add" @pick="pick" />
+    <ExerciseBrowser v-else-if="view === 'add'" title="Exercises" title-id="workout-add-title" action="add" recent @pick="pick" />
     <WorkoutDescribe v-else-if="view === 'describe'" @find="findNow" />
     <SwapList v-else-if="view === 'swap' && swapping" :key="swapping.key" :exercise-id="swapping.exerciseId" @pick="swapTo" />
 

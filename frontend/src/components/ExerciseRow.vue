@@ -3,8 +3,8 @@ import Icon from "./Icon.vue";
 import { exerciseLine, photoUrl, type ExerciseItem } from "../lib/exercises";
 import { exercises } from "../state/exercises";
 
-// One exercise in a list: its photo, name and line. The library's rows, and the swap list's.
-const props = defineProps<{ item: ExerciseItem; action: "open" | "add" | "swap" | "match"; broken: Set<string> }>();
+// One exercise in a list: its photo, name, type tag (when the list mixes types) and line. The library's rows, and the swap list's.
+const props = defineProps<{ item: ExerciseItem; action: "open" | "add" | "swap" | "match"; broken: Set<string>; tag?: string }>();
 const emit = defineEmits<{ pick: [string] }>();
 const labels = { open: undefined, add: (name: string) => `Add ${name}`, swap: (name: string) => `Swap to ${name}`, match: (name: string) => `Use ${name}` };
 const icons = { open: "right", add: "plus", swap: "swap", match: "check" };
@@ -21,7 +21,7 @@ const label = () => labels[props.action]?.(props.item.name);
       <Icon v-else name="dumbbell" :size="16" />
     </span>
     <span class="col grow text">
-      <span class="t-body name">{{ item.name }}</span>
+      <span class="t-body name">{{ item.name }}<span v-if="tag" class="tag t-capn" data-exercise-tag>{{ tag }}</span></span>
       <span class="t-label c2 line">{{ exerciseLine(item) }}</span>
     </span>
     <Icon :name="icons[action]" :size="16" class="c3" />
@@ -41,5 +41,7 @@ const label = () => labels[props.action]?.(props.item.name);
 }
 .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .text { gap: var(--space-2xs); min-width: 0; }
-.name, .line { overflow-wrap: anywhere; }
+.name, .line { overflow-wrap: anywhere; min-width: 0; }
+/* The tag follows the name on its last line, so a long name wraps before it rather than pushing it aside. */
+.name .tag { display: inline-block; margin-left: var(--space-s); vertical-align: 1px; white-space: nowrap; }
 </style>

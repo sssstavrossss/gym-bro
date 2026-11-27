@@ -146,7 +146,7 @@ test("History: open a past workout to edit it, delete it with Undo, and log one 
   await history.getByRole("button", { name: "Log past" }).click();
   const add = page.getByRole("dialog", { name: "Add exercise" });
   await add.getByLabel("Search exercises").fill("plank");
-  await add.locator('[data-exercise="plank"]').click();
+  await add.locator('[data-exercise="plank"]:visible').click();
   const log = page.getByRole("dialog", { name: "Log a workout" });
   await log.getByLabel("Day of the workout").fill(yesterday);
   await log.getByRole("button", { name: "Save", exact: true }).click();

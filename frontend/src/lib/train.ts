@@ -20,7 +20,7 @@ export interface TrainInput {
 export interface TrainCards {
   /** "Workout in progress" with Resume, at the top. */
   inProgress: boolean;
-  /** Start a workout (no plan) or Something else today (a plan): empty or described. Not while one runs. */
+  /** Quick add: a workout off the plan, empty, described or repeated. Not while one runs. */
   start: boolean;
   /** Make a plan, once the plan has loaded and there is none. */
   makePlan: boolean;
@@ -45,9 +45,9 @@ export function trainCards(input: TrainInput): TrainCards {
   };
 }
 
-/** The Start a workout card's title and caption. `repeat` names the workout Repeat starts again (null: unnamed), when there is one. */
+/** The Quick add card's title and caption: a workout off the plan, added to as you go. `repeat` names the workout Repeat starts again (null: unnamed), when there is one. */
 export function startText(hasPlan: boolean, canDescribe: boolean, repeat?: RepeatSource | null): { title: string; caption: string } {
-  const title = hasPlan ? "Something else today?" : "Start a workout";
+  const title = "Quick add";
   if (repeat) {
     const again = `repeat ${repeatName(repeat)}`;
     return { title, caption: canDescribe ? `Empty, describe it, or ${again}` : `Empty, or ${again}` };

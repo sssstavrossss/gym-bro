@@ -194,6 +194,7 @@ function logPast() {
 
     <!-- Start one now: empty, described in words, or the last one again. Home's "Log your first food today" shape. -->
     <div v-if="cards.start" class="card prompt row" data-start-workout>
+      <span class="tdisc" aria-hidden="true"><Icon name="bolt" :size="18" /></span>
       <button type="button" class="ptext col grow" @click="start">
         <span class="t-bodys">{{ startCopy.title }}</span>
         <span class="t-capn c2">{{ startCopy.caption }}</span>

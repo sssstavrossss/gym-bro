@@ -19,7 +19,7 @@ const open = computed(() => ui.sheet === "exercises");
         <button type="button" class="cbtn" aria-label="Close" @click="closeSheet"><Icon name="x" :size="18" /></button>
       </div>
     </template>
-    <ExerciseBrowser title="Exercises" title-id="library-title" bare :start-area="ui.exercisesArea" :focus-search="ui.exercisesSearch" @pick="openExercise" />
+    <ExerciseBrowser title="Exercises" title-id="library-title" bare :start-area="ui.exercisesArea" :focus-search="ui.exercisesSearch" recent @pick="openExercise" />
   </BottomSheet>
 </template>
 

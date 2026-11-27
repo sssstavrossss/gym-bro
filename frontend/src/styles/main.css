@@ -504,6 +504,11 @@ html.dt-xl .gstats { grid-template-columns: minmax(0, 1fr); }
 .chip > * { position: relative; }
 .chip.on { color: var(--color-on-action); }
 .chip.on::before { background: var(--color-action); }
+/* A ring chip: a filter in a row above page chips (the exercise types above the muscle groups), so the two rows
+   read apart. No fill; the chosen one has a stronger ring and primary ink. */
+.chip.ring::before, .chip.ring.on::before { background: transparent; box-shadow: inset 0 0 0 1px var(--color-border-strong); }
+.chip.ring.on { color: var(--text-primary); }
+.chip.ring.on::before { box-shadow: inset 0 0 0 var(--line-rail) var(--text-primary); }
 
 /* Text fields: grey fill, 44px, a ring in the action colour while focused. */
 .field {
