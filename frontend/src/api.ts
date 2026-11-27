@@ -676,6 +676,14 @@ export async function getProgress(range: string): Promise<ProgressResponse> {
   return cachedJson(`/api/progress?range=${encodeURIComponent(range)}`);
 }
 
+/**
+ * The 7 days ending on `to` (or today), straight from the server and not kept for offline: the Home card puts their
+ * intake into the year it holds after a log change. Weight numbers in it are as of `to`; the card doesn't use them.
+ */
+export async function getProgressWeek(to: string | null): Promise<ProgressResponse> {
+  return jsonOrThrow(await request(`/api/progress?range=7d${to ? `&to=${to}` : ""}`));
+}
+
 /** Progress → Strength (`GET /api/workouts/strength`): done workouts and sets in the range, and each lift's estimated max by day. */
 export interface StrengthResponse {
   range: string;

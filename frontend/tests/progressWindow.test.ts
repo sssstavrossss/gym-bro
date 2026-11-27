@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  boxOf, centreOf, clampOffset, dayIndexAt, lineStrip, maxOffset, monthStarts, offsetAtStripDay, offsetForCentre, rateAt,
+  boxOf, centreOf, clampOffset, dayIndexAt, lineStrip, maxOffset, monthStarts, offsetAtStripDay, offsetForCentre, patchIntake, patchWindows, rateAt,
   stripSpan, weekBarStrip, weightWindow, windowLength, windowOf,
 } from "../src/lib/progressWindow";
 import { addDays } from "../src/lib/dates";
@@ -153,5 +153,40 @@ describe("weight in a window", () => {
     expect(earlier.count).toBe(3);
     expect(earlier.rateKgPerWeek).toBeNull();
     expect(weightWindow(series, [], series[0].date, TODAY)).toMatchObject({ latestKg: null, count: 0, rateKgPerWeek: null });
+  });
+});
+
+describe("patching after a log change", () => {
+  it("covers the touched days with as few 7-day windows as it can", () => {
+    expect(patchWindows([TODAY], TODAY)).toEqual([null]);
+    expect(patchWindows([addDays(TODAY, -6), TODAY], TODAY)).toEqual([null]);
+    expect(patchWindows([addDays(TODAY, -7)], TODAY)).toEqual([addDays(TODAY, -7)]);
+    // 30 and 26 days ago share a window ending 26 days ago
+    expect(patchWindows([addDays(TODAY, -30), addDays(TODAY, -26), TODAY], TODAY)).toEqual([null, addDays(TODAY, -26)]);
+    expect(patchWindows([], TODAY)).toEqual([]);
+  });
+
+  it("gives up for many windows, or a day after today", () => {
+    expect(patchWindows([-10, -20, -30, -40].map((n) => addDays(TODAY, n)), TODAY)).toBeNull();
+    expect(patchWindows([-10, -20, -30].map((n) => addDays(TODAY, n)), TODAY)).toHaveLength(3);
+    expect(patchWindows([addDays(TODAY, 1)], TODAY)).toBeNull();
+  });
+
+  it("puts in the fresh intake and keeps the rest of each day", () => {
+    type Day = { date: string; logged: boolean; kcal: number | null; protein: number | null; trendKg: number; targetKcal: number };
+    const days: Day[] = [
+      { date: "2026-11-26", logged: true, kcal: 1800, protein: 120, trendKg: 84.1, targetKcal: 2200 },
+      { date: "2026-11-27", logged: true, kcal: 400, protein: 20, trendKg: 84.0, targetKcal: 2200 },
+    ];
+    const fresh: Day[] = [
+      { date: "2026-11-27", logged: true, kcal: 950, protein: 60, trendKg: 99, targetKcal: 1 },
+      { date: "2026-11-25", logged: false, kcal: null, protein: null, trendKg: 99, targetKcal: 1 },
+    ];
+    const next = patchIntake(days, fresh);
+    expect(next[0]).toBe(days[0]);
+    expect(next[1]).toMatchObject({ kcal: 950, protein: 60, trendKg: 84.0, targetKcal: 2200, fat: null });
+    expect(next).toHaveLength(2);
+    // a day whose food was all deleted
+    expect(patchIntake(days, [{ date: "2026-11-26", logged: false, kcal: null, protein: null, trendKg: 1, targetKcal: 1 }])[0]).toMatchObject({ logged: false, kcal: null, trendKg: 84.1 });
   });
 });

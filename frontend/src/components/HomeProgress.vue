@@ -5,7 +5,7 @@ import Segmented from "./Segmented.vue";
 import ProgressChart from "./ProgressChart.vue";
 import ProgressStrip from "./ProgressStrip.vue";
 import SwipePanels from "./SwipePanels.vue";
-import { ApiError, getProgress, type ProgressDay, type ProgressResponse } from "../api";
+import { ApiError, getProgress, getProgressWeek, type ProgressDay, type ProgressResponse } from "../api";
 import { followPage, visiblePages } from "../lib/cardPages";
 import { dayMonth, spanLabel } from "../lib/dates";
 import { formatDecimal, int } from "../lib/format";
@@ -13,7 +13,8 @@ import { fatLimits, fatLimitsOf, sodiumLimitMg, sodiumLimitOf } from "../lib/nut
 import type { IntakeDay } from "../lib/progressChart";
 import { fiberMinimum, goalKind, intakeStats, LINE_WORDS, PAGE_TITLES, PROGRESS_PAGES, WINDOW_DAYS, type IntakePage, type ProgressPage } from "../lib/progressCard";
 import {
-  centreOf, clampOffset, dayIndexAt, lineStrip, offsetForCentre, stripSpan, weekBarStrip, weightWindow, windowLength, windowOf, type StripShape,
+  centreOf, clampOffset, dayIndexAt, lineStrip, offsetForCentre, patchIntake, patchWindows, stripSpan, weekBarStrip, weightWindow, windowLength, windowOf,
+  type StripShape,
 } from "../lib/progressWindow";
 import { rateStat } from "../lib/weightTrend";
 import { cardPages, pageOrder } from "../state/cardPages";
@@ -91,6 +92,8 @@ const failed = ref(false);
 const pan = ref(0);
 const span = ref<{ from: string; to: string } | null>(null);
 let requestId = 0;
+/** Days a log change touched that the card hasn't fetched again yet (kept when offline, tried on the next change). */
+const stale = new Set<string>();
 
 /**
  * One load serves every range: a year (1y) for the fixed ranges, everything for All. Each window is sliced out of it,
@@ -98,11 +101,13 @@ let requestId = 0;
  */
 async function load() {
   const id = ++requestId;
+  const covered = [...stale];
   failed.value = false;
   try {
     const next = await getProgress(range.value === "all" ? "all" : "1y");
     if (id !== requestId) return;
     data.value = next;
+    for (const date of covered) stale.delete(date);
   } catch (error) {
     if (id !== requestId) return;
     failed.value = data.value == null;
@@ -148,8 +153,31 @@ watch(
   () => `${profile.weight?.latestDate ?? ""}:${profile.weight?.latestKg ?? ""}:${profile.weight?.trendKg ?? ""}`,
   () => { void load(); },
 );
-// Adding, editing or deleting food changes the intake pages.
-onLogChange(() => { void load(); });
+/**
+ * Adding, editing or deleting food changes only those days' intake, so the card fetches the 7 days around them and
+ * puts their intake into the year it holds, instead of loading the year again on every log.
+ */
+async function patch(dates: string[]) {
+  for (const date of dates) stale.add(date);
+  const held = data.value;
+  if (!held) return load();
+  const asked = [...stale];
+  const windows = patchWindows(asked, held.today);
+  if (!windows) return load();
+  if (!windows.length) return;
+  try {
+    const weeks = await Promise.all(windows.map(getProgressWeek));
+    // A full load landed meanwhile: try again on top of it.
+    if (data.value !== held) return patch([]);
+    // A new day began: the year has moved on.
+    if (weeks.some((week) => week.today !== held.today)) return load();
+    data.value = { ...held, days: patchIntake(held.days, weeks.flatMap((week) => week.days)) };
+    for (const date of asked) stale.delete(date);
+  } catch {
+    // Offline or the server hiccuped: the days stay stale and go with the next change or load.
+  }
+}
+onLogChange((dates) => { void patch(dates); });
 
 /** Every loaded day, oldest first, ending today. */
 const history = computed(() => data.value?.days.length ?? 0);

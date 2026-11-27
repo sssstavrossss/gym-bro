@@ -29,7 +29,8 @@ async function touch(target: Locator, type: "touchstart" | "touchmove" | "touche
 
 test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
 
-test("the progress card moves through time on its strip and by holding the chart", async ({ page }) => {
+/** A new account with weigh-ins 7 and 2 days ago, on 7d and the given page. */
+async function setup(page: Page, startPage: number) {
   const oid = `e2e-progress-slide-${Date.now()}-${test.info().project.name}`;
   await page.goto("/");
   const when = await clock(page);
@@ -52,12 +53,16 @@ test("the progress card moves through time on its strip and by holding the chart
   const year = await (await page.request.get("/api/progress?range=1y", { headers: headers(oid) })).json();
   expect(year.from).toBe(shift(when.today, -7));
   expect(year.days).toHaveLength(8);
-  await page.addInitScript((id) => {
+  await page.addInitScript(([id, at]) => {
     sessionStorage.setItem("gymbro-e2e", "1");
     sessionStorage.setItem("gymbro-e2e-oid", id);
     localStorage.setItem("gymbro-home-range", "7d");
-    localStorage.setItem("gymbro-home-progress-page", "0");
-  }, oid);
+    localStorage.setItem("gymbro-home-progress-page", at);
+  }, [oid, String(startPage)]);
+}
+
+test("the progress card moves through time on its strip and by holding the chart", async ({ page }) => {
+  await setup(page, 0);
 
   await page.goto("/today");
   const progress = page.getByRole("region", { name: "Progress", exact: true });
@@ -132,4 +137,33 @@ test("the progress card moves through time on its strip and by holding the chart
   await expect(chart).not.toHaveClass(/held/);
   // The page didn't change under the drag.
   await expect(progress.locator("[data-progress-title]")).toHaveText("Weight");
+});
+
+test("a food log fetches only the week around it, compressed, and the card shows it", async ({ page }) => {
+  await setup(page, 1);
+  const asked: { url: string; encoding: string | undefined }[] = [];
+  page.on("response", (response) => {
+    if (response.url().includes("/api/progress")) asked.push({ url: response.url(), encoding: response.headers()["content-encoding"] });
+  });
+  await page.goto("/today");
+  const calories = page.getByRole("region", { name: "Progress", exact: true }).locator(".ppage[data-page='kcal']");
+  const logged = calories.locator(".cell").filter({ hasText: "Logged" });
+  await expect(logged.locator("[data-num]")).toHaveText("0 days");
+  await expect.poll(() => asked.length).toBe(1);
+  expect(asked[0].url).toContain("range=1y");
+  // Behind the dev proxy as in production, JSON comes back compressed.
+  expect(["br", "gzip"]).toContain(asked[0].encoding);
+
+  await page.getByRole("button", { name: "Add", exact: true }).click();
+  await page.getByRole("dialog", { name: "Add" }).getByRole("button", { name: "Search", exact: true }).click();
+  const sheet = page.getByRole("dialog").last();
+  await sheet.getByRole("radio", { name: "Quick add" }).click();
+  for (const key of ["9", "0", "0"]) await sheet.getByRole("button", { name: key, exact: true }).click();
+  await sheet.getByRole("button", { name: /Add · 900 kcal/ }).click();
+  await page.keyboard.press("Escape");
+
+  await expect(logged.locator("[data-num]")).toHaveText("1 day");
+  await expect(calories.locator(".cell").filter({ hasText: "Average" }).locator("[data-num]")).toHaveText("900");
+  // Just today's week again, not the whole year.
+  expect(asked.slice(1).map((row) => new URL(row.url).search)).toEqual(["?range=7d"]);
 });

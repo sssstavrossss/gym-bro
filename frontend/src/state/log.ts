@@ -186,23 +186,38 @@ function noteIfEmpty(date: string): void {
 
 /** Puts the entry on today's list and on the open day. Does not touch day complete. */
 function place(entry: LogEntry): void {
-  log.revision += 1;
+  bump([entry.localDate]);
   sortInto(log.entries, entry, log.date === entry.localDate);
   sortInto(viewed.entries, entry, viewed.date === entry.localDate);
   noteLogged(entry.localDate);
   rememberViewed();
 }
 
+/** The days the latest change touched, read by onLogChange as it happens. */
+let bumped: string[] = [];
+function bump(dates: string[]): void {
+  bumped = dates;
+  log.revision += 1;
+}
+
 /**
  * Calls `reload` shortly after the log changes on any day, once for a burst of changes (a saved
- * group, an undo of several). For views whose numbers come from the server, such as Home's charts.
+ * group, an undo of several), with every day the burst touched. For views whose numbers come from
+ * the server, such as Home's charts.
  */
-export function onLogChange(reload: () => void, delay = 300): void {
+export function onLogChange(reload: (dates: string[]) => void, delay = 300): void {
   let timer = 0;
+  let dates = new Set<string>();
+  // Sync, so each change's days are collected before the next one replaces them.
   watch(() => log.revision, () => {
+    for (const date of bumped) dates.add(date);
     window.clearTimeout(timer);
-    timer = window.setTimeout(reload, delay);
-  });
+    timer = window.setTimeout(() => {
+      const touched = [...dates].sort();
+      dates = new Set();
+      reload(touched);
+    }, delay);
+  }, { flush: "sync" });
   if (getCurrentInstance()) onBeforeUnmount(() => window.clearTimeout(timer));
 }
 
@@ -700,7 +715,7 @@ export async function removeEntries(entries: LogEntry[], options?: { announce?: 
     return false;
   }
   if (removed.some((item) => item.queued)) sendSoon();
-  log.revision += 1;
+  bump(removed.map(({ entry }) => entry.localDate));
   for (const { entry } of removed) {
     log.entries = log.entries.filter((row) => row.id !== entry.id);
     viewed.entries = viewed.entries.filter((row) => row.id !== entry.id);
@@ -788,7 +803,7 @@ function followId(local: string, server: string): void {
 /** Refreshes today and the open day from the server, with what is still queued on top. */
 async function reloadShown(): Promise<void> {
   await Promise.all([loadToday(), viewed.date ? loadDay(viewed.date) : Promise.resolve()]);
-  log.revision += 1;
+  bump([log.date, viewed.date].filter(Boolean));
 }
 
 /** Sends what the phone queued, then shows the server's numbers. */
