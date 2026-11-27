@@ -48,6 +48,8 @@ import {
   discardWorkout,
   exerciseItem,
   finishWorkout,
+  forgetQuickTimes,
+  quickTimes,
   removeExercise,
   restoreExercise,
   restorePast,
@@ -110,6 +112,7 @@ watch(open, (shown) => {
     // A quick workout closed before anything was added was never really started: it goes, quietly.
     const idle = workout.active;
     if (idle && !idle.exercises.length && !idle.plan && !workout.past) discardWorkout();
+    forgetQuickTimes();
     edit.key = null;
     confirming.value = null;
     timesOpen.value = false;
@@ -122,7 +125,8 @@ watch(open, (shown) => {
   void loadDescribe();
   tick();
   timer = window.setInterval(tick, 1000);
-  view.value = current.value && !current.value.exercises.length ? "add" : "log";
+  // Quick add opens with nothing started (README, *Logging a workout*): Add exercise, until the first exercise starts it.
+  view.value = !current.value || !current.value.exercises.length ? "add" : "log";
   // Train's start card can open it on Describe a workout (once; the next open is the usual one).
   if (ui.workoutView === "describe" && !past.value) {
     workoutDescribe.error = "";
@@ -329,7 +333,10 @@ function discard() {
 const endLabel = computed(() => (active.value?.endedAt ? `End at ${clockTime(active.value.endedAt)}` : "End now"));
 const endWhen = computed(() => (active.value?.endedAt ? "" : clockTime(now.value)));
 /** A quick workout with nothing in it yet: Add exercise is its first screen, closed with × instead of going back. */
-const fresh = computed(() => !!active.value && !active.value.exercises.length && !active.value.plan && !past.value);
+/** Quick add before its first exercise: no workout yet (or one emptied again), so Add exercise is its first page. */
+const fresh = computed(() => !past.value && (!active.value || (!active.value.exercises.length && !active.value.plan)));
+/** The times chip's: the workout's own, or those waiting for the first exercise. */
+const times = computed(() => active.value ?? quickTimes);
 
 function closeDone() {
   closeSummary();
@@ -412,9 +419,9 @@ async function deletePastNow() {
         <button v-if="!fresh" type="button" class="cbtn" aria-label="Back to the workout" @click="view = 'log'"><Icon name="left" :size="18" /></button>
         <h2 class="t-head m0 grow">Add exercise</h2>
         <button
-          v-if="fresh && active" type="button" class="btn sm secondary t-label tnum" :aria-expanded="timesOpen" aria-label="Times: starts now"
+          v-if="fresh" type="button" class="btn sm secondary t-label tnum" :aria-expanded="timesOpen" aria-label="Times: starts now"
           data-workout-times-chip @click="timesOpen = !timesOpen"
-        ><Icon name="clock" :size="14" /> {{ active.timesSet ? timesLabel(active) : "Now" }}</button>
+        ><Icon name="clock" :size="14" /> {{ times.timesSet ? timesLabel(times) : "Now" }}</button>
         <button v-if="describe.available" type="button" class="btn sm secondary t-label" data-describe-workout @click="startDescribe"><Icon name="sparkle" :size="14" /> Describe</button>
         <button v-if="fresh" type="button" class="cbtn" aria-label="Close" @click="closeSheet"><Icon name="x" :size="18" /></button>
       </div>
@@ -427,7 +434,10 @@ async function deletePastNow() {
         <button type="button" class="cbtn" :aria-label="`How to do ${nameOf(screenExercise)}`" @click="openExercise(screenExercise.exerciseId)"><Icon name="info" :size="18" /></button>
       </div>
       <div v-else-if="view === 'describe'" class="row hdr">
-        <button type="button" class="cbtn" aria-label="Back to the workout" @click="view = 'log'"><Icon name="left" :size="18" /></button>
+        <!-- Before the first exercise there is no workout to go back to: ← is Quick add's first page, Add exercise. -->
+        <button
+          type="button" class="cbtn" :aria-label="fresh ? 'Back to Add exercise' : 'Back to the workout'" @click="view = fresh ? 'add' : 'log'"
+        ><Icon name="left" :size="18" /></button>
         <h2 class="t-head m0 grow">Describe a workout</h2>
       </div>
       <div v-else-if="view === 'swap'" class="row hdr">

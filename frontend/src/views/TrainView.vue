@@ -14,7 +14,7 @@ import { exercises, loadExercises } from "../state/exercises";
 import { loadPlan, plan, planDraft } from "../state/plan";
 import { training } from "../state/training";
 import { deviceTimeZone } from "../state/profile";
-import { loadHistory, newPast, openPast, repeatWorkout, skipPlanWorkout, startPlanWorkout, startWorkout, unskipPlanWorkout, workout, workoutHistory } from "../state/workout";
+import { loadHistory, newPast, openPast, readyQuickAdd, repeatWorkout, skipPlanWorkout, startPlanWorkout, unskipPlanWorkout, workout, workoutHistory } from "../state/workout";
 import { openExercises, openImport, openPlan, openPlans, openPlanUpdate, openPlanWorkout, openTraining, openWorkout, toast, toastError } from "../ui";
 
 // Training (docs/training.md): start or resume a workout, the plan and the history. The exercise library is its own
@@ -34,14 +34,15 @@ const status = computed(() => (workout.active ? workoutStatus(workout.active, no
 /** Your training's answers the plan was made without (README → Your training): Update plan brings it up to them. */
 const behind = computed(() => (plan.current ? trainingChanges(trainingFrom(answersOf(plan.current)), training.value) : []));
 
+/** Opens Add exercise with nothing started yet: the workout begins when the first exercise goes in. */
 function start() {
-  startWorkout();
+  readyQuickAdd();
   openWorkout();
 }
 
-/** Starts a workout on Describe a workout: type what you did or will do, and the exercises are found. */
+/** Opens Describe a workout: type what you did or will do, and the exercises found start the workout. */
 function startDescribed() {
-  startWorkout();
+  readyQuickAdd();
   openWorkout("describe");
 }
 

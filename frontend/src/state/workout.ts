@@ -103,20 +103,45 @@ function newId(): string {
   return crypto.randomUUID();
 }
 
+/**
+ * The times set on Quick add's Add exercise before anything is added. Nothing has started then (README, *Logging a
+ * workout*): they wait here, and the first exercise starts the workout with them. Closing the sheet forgets them.
+ */
+export const quickTimes = reactive<{ startedAt: string | null; endedAt: string | null; timesSet: boolean }>({ startedAt: null, endedAt: null, timesSet: false });
+
+export function forgetQuickTimes(): void {
+  Object.assign(quickTimes, { startedAt: null, endedAt: null, timesSet: false });
+}
+
+/**
+ * Quick add opens the sheet with nothing started: the workout begins when the first exercise goes in (`addExercise`,
+ * `addDescribed`). Clears the last workout's summary so the sheet opens on Add exercise.
+ */
+export function readyQuickAdd(): void {
+  if (workout.active) return;
+  workout.summary = null;
+  workout.bests = [];
+  forgetQuickTimes();
+}
+
+/** Starts a workout now, or with the times set on Add exercise before it began. Returns the one going if there is one. */
 export function startWorkout(now = new Date()): DraftWorkout {
   if (workout.active) return workout.active;
   workout.summary = null;
   workout.bests = [];
+  const startedAt = quickTimes.timesSet && quickTimes.startedAt ? quickTimes.startedAt : now.toISOString();
   workout.active = {
     id: newId(),
-    date: todayInZone(deviceTimeZone(), now),
-    startedAt: now.toISOString(),
-    endedAt: null,
+    date: todayInZone(deviceTimeZone(), new Date(startedAt)),
+    startedAt,
+    endedAt: quickTimes.timesSet ? quickTimes.endedAt : null,
     name: null,
     exercises: [],
     restEndsAt: null,
     restFor: 0,
+    ...(quickTimes.timesSet ? { timesSet: true } : {}),
   };
+  forgetQuickTimes();
   save();
   return workout.active;
 }
@@ -194,7 +219,7 @@ async function loadPrevious(exerciseId: string): Promise<void> {
 /** Adds an exercise with as many sets as last time (3 when it is new, 1 for cardio: one run), and loads its "last time". */
 export async function addExercise(exerciseId: string, now = new Date()): Promise<string> {
   const active = editing() ?? startWorkout(now);
-  // Quick add starts at "now": the first exercise moves the start to when it was added, unless it was set by hand.
+  // A quick workout emptied again starts over at the next first exercise, unless its start was set by hand.
   if (active === workout.active && !active.exercises.length && !active.timesSet && !active.plan) active.startedAt = now.toISOString();
   await loadPrevious(exerciseId);
   const last = workout.previous[exerciseId];
@@ -546,7 +571,11 @@ export function restoreWorkout(dropped: DraftWorkout): boolean {
  */
 export function setWorkoutTimes(startedAt: string, endedAt: string | null): void {
   const active = workout.active;
-  if (!active) return;
+  if (!active) {
+    // Nothing has started yet: the first exercise starts it with these.
+    Object.assign(quickTimes, { startedAt, endedAt, timesSet: true });
+    return;
+  }
   active.startedAt = startedAt;
   active.endedAt = endedAt;
   active.date = todayInZone(deviceTimeZone(), new Date(startedAt));

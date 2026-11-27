@@ -60,17 +60,17 @@ test("A first visit: start a workout, make a plan, explore by body area, and log
   await expect(library.getByRole("group", { name: "Type" }).getByRole("button", { name: "All", exact: true })).toHaveAttribute("aria-pressed", "true");
   await page.keyboard.press("Escape");
 
-  // ✨ starts a workout straight on Describe.
+  // ✨ opens Quick add straight on Describe; ← is Add exercise, Quick add's first page, as nothing has started.
   await page.getByRole("button", { name: "Describe a workout" }).click();
   const describe = page.getByRole("dialog", { name: "Describe a workout" });
   await expect(describe.getByLabel("What you did")).toBeVisible();
-  const workout = page.getByRole("dialog", { name: "Workout", exact: true });
+  const picker = page.getByRole("dialog", { name: "Add exercise" });
   // WebKit can drop a tap made while the sheet is still sliding in; tap again until it lands.
   await expect(async () => {
-    await describe.getByRole("button", { name: "Back to the workout" }).click();
-    await expect(workout).toBeVisible({ timeout: 1000 });
+    await describe.getByRole("button", { name: "Back to Add exercise" }).click();
+    await expect(picker).toBeVisible({ timeout: 1000 });
   }).toPass();
-  await workout.getByRole("button", { name: "Hide the workout" }).click();
+  await picker.getByRole("button", { name: "Close" }).click();
 
   // Nothing was added, so nothing started: Quick add is back, with no workout in progress.
   await expect(page.locator("[data-workout-card]")).toHaveCount(0);

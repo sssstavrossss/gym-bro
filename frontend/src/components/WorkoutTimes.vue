@@ -2,13 +2,14 @@
 import { computed, ref, watch } from "vue";
 import Segmented from "./Segmented.vue";
 import { atLocal, clockTime, localDay, timesProblem } from "../lib/workout";
-import { setWorkoutTimes, workout } from "../state/workout";
+import { quickTimes, setWorkoutTimes, workout } from "../state/workout";
 
 // The live workout's times, opened from the header's time chip: when it started (the day and the time) and
 // whether it is still going or ended at a time. A quick workout starts "now"; moving the start back logs one done
-// earlier, and an end makes End save it as ending then.
+// earlier, and an end makes End save it as ending then. Before Quick add's first exercise there is no workout yet:
+// the times wait in `quickTimes` and the first exercise starts it with them.
 const props = defineProps<{ now: number }>();
-const active = computed(() => workout.active);
+const active = computed(() => workout.active ?? quickTimes);
 
 const startDay = ref("");
 const startTime = ref("");
@@ -18,15 +19,15 @@ const problem = ref("");
 
 function fill() {
   const current = active.value;
-  if (!current?.startedAt) return;
-  startDay.value = localDay(current.startedAt);
-  startTime.value = clockTime(current.startedAt);
+  const started = current.startedAt ?? new Date(props.now).toISOString();
+  startDay.value = localDay(started);
+  startTime.value = clockTime(started);
   ends.value = current.endedAt ? "at" : "going";
   endTime.value = current.endedAt ? clockTime(current.endedAt) : clockTime(props.now);
   problem.value = "";
 }
 fill();
-watch(() => active.value?.id, fill);
+watch(() => workout.active?.id, fill);
 
 /** The end is on the start's day, or the next one when its time is earlier (a workout past midnight). */
 function endStamp(start: string): string | null {
