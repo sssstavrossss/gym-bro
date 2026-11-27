@@ -310,11 +310,10 @@ async function loadShades() {
     // Tiles still show logged or empty from the week the strip already knows.
   }
 }
-/** A tap on a tile opens its day card; a second tap on the same tile (or Open day) goes to the day. */
+/** A tap on a tile opens its day card; a second tap on the same tile closes it, back to the key. Open day goes to the day. */
 function pickTile(date: string, disabled: boolean) {
   if (disabled) return;
-  if (picked.value === date) openDay(date);
-  else picked.value = date;
+  picked.value = picked.value === date ? null : date;
 }
 function openDay(date: string) {
   emit("select", date);

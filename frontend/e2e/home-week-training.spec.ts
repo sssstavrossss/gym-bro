@@ -102,13 +102,22 @@ test("the week strip and calendar show workouts by kind and state, and a tapped 
   await expect(card).toHaveCount(0);
   await expect(totals).toBeVisible();
 
-  // A second tap on the same tile goes to that day, as a tap did before.
+  // A second tap on the same tile closes the card too, and the calendar stays open.
   await todayTile.click();
+  await expect(card).toBeVisible();
   await todayTile.click();
+  await expect(card).toHaveCount(0);
+  await expect(todayTile).toHaveAttribute("aria-pressed", "false");
+  await expect(totals).toBeVisible();
+  await expect(calendar).toBeVisible();
+
+  // Open day goes to the day the card shows.
+  await todayTile.click();
+  await card.locator("[data-day-open]").click();
   await expect(calendar).toBeHidden();
   await expect(todayDay).toHaveAttribute("aria-pressed", "true");
 
-  // Open day does the same from the card.
+  // And for a coming day.
   if (tomorrowShown) {
     await page.getByRole("button", { name: "Show the last 4 weeks" }).click();
     await calendar.locator(`.tile[data-date="${when.tomorrow}"]`).click();
