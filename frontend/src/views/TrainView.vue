@@ -5,8 +5,8 @@ import OfflineLine from "../components/OfflineLine.vue";
 import Segmented from "../components/Segmented.vue";
 import { todayInZone } from "../lib/dates";
 import { EXERCISE_AREAS } from "../lib/exercises";
-import { dayLabel, GOALS, mobilityLine, nextLine, PLAN_KINDS, planLine, projectDays, splitFor, splitLabel, toggled, upNext, WEEKDAYS, weekLine, workoutLine } from "../lib/plan";
-import { usingLine } from "../lib/training";
+import { answersOf, dayLabel, GOALS, mobilityLine, nextLine, PLAN_KINDS, planLine, projectDays, splitFor, splitLabel, toggled, upNext, WEEKDAYS, weekLine, workoutLine } from "../lib/plan";
+import { planBehindLine, trainingChanges, trainingFrom, usingLine } from "../lib/training";
 import { lastWorkout, repeatName, startText, trainCards, weekDiscs } from "../lib/train";
 import { historyLine, shortDay, workoutStatus, workoutTotals } from "../lib/workout";
 import { describe, loadDescribe } from "../state/describe";
@@ -15,7 +15,7 @@ import { loadPlan, plan, planDraft } from "../state/plan";
 import { training } from "../state/training";
 import { deviceTimeZone } from "../state/profile";
 import { loadHistory, newPast, openPast, repeatWorkout, skipPlanWorkout, startPlanWorkout, startWorkout, unskipPlanWorkout, workout, workoutHistory } from "../state/workout";
-import { openExercises, openImport, openPlan, openPlans, openPlanWorkout, openTraining, openWorkout, toast, toastError } from "../ui";
+import { openExercises, openImport, openPlan, openPlans, openPlanUpdate, openPlanWorkout, openTraining, openWorkout, toast, toastError } from "../ui";
 
 // Training (docs/training.md): start or resume a workout, the plan and the history. The exercise library is its own
 // sheet behind the search button; the list still loads here, for the names on the plan and in history.
@@ -31,6 +31,8 @@ onMounted(() => {
 onBeforeUnmount(() => window.clearInterval(timer));
 
 const status = computed(() => (workout.active ? workoutStatus(workout.active, now.value) : ""));
+/** Your training's answers the plan was made without (README → Your training): Update plan brings it up to them. */
+const behind = computed(() => (plan.current ? trainingChanges(trainingFrom(answersOf(plan.current)), training.value) : []));
 
 function start() {
   startWorkout();
@@ -243,16 +245,23 @@ function logPast() {
         <div><dt class="t-capn c2">Each week</dt><dd class="t-bodys">{{ planDraft.weekdays.length === 1 ? "1 workout" : `${planDraft.weekdays.length} workouts` }}</dd></div>
         <div><dt class="t-capn c2">Each</dt><dd class="t-bodys">{{ training.minutes }} min</dd></div>
       </dl>
-      <button type="button" class="row using" :aria-label="`Your training: ${usingLine(training)}. Change`" data-plan-using @click="openTraining">
-        <Icon name="user" :size="16" class="c2" />
-        <span class="t-label c2 grow">{{ usingLine(training) }}</span>
-        <Icon name="edit" :size="14" class="c3" />
-      </button>
       <div class="row g8 mkbtns">
         <button type="button" class="btn sm primary t-label" data-see-plan @click="openPlan()">See my plan</button>
         <button type="button" class="btn sm secondary t-label" data-build-own @click="openPlan('custom')">Build your own</button>
       </div>
     </section>
+
+    <!-- Your training: what every plan is made from. With a plan made from older answers, Update plan. -->
+    <div class="card prompt row" data-training-card>
+      <span class="tdisc" aria-hidden="true"><Icon name="user" :size="18" /></span>
+      <button type="button" class="ptext col grow" data-training-open @click="openTraining">
+        <span class="t-bodys">Your training</span>
+        <span class="t-capn c2">{{ usingLine(training) }}</span>
+        <span v-if="behind.length" class="t-capn c2" data-training-behind>{{ planBehindLine(behind) }}</span>
+      </button>
+      <button v-if="behind.length" type="button" class="btn sm primary t-label" data-training-update @click="openPlanUpdate">Update plan</button>
+      <button v-else type="button" class="btn sm secondary t-label" aria-label="Change Your training" @click="openTraining">Change</button>
+    </div>
 
     <!-- New here: look around the library first. -->
     <section v-if="cards.explore" class="card" aria-labelledby="explore-title" data-explore>
@@ -354,11 +363,6 @@ function logPast() {
 .mkbtns { flex-wrap: wrap; }
 .dt-xl .mkbtns .btn { flex: 1 1 100%; }
 .thead { gap: var(--space-s); flex-wrap: nowrap; }
-/* Your training, in a line you can tap to change it. */
-.using { width: 100%; min-height: var(--control-hit); gap: var(--space-s); padding: 0; background: none; border: 0; color: inherit; text-align: left; flex-wrap: nowrap; }
-.using .grow { min-width: 0; overflow-wrap: anywhere; }
-/* At XL the icons stay beside the words; only the words wrap. */
-.dt-xl .using { flex-wrap: nowrap; }
 .names { overflow-wrap: anywhere; }
 .list { list-style: none; margin: 0; padding: 0; }
 .hrow {

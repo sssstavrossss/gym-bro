@@ -1,7 +1,7 @@
 import { computed } from "vue";
 import { ApiError, putSettings, ServerUnreachable } from "../api";
 import { trainingFrom, trainingOf, type TrainingSettings } from "../lib/training";
-import { plan } from "./plan";
+import { loadPlan, plan } from "./plan";
 import { profile } from "./profile";
 
 /** Your training (README → Your training): the account's, else the plan's, else the defaults. */
@@ -36,6 +36,9 @@ async function send(): Promise<void> {
     const saved = await putSettings({ training: training.value });
     // A change made while this was sending goes next; until then the screen keeps it.
     if (before === undefined && profile.saved && saved.training) profile.saved = { ...profile.saved, training: saved.training };
+    // The plan takes the warm-up and cool-down switches on the server: fetch it again to show them.
+    const current = plan.current;
+    if (current && saved.training && (current.warmUp !== saved.training.warmUp || current.coolDown !== saved.training.coolDown)) void loadPlan();
   } catch (failure) {
     if (profile.saved) profile.saved = { ...profile.saved, training: was ?? null };
     error = failure instanceof ServerUnreachable ? "You're offline, so Your training wasn't changed."

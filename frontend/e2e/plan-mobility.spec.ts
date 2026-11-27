@@ -42,7 +42,7 @@ test("Plan: a mobility warm-up and cool-down frame each workout", async ({ page 
   await page.goto("/train");
 
   // Both are off until asked for, in Your training.
-  await page.locator("[data-plan-using]").click();
+  await page.locator("[data-training-open]").click();
   const training = page.getByRole("dialog", { name: "Your training" });
   await settled(training);
   const warm = training.getByRole("switch", { name: "Mobility warm-up" });
@@ -57,12 +57,12 @@ test("Plan: a mobility warm-up and cool-down frame each workout", async ({ page 
   await page.locator("[data-see-plan]").click();
   const sheet = page.getByRole("dialog", { name: "New plan" });
   await settled(sheet);
-  await expect(sheet.locator('[data-plan-new-workout="Full body A"]')).toContainText("With a warm-up and cool-down");
+  await expect(sheet.locator('[data-plan-new-workout="Full body A"]')).toContainText("+ 3 min warm-up · 3 min cool-down");
   await sheet.locator("[data-plan-save]").click();
   await expect(sheet).toBeHidden();
 
   const card = page.locator("[data-plan-card]");
-  await expect(card.locator('[data-plan-workout="Full body A"] [data-plan-mobility]')).toHaveText("With a warm-up and cool-down");
+  await expect(card.locator('[data-plan-workout="Full body A"] [data-plan-mobility]')).toHaveText("+ 3 min warm-up · 3 min cool-down");
   const saved = (await (await page.request.get("/api/plan", { headers: headers(oid) })).json()).plan;
   expect([saved.warmUp, saved.coolDown]).toEqual([true, true]);
   const first = saved.workouts[0] as { name: string; warmUp: unknown[]; exercises: unknown[]; coolDown: unknown[] };
@@ -78,20 +78,18 @@ test("Plan: a mobility warm-up and cool-down frame each workout", async ({ page 
   await expect(move).toContainText("30 s · First time");
   await expect(move.locator("[data-add-warmup]")).toHaveCount(0);
 
-  // Turned off again, the plan keeps its workouts and the line goes.
+  // Turned off again in Your training, the plan follows at once: same workouts, and the line goes.
   await page.goto("/train");
-  await card.getByRole("button", { name: "Edit", exact: true }).click();
-  const edit = page.getByRole("dialog", { name: "Edit plan" });
-  await settled(edit);
-  // Your training opens over Edit plan, and the plan follows it.
-  await edit.locator("[data-plan-using]").click();
+  await page.locator("[data-training-open]").click();
   await settled(training);
+  await expect(training.locator("[data-training-total]")).toContainText("about");
   await warm.click();
   await cool.click();
   await training.getByRole("button", { name: "Close" }).click();
   await expect(training).toBeHidden();
-  await expect(edit.locator("[data-plan-edits-note]")).toHaveCount(0);
-  await edit.locator("[data-plan-save]").click();
-  await expect(edit).toBeHidden();
   await expect(card.locator("[data-plan-mobility]")).toHaveCount(0);
+  await expect(page.locator("[data-training-behind]")).toHaveCount(0);
+  const after = (await (await page.request.get("/api/plan", { headers: headers(oid) })).json()).plan;
+  expect([after.warmUp, after.coolDown]).toEqual([false, false]);
+  expect(after.workouts.map((item: { exercises: unknown[] }) => item.exercises)).toEqual(saved.workouts.map((item: { exercises: unknown[] }) => item.exercises));
 });

@@ -5,10 +5,10 @@ import { addIndex, partHeading, samePart, swapExercise, toggleSuperset, type Dra
 const move = { exerciseId: "arm-circles", sets: 1, repMin: null, repMax: null, seconds: 30, restSeconds: 0 };
 
 describe("mobilityLine", () => {
-  it("says which the workout has", () => {
-    expect(mobilityLine({ warmUp: [move], coolDown: [move] })).toBe("With a warm-up and cool-down");
-    expect(mobilityLine({ warmUp: [move], coolDown: null })).toBe("With a warm-up");
-    expect(mobilityLine({ warmUp: [], coolDown: [move] })).toBe("With a cool-down");
+  it("says which the workout has, as minutes on top of its own", () => {
+    expect(mobilityLine({ warmUp: [move], coolDown: [move] })).toBe("+ 3 min warm-up · 3 min cool-down");
+    expect(mobilityLine({ warmUp: [move], coolDown: null })).toBe("+ 3 min warm-up");
+    expect(mobilityLine({ warmUp: [], coolDown: [move] })).toBe("+ 3 min cool-down");
     expect(mobilityLine({})).toBe("");
   });
 });

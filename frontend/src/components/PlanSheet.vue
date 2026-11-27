@@ -18,11 +18,14 @@ import {
   splitsFor,
   toggled,
   WEEKDAYS,
+  workoutChangeLines,
+  workoutChanges,
   type PlanAnswers,
   type PlanPreview,
   type Split,
 } from "../lib/plan";
-import { sameTraining, trainingFrom, usingLine, withTraining } from "../lib/training";
+import { trainingChanges, trainingFrom, usingLine, withTraining } from "../lib/training";
+import { exercises, loadExercises } from "../state/exercises";
 import { endPlan, plan, planDraft, savePlan } from "../state/plan";
 import { training } from "../state/training";
 import { closeSheet, openTraining, toast, toastError, ui } from "../ui";
@@ -48,6 +51,8 @@ watch(open, (shown) => {
   answers.value = plan.current ? withTraining(answersOf(plan.current), training.value) : newAnswers(ui.planSplit);
   choosingSplit.value = false;
   confirmingEnd.value = false;
+  reviewing.value = editing.value && ui.planUpdate;
+  if (reviewing.value) void loadExercises();
 });
 // Your training opens over the sheet from its line; the plan follows what changes there.
 watch(training, () => {
@@ -55,7 +60,14 @@ watch(training, () => {
   answers.value = editing.value ? withTraining(answers.value, training.value) : newAnswers(answers.value.split);
 });
 /** Your training changed after the plan was made: saving brings the plan up to it. */
-const trainingChanged = computed(() => !!plan.current && !sameTraining(trainingFrom(answersOf(plan.current)), training.value));
+const changes = computed(() => (plan.current ? trainingChanges(trainingFrom(answersOf(plan.current)), training.value) : []));
+const trainingChanged = computed(() => changes.value.length > 0);
+
+/** Update plan: what the changes do, side by side, before saving; Edit plan goes to the full setup. */
+const reviewing = ref(false);
+const nameOf = (id: string) => exercises.items.find((item) => item.id === id)?.name ?? id;
+const workoutDiffs = computed(() =>
+  plan.current && preview.value ? workoutChanges(plan.current.workouts, preview.value.workouts).map((change) => ({ ...change, lines: workoutChangeLines(change, nameOf) })) : []);
 
 // The preview follows the answers, a moment after the last change.
 let previewTimer: number | undefined;
@@ -84,6 +96,7 @@ async function refreshPreview() {
   }
 }
 
+const title = computed(() => (reviewing.value ? "Update plan" : editing.value ? "Edit plan" : "New plan"));
 const split = computed(() => answers.value.split ?? splitFor(answers.value.weekdays.length, answers.value.goal));
 const splits = computed(() => splitsFor(answers.value.goal));
 // Hyrox has its own split: a split picked by hand that the new goal can't take goes back to the goal's own.
@@ -118,8 +131,9 @@ async function save() {
     toastError(error);
     return;
   }
+  const updated = reviewing.value;
   closeSheet();
-  toast(wasEditing ? "Plan saved" : "Plan made");
+  toast(updated ? "Plan updated" : wasEditing ? "Plan saved" : "Plan made");
 }
 
 async function end() {
@@ -134,10 +148,10 @@ async function end() {
 </script>
 
 <template>
-  <BottomSheet :open="open" :label="editing ? 'Edit plan' : 'New plan'" @close="closeSheet">
+  <BottomSheet :open="open" :label="title" @close="closeSheet">
     <template #header>
       <div class="row hdr">
-        <h2 class="t-head m0 grow">{{ editing ? "Edit plan" : "New plan" }}</h2>
+        <h2 class="t-head m0 grow">{{ title }}</h2>
         <button type="button" class="cbtn" aria-label="Close" @click="closeSheet"><Icon name="x" :size="18" /></button>
       </div>
     </template>
@@ -178,6 +192,44 @@ async function end() {
         <span class="t-capn c2">If a doctor has told you about a heart condition, or you get chest pain, faintness or dizziness when active, check with them before you start.</span>
         <span class="t-capn c3">Training suggestions, not medical advice.</span>
       </div>
+    </div>
+
+    <!-- Update plan: Your training's changes, and what they do to each workout, to confirm. -->
+    <div v-else-if="reviewing" class="col setup" data-plan-update>
+      <p class="t-label c2 m0">{{ trainingChanged ? "Your training has changed since this plan was made. Updating makes its workouts again from it." : "Your plan is up to date with Your training." }}</p>
+      <div v-if="trainingChanged" class="compare" data-plan-update-answers>
+        <span class="t-capn c2"></span>
+        <span class="t-capn c2">Now</span>
+        <span class="t-capn c2">New</span>
+        <template v-for="item in changes" :key="item.label">
+          <span class="t-label c2">{{ item.label }}</span>
+          <span class="t-label">{{ item.now }}</span>
+          <span class="t-label">{{ item.next }}</span>
+        </template>
+      </div>
+
+      <div class="col g4" data-plan-update-workouts aria-live="polite">
+        <template v-if="missing">
+          <span class="t-bodys">{{ missing }}</span>
+        </template>
+        <template v-else-if="previewState === 'failed'">
+          <span class="t-bodys">Couldn't show the changes</span>
+          <span class="t-capn c2">Updating a plan needs a connection.</span>
+        </template>
+        <template v-else-if="!workoutDiffs.length">
+          <span class="t-capn c2">Working out the changes…</span>
+        </template>
+        <ul v-else class="list diffs">
+          <li v-for="item in workoutDiffs" :key="item.name" class="col g2" :data-plan-update-workout="item.name">
+            <span class="t-bodys">{{ item.name }}</span>
+            <span v-for="line in item.lines" :key="line" class="t-capn c2">{{ line }}</span>
+          </li>
+        </ul>
+      </div>
+
+      <p v-if="editedNames.length" class="well t-label m0" data-plan-edits-note>
+        Your changes to {{ editedNames.join(", ") }} won't be kept.
+      </p>
     </div>
 
     <!-- Edit plan: what the plan has of its own. The rest is Your training, from its line. -->
@@ -254,7 +306,11 @@ async function end() {
     </div>
 
     <template #footer>
-      <button type="button" class="btn primary block t-bodys" :disabled="!!missing || plan.saving || (!editing && previewState !== 'ready')" data-plan-save @click="save">
+      <div v-if="reviewing" class="col g8">
+        <button type="button" class="btn primary block t-bodys" :disabled="!!missing || plan.saving || !trainingChanged || previewState !== 'ready'" data-plan-update-save @click="save">Update plan</button>
+        <button type="button" class="btn secondary block t-bodys" data-plan-update-edit @click="reviewing = false">Edit plan</button>
+      </div>
+      <button v-else type="button" class="btn primary block t-bodys" :disabled="!!missing || plan.saving || (!editing && previewState !== 'ready')" data-plan-save @click="save">
         {{ editing ? "Save plan" : "Start this plan" }}
       </button>
     </template>
@@ -277,4 +333,12 @@ async function end() {
 .splitbtn, .endbtn { align-self: flex-start; }
 .confirm { gap: var(--space-s); }
 .cbtns { gap: var(--space-s); }
+.g2 { gap: var(--space-2xs); }
+.list { list-style: none; margin: 0; padding: 0; }
+/* Update plan: Now and New side by side, as Recalculate shows a new target. */
+.compare { display: grid; grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-s) var(--space-m); align-items: baseline; }
+.compare > * { overflow-wrap: anywhere; }
+.diffs { display: flex; flex-direction: column; }
+.diffs > li { padding-block: var(--space-s); }
+.diffs > li + li { border-top: 1px solid var(--color-border); }
 </style>

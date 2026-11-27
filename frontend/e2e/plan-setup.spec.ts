@@ -51,8 +51,8 @@ test("A plan: answer the questions, see the preview, create it, edit it and end 
   await expect(stats).toContainText("Upper / Lower");
   await expect(stats).toContainText("4 workouts");
 
-  // The rest is Your training, behind the line under them.
-  await make.locator("[data-plan-using]").click();
+  // The rest is Your training, in its own card under the plan's.
+  await page.locator("[data-training-open]").click();
   const training = page.getByRole("dialog", { name: "Your training" });
   await settled(training);
   await training.getByRole("button", { name: "5 minutes less" }).click();
@@ -61,7 +61,7 @@ test("A plan: answer the questions, see the preview, create it, edit it and end 
   await training.getByRole("button", { name: "Dumbbells" }).click();
   await training.getByRole("button", { name: "Full gym" }).click();
   await training.getByRole("button", { name: "Close" }).click();
-  await expect(make.locator("[data-plan-using]")).toContainText("Dumbbells · 55 min · Some experience");
+  await expect(page.locator("[data-training-card]")).toContainText("Dumbbells · 55 min · Some experience");
 
   // See my plan: the plan before it starts, with its week and each workout's days.
   await make.getByRole("button", { name: "See my plan" }).click();

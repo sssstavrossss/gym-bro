@@ -78,6 +78,8 @@ export const ui = reactive({
   workoutView: null as null | "describe",
   /** The split a new plan opens on: Your own from Build your own, or a kind from Explore → Plans. Null follows the days. */
   planSplit: null as Split | null,
+  /** The plan sheet opens on Update plan: what Your training's changes would do to it, to confirm. */
+  planUpdate: false,
   /** The plan workout open in the editor (components/PlanWorkoutSheet.vue). */
   planWorkoutId: null as string | null,
   /** The swipe card whose pages the card pages sheet picks. */
@@ -250,6 +252,15 @@ export function openWorkout(view: "describe" | null = null): void {
 /** New plan, or Edit plan when there is one (components/PlanSheet.vue). A new one starts on `split` when given. */
 export function openPlan(split: Split | null = null): void {
   ui.planSplit = split;
+  ui.planUpdate = false;
+  ui.sheet = "plan";
+}
+
+/** Update plan: the plan sheet showing what Your training's changes do to the plan, to confirm or edit. */
+export function openPlanUpdate(): void {
+  ui.planSplit = null;
+  ui.planUpdate = true;
+  ui.trainingOver = false;
   ui.sheet = "plan";
 }
 

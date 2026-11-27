@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { defaultAnswers, type Plan } from "../src/lib/plan";
-import { sameTraining, trainingFrom, trainingOf, usingLine, withTraining, type TrainingSettings } from "../src/lib/training";
+import { trainingChanges, trainingFrom, trainingOf, usingLine, withTraining, type TrainingSettings } from "../src/lib/training";
 
 const mine: TrainingSettings = { minutes: 45, experience: "new", equipment: ["kettlebells", "dumbbells"], goEasy: ["knees", "shoulders"], warmUp: true, coolDown: false };
 
@@ -29,7 +29,7 @@ describe("Your training", () => {
   });
 
   it("compares without caring about order", () => {
-    expect(sameTraining(mine, { ...mine, equipment: ["dumbbells", "kettlebells"] })).toBe(true);
-    expect(sameTraining(mine, { ...mine, coolDown: true })).toBe(false);
+    expect(trainingChanges(mine, { ...mine, equipment: ["kettlebells", "dumbbells"] })).toEqual([]);
+    expect(trainingChanges(mine, { ...mine, minutes: 50 })).toHaveLength(1);
   });
 });

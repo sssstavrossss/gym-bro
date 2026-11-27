@@ -2,8 +2,9 @@ namespace GymBro.Api.Training;
 
 /// <summary>
 /// A plan workout's mobility warm-up and cool-down (docs/training.md, Mobility), each a setting of the plan.
-/// The warm-up is a few dynamic moves for the parts the workout trains, in place of the plain warm-up's time.
-/// The cool-down is a few held stretches for the muscles it trained most, and takes its own minutes.
+/// The warm-up is a few dynamic moves for the parts the workout trains, and the cool-down a few held stretches for the
+/// muscles it trained most. Each takes 3 minutes on top of the workout's time, so switching them never changes the
+/// exercises.
 /// Both are picked from short, hand-made lists of the library's stretches, with no equipment, passing over
 /// anything that loads a go-easy area.
 /// </summary>
@@ -65,29 +66,45 @@ public static class Mobility
     /// <summary>A held stretch: 30 s when new to training, else 45 s.</summary>
     public static int HoldSeconds(string experience) => experience == Experience.New ? 30 : 45;
 
-    /// <summary>Warm-up moves: 2 in a short workout's 2 minutes, else 5 in the usual 5.</summary>
-    public static int WarmUpCount(int planMinutes) => planMinutes <= 20 ? 2 : 5;
+    /// <summary>The warm-up's and the cool-down's time each, on top of the workout's.</summary>
+    public const int PartSeconds = 180;
 
-    /// <summary>Cool-down stretches: 2 in a short workout, 4 from an hour up, else 3.</summary>
-    public static int CoolDownCount(int planMinutes) => planMinutes <= 20 ? 2 : planMinutes >= 60 ? 4 : 3;
+    /// <summary>Warm-up moves: 4, at 30 s and 15 s to the next, in its 3 minutes.</summary>
+    public static int WarmUpCount => PartSeconds / (MoveSeconds + Transition);
 
-    /// <summary>The time a cool-down takes from the workout, which the generator keeps free for it.</summary>
-    public static int CoolDownSeconds(PlanAnswers answers) =>
-        answers.CoolDown ? CoolDownCount(answers.Minutes) * (HoldSeconds(answers.Experience) + Transition) : 0;
+    /// <summary>Cool-down stretches in its 3 minutes: 4 holds of 30 s when new to training, else 3 of 45 s.</summary>
+    public static int CoolDownCount(string experience) => PartSeconds / (HoldSeconds(experience) + Transition);
 
     /// <summary>A list's time: each move's or stretch's seconds and the step to the next.</summary>
     public static int Seconds(IReadOnlyList<PlanExercise>? moves) => moves?.Sum(item => item.Sets * (item.Seconds ?? 0) + Transition) ?? 0;
 
     /// <summary>
     /// The workout with its warm-up and cool-down as the answers ask, made again from its exercises (after an edit,
-    /// say), and its minutes worked out again. An empty workout gets neither.
+    /// say). An empty workout gets neither. Its minutes stay the workout's own, without them.
     /// </summary>
     public static PlanWorkout Attach(PlanWorkout workout, PlanAnswers answers, ExerciseLibrary library)
     {
         var warmUp = answers.WarmUp ? WarmUp(workout.Exercises, answers, library) : null;
         var coolDown = answers.CoolDown ? CoolDown(workout.Exercises, answers, library) : null;
-        var attached = workout with { WarmUp = warmUp is { Count: > 0 } ? warmUp : null, CoolDown = coolDown is { Count: > 0 } ? coolDown : null };
-        return workout.Exercises.Count == 0 ? attached : attached with { Minutes = PlanGenerator.Minutes(attached, answers.Minutes) };
+        return workout with { WarmUp = warmUp is { Count: > 0 } ? warmUp : null, CoolDown = coolDown is { Count: > 0 } ? coolDown : null };
+    }
+
+    /// <summary>
+    /// Your training's warm-up and cool-down switches, followed by the plan: they never change its exercises, so the
+    /// plan takes them at once, hand edits and all. False when the plan already has them as asked.
+    /// </summary>
+    public static bool Follow(Data.TrainingPlan plan, TrainingSettings training, ExerciseLibrary library)
+    {
+        if (plan.WarmUp == training.WarmUp && plan.CoolDown == training.CoolDown)
+        {
+            return false;
+        }
+
+        plan.WarmUp = training.WarmUp;
+        plan.CoolDown = training.CoolDown;
+        var answers = PlanRules.AnswersOf(plan);
+        plan.Workouts = PlanWorkouts.Serialize([.. PlanWorkouts.Parse(plan.Workouts).Select(item => Attach(item, answers, library))]);
+        return true;
     }
 
     /// <summary>
@@ -110,7 +127,7 @@ public static class Mobility
             .ThenBy(item => item.order)
             .Select(item => item.move)
             .ToList();
-        var count = WarmUpCount(answers.Minutes);
+        var count = WarmUpCount;
         var upperShare = weights.Where(item => Upper.Contains(item.Key)).Sum(item => item.Value) / weights.Values.Sum();
         // A mix of upper and lower body warms both: the best move for each first, then the rest by score.
         var picked = new List<Move>();
@@ -129,7 +146,7 @@ public static class Mobility
     {
         var weights = MuscleWeights(exercises, library);
         var hold = HoldSeconds(answers.Experience);
-        var count = CoolDownCount(answers.Minutes);
+        var count = CoolDownCount(answers.Experience);
         var picked = new List<Move>();
         foreach (var muscle in weights.OrderByDescending(item => item.Value).Select(item => item.Key))
         {

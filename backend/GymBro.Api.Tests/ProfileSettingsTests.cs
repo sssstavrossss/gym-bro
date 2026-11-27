@@ -129,6 +129,47 @@ public sealed class ProfileSettingsTests(ApiFactory factory)
     }
 
     [Fact]
+    public async Task The_plan_follows_the_warm_up_and_cool_down_switches_and_waits_for_the_rest()
+    {
+        factory.Clock.UtcNow = new DateTimeOffset(2026, 11, 16, 8, 0, 0, TimeSpan.Zero);
+        var user = TestData.NewUser("settings-training-plan");
+        using var client = factory.AsUser(user);
+        await TestData.PutWeighIn(client, "2026-11-16", """{"kg":83.6,"timeZone":"UTC"}""");
+        await TestData.PutProfile(client, TestData.Profile());
+        var made = await (await client.PutAsJsonAsync("/api/plan", new { goal = "muscle", weekdays = new[] { 0, 2, 4 }, minutes = 45, experience = "some", equipment = new[] { "gym" }, timeZone = "UTC" }))
+            .Content.ReadFromJsonAsync<JsonElement>();
+        var first = made.GetProperty("workouts")[0];
+
+        // A hand edit to the first workout, which the switches must keep.
+        var edited = new[] { new { exerciseId = "barbell-squat", sets = 2, repMin = 5, repMax = 8, restSeconds = 120 } };
+        Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync($"/api/plan/workouts/{first.GetProperty("id").GetGuid()}", new { exercises = edited })).StatusCode);
+        var before = await client.GetFromJsonAsync<JsonElement>("/api/plan");
+
+        // Warm-up and cool-down on, with a new time: the plan takes the switches and keeps its 45 minutes.
+        await Settings(client, new { training = new { minutes = 60, experience = "some", equipment = new[] { "gym" }, warmUp = true, coolDown = true } });
+        var after = (await client.GetFromJsonAsync<JsonElement>("/api/plan")).GetProperty("plan");
+        Assert.True(after.GetProperty("warmUp").GetBoolean());
+        Assert.True(after.GetProperty("coolDown").GetBoolean());
+        Assert.Equal(45, after.GetProperty("minutes").GetInt32());
+        var workouts = after.GetProperty("workouts").EnumerateArray().ToList();
+        var oldWorkouts = before.GetProperty("plan").GetProperty("workouts").EnumerateArray().ToList();
+        Assert.Equal(oldWorkouts.Select(item => item.GetProperty("exercises").GetRawText()), workouts.Select(item => item.GetProperty("exercises").GetRawText()));
+        Assert.Equal(oldWorkouts.Select(item => item.GetProperty("minutes").GetInt32()), workouts.Select(item => item.GetProperty("minutes").GetInt32()));
+        Assert.True(workouts[0].GetProperty("edited").GetBoolean());
+        Assert.All(workouts, item =>
+        {
+            Assert.Equal(4, item.GetProperty("warmUp").GetArrayLength());
+            Assert.Equal(3, item.GetProperty("coolDown").GetArrayLength());
+        });
+
+        // Switched off again, they go.
+        await Settings(client, new { training = new { minutes = 60, experience = "some", equipment = new[] { "gym" } } });
+        after = (await client.GetFromJsonAsync<JsonElement>("/api/plan")).GetProperty("plan");
+        Assert.False(after.GetProperty("warmUp").GetBoolean());
+        Assert.All(after.GetProperty("workouts").EnumerateArray(), item => Assert.Equal(JsonValueKind.Null, item.GetProperty("warmUp").ValueKind));
+    }
+
+    [Fact]
     public async Task Settings_need_a_profile()
     {
         var user = TestData.NewUser("settings-none");
