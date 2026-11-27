@@ -139,3 +139,44 @@ test("Add food's lists are four swipe pages named by chips, wrapping like a caro
   const serious = results.violations.filter((item) => item.impact === "serious" || item.impact === "critical");
   expect(serious, JSON.stringify(serious.map((item) => item.id))).toEqual([]);
 });
+
+test("a touch on a page's row doesn't show the other pages, so the + adds on one tap", async ({ page, browserName }) => {
+  // iOS Safari drops a tap's click when content appears under it (it reads that as a hover). WebKit here has no Touch.
+  test.skip(browserName === "webkit", "no Touch constructor");
+  const oid = `e2e-food-pages-tap-${Date.now()}-${test.info().project.name}`;
+  const when = await clock(page);
+  await setUp(page.request, oid, when.today, when.zone);
+  const oats = await createFood(page.request, oid, "Fictional tap oats");
+  await logFood(page.request, oid, when.today, when.zone, oats);
+  await page.addInitScript((id) => {
+    sessionStorage.setItem("gymbro-e2e", "1");
+    sessionStorage.setItem("gymbro-e2e-oid", id);
+  }, oid);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/today");
+  await page.getByRole("button", { name: "Add", exact: true }).click();
+  await page.getByRole("dialog", { name: "Add" }).getByRole("button", { name: "Search", exact: true }).click();
+  const food = page.getByRole("dialog", { name: "Add food" });
+  await food.getByRole("searchbox", { name: "Search foods" }).blur();
+  const plus = food.locator('[data-food-page="recent"]').getByRole("button", { name: /Add 150 g Fictional tap oats/ });
+  await expect(plus).toBeVisible();
+  const hidden = food.locator("[data-food-page][data-offscreen]");
+  await expect(hidden).toHaveCount(3);
+
+  // A finger down on the + (no move): the other pages stay hidden.
+  await plus.evaluate((el) => {
+    const point = new Touch({ identifier: 1, target: el, clientX: 360, clientY: el.getBoundingClientRect().top + 10 });
+    el.dispatchEvent(new TouchEvent("touchstart", { touches: [point], changedTouches: [point], bubbles: true, cancelable: true }));
+  });
+  await page.waitForTimeout(50);
+  await expect(hidden).toHaveCount(3);
+  await plus.evaluate((el) => {
+    const point = new Touch({ identifier: 1, target: el, clientX: 360, clientY: el.getBoundingClientRect().top + 10 });
+    el.dispatchEvent(new TouchEvent("touchend", { touches: [], changedTouches: [point], bubbles: true, cancelable: true }));
+  });
+
+  // Moving the pages still shows them while they slide, and hides them again once still.
+  await food.getByRole("group", { name: "Show" }).getByRole("button", { name: /^My foods/ }).click();
+  await expect(food.getByRole("button", { name: "Edit Fictional tap oats" })).toBeVisible();
+  await expect(hidden).toHaveCount(3);
+});

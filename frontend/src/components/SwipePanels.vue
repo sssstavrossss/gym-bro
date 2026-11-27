@@ -23,8 +23,8 @@ const props = withDefaults(defineProps<{
   hold?: boolean;
   /**
    * Hides the pages that aren't showing once the track is still, so a screen reader, Tab and a
-   * test find only the page in view. They show again the moment a swipe or a turn starts, but
-   * stay inert, so only the page being turned to can be tapped while they slide.
+   * test find only the page in view. They show again the moment the track moves (not on touch, or
+   * iOS drops the tap), but stay inert, so only the page being turned to can be tapped while they slide.
    */
   hideOffscreen?: boolean;
   /** The 24px tap strips at the sides that turn the page. Off where a row's buttons reach the edge. */
@@ -239,7 +239,10 @@ function onTouchStart(event: TouchEvent) {
     return;
   }
   touching = true;
-  moving();
+  // The track is held still while a finger is on it, but the other pages show only once it scrolls (onScroll). Showing
+  // them on touchstart is content appearing under a tap, which iOS Safari reads as a hover: it drops that tap's click,
+  // so every button on a page needed two taps.
+  window.clearTimeout(stillTimer);
   const point = event.touches[0];
   touch = {
     x: point.clientX,
