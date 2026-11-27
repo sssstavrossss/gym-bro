@@ -82,7 +82,7 @@ test("Import from Strong: match the rest, then the workouts count as done", asyn
   await sheet.getByRole("button", { name: "Pick the match for Mystery Row Thing" }).click();
   await expect(sheet.locator("[data-import-picking]")).toHaveText("Mystery Row Thing");
   await sheet.getByRole("searchbox", { name: "Search exercises" }).fill("seated cable rows");
-  await sheet.locator('[data-exercise="seated-cable-rows"]').click();
+  await sheet.locator('[data-exercise="seated-cable-rows"]:visible').click();
   await expect(sheet.locator('[data-import-name="Mystery Row Thing"]')).toContainText("→ Seated Cable Rows");
   await expect(sheet.locator("[data-import-to-match]")).toHaveText("0");
 
@@ -110,7 +110,7 @@ test("Import from Strong: match the rest, then the workouts count as done", asyn
   await again.locator("[data-import-file]").setInputFiles({ name: "strong.csv", mimeType: "text/csv", buffer: strongCsv(today) });
   await again.getByRole("button", { name: "Pick the match for Mystery Row Thing" }).click();
   await again.getByRole("searchbox", { name: "Search exercises" }).fill("seated cable rows");
-  await again.locator('[data-exercise="seated-cable-rows"]').click();
+  await again.locator('[data-exercise="seated-cable-rows"]:visible').click();
   await again.locator("[data-import-send]").click();
   await expect(page.locator(".toast").filter({ hasText: "already here" })).toBeVisible();
   await expect(settings).toBeVisible();

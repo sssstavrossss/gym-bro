@@ -40,22 +40,24 @@ test("A first visit: start a workout, make a plan, explore by body area, and log
   const before = page.locator("[data-trained-before]");
   await expect(before).toContainText("Trained before?");
   await expect(page.locator("[data-workout-history]")).toHaveCount(0);
-  await expect(page.locator("[data-start-workout]")).toContainText("Start a workout");
+  await expect(page.locator("[data-start-workout]")).toContainText("Quick add");
   await expect(page.locator("[data-plan-card]")).toContainText("Make a plan");
 
   // A body area opens the library on that area.
   const explore = page.locator("[data-explore]");
   await explore.getByRole("button", { name: "Legs", exact: true }).click();
   const library = page.getByRole("dialog", { name: "Exercises" });
-  await expect(library.getByRole("button", { name: "Legs", exact: true })).toHaveAttribute("aria-pressed", "true");
+  const groups = library.getByRole("group", { name: "Muscle group" });
+  await expect(groups.getByRole("button", { name: "Legs", exact: true })).toHaveAttribute("aria-pressed", "true");
   // Browsing doesn't raise the keyboard: the search field waits for a tap.
   await expect(library.getByLabel("Search exercises")).not.toBeFocused();
-  await expect(library.locator('[data-exercise="barbell-squat"]')).toBeVisible();
+  await expect(library.locator('[data-exercise="barbell-squat"]:visible')).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(library).toHaveCount(0);
   // The next time it opens from the top, on every area.
   await explore.locator("[data-explore-exercises]").click();
-  await expect(library.getByRole("button", { name: "All", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(groups.getByRole("button", { name: "All", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(library.getByRole("group", { name: "Type" }).getByRole("button", { name: "All", exact: true })).toHaveAttribute("aria-pressed", "true");
   await page.keyboard.press("Escape");
 
   // ✨ starts a workout straight on Describe.
@@ -83,7 +85,7 @@ test("A first visit: start a workout, make a plan, explore by body area, and log
   await before.getByRole("button", { name: "Log past" }).click();
   const add = page.getByRole("dialog", { name: "Add exercise" });
   await add.getByLabel("Search exercises").fill("plank");
-  await add.locator('[data-exercise="plank"]').click();
+  await add.locator('[data-exercise="plank"]:visible').click();
   const log = page.getByRole("dialog", { name: "Log a workout" });
   await log.getByLabel("Set 1, Time").fill("60");
   await log.getByRole("button", { name: "Set 1 done" }).click();

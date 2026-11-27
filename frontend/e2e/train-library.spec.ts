@@ -51,8 +51,9 @@ test("Train opens the exercise library in a sheet: search, body areas, rows a st
   await expect(library.getByLabel("Search exercises")).toBeFocused();
 
   // Rows draw 40 at a time; scrolling near the end draws more (Show more does it by hand). A click would chase
-  // the button, since scrolling to it already draws the next rows.
-  const rows = library.locator("[data-exercise]");
+  // the button, since scrolling to it already draws the next rows. The pages beside the one in view are drawn
+  // too, hidden, so a swipe has them ready: count only the rows in view.
+  const rows = library.locator("[data-exercise]:visible");
   await expect(rows).toHaveCount(40);
   await library.locator("[data-exercise-more]").scrollIntoViewIfNeeded();
   await expect.poll(() => rows.count()).toBeGreaterThanOrEqual(80);
@@ -62,16 +63,36 @@ test("Train opens the exercise library in a sheet: search, body areas, rows a st
   await search.fill("barbell squat");
   await expect(rows.first()).toHaveAttribute("data-exercise", "barbell-squat");
   await search.fill("no such lift");
-  await expect(page.getByText("No exercises match “no such lift”.")).toBeVisible();
+  await expect(library.getByText("No exercises match “no such lift”.").filter({ visible: true })).toBeVisible();
   await page.getByRole("button", { name: "Clear search" }).click();
   await expect(search).toHaveValue("");
 
-  // Cardio holds our own stations as well as free-exercise-db's.
-  await library.getByRole("button", { name: "Cardio", exact: true }).click();
-  await expect(library.getByRole("button", { name: "Cardio", exact: true })).toHaveAttribute("aria-pressed", "true");
-  await expect(library.locator('[data-exercise="skierg"]')).toBeVisible();
+  // A type word finds its exercises: "hyrox" finds the stations, "weight lifting" the Olympic lifts.
+  await search.fill("hyrox");
+  await expect(rows.first()).toBeVisible();
+  await expect(library.locator('[data-exercise="sled-push"]:visible')).toBeVisible();
   await expect(library.locator('[data-exercise="barbell-squat"]')).toHaveCount(0);
-  await library.locator('[data-exercise="skierg"]').click();
+  await search.fill("weight lifting");
+  await expect(library.locator('[data-exercise="clean-and-jerk"]:visible')).toBeVisible();
+  await page.getByRole("button", { name: "Clear search" }).click();
+
+  // Two rows: the type filters, the muscle group pages. Cardio holds our own stations as well as free-exercise-db's.
+  const types = library.getByRole("group", { name: "Type" });
+  const groups = library.getByRole("group", { name: "Muscle group" });
+  await types.getByRole("button", { name: "Cardio", exact: true }).click();
+  await expect(types.getByRole("button", { name: "Cardio", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(library.locator('[data-exercise="skierg"]:visible')).toBeVisible();
+  await expect(library.locator('[data-exercise="barbell-squat"]')).toHaveCount(0);
+  // Every row is cardio, so the rows don't name their type; under All types they do.
+  await expect(library.locator("[data-exercise-tag]")).toHaveCount(0);
+  // A muscle group page keeps the type: SkiErg works the lats, so it is under Back, and the run isn't.
+  await groups.getByRole("button", { name: "Back", exact: true }).click();
+  await expect(groups.getByRole("button", { name: "Back", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(library.locator('[data-exercise-page="back"] [data-exercise="skierg"]')).toBeVisible();
+  await expect(library.locator('[data-exercise-page="back"] [data-exercise="run"]')).toHaveCount(0);
+  await groups.getByRole("button", { name: "All", exact: true }).click();
+  await expect(groups.getByRole("button", { name: "All", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await library.locator('[data-exercise="skierg"]:visible').click();
 
   const sheet = page.getByRole("dialog", { name: "SkiErg" });
   await expect(sheet).toBeVisible();
@@ -91,7 +112,8 @@ test("Train opens the exercise library in a sheet: search, body areas, rows a st
   await expect(library).toBeVisible();
 
   // A free-exercise-db exercise: its muscles, steps and credit.
-  await library.getByRole("button", { name: "All", exact: true }).click();
+  await types.getByRole("button", { name: "All", exact: true }).click();
+  await expect(library.locator('[data-exercise="barbell-squat"]:visible [data-exercise-tag]')).toHaveText("Strength");
   await search.fill("barbell squat");
   await rows.first().click();
   const squat = page.getByRole("dialog", { name: "Barbell Squat" });

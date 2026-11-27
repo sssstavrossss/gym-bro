@@ -163,7 +163,7 @@ function back() {
       </div>
     </template>
 
-    <ExerciseBrowser v-if="view === 'add'" title="Exercises" title-id="plan-add-title" action="add" @pick="add" />
+    <ExerciseBrowser v-if="view === 'add'" title="Exercises" title-id="plan-add-title" action="add" recent @pick="add" />
     <SwapList v-else-if="view === 'swap' && swapIndex != null" :key="list[swapIndex].exerciseId" :exercise-id="list[swapIndex].exerciseId" @pick="swapTo" />
 
     <div v-else class="col body" data-plan-workout-editor>

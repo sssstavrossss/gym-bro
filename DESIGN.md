@@ -29,6 +29,7 @@ These are the rules the app's screens follow. Read this before you add or change
 
 - **Swipe dots** sit 12px above and below the dots, in every card that has them (`SwipePanels` `tight`).
 - **Swipes wrap like a carousel.** Past the last page is the first, both ways, in every pager (`SwipePanels`, `lib/carousel.ts`).
+- **A filter row above page chips** (the exercise types over the muscle groups) uses ring chips (`.chip.ring`): no fill, a thin ring, a stronger ring and primary ink when picked. Two rows of filled chips would read as one control.
 - **Chips that name swipe pages** (`PageChips`) share the row equally, so a count never moves them, and mark the page with one pill that slides with the swipe instead of a colour jump. When chips name the pages, the dots stay but are visual only (`quiet-dots`).
 - **One action, one icon.** The same action uses the same icon everywhere it appears (Add food's tabs and the + fan share theirs). A segmented option takes an icon with `icon` in `Segmented`'s options, 16px beside its label.
 - **A button inside a field** (Scan in the search field) is a `.btn.sm` with its word, not a bare icon, so it doesn't read as part of the field. Its face sits as far in from the field's end as from its top.

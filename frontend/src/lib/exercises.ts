@@ -82,33 +82,125 @@ export function exerciseFacts(item: ExerciseItem): string {
 }
 
 function words(text: string): string[] {
-  return text.toLowerCase().normalize("NFKD").replace(/[̀-ͯ]/g, "").split(/[^a-z0-9]+/).filter(Boolean);
+  return text.toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g, "").split(/[^a-z0-9]+/).filter(Boolean);
 }
 
 /**
- * The exercises in `area` that match every word of `query`, each word as the start of a word in the name, the
- * equipment or a main muscle ("db" doesn't match; "dumb row" finds Dumbbell rows). Names starting with the query
- * come first, then names holding every word, then matches on equipment or muscle; by name within each.
+ * Hybrid: the Hyrox stations and the moves hybrid training is built from. A cross-cut, so each is also under its
+ * own type (SkiErg under Cardio, the kettlebell swing under Strength).
  */
-export function searchExercises(items: readonly ExerciseItem[], query: string, area: ExerciseArea): ExerciseItem[] {
+export const HYBRID_IDS: ReadonlySet<string> = new Set([
+  "skierg", "sled-push", "sled-pull", "burpee-broad-jump", "rowing-stationary", "farmers-walk", "sandbag-lunge",
+  "wall-ball", "run", "fan-bike", "kettlebell-swing", "kettlebell-thruster", "mountain-climbers",
+]);
+
+export type ExerciseType = "all" | "strength" | "hybrid" | "olympic" | "plyometric" | "strongman" | "cardio" | "stretching";
+
+/** The first row under the search: what kind of training. A filter, one at a time. */
+export const EXERCISE_TYPES: { id: ExerciseType; label: string; icon?: string; categories?: string[] }[] = [
+  { id: "all", label: "All" },
+  { id: "strength", label: "Strength", icon: "dumbbell", categories: ["strength", "powerlifting"] },
+  { id: "hybrid", label: "Hybrid", icon: "bolt" },
+  { id: "olympic", label: "Olympic", icon: "trophy", categories: ["olympic weightlifting"] },
+  { id: "plyometric", label: "Plyometric", icon: "bolt", categories: ["plyometrics"] },
+  { id: "strongman", label: "Strongman", icon: "trophy", categories: ["strongman"] },
+  { id: "cardio", label: "Cardio", icon: "pulse", categories: ["cardio"] },
+  { id: "stretching", label: "Stretching", icon: "stretch", categories: ["stretching"] },
+];
+
+export function ofType(item: ExerciseItem, type: ExerciseType): boolean {
+  if (type === "all") return true;
+  if (type === "hybrid") return HYBRID_IDS.has(item.id);
+  return EXERCISE_TYPES.find((entry) => entry.id === type)?.categories?.includes(item.category) ?? false;
+}
+
+/** The type named on a row when the list shows every type: Hybrid first, since it cuts across the others. */
+export function typeLabel(item: ExerciseItem): string {
+  if (HYBRID_IDS.has(item.id)) return "Hybrid";
+  return EXERCISE_TYPES.find((entry) => entry.categories?.includes(item.category))?.label ?? "Strength";
+}
+
+export type MuscleGroup = "all" | "chest" | "back" | "shoulders" | "arms" | "legs" | "core";
+
+/** The second row: the muscle groups the list swipes between, All first. */
+export const MUSCLE_GROUPS = EXERCISE_AREAS.filter((area) => area.id === "all" || area.muscles) as { id: MuscleGroup; label: string; muscles?: string[] }[];
+
+/** By the main muscles whatever the type, so a hamstring stretch is under Legs once Stretching is picked. */
+export function inGroup(item: ExerciseItem, group: MuscleGroup): boolean {
+  if (group === "all") return true;
+  const muscles = MUSCLE_GROUPS.find((entry) => entry.id === group)?.muscles ?? [];
+  return item.primaryMuscles.some((muscle) => muscles.includes(muscle));
+}
+
+/** Explore's body-area chips open the library on a type (Cardio, Stretching) or a muscle group. */
+export function areaFilter(area: ExerciseArea): { type: ExerciseType; group: MuscleGroup } {
+  if (area === "cardio" || area === "stretching") return { type: area, group: "all" };
+  return { type: "all", group: area };
+}
+
+/** The lifts and stations most people look for, first in a list so it doesn't open on Ab Crunch Machine. */
+export const COMMON_EXERCISES: readonly string[] = [
+  "barbell-squat", "barbell-bench-press-medium-grip", "barbell-deadlift", "bent-over-barbell-row", "standing-military-press",
+  "pullups", "pushups", "romanian-deadlift", "dumbbell-bench-press", "leg-press", "wide-grip-lat-pulldown", "seated-cable-rows",
+  "barbell-hip-thrust", "incline-dumbbell-press", "goblet-squat", "dumbbell-lunges", "side-lateral-raise", "barbell-curl",
+  "triceps-pushdown", "lying-leg-curls", "plank", "power-clean", "clean-and-jerk", "snatch", "push-press", "run",
+  "rowing-stationary", "skierg", "sled-push", "sled-pull", "wall-ball", "farmers-walk", "kettlebell-swing",
+  "burpee-broad-jump", "sandbag-lunge", "fan-bike",
+];
+const commonRank = new Map(COMMON_EXERCISES.map((id, at) => [id, at]));
+
+/** Words a search finds an exercise by besides its name, equipment and muscles: its type ("hyrox", "weightlifting"). */
+const TYPE_WORDS: Record<string, string[]> = {
+  strength: ["strength"],
+  powerlifting: ["powerlifting", "strength"],
+  "olympic weightlifting": ["olympic", "weightlifting", "lifting", "oly"],
+  plyometrics: ["plyometric", "plyometrics", "plyo"],
+  strongman: ["strongman"],
+  cardio: ["cardio", "conditioning"],
+  stretching: ["stretching", "stretch", "mobility"],
+};
+
+/**
+ * The exercises of `type` in `group` that match every word of `query`, each word as the start of a word in the
+ * name, the equipment, a main muscle or the type ("db" doesn't match; "dumb row" finds Dumbbell rows; "hyrox"
+ * finds the stations). Names starting with the query come first, then names holding every word, then the rest;
+ * within each, the common lifts first, then by name.
+ */
+export function searchExercises(items: readonly ExerciseItem[], query: string, type: ExerciseType = "all", group: MuscleGroup = "all"): ExerciseItem[] {
   const wanted = words(query);
   const found: { item: ExerciseItem; rank: number }[] = [];
   for (const item of items) {
-    if (!inArea(item, area)) continue;
+    if (!ofType(item, type) || !inGroup(item, group)) continue;
     if (!wanted.length) {
       found.push({ item, rank: 0 });
       continue;
     }
     const name = words(item.name);
-    const more = [...words(equipmentLabel(item.equipment)), ...item.primaryMuscles.flatMap(words)];
+    const more = [
+      ...words(equipmentLabel(item.equipment)), ...item.primaryMuscles.flatMap(words), ...(TYPE_WORDS[item.category] ?? []),
+      ...(HYBRID_IDS.has(item.id) ? ["hybrid", "hyrox"] : []), ...(item.mechanic ? [item.mechanic] : []),
+    ];
     const inName = (word: string) => name.some((part) => part.startsWith(word));
     if (!wanted.every((word) => inName(word) || more.some((part) => part.startsWith(word)))) continue;
     const starts = wanted.every((word, index) => name[index]?.startsWith(word) ?? false);
     found.push({ item, rank: starts ? 0 : wanted.every(inName) ? 1 : 2 });
   }
+  const common = (item: ExerciseItem) => commonRank.get(item.id) ?? COMMON_EXERCISES.length;
   return found
-    .sort((a, b) => a.rank - b.rank || a.item.name.localeCompare(b.item.name, "en", { sensitivity: "base" }))
+    .sort((a, b) => a.rank - b.rank || common(a.item) - common(b.item) || a.item.name.localeCompare(b.item.name, "en", { sensitivity: "base" }))
     .map((entry) => entry.item);
+}
+
+/** Recently done exercises, newest first and each once, from workouts listed newest first. */
+export function recentExercises(workouts: readonly { exercises: readonly string[] }[], max = 6): string[] {
+  const seen: string[] = [];
+  for (const workout of workouts) {
+    for (const id of workout.exercises) {
+      if (!seen.includes(id)) seen.push(id);
+      if (seen.length >= max) return seen;
+    }
+  }
+  return seen;
 }
 
 /** A photo's address: `base` is the folder the API names (`photos`), so a native build can point it elsewhere. */
