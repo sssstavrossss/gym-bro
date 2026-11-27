@@ -73,6 +73,8 @@ export interface Plan {
   workouts: PlanWorkout[];
   /** The highest place in the sequence done or skipped from this plan's workouts, or null before the first. */
   lastPosition: number | null;
+  /** Each workout's kind by its id, as it will be saved once done (strength, cardio, hybrid, mobility, sport). Absent from an older server. */
+  kinds?: Record<string, string>;
 }
 
 export interface PlanPreview {

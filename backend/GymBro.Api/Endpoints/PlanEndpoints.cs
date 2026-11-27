@@ -23,7 +23,8 @@ public sealed record PlanView(
     DateOnly StartDate,
     DateTimeOffset UpdatedAt,
     IReadOnlyList<PlanWorkout> Workouts,
-    int? LastPosition);
+    int? LastPosition,
+    IReadOnlyDictionary<Guid, string> Kinds);
 
 /// <summary>What a set of answers would make, before it's saved.</summary>
 public sealed record PlanPreview(string Split, bool EaseIn, bool WarmUp, bool CoolDown, int BlockWeeks, IReadOnlyList<PlanWorkout> Workouts);
@@ -233,5 +234,6 @@ public static class PlanEndpoints
         plan.StartDate,
         plan.UpdatedAt,
         workouts,
-        lastPosition);
+        lastPosition,
+        PlanWorkouts.Kinds(workouts, ExerciseCatalog.Current));
 }

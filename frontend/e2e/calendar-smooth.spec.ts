@@ -75,13 +75,14 @@ test("calendar motion, home gap, compact profile controls, and a lean notificati
   expect((await stage.boundingBox())!.height).toBeGreaterThan(closed + 100);
   const calendar = page.getByRole("group", { name: "Last 4 weeks" });
   await expect(calendar).toBeVisible();
-  const legend = calendar.locator(".legend");
+  // The key lists only what the four weeks show: a new account has nothing logged before today yet.
+  const legend = calendar.locator(".legend").first();
   await expect(legend).toBeVisible();
-  await expect(legend).toContainText("±5%");
-  await expect(legend).toContainText("not logged");
-  await expect(legend).toContainText("today");
-  const legendFit = await legend.evaluate((node) => node.scrollWidth <= node.clientWidth + 1);
-  expect(legendFit).toBe(true);
+  await expect(legend).toContainText("on target → far off");
+  await expect(calendar.locator("[data-week-totals]")).toContainText("Weigh-ins1of 1 day");
+  for (const row of await calendar.locator(".legend").all()) {
+    expect(await row.evaluate((node) => node.scrollWidth <= node.clientWidth + 1)).toBe(true);
+  }
   if (test.info().project.name === "chromium") {
     await strip.screenshot({ path: "/opt/cursor/artifacts/iphone43-calendar-open.png" });
     await page.evaluate(() => { document.documentElement.dataset.theme = "charcoal"; });

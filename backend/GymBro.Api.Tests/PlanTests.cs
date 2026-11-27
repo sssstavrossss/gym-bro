@@ -121,6 +121,10 @@ public sealed class PlanRulesTests
 
         // The strength days are the usual full-body workouts.
         Assert.Contains(workouts[0].Exercises, item => item.ExerciseId == "barbell-squat");
+
+        // Each workout's kind, as it will be saved once done: runs are cardio, runs with stations hybrid.
+        var kinds = PlanWorkouts.Kinds(workouts, ExerciseCatalog.Current);
+        Assert.Equal(["strength", "hybrid", "cardio", "strength", "hybrid", "cardio"], workouts.Select(item => kinds[item.Id]));
         Assert.All(workouts, workout => Assert.InRange(workout.Minutes, 5, 70));
     }
 
@@ -479,6 +483,9 @@ public sealed class PlanEndpointTests(ApiFactory factory)
         Assert.Equal(6, plan.GetProperty("blockWeeks").GetInt32());
         Assert.Equal(Today, DateOnly.Parse(plan.GetProperty("startDate").GetString()!));
         Assert.Equal(4, plan.GetProperty("workouts").GetArrayLength());
+        // Each workout's kind by its id, for the icons on Home's week strip.
+        var firstId = plan.GetProperty("workouts")[0].GetProperty("id").GetString()!;
+        Assert.Equal("strength", plan.GetProperty("kinds").GetProperty(firstId).GetString());
         var exercise = plan.GetProperty("workouts")[0].GetProperty("exercises")[0];
         Assert.Equal("barbell-bench-press-medium-grip", exercise.GetProperty("exerciseId").GetString());
         Assert.Equal(6, exercise.GetProperty("repMin").GetInt32());

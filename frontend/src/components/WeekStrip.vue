@@ -1,11 +1,16 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import Icon from "./Icon.vue";
+import TrainBadge from "./TrainBadge.vue";
 import { getProgress } from "../api";
 import { addDays, weekStart } from "../lib/dates";
 import { dayShade } from "../lib/dayShade";
 import { weekDays, weekPageSelection } from "../lib/dayLog";
 import { onLogChange } from "../state/log";
+import { loadTrainingDays, trainingDays } from "../state/trainingDays";
+import { weightUnit } from "../state/units";
+import { cardTitle, fourWeekTotals, kcalLine, KIND_ICONS, KIND_ORDER, trainingSaid, type TrainState } from "../lib/trainingDays";
+import { weightText } from "../lib/units";
 import { swipeAxis, swipeSpeed, swipeTurn, type SwipeSample } from "../lib/weekSwipe";
 
 const props = withDefaults(defineProps<{
@@ -38,6 +43,14 @@ const openKey = "gymbro-home-week-open";
 const expanded = ref(false);
 const reduceMotion = ref(false);
 const intake = ref<Record<string, { logged: boolean; kcal: number | null; targetKcal: number | null }>>({});
+/** Weigh-ins by date (kg), from the same load as the shades. */
+const weighIns = ref<Record<string, number>>({});
+/** Each day's workouts (lib/trainingDays.ts): the strip and the calendar show the first as a badge. */
+const training = computed(() => trainingDays(props.today));
+/** A strip day's name with its workouts, for screen readers. */
+const said = (day: { date: string; label: string }) => `${day.label}${trainingSaid(training.value[day.date])}`;
+/** The calendar tile whose day card is open, or null. */
+const picked = ref<string | null>(null);
 
 const todayStart = computed(() => weekStart(props.today || props.anchor));
 const starts = computed(() => {
@@ -207,9 +220,45 @@ const calendar = computed(() => [3, 2, 1, 0].map((ago) => {
   return weekDays(start, props.selected, props.today, props.setupDate, props.loggedDates).map((day) => {
     const fact = intake.value[day.date];
     const logged = fact ? fact.logged : day.logged;
-    return { ...day, ...dayShade(day.date, props.today, logged, fact?.kcal ?? null, fact?.targetKcal ?? null) };
+    const workouts = training.value[day.date] ?? [];
+    const kg = weighIns.value[day.date] ?? null;
+    const label = `${day.label}${trainingSaid(workouts)}${kg != null ? ", weighed in" : ""}`;
+    return { ...day, label, logged, kcal: fact?.kcal ?? null, targetKcal: fact?.targetKcal ?? null, workouts, kg, ...dayShade(day.date, props.today, logged, fact?.kcal ?? null, fact?.targetKcal ?? null) };
   });
 }));
+const calendarDays = computed(() => calendar.value.flat());
+/** The four weeks' totals under the calendar, up to today. */
+const totals = computed(() => {
+  const days = calendarDays.value;
+  const shades = Object.fromEntries(days.map((day) => [day.date, day.shade]));
+  return fourWeekTotals(days.map((day) => day.date), props.today, props.setupDate, shades, training.value, new Set(Object.keys(weighIns.value)));
+});
+/** The key lists only what the four weeks show. */
+const key = computed(() => {
+  const past = calendarDays.value.filter((day) => day.date < props.today && !day.disabled);
+  const workouts = calendarDays.value.flatMap((day) => day.workouts);
+  return {
+    over: past.some((day) => day.over),
+    none: past.some((day) => day.shade === "none"),
+    notarget: past.some((day) => day.shade === "notarget"),
+    states: (["done", "planned", "skipped"] as TrainState[]).filter((state) => workouts.some((item) => item.state === state)),
+    kinds: KIND_ORDER.filter((kind) => workouts.some((item) => item.kind === kind)),
+    weighed: calendarDays.value.some((day) => day.kg != null),
+  };
+});
+/** The tapped day's card: its calories, workouts and weigh-in. */
+const card = computed(() => {
+  const day = picked.value ? calendarDays.value.find((item) => item.date === picked.value) : null;
+  if (!day) return null;
+  return {
+    date: day.date,
+    title: cardTitle(day.date, props.today),
+    kcal: kcalLine(day.date, props.today, day.logged, day.kcal, day.targetKcal),
+    workouts: day.workouts,
+    rest: day.date > props.today ? "No workout planned" : "Rest day",
+    weight: day.kg != null ? `${weightText(day.kg, weightUnit())} ${weightUnit()}` : "No weigh-in",
+  };
+});
 
 function readOpen(): boolean {
   if (!props.swipe) return false;
@@ -243,6 +292,7 @@ function setExpanded(next: boolean) {
   if (next === expanded.value) return;
   lockStage();
   expanded.value = next;
+  picked.value = null;
   try { localStorage.setItem(openKey, next ? "1" : "0"); } catch { /* the pick still applies this visit */ }
   if (next) void loadShades();
   void glideStage();
@@ -255,12 +305,18 @@ async function loadShades() {
     const next: typeof intake.value = {};
     for (const day of data.days) next[day.date] = { logged: day.logged, kcal: day.kcal, targetKcal: day.targetKcal };
     intake.value = next;
+    weighIns.value = Object.fromEntries(data.weight.weighIns.map((item) => [item.date, item.kg]));
   } catch {
     // Tiles still show logged or empty from the week the strip already knows.
   }
 }
+/** A tap on a tile opens its day card; a second tap on the same tile (or Open day) goes to the day. */
 function pickTile(date: string, disabled: boolean) {
   if (disabled) return;
+  if (picked.value === date) openDay(date);
+  else picked.value = date;
+}
+function openDay(date: string) {
   emit("select", date);
   showWeekOf(date);
   setExpanded(false);
@@ -271,6 +327,7 @@ onMounted(() => {
   reduceMotion.value = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   expanded.value = readOpen();
   if (expanded.value) void loadShades();
+  loadTrainingDays();
 });
 onBeforeUnmount(() => {
   window.clearTimeout(fallback);
@@ -288,11 +345,14 @@ onBeforeUnmount(() => {
       class="day"
       :disabled="day.disabled"
       :aria-pressed="day.date === selected"
-      :aria-label="day.label"
+      :aria-label="said(day)"
       @click="emit('select', day.date)"
     >
       <span class="t-cap letter c3" aria-hidden="true">{{ day.letter }}</span>
-      <span class="circle t-bodys" :class="{ on: day.date === selected, off: day.disabled }">{{ day.number }}</span>
+      <span class="circle t-bodys" :class="{ on: day.date === selected, off: day.disabled }">
+        {{ day.number }}
+        <TrainBadge v-if="training[day.date]?.length" class="on-circle" :kind="training[day.date][0].kind" :state="training[day.date][0].state" />
+      </span>
       <span class="dotrow" aria-hidden="true"><span class="dot" :class="{ on: day.logged }" /></span>
     </button>
   </div>
@@ -315,12 +375,15 @@ onBeforeUnmount(() => {
           class="day"
           :disabled="day.disabled"
           :aria-pressed="day.date === selected"
-          :aria-label="day.label"
+          :aria-label="said(day)"
           :tabindex="page.start === shown ? undefined : -1"
           @click="choose($event, day.date, day.disabled)"
         >
           <span class="t-cap letter c3" aria-hidden="true">{{ day.letter }}</span>
-          <span class="circle t-bodys" :class="{ on: day.date === selected, off: day.disabled }">{{ day.number }}</span>
+          <span class="circle t-bodys" :class="{ on: day.date === selected, off: day.disabled }">
+            {{ day.number }}
+            <TrainBadge v-if="training[day.date]?.length" class="on-circle" :kind="training[day.date][0].kind" :state="training[day.date][0].state" />
+          </span>
           <span class="dotrow" aria-hidden="true"><span class="dot" :class="{ on: day.logged }" /></span>
         </button>
       </div>
@@ -336,26 +399,59 @@ onBeforeUnmount(() => {
           :key="day.date"
           type="button"
           class="tile"
-          :class="[day.date === today ? 'today' : day.disabled ? 'future' : `s-${day.shade}`, { over: day.over && day.date !== today }]"
+          :class="[day.date === today ? 'today' : day.disabled ? 'future' : `s-${day.shade}`, { picked: day.date === picked }]"
           :disabled="day.disabled"
-          :aria-pressed="day.date === selected"
+          :aria-pressed="day.date === picked"
           :aria-label="day.label"
+          :data-date="day.date"
           @click="pickTile(day.date, day.disabled)"
         >
           <span class="t-label">{{ day.number }}</span>
           <Icon v-if="day.date < today && day.shade === 'on' && !day.over" name="check" :size="10" :sw="3.4" class="mark" />
           <span v-else-if="day.date < today && day.over" class="corner" aria-hidden="true" />
+          <span v-if="day.workouts.length || day.kg != null" class="feet" aria-hidden="true">
+            <TrainBadge v-if="day.workouts.length" :kind="day.workouts[0].kind" :state="day.workouts[0].state" />
+            <span v-if="day.kg != null" class="weigh" data-weighed><Icon name="scale" :size="10" :sw="2.4" /></span>
+          </span>
         </button>
       </div>
-      <div class="legend t-capn c2">
-        <span><i class="sw on"><Icon name="check" :size="8" :sw="3.4" /></i> ±5%</span>
-        <span><i class="sw close" /> ±10%</span>
-        <span><i class="sw off" /> ±20%</span>
-        <span><i class="sw far" /> &gt;20%</span>
-        <span><i class="sw over" /> over</span>
-        <span><i class="sw none" /> not logged</span>
-        <span><i class="sw notarget" /> no target</span>
-        <span><i class="sw today" /> today</span>
+      <!-- The key and totals, or a tapped day's card in their place. Both keep their room, so opening or closing the
+           card never moves the page. -->
+      <div class="under">
+        <div class="key" :class="{ gone: card }" :inert="!!card" :aria-hidden="!!card">
+          <div class="legend t-capn c2">
+            <span class="scale"><i class="sw on" /><i class="sw close" /><i class="sw off" /><i class="sw far" /> on target → far off</span>
+            <span v-if="key.over"><i class="tri" /> over</span>
+            <span v-if="key.none"><i class="sw none" /> not logged</span>
+            <span v-if="key.notarget"><i class="sw notarget" /> no target</span>
+          </div>
+          <div v-if="key.states.length || key.weighed" class="legend t-capn c2">
+            <span v-for="state in key.states" :key="state"><i class="st" :class="state" /> {{ state }}</span>
+            <span v-if="key.weighed"><span class="weigh"><Icon name="scale" :size="10" :sw="2.4" /></span> weighed in</span>
+          </div>
+          <div v-if="key.kinds.length" class="legend t-capn c2">
+            <span v-for="kind in key.kinds" :key="kind"><Icon :name="KIND_ICONS[kind]" :size="12" :sw="2.4" /> {{ kind }}</span>
+          </div>
+          <div class="pstats" data-week-totals>
+            <div class="cell"><span class="t-cap c2">On target</span><span class="num">{{ totals.onTarget }} {{ totals.onTarget === 1 ? "day" : "days" }}</span><span class="t-capn c2">within ±10%</span></div>
+            <div class="cell"><span class="t-cap c2">Workouts</span><span class="num">{{ totals.done }}</span><span class="t-capn c2">{{ totals.skipped ? `${totals.skipped} skipped` : "none skipped" }}</span></div>
+            <div class="cell"><span class="t-cap c2">Weigh-ins</span><span class="num">{{ totals.weighIns }}</span><span class="t-capn c2">of {{ totals.days }} {{ totals.days === 1 ? "day" : "days" }}</span></div>
+          </div>
+        </div>
+        <div v-if="card" class="dcard" role="group" :aria-label="card.title" data-day-card>
+          <div class="dhead">
+            <span class="t-bodys dtitle">{{ card.title }}</span>
+            <button type="button" class="btn sm secondary t-label" data-day-open @click="openDay(card.date)">Open day</button>
+            <button type="button" class="xbtn" aria-label="Close the day" data-day-close @click="picked = null"><Icon name="x" :size="16" /></button>
+          </div>
+          <div class="drow"><span class="dic" aria-hidden="true"><Icon name="food" :size="14" /></span><span class="t-body" data-day-kcal>{{ card.kcal }}</span></div>
+          <div v-for="(item, index) in card.workouts" :key="index" class="drow" data-day-workout>
+            <TrainBadge large :kind="item.kind" :state="item.state" />
+            <span class="t-body">{{ item.name }} <span class="c2">· {{ item.line }}</span></span>
+          </div>
+          <div v-if="!card.workouts.length" class="drow"><span class="dic" aria-hidden="true"><Icon name="dumbbell" :size="14" /></span><span class="t-body c2">{{ card.rest }}</span></div>
+          <div class="drow"><span class="dic" aria-hidden="true"><Icon name="scale" :size="14" /></span><span class="t-body" :class="{ c2: card.weight === 'No weigh-in' }" data-day-weight>{{ card.weight }}</span></div>
+        </div>
       </div>
     </div>
   </div>
@@ -386,9 +482,14 @@ onBeforeUnmount(() => {
 }
 .day:disabled { cursor: default; }
 .letter { display: block; font-size: min(0.6471rem, 15px); line-height: 1; color: var(--text-tertiary); }
-.circle { width: 36px; height: 36px; border-radius: var(--radius-pill); display: flex; align-items: center; justify-content: center; font-size: min(0.8824rem, 20px); line-height: 1; color: var(--text-primary); flex: none; }
+.circle { position: relative; width: 36px; height: 36px; border-radius: var(--radius-pill); display: flex; align-items: center; justify-content: center; font-size: min(0.8824rem, 20px); line-height: 1; color: var(--text-primary); flex: none; }
 .circle.on { background: var(--color-action); color: var(--color-on-action); box-shadow: var(--d-action); }
 .circle.off { color: var(--text-tertiary); opacity: 0.72; }
+/* A workout's badge sits on the date's top-right, ringed in the strip's colour so it reads as its own disc. */
+.circle > .tb.on-circle { position: absolute; top: calc(-1 * var(--space-xs)); right: calc(-1 * var(--space-xs)); box-shadow: 0 0 0 2px var(--color-surface); }
+.circle > .tb.on-circle.planned { box-shadow: 0 0 0 2px var(--color-surface), inset 0 0 0 1px var(--text-tertiary); }
+/* On the accent (the picked date, an on-target tile) a done badge turns over so it still shows. */
+.circle.on > .tb.done, .tile.s-on .tb.done { background: var(--color-on-action); color: var(--color-action); }
 .dotrow { height: 4px; display: flex; align-items: center; justify-content: center; flex: none; }
 .dot { width: 4px; height: 4px; border-radius: 2px; }
 .dot.on { background: var(--text-tertiary); }
@@ -407,9 +508,15 @@ onBeforeUnmount(() => {
 .calrow > * { flex: 1 1 0; min-width: 0; text-align: center; }
 .letters { min-height: 16px; }
 .tile {
-  position: relative; min-height: 44px; border-radius: var(--radius-m);
-  display: flex; align-items: center; justify-content: center; color: var(--text-primary);
+  position: relative; min-height: calc(var(--control-hit) + var(--space-xs)); border-radius: var(--radius-m);
+  display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: var(--space-2xs);
+  padding: var(--space-s) 0 var(--space-xs); color: var(--text-primary);
 }
+.feet { margin-top: auto; display: flex; justify-content: center; gap: 2px; }
+.weigh { width: var(--badge); height: var(--badge); border-radius: var(--radius-pill); display: inline-flex; align-items: center; justify-content: center; flex: none; background: var(--color-surface); color: var(--text-secondary); }
+/* The tapped tile: a ring outside it in the text colour, so it reads on every shade and beside today's ring. */
+.tile.picked { box-shadow: 0 0 0 2px var(--color-surface), 0 0 0 4px var(--text-primary); z-index: 1; }
+.tile.today.picked { box-shadow: inset 0 0 0 2px var(--color-action), 0 0 0 2px var(--color-surface), 0 0 0 4px var(--text-primary); }
 .tile.future { color: var(--text-tertiary); }
 /* A planned day opens like any other. It has no shade yet, so it reads one step quieter than a judged day. */
 .tile.s-future { color: var(--text-secondary); }
@@ -420,11 +527,16 @@ onBeforeUnmount(() => {
 .tile.s-far { background: var(--shade-far); }
 .tile.s-none { outline: 1px dashed var(--color-border); outline-offset: -1px; }
 .tile.s-notarget { color: var(--text-secondary); }
-.tile.over { background-image: repeating-linear-gradient(-45deg, var(--over-tint) 0 2px, transparent 2px 6px); }
 .tile .mark { position: absolute; top: 4px; right: 4px; }
 .corner { position: absolute; top: 4px; right: 4px; width: 0; height: 0; border-left: 7px solid transparent; border-top: 7px solid var(--over-text); }
-.legend { display: flex; flex-wrap: wrap; gap: var(--space-s) var(--space-m); margin-top: var(--space-s); min-width: 0; }
+.under { display: grid; margin-top: var(--space-xs); }
+.under > * { grid-area: 1 / 1; min-width: 0; }
+.key { display: flex; flex-direction: column; gap: var(--space-s); }
+.key.gone { visibility: hidden; }
+.legend { display: flex; flex-wrap: wrap; gap: var(--space-s) var(--space-m); min-width: 0; }
 .legend span { display: inline-flex; align-items: center; gap: var(--space-s); min-height: 16px; white-space: nowrap; }
+.legend .scale { gap: 2px; }
+.legend .scale .sw:last-of-type { margin-right: var(--space-s); }
 .sw {
   width: 12px; height: 12px; border-radius: 3px; flex: none;
   display: inline-flex; align-items: center; justify-content: center;
@@ -433,10 +545,27 @@ onBeforeUnmount(() => {
 .sw.close { background: var(--shade-close); }
 .sw.off { background: var(--shade-off); }
 .sw.far { background: var(--shade-far); }
-.sw.over { background-color: var(--shade-off); background-image: repeating-linear-gradient(-45deg, var(--over-tint) 0 2px, transparent 2px 6px); }
 .sw.none { background: transparent; outline: 1px dashed var(--color-border); outline-offset: -2px; }
 .sw.notarget { background: transparent; box-shadow: inset 0 0 0 1px var(--text-secondary); }
-.sw.today { background: transparent; box-shadow: inset 0 0 0 2px var(--color-action); }
+.tri { width: 0; height: 0; border-left: 7px solid transparent; border-top: 7px solid var(--over-text); }
+.st { width: 12px; height: 12px; border-radius: var(--radius-pill); flex: none; }
+.st.done { background: var(--color-action); }
+.st.planned { box-shadow: inset 0 0 0 1.5px var(--text-tertiary); }
+.st.skipped { background: var(--over-text); }
+.pstats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); padding-top: var(--space-m); margin-top: var(--space-xs); border-top: 1px solid var(--color-border); }
+.cell { display: flex; flex-direction: column; align-items: center; gap: var(--space-2xs); min-width: 0; text-align: center; padding: 0 var(--space-xs); }
+.cell + .cell { border-left: 1px solid var(--color-border); }
+.num { font-size: min(1rem, 18px); line-height: 1.15; font-weight: 700; letter-spacing: -0.02em; white-space: nowrap; font-variant-numeric: tabular-nums; }
+/* At the largest text a label or note too wide for its third ends in an ellipsis, as on Home's Progress card. */
+.cell .t-cap, .cell .t-capn { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.dcard { display: flex; flex-direction: column; gap: var(--space-2xs); align-self: start; padding-top: var(--space-xs); border-top: 1px solid var(--color-border); }
+.dhead { display: flex; align-items: center; gap: var(--space-s); min-height: var(--control-chip); }
+/* Open day and × keep their 44px hits but take only the 30px row, so the card is no taller than the key it covers. */
+.dhead > .btn.sm { margin-block: calc((var(--control-chip) - var(--control-hit)) / 2); }
+.dtitle { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.xbtn { width: var(--control-hit); height: var(--control-hit); margin: calc((var(--control-chip) - var(--control-hit)) / 2) calc(-1 * var(--space-s)) calc((var(--control-chip) - var(--control-hit)) / 2) 0; display: inline-flex; align-items: center; justify-content: center; border-radius: var(--radius-pill); color: var(--text-secondary); flex: none; }
+.drow { display: flex; align-items: center; gap: var(--space-s); min-height: var(--control-chip); }
+.dic { width: var(--badge-l); height: var(--badge-l); display: inline-flex; align-items: center; justify-content: center; color: var(--text-secondary); flex: none; }
 .grab {
   position: relative; z-index: 1;
   min-width: 44px; min-height: var(--control-hit); align-self: center;

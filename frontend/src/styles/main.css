@@ -224,6 +224,9 @@ html[data-accent]:not([data-accent="mono"]) {
   --control-btn: 44px;
   /* The tab bar's + and the fan's buttons around it. */
   --control-fab: 56px;
+  /* A workout or weigh-in badge on Home's week strip and calendar, and the larger one in a day's card. */
+  --badge: 16px;
+  --badge-l: 22px;
   /* Text over the dark scrim, in every theme. */
   --text-on-scrim: #fff;
   /* The body map (MuscleMap): one figure's height, and its four tones. Main muscles take the
