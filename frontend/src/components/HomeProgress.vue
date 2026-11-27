@@ -10,7 +10,7 @@ import { dayMonth, spanLabel } from "../lib/dates";
 import { formatDecimal, int } from "../lib/format";
 import { fatLimits, fatLimitsOf, sodiumLimitMg, sodiumLimitOf } from "../lib/nutrientCards";
 import type { IntakeDay } from "../lib/progressChart";
-import { fiberMinimum, goalKind, intakeStats, LINE_WORDS, PAGE_TITLES, PROGRESS_PAGES, type IntakePage, type ProgressPage } from "../lib/progressCard";
+import { canGoEarlier, fiberMinimum, goalKind, intakeStats, LINE_WORDS, PAGE_TITLES, PROGRESS_PAGES, rangeEnd, type IntakePage, type ProgressPage } from "../lib/progressCard";
 import { rateStat } from "../lib/weightTrend";
 import { cardPages, pageOrder } from "../state/cardPages";
 import { connection } from "../state/connection";
@@ -66,6 +66,10 @@ function savePage(item: ProgressPage) {
 }
 
 const range = ref<Range>(readRange());
+/** Whole ranges back from now (‹ beside the dates). Not saved: a new range, a reload or leaving Today starts at now. */
+const back = ref(0);
+/** Today as the server last said, so stepping counts from the person's today. */
+const today = ref<string | null>(null);
 const pages = computed(() => visiblePages(PROGRESS_PAGES, cardPages.progress, pageOrder.progress));
 const titles = computed(() => pages.value.map((item) => PAGE_TITLES[item]));
 const page = ref<ProgressPage>(readPage());
@@ -81,11 +85,13 @@ let requestId = 0;
 async function load() {
   const id = ++requestId;
   const asked = range.value;
+  const to = today.value ? rangeEnd(today.value, asked, back.value) : null;
   failed.value = false;
   try {
-    const next = await getProgress(asked);
+    const next = await getProgress(asked, to);
     if (id !== requestId || asked !== range.value) return;
     data.value = next;
+    today.value = next.today;
   } catch (error) {
     if (id !== requestId) return;
     failed.value = data.value == null;
@@ -97,6 +103,7 @@ async function load() {
 function pickRange(value: Range) {
   if (value === range.value) return;
   range.value = value;
+  back.value = 0;
   pan.value = 0;
   span.value = null;
   try {
@@ -106,6 +113,16 @@ function pickRange(value: Range) {
   }
   void load();
 }
+const steps = computed(() => range.value !== "all" && !!data.value);
+const earlier = computed(() => canGoEarlier(range.value, data.value?.from, data.value?.earliest));
+function step(by: number) {
+  const next = Math.max(0, back.value + by);
+  if (next === back.value || (by > 0 && !earlier.value)) return;
+  back.value = next;
+  void load();
+}
+const LONG: Record<Range, string> = { "7d": "7 days", "30d": "30 days", "90d": "90 days", "6m": "6 months", all: "" };
+
 function onPage(index: number) {
   page.value = pages.value[index] ?? "weight";
   savePage(page.value);
@@ -204,7 +221,16 @@ function statsOf(item: ProgressPage): Stat[] {
   <section class="card home-progress" aria-label="Progress">
     <div class="chead head">
       <h2 class="section-title panel-title ttl" data-progress-title>{{ PAGE_TITLES[page] }}</h2>
-      <span v-if="periodText" class="t-capn c3 period">{{ periodText }}</span>
+      <!-- ‹ dates ›: step a fixed range back and forth; the dates bring it back to now. -->
+      <span v-if="steps && periodText" class="row step" data-range-step>
+        <button type="button" class="arr" :aria-label="`Earlier ${LONG[range]}`" :disabled="!earlier" data-range-earlier @click="step(1)"><Icon name="left" :size="16" /></button>
+        <button
+          type="button" class="t-capn period pbtn" :class="{ moved: back }" :disabled="!back"
+          :aria-label="back ? `${periodText}. Back to now` : periodText" data-range-period @click="back = 0; load()"
+        >{{ periodText }}</button>
+        <button type="button" class="arr" :aria-label="`Later ${LONG[range]}`" :disabled="!back" data-range-later @click="step(-1)"><Icon name="right" :size="16" /></button>
+      </span>
+      <span v-else-if="periodText" class="t-capn c3 period">{{ periodText }}</span>
       <!-- In the head, not the swipe track, so it stays put while the pages move. -->
       <button v-if="connection.offline" type="button" class="offc c2" aria-label="Offline: these numbers are from the last time you were online" data-offline-card @click="openOffline">
         <Icon name="cloud-off" :size="16" />
@@ -265,6 +291,14 @@ function statsOf(item: ProgressPage): Stat[] {
 .ttl { margin: 0; flex: none; }
 .period { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
 .weigh { white-space: nowrap; }
+/* ‹ › around the dates: 44px hits that take no more room in the head than their 16px icons, like the offline icon. */
+.step { gap: 0; flex-wrap: nowrap; min-width: 0; }
+.arr { position: relative; z-index: 1; display: inline-grid; place-items: center; width: var(--control-hit); height: var(--control-hit); margin: calc((var(--control-hit) - 1rem) / -2) calc((16px - var(--control-hit)) / 2); padding: 0; background: none; border: 0; color: var(--text-secondary); cursor: pointer; }
+.arr:disabled { opacity: .3; cursor: default; }
+.pbtn { padding: 0 var(--space-s); background: none; border: 0; color: var(--text-tertiary); cursor: pointer; }
+.pbtn:disabled { cursor: default; opacity: 1; }
+/* Stepped back: the dates stand out, and tapping them comes back to now. */
+.pbtn.moved { color: var(--text-primary); }
 /* A 44px target that takes no more room in the head than the 16px icon. */
 .offc { display: inline-grid; place-items: center; width: 44px; height: 44px; margin: -14px -12px -14px -10px; border-radius: 50%; background: none; border: 0; color: var(--text-secondary); cursor: pointer; }
 /* Five equal ranges, even when a label is wider. */

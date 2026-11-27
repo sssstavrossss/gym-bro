@@ -21,6 +21,16 @@ public sealed class ProgressMathTests
     }
 
     [Fact]
+    public void A_fixed_range_can_end_on_an_earlier_day_but_not_a_later_one_and_all_ends_today()
+    {
+        var earlier = Today.AddDays(-7);
+        Assert.Equal(earlier, ProgressMath.WindowEnd(Today, "7d", earlier));
+        Assert.Equal(Today, ProgressMath.WindowEnd(Today, "7d", null));
+        Assert.Equal(Today, ProgressMath.WindowEnd(Today, "30d", Today.AddDays(5)));
+        Assert.Equal(Today, ProgressMath.WindowEnd(Today, "all", earlier));
+    }
+
+    [Fact]
     public void Averages_ignore_a_zero_count_and_round_half_away_from_zero()
     {
         Assert.Null(ProgressMath.Average(10, 0, 0));

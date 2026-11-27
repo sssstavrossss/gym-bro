@@ -667,10 +667,13 @@ export interface ProgressResponse {
   days: ProgressDay[];
   /** Null without a target. Absent from an older server. */
   burn?: ProgressBurn | null;
+  /** The first day with a log or a weigh-in, so ‹ knows where to stop. Absent from an older server. */
+  earliest?: string | null;
 }
 
-export async function getProgress(range: string): Promise<ProgressResponse> {
-  return cachedJson(`/api/progress?range=${encodeURIComponent(range)}`);
+/** `to` ends a fixed range on an earlier day (the card's ‹ ›); without it the range ends today. */
+export async function getProgress(range: string, to?: string | null): Promise<ProgressResponse> {
+  return cachedJson(`/api/progress?range=${encodeURIComponent(range)}${to ? `&to=${to}` : ""}`);
 }
 
 /** Progress → Strength (`GET /api/workouts/strength`): done workouts and sets in the range, and each lift's estimated max by day. */

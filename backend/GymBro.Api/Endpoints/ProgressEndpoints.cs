@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using GymBro.Api.Data;
+using GymBro.Api.Logging;
 using GymBro.Api.Nutrition;
 using GymBro.Api.Progress;
 using Microsoft.EntityFrameworkCore;
@@ -17,6 +18,7 @@ public static class ProgressEndpoints
     private static async Task<IResult> Get(
         ClaimsPrincipal principal,
         string? range,
+        string? to,
         AppDbContext db,
         TimeProvider clock,
         CancellationToken cancellationToken)
@@ -31,8 +33,21 @@ public static class ProgressEndpoints
             return ApiResults.Error(ProgressMath.BadRange);
         }
 
+        DateOnly? askedEnd = null;
+        if (!string.IsNullOrWhiteSpace(to))
+        {
+            if (!LogEntryRules.TryDate(to, out var parsed))
+            {
+                return ApiResults.Error(LogEntryRules.BadDate);
+            }
+
+            askedEnd = parsed;
+        }
+
         var userId = Caller.Id(principal);
         var today = await TodayAsync(userId, db, clock, cancellationToken);
+        // A fixed range can end on an earlier day (the card's ‹ ›); All always runs to today.
+        var end = ProgressMath.WindowEnd(today, normalized, askedEnd);
 
         var weighIns = await db.WeighIns.AsNoTracking()
             .Where(row => row.UserId == userId && row.LocalDate <= today)
@@ -73,17 +88,20 @@ public static class ProgressEndpoints
             earliest = earliest is DateOnly have && have < firstLog ? have : firstLog;
         }
 
-        var from = ProgressMath.WindowStart(today, normalized, earliest);
+        var from = ProgressMath.WindowStart(end, normalized, earliest);
         var byLog = logged.ToDictionary(row => row.Date);
         var targetRows = targets.Select(row => (row.EffectiveDate, row.Kcal, row.ProteinGrams, row.FatGrams, row.CarbGrams)).ToList();
         var burnRows = targets.Select(row => new BurnRow(row.EffectiveDate, row.Bmr, row.Tdee, row.FormulaTdee, row.BurnSdKcal, row.Reasons)).ToList();
-        var trend = TrendWeight.Compute(weighIns.Select(row => (row.LocalDate, row.Kg)).ToList(), today);
+        // The trend as it stood on the last day shown: a past window draws and counts only the weigh-ins up to then,
+        // so its line, its end label and its Trend and Rate agree.
+        var upToEnd = weighIns.Where(row => row.LocalDate <= end).ToList();
+        var trend = TrendWeight.Compute(upToEnd.Select(row => (row.LocalDate, row.Kg)).ToList(), end);
         var trendByDate = trend.Days.ToDictionary(day => day.Date);
-        var days = new List<ProgressDay>(today.DayNumber - from.DayNumber + 1);
+        var days = new List<ProgressDay>(end.DayNumber - from.DayNumber + 1);
         decimal kcalSum = 0;
         decimal proteinSum = 0;
         var loggedDays = 0;
-        for (var date = from; date <= today; date = date.AddDays(1))
+        for (var date = from; date <= end; date = date.AddDays(1))
         {
             var target = ProgressMath.TargetMacrosAt(targetRows, date);
             var burn = BurnSeries.At(burnRows, date);
@@ -101,13 +119,13 @@ public static class ProgressEndpoints
             days.Add(new ProgressDay(date, true, intake.Kcal, intake.Protein, target?.Kcal, target?.Protein, trendKg, intake.Fat, intake.Carbs, target?.Fat, target?.Carbs, intake.Fiber, shown?.BandKg, shown?.Measured ?? false, intake.SaturatedFat, intake.SodiumMg, burn?.Kcal, burn?.BmrKcal, burn?.SdKcal, burn?.Measured ?? false));
         }
 
-        var inRange = weighIns.Where(row => row.LocalDate >= from && row.LocalDate <= today).ToList();
-        var current = weighIns.Count == 0 ? null : weighIns[^1];
-        var burnNow = BurnSeries.At(burnRows, today);
+        var inRange = weighIns.Where(row => row.LocalDate >= from && row.LocalDate <= end).ToList();
+        var current = upToEnd.Count == 0 ? null : upToEnd[^1];
+        var burnNow = BurnSeries.At(burnRows, end);
         return Results.Ok(new ProgressResponse(
             normalized,
             from,
-            today,
+            end,
             today,
             new ProgressWeight(
                 current?.Kg,
@@ -124,7 +142,8 @@ public static class ProgressEndpoints
                 ProgressMath.Average(kcalSum, loggedDays, 0),
                 ProgressMath.Average(proteinSum, loggedDays, 1)),
             days,
-            burnNow is null ? null : new ProgressBurn(burnNow.Kcal, burnNow.BmrKcal, burnNow.SdKcal, burnNow.Measured, burnNow.SetOn)));
+            burnNow is null ? null : new ProgressBurn(burnNow.Kcal, burnNow.BmrKcal, burnNow.SdKcal, burnNow.Measured, burnNow.SetOn),
+            earliest));
     }
 
     /// <summary>The caller's today in their saved time zone, else UTC.</summary>
@@ -155,7 +174,8 @@ public sealed record ProgressResponse(
     ProgressWeight Weight,
     ProgressIntake Intake,
     IReadOnlyList<ProgressDay> Days,
-    ProgressBurn? Burn = null);
+    ProgressBurn? Burn = null,
+    DateOnly? Earliest = null);
 
 /// <summary>Today's daily burn and BMR, the spread around the burn, and the day it was last set.</summary>
 public sealed record ProgressBurn(int Kcal, int BmrKcal, int SdKcal, bool Measured, DateOnly SetOn);
