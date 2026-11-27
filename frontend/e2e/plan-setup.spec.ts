@@ -107,6 +107,7 @@ test("A plan: answer the questions, see the preview, create it, edit it and end 
 
   // Ending asks first.
   await card.getByRole("button", { name: "Edit", exact: true }).click();
+  await settled(edit);
   await edit.getByRole("button", { name: "End plan" }).click();
   const confirm = edit.getByRole("alertdialog", { name: "End your plan?" });
   await expect(confirm).toBeVisible();

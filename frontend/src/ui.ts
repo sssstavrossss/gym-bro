@@ -5,6 +5,7 @@ import { primeKeyboard, rememberOpener } from "./lib/focusField";
 import type { PageCard } from "./lib/cardPages";
 import type { ExerciseArea } from "./lib/exercises";
 import type { FoodPage } from "./lib/foodPages";
+import type { Split } from "./lib/plan";
 import type { SheetName } from "./lib/layout";
 import { emptySelection, type Selection } from "./lib/selection";
 import { TOAST_LIFE, TOAST_SHORT, enqueue, frontTimer, toastLife, type QueuedToast, type ToastAction, type ToastMerge } from "./lib/toastQueue";
@@ -75,8 +76,8 @@ export const ui = reactive({
   exercisesSearch: false,
   /** The view the workout sheet opens on, once: Describe from Train's start card. */
   workoutView: null as null | "describe",
-  /** A new plan opens on the Your own split (Train's Build your own). */
-  planOwn: false,
+  /** The split a new plan opens on: Your own from Build your own, or a kind from Explore → Plans. Null follows the days. */
+  planSplit: null as Split | null,
   /** The plan workout open in the editor (components/PlanWorkoutSheet.vue). */
   planWorkoutId: null as string | null,
   /** The swipe card whose pages the card pages sheet picks. */
@@ -244,10 +245,16 @@ export function openWorkout(view: "describe" | null = null): void {
   ui.sheet = "workout";
 }
 
-/** New plan, or Edit plan when there is one (components/PlanSheet.vue). `own` starts a new one on Your own. */
-export function openPlan(own = false): void {
-  ui.planOwn = own;
+/** New plan, or Edit plan when there is one (components/PlanSheet.vue). A new one starts on `split` when given. */
+export function openPlan(split: Split | null = null): void {
+  ui.planSplit = split;
   ui.sheet = "plan";
+}
+
+/** Explore → Plans: the kinds of plan, with a week of each (components/PlansSheet.vue). */
+export function openPlans(): void {
+  ui.trainingOver = false;
+  ui.sheet = "plans";
 }
 
 /** Edit one of the plan's workouts by hand. */

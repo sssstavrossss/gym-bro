@@ -5,7 +5,7 @@ import OfflineLine from "../components/OfflineLine.vue";
 import Segmented from "../components/Segmented.vue";
 import { todayInZone } from "../lib/dates";
 import { EXERCISE_AREAS } from "../lib/exercises";
-import { dayLabel, GOALS, mobilityLine, nextLine, planLine, projectDays, splitFor, splitLabel, toggled, upNext, WEEKDAYS, weekLine, workoutLine } from "../lib/plan";
+import { dayLabel, GOALS, mobilityLine, nextLine, PLAN_KINDS, planLine, projectDays, splitFor, splitLabel, toggled, upNext, WEEKDAYS, weekLine, workoutLine } from "../lib/plan";
 import { usingLine } from "../lib/training";
 import { lastWorkout, repeatName, startText, trainCards, weekDiscs } from "../lib/train";
 import { historyLine, shortDay, workoutStatus, workoutTotals } from "../lib/workout";
@@ -15,7 +15,7 @@ import { loadPlan, plan, planDraft } from "../state/plan";
 import { training } from "../state/training";
 import { deviceTimeZone } from "../state/profile";
 import { loadHistory, newPast, openPast, repeatWorkout, skipPlanWorkout, startPlanWorkout, startWorkout, unskipPlanWorkout, workout, workoutHistory } from "../state/workout";
-import { openExercises, openPlan, openPlanWorkout, openTraining, openWorkout, toast, toastError } from "../ui";
+import { openExercises, openPlan, openPlans, openPlanWorkout, openTraining, openWorkout, toast, toastError } from "../ui";
 
 // Training (docs/training.md): start or resume a workout, the plan and the history. The exercise library is its own
 // sheet behind the search button; the list still loads here, for the names on the plan and in history.
@@ -250,13 +250,21 @@ function logPast() {
       </button>
       <div class="row g8 mkbtns">
         <button type="button" class="btn sm primary t-label" data-see-plan @click="openPlan()">See my plan</button>
-        <button type="button" class="btn sm secondary t-label" data-build-own @click="openPlan(true)">Build your own</button>
+        <button type="button" class="btn sm secondary t-label" data-build-own @click="openPlan('custom')">Build your own</button>
       </div>
     </section>
 
     <!-- New here: look around the library first. -->
     <section v-if="cards.explore" class="card" aria-labelledby="explore-title" data-explore>
       <h2 id="explore-title" class="section-title c2 m0">Explore</h2>
+      <button type="button" class="row xrow" data-explore-plans @click="openPlans">
+        <span class="tdisc" aria-hidden="true"><Icon name="layers" :size="18" /></span>
+        <span class="col grow g2">
+          <span class="t-bodys">Plans</span>
+          <span class="t-capn c2">{{ PLAN_KINDS.length }} kinds, with a week of each to look at</span>
+        </span>
+        <Icon name="right" :size="16" class="c3" />
+      </button>
       <button type="button" class="row xrow" data-explore-exercises @click="openExercises()">
         <span class="tdisc" aria-hidden="true"><Icon name="dumbbell" :size="18" :sw="2.2" /></span>
         <span class="col grow g2">
