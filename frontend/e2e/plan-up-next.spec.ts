@@ -98,8 +98,8 @@ test("Up next: skip with Undo, start the plan workout prefilled, finish it, and 
   await expect(next.getByRole("button", { name: "Skip Upper A" })).toHaveCount(0);
 
   await page.getByRole("button", { name: "Resume", exact: true }).click();
-  await workout.getByRole("button", { name: "Finish", exact: true }).click();
-  await workout.getByRole("alertdialog").getByRole("button", { name: "Finish", exact: true }).click();
+  await workout.getByRole("button", { name: /^End now/ }).click();
+  await workout.getByRole("alertdialog").getByRole("button", { name: "End workout" }).click();
   await page.getByRole("dialog", { name: "Workout done" }).getByRole("button", { name: "Done", exact: true }).click();
 
   await expect(next).toContainText("Lower A");

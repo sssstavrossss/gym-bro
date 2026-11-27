@@ -72,13 +72,8 @@ test("A first visit: start a workout, make a plan, explore by body area, and log
   }).toPass();
   await workout.getByRole("button", { name: "Hide the workout" }).click();
 
-  // While it runs, the start makes way for the workout in progress.
-  await expect(page.locator("[data-start-workout]")).toHaveCount(0);
-  await page.locator("[data-workout-card]").getByRole("button", { name: "Resume" }).click();
-  // Still empty, so it opens on Add exercise.
-  await page.getByRole("dialog", { name: "Add exercise" }).getByRole("button", { name: "Back to the workout" }).click();
-  await workout.getByRole("button", { name: "Discard" }).click();
-  await workout.getByRole("alertdialog").getByRole("button", { name: "Discard" }).click();
+  // Nothing was added, so nothing started: Quick add is back, with no workout in progress.
+  await expect(page.locator("[data-workout-card]")).toHaveCount(0);
   await expect(page.locator("[data-start-workout]")).toBeVisible();
 
   // Log past from the prompt; once saved, History takes the prompt's place.
@@ -135,5 +130,4 @@ test("Repeat starts the last workout again: its name, its exercises in order, an
   // Two working sets last time (the warm-up doesn't count), none ticked off yet.
   await expect(workout.locator("[data-workout-status]")).toContainText("0 of 3 sets");
   await workout.getByRole("button", { name: "Discard" }).click();
-  await workout.getByRole("alertdialog").getByRole("button", { name: "Discard" }).click();
 });

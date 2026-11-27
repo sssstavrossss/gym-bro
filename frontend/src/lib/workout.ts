@@ -57,6 +57,8 @@ export interface DraftWorkout {
   plan?: { workoutId: string; position: number } | null;
   /** Saved as skipped. Adding sets to it and saving makes it done. */
   skipped?: boolean;
+  /** The start (or end) was set by hand on the time card, so the first exercise added doesn't move it to now. */
+  timesSet?: boolean;
 }
 
 /** A set as the API sends it back (`GET /api/workouts/previous`). */
@@ -350,10 +352,56 @@ export function exerciseSummary(sets: readonly DraftSet[], measure: ExerciseMeas
 }
 
 
-/** "12:40 · 4 of 16 sets": how long it has run and the sets ticked off, for the sheet and the Train card. */
+/**
+ * "12:40 · 4 of 16 sets": how long it has run and the sets ticked off, for the sheet and the Train card. With an
+ * end set on the time card, the time stops there.
+ */
 export function workoutStatus(workout: DraftWorkout, now: number): string {
   const totals = workoutTotals(workout);
-  return `${clock(workout.startedAt ? (now - Date.parse(workout.startedAt)) / 1000 : 0)} · ${totals.sets} of ${totals.plannedSets} ${totals.plannedSets === 1 ? "set" : "sets"}`;
+  const until = workout.endedAt ? Math.min(now, Date.parse(workout.endedAt)) : now;
+  return `${clock(workout.startedAt ? (until - Date.parse(workout.startedAt)) / 1000 : 0)} · ${totals.sets} of ${totals.plannedSets} ${totals.plannedSets === 1 ? "set" : "sets"}`;
+}
+
+/** "18:05" on the device's clock. */
+export function clockTime(stamp: string | number): string {
+  return new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date(stamp));
+}
+
+/** "2026-11-27" on the device's calendar, for a date field. */
+export function localDay(stamp: string | number): string {
+  const d = new Date(stamp);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+/** A day and a time typed on the device ("2026-11-27", "18:05") as an ISO instant; null when either isn't one. */
+export function atLocal(day: string, time: string): string | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || !/^\d{2}:\d{2}$/.test(time)) return null;
+  const at = new Date(`${day}T${time}:00`);
+  return Number.isNaN(at.getTime()) ? null : at.toISOString();
+}
+
+/** The live workout's time chip: "18:05 – now", or "18:05 – 19:10" once an end is set. */
+export function timesLabel(workout: Pick<DraftWorkout, "startedAt" | "endedAt">): string {
+  if (!workout.startedAt) return "Now";
+  return `${clockTime(workout.startedAt)} – ${workout.endedAt ? clockTime(workout.endedAt) : "now"}`;
+}
+
+/** Longest a workout may run, as the server allows. */
+export const MAX_WORKOUT_HOURS = 24;
+
+/**
+ * Why a start and end typed on the time card can't be kept, or null when they can: neither in the future, the
+ * end after the start, and no longer than a day.
+ */
+export function timesProblem(startedAt: string, endedAt: string | null, now: number): string | null {
+  const start = Date.parse(startedAt);
+  if (start > now + 60_000) return "The start can't be later than now.";
+  if (!endedAt) return now - start > MAX_WORKOUT_HOURS * 3_600_000 ? "A workout can last a day at most. Set when it ended." : null;
+  const end = Date.parse(endedAt);
+  if (end > now + 60_000) return "The end can't be later than now.";
+  if (end <= start) return "The end has to come after the start.";
+  if (end - start > MAX_WORKOUT_HOURS * 3_600_000) return "A workout can last a day at most.";
+  return null;
 }
 
 /** A saved workout back as a draft to edit: each run of one exercise's sets is an exercise; a block that holds more than one exercise is a superset. */

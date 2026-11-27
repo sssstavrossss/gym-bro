@@ -50,7 +50,7 @@ test("a run saves as cardio with its pace and distance", async ({ page }) => {
   // No rest after cardio.
   await expect(workout.locator("[data-rest]")).toHaveCount(0);
 
-  await workout.getByRole("button", { name: "Finish", exact: true }).click();
+  await workout.getByRole("button", { name: /^End now/ }).click();
   const done = page.getByRole("dialog", { name: "Workout done" });
   await expect(done.locator("[data-summary-distance]")).toContainText("5 km");
   await expect(done.getByText("Volume", { exact: true })).toHaveCount(0);

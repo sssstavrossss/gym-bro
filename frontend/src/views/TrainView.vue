@@ -183,7 +183,7 @@ function logPast() {
         <span class="t-capn c2">{{ weekLine(next, plan.current.blockWeeks) }}</span>
         <span v-if="next.workout.exercises.length" class="t-capn c3 names">{{ next.workout.exercises.map((exercise) => nameOf(exercise.exerciseId)).join(" · ") }}</span>
       </span>
-      <p v-if="workout.active && !nextRunning" class="t-capn c2 m0">Finish the workout in progress to start this one.</p>
+      <p v-if="workout.active && !nextRunning" class="t-capn c2 m0">End the workout in progress to start this one.</p>
       <div class="row g8 nbtns">
         <span v-if="nextRunning" class="t-label c2" data-up-next-running>In progress</span>
         <button v-else-if="!next.workout.exercises.length" type="button" class="btn sm primary t-label" :aria-label="`Add exercises to ${next.workout.name}`" data-up-next-fill @click="openPlanWorkout(next.workout.id)"><Icon name="plus" :size="14" /> Add exercises</button>

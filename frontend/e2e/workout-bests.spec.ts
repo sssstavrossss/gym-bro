@@ -69,8 +69,8 @@ test("beating an exercise's best estimated max says so on the card and in the su
   await card.getByRole("button", { name: "Set 2 done" }).click();
   await expect(card.locator("[data-new-best]")).toHaveText("New best: est. max 93.5 kg");
 
-  await workout.getByRole("button", { name: "Finish", exact: true }).click();
-  await workout.getByRole("alertdialog").getByRole("button", { name: "Finish", exact: true }).click();
+  await workout.getByRole("button", { name: /^End now/ }).click();
+  await workout.getByRole("alertdialog").getByRole("button", { name: "End workout" }).click();
   const summary = page.getByRole("dialog", { name: "Workout done" });
   await expect(summary.locator("[data-bests-count]")).toHaveText("1 new best");
   await expect(summary.locator("[data-new-best]")).toHaveText("New best: est. max 93.5 kg, up 9.5");

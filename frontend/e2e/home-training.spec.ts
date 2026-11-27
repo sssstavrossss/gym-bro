@@ -75,7 +75,6 @@ test("Today's training card: rest day, today's workout, in progress, skipped, an
   await expect(card).toContainText("Upper A in progress");
   await card.getByRole("button", { name: "Resume" }).click();
   await workout.getByRole("button", { name: "Discard" }).click();
-  await workout.getByRole("alertdialog").getByRole("button", { name: "Discard" }).click();
   await expect(card).toHaveAttribute("data-training-today", "today");
 
   // Skipped today (from Train or elsewhere): the card says so, with the next one.
