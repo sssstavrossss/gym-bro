@@ -42,15 +42,17 @@ test("two exercises done as a superset rest after each round and save as one blo
   const workout = page.getByRole("dialog", { name: "Workout" });
   const bench = workout.locator('[data-workout-exercise="barbell-bench-press-medium-grip"]');
   // The first exercise has nothing before it to join.
+  await expect(page.locator("[data-exercise-screen]")).toBeVisible();
   await expect(bench.locator("[data-superset-prev]")).toHaveCount(0);
+  await page.getByRole("button", { name: "Back to the workout" }).click();
   await workout.getByRole("button", { name: "Exercise", exact: true }).click();
   await adding.getByLabel("Search exercises").fill("bent over barbell row");
   await adding.getByRole("button", { name: "Add Bent Over Barbell Row", exact: true }).click();
 
+  // On its own screen the second joins the first, and the workout shows them together.
+  await page.locator("[data-exercise-screen]").getByRole("button", { name: "Superset with Barbell Bench Press - Medium Grip" }).click();
   const row = workout.locator('[data-workout-exercise="bent-over-barbell-row"][data-open]');
   const join = row.getByRole("button", { name: "Superset with Barbell Bench Press - Medium Grip" });
-  await expect(join).toHaveAttribute("aria-pressed", "false");
-  await join.click();
   await expect(join).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByText("Superset: Barbell Bench Press - Medium Grip + Bent Over Barbell Row")).toBeVisible();
   const group = workout.getByRole("group", { name: "Superset: Barbell Bench Press - Medium Grip, Bent Over Barbell Row" });

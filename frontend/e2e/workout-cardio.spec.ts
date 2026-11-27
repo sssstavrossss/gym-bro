@@ -40,15 +40,17 @@ test("a run saves as cardio with its pace and distance", async ({ page }) => {
   await adding.getByRole("button", { name: "Add Run", exact: true }).click();
 
   const workout = page.getByRole("dialog", { name: "Workout" });
-  const run = workout.locator('[data-workout-exercise="run"]');
+  const run = page.locator('[data-exercise-screen][data-workout-exercise="run"]');
   // Cardio starts with one set: one run.
   await expect(run.locator("[data-set]")).toHaveCount(1);
-  await run.getByLabel("Set 1, m", { exact: true }).fill("5000");
-  await run.getByLabel("Set 1, Time", { exact: true }).fill("2500");
+  await page.getByLabel("Set 1, m", { exact: true }).fill("5000");
+  await page.getByLabel("Set 1, Time", { exact: true }).fill("2500");
   await expect(run.locator("[data-pace]")).toHaveText("Pace 5:00 /km");
-  await run.getByRole("button", { name: "Set 1 done" }).click();
+  await page.getByRole("button", { name: "Log set 1" }).click();
   // No rest after cardio.
-  await expect(workout.locator("[data-rest]")).toHaveCount(0);
+  await expect(run.locator("[data-set]").first()).toHaveAttribute("data-done", "");
+  await expect(page.locator("[data-rest]")).toHaveCount(0);
+  await page.getByRole("button", { name: "Done", exact: true }).click();
 
   await workout.getByRole("button", { name: /^End now/ }).click();
   const done = page.getByRole("dialog", { name: "Workout done" });
