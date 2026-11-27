@@ -1,5 +1,10 @@
 export const ICONS: Record<string, string> = {
   dumbbell: '<path d="M6.5 6.5v11M17.5 6.5v11M3.5 9v6M20.5 9v6M6.5 12h11"/>',
+  // Workout kinds (lib/trainingDays.ts KIND_ICONS): cardio, hybrid, mobility, sport.
+  pulse: '<path d="M22 12h-4l-3 8L9 4l-3 8H2"/>',
+  bolt: '<path d="M13 2 4 14h8l-1 8 9-12h-8l1-8z"/>',
+  stretch: '<circle cx="12" cy="4.5" r="2"/><path d="m4 9 8 2 8-2M12 11v4M8 21l4-6 4 6"/>',
+  trophy: '<path d="M7 3h10v6a5 5 0 0 1-10 0V3Z"/><path d="M7 5H4v1a3 3 0 0 0 3 3M17 5h3v1a3 3 0 0 1-3 3M12 14v4M8 21h8"/>',
   play: '<path d="M7 4.5v15l12-7.5z"/>',
   external: '<path d="M15 3h6v6M10 14 21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>',
   swap: '<path d="m16 3 4 4-4 4M20 7H4M8 21l-4-4 4-4M4 17h16"/>',

@@ -319,4 +319,11 @@ public static class PlanWorkouts
 
     public static IReadOnlyList<PlanWorkout> Parse(string? json) =>
         string.IsNullOrWhiteSpace(json) ? [] : System.Text.Json.JsonSerializer.Deserialize<List<PlanWorkout>>(json, Options) ?? [];
+
+    /// <summary>
+    /// The kind each workout is saved as once done (<see cref="WorkoutKinds.Of"/>, from its own exercises), so a planned
+    /// day can show the same icon its workout will. Not stored: it follows the exercises.
+    /// </summary>
+    public static IReadOnlyDictionary<Guid, string> Kinds(IReadOnlyList<PlanWorkout> workouts, ExerciseLibrary library) =>
+        workouts.ToDictionary(item => item.Id, item => WorkoutKinds.Of(item.Exercises.Select(exercise => exercise.ExerciseId), library));
 }
