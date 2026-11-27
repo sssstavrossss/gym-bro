@@ -114,6 +114,8 @@ onBeforeUnmount(() => observer?.disconnect());
 
 <template>
   <section ref="root" class="col lib" :aria-labelledby="titleId">
+    <!-- The search and both rows of chips stay put at the top of the sheet; only the exercises scroll under them. -->
+    <div class="col head" data-exercise-head>
     <div v-if="!bare" class="row lhead">
       <h2 :id="titleId" class="t-cap c3 section-title grow">{{ title }}</h2>
       <span v-if="exercises.state === 'ready'" class="t-capn c3" data-exercise-count>{{ shownCount }}</span>
@@ -133,6 +135,7 @@ onBeforeUnmount(() => observer?.disconnect());
       ><Icon v-if="entry.icon" :name="entry.icon" :size="14" /><span>{{ entry.label }}</span></button>
     </div>
     <PageChips :pages="chips" :current="page" :position="position" label="Muscle group" @pick="pickPage" />
+    </div>
 
     <p v-if="exercises.state === 'loading' || exercises.state === 'idle'" class="t-label c2 m0 note">Loading exercises…</p>
     <div v-else-if="exercises.state === 'failed'" class="row note">
@@ -170,6 +173,11 @@ onBeforeUnmount(() => observer?.disconnect());
 <style scoped>
 .m0 { margin: 0; }
 .lib { gap: var(--space-s); }
+/* Pinned to the top of the scrolling sheet body, on the sheet's own colour, so rows slide under it out of sight. */
+.head {
+  position: sticky; top: 0; z-index: 1; gap: var(--space-s);
+  background: var(--color-surface); padding-bottom: var(--space-xs);
+}
 .lhead { gap: var(--space-s); padding-top: var(--space-s); }
 .field input::-webkit-search-cancel-button { display: none; }
 .clr { width: var(--control-hit); height: var(--control-hit); margin-right: calc(-1 * var(--space-m)); display: inline-flex; align-items: center; justify-content: center; flex: none; }
