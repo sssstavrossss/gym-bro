@@ -64,7 +64,7 @@ test("Describe a workout: the words become exercises with their sets ticked off,
   await sheet.getByRole("button", { name: "Find exercises" }).click();
   await expect(workout.locator("[data-workout-status]")).toContainText("9 of 9 sets");
 
-  await workout.getByRole("button", { name: "Finish", exact: true }).click();
+  await workout.getByRole("button", { name: /^End now/ }).click();
   const done = page.getByRole("dialog", { name: "Workout done" });
   await expect(done.locator("[data-workout-summary]")).toContainText("60 kg × 8, 8, 8");
   await expect(done.locator("[data-workout-summary]")).toContainText("100 kg × 5, 5");

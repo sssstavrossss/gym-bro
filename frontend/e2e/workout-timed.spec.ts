@@ -60,8 +60,8 @@ async function savedToday(page: Page, oid: string) {
 
 /** Finish, confirming when sets are left unticked. */
 async function finish(workout: ReturnType<Page["getByRole"]>, unticked: boolean) {
-  await workout.getByRole("button", { name: "Finish", exact: true }).click();
-  if (unticked) await workout.getByRole("alertdialog").getByRole("button", { name: "Finish", exact: true }).click();
+  await workout.getByRole("button", { name: /^End now/ }).click();
+  if (unticked) await workout.getByRole("alertdialog").getByRole("button", { name: "End workout" }).click();
 }
 
 test("an AMRAP counts its rounds, takes the extra reps, and keeps its score", async ({ page }) => {

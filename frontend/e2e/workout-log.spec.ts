@@ -67,10 +67,10 @@ test("A workout: start it, add an exercise, tick off sets, rest, finish, and see
   await page.reload();
   await page.getByRole("button", { name: "Resume", exact: true }).click();
 
-  // Finish asks about the set not ticked off, then leaves it out.
-  await workout.getByRole("button", { name: "Finish", exact: true }).click();
+  // End now asks about the set not ticked off, then leaves it out.
+  await workout.getByRole("button", { name: /^End now/ }).click();
   await expect(workout.getByRole("alertdialog")).toContainText("1 set isn't ticked off");
-  await workout.getByRole("alertdialog").getByRole("button", { name: "Finish", exact: true }).click();
+  await workout.getByRole("alertdialog").getByRole("button", { name: "End workout" }).click();
 
   const done = page.getByRole("dialog", { name: "Workout done" });
   await expect(done.locator("[data-workout-summary]")).toContainText("1,200 kg");
@@ -98,10 +98,11 @@ test("A workout: start it, add an exercise, tick off sets, rest, finish, and see
   await expect(page.getByRole("dialog", { name: "Barbell Bench Press - Medium Grip" })).toHaveCount(0);
   await expect(workout).toBeVisible();
 
-  // Discard throws it away.
+  // Discard throws it away, with Undo.
   await workout.getByRole("button", { name: "Discard" }).click();
-  await workout.getByRole("alertdialog").getByRole("button", { name: "Discard" }).click();
   await expect(page.getByRole("button", { name: "Empty workout" })).toBeVisible();
+  await page.locator(".toast.front").filter({ hasText: "Workout discarded" }).getByRole("button", { name: "Undo" }).click();
+  await expect(page.locator("[data-workout-card]")).toBeVisible();
 });
 
 test("History: open a past workout to edit it, delete it with Undo, and log one afterwards", async ({ page }) => {

@@ -72,8 +72,8 @@ test("two exercises done as a superset rest after each round and save as one blo
   await openBench.getByRole("button", { name: "Set 2 done" }).click();
   await expect(rest).toHaveCount(0);
 
-  await workout.getByRole("button", { name: "Finish", exact: true }).click();
-  await workout.getByRole("alertdialog").getByRole("button", { name: "Finish", exact: true }).click();
+  await workout.getByRole("button", { name: /^End now/ }).click();
+  await workout.getByRole("alertdialog").getByRole("button", { name: "End workout" }).click();
   await page.getByRole("dialog", { name: "Workout done" }).getByRole("button", { name: "Done", exact: true }).click();
 
   const today = await page.evaluate(() => new Intl.DateTimeFormat("en-CA", { year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date()));

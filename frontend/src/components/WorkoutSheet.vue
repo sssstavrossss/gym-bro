@@ -8,9 +8,11 @@ import Keypad from "./Keypad.vue";
 import WorkoutExercise, { type CellEdit } from "./WorkoutExercise.vue";
 import TimedBlock from "./TimedBlock.vue";
 import WorkoutDescribe from "./WorkoutDescribe.vue";
+import WorkoutTimes from "./WorkoutTimes.vue";
 import { keyboardEntry } from "../lib/viewport";
 import {
   clock,
+  clockTime,
   currentExercise,
   exerciseGroups,
   exerciseSummary,
@@ -24,6 +26,7 @@ import {
   restLeft,
   samePart,
   shortDay,
+  timesLabel,
   typeKey,
   undoneSets,
   workoutStatus,
@@ -45,6 +48,7 @@ import {
   removeExercise,
   restoreExercise,
   restorePast,
+  restoreWorkout,
   savePast,
   setValue,
   shiftRest,
@@ -74,7 +78,10 @@ const today = computed(() => todayInZone(deviceTimeZone(), new Date(now.value)))
 const view = ref<"log" | "add" | "swap" | "describe">("log");
 /** The exercise being swapped, on the swap screen. */
 const swapping = ref<{ key: string; exerciseId: string } | null>(null);
-const confirming = ref<null | "undone" | "empty" | "discard">(null);
+/** End's check, in the footer where End was tapped: sets not ticked off, or nothing ticked off at all. */
+const confirming = ref<null | "undone" | "empty">(null);
+/** The time card, opened from the header's time chip. */
+const timesOpen = ref(false);
 const waiting = ref(false);
 /** The exercise opened by tapping it. Null follows the first one with sets to do. */
 const chosen = ref<string | null>(null);
@@ -95,8 +102,12 @@ watch(open, (shown) => {
   window.clearInterval(timer);
   timer = undefined;
   if (!shown) {
+    // A quick workout closed before anything was added was never really started: it goes, quietly.
+    const idle = workout.active;
+    if (idle && !idle.exercises.length && !idle.plan && !workout.past) discardWorkout();
     edit.key = null;
     confirming.value = null;
+    timesOpen.value = false;
     pastError.value = "";
     closePast();
     resetWorkoutDescribe();
@@ -195,6 +206,7 @@ function doneTyping() {
 async function pick(exerciseId: string) {
   const key = await addExercise(exerciseId);
   chosen.value = key;
+  timesOpen.value = false;
   view.value = "log";
   await nextTick();
   document.querySelector(`[data-workout-exercise="${exerciseId}"][data-open]`)?.scrollIntoView({ block: "nearest" });
@@ -242,6 +254,7 @@ function remove(key: string) {
   toast(`${name} removed`, { label: "Undo", run: () => restoreExercise(removed) });
 }
 
+/** End now, or at the end set on the time card. Sets not ticked off are left out, after asking. */
 async function finish(anyway = false) {
   const current = active.value;
   if (!current || workout.saving) return;
@@ -262,12 +275,19 @@ async function finish(anyway = false) {
 }
 
 function discard() {
-  discardWorkout();
+  const dropped = discardWorkout();
   confirming.value = null;
   chosen.value = null;
   closeSheet();
-  toast("Workout discarded");
+  if (!dropped) return;
+  toast("Workout discarded", { label: "Undo", run: () => { if (!restoreWorkout(dropped)) toastError("Another workout has started since."); } });
 }
+
+/** The live footer's main button: "End now · 18:47", or "End at 19:10" once an end is set. */
+const endLabel = computed(() => (active.value?.endedAt ? `End at ${clockTime(active.value.endedAt)}` : "End now"));
+const endWhen = computed(() => (active.value?.endedAt ? "" : clockTime(now.value)));
+/** A quick workout with nothing in it yet: Add exercise is its first screen, closed with × instead of going back. */
+const fresh = computed(() => !!active.value && !active.value.exercises.length && !active.value.plan && !past.value);
 
 function closeDone() {
   closeSummary();
@@ -347,9 +367,14 @@ async function deletePastNow() {
         <button type="button" class="cbtn" aria-label="Close" @click="closeDone"><Icon name="x" :size="18" /></button>
       </div>
       <div v-else-if="view === 'add'" class="row hdr">
-        <button type="button" class="cbtn" aria-label="Back to the workout" @click="view = 'log'"><Icon name="left" :size="18" /></button>
+        <button v-if="!fresh" type="button" class="cbtn" aria-label="Back to the workout" @click="view = 'log'"><Icon name="left" :size="18" /></button>
         <h2 class="t-head m0 grow">Add exercise</h2>
+        <button
+          v-if="fresh && active" type="button" class="btn sm secondary t-label tnum" :aria-expanded="timesOpen" aria-label="Times: starts now"
+          data-workout-times-chip @click="timesOpen = !timesOpen"
+        ><Icon name="clock" :size="14" /> {{ active.timesSet ? timesLabel(active) : "Now" }}</button>
         <button v-if="describe.available" type="button" class="btn sm secondary t-label" data-describe-workout @click="startDescribe"><Icon name="sparkle" :size="14" /> Describe</button>
+        <button v-if="fresh" type="button" class="cbtn" aria-label="Close" @click="closeSheet"><Icon name="x" :size="18" /></button>
       </div>
       <div v-else-if="view === 'describe'" class="row hdr">
         <button type="button" class="cbtn" aria-label="Back to the workout" @click="view = 'log'"><Icon name="left" :size="18" /></button>
@@ -371,7 +396,10 @@ async function deletePastNow() {
           <h2 class="t-head m0">{{ active.name ?? "Workout" }}</h2>
           <span class="t-capn c2" data-workout-status>{{ workoutStatus(active, now) }}</span>
         </span>
-        <button type="button" class="btn sm primary t-label" :disabled="workout.saving" @click="finish()">Finish</button>
+        <button
+          type="button" class="btn sm secondary t-label tnum" :aria-expanded="timesOpen" :aria-label="`Times: ${timesLabel(active)}`"
+          data-workout-times-chip @click="timesOpen = !timesOpen"
+        ><Icon name="clock" :size="14" /> {{ timesLabel(active) }}</button>
         <button type="button" class="cbtn" aria-label="Hide the workout" @click="closeSheet"><Icon name="down" :size="18" /></button>
       </div>
     </template>
@@ -397,7 +425,10 @@ async function deletePastNow() {
       </ul>
     </div>
 
-    <ExerciseBrowser v-else-if="view === 'add'" title="Exercises" title-id="workout-add-title" action="add" recent @pick="pick" />
+    <div v-else-if="view === 'add'" class="col addv">
+      <WorkoutTimes v-if="fresh && timesOpen" :now="now" />
+      <ExerciseBrowser title="Exercises" title-id="workout-add-title" action="add" recent @pick="pick" />
+    </div>
     <WorkoutDescribe v-else-if="view === 'describe'" @find="findNow" />
     <SwapList v-else-if="view === 'swap' && swapping" :key="swapping.key" :exercise-id="swapping.exerciseId" @pick="swapTo" />
 
@@ -432,25 +463,7 @@ async function deletePastNow() {
     </div>
 
     <div v-else-if="active" class="col body">
-      <div v-if="confirming" class="card outline confirm" role="alertdialog" aria-labelledby="wc-h" aria-describedby="wc-d">
-        <template v-if="confirming === 'undone'">
-          <h3 id="wc-h" class="t-head m0">Finish now?</h3>
-          <p id="wc-d" class="t-label c2 m0">{{ undoneSets(active) }} {{ undoneSets(active) === 1 ? "set isn't" : "sets aren't" }} ticked off. They're left out.</p>
-          <div class="row cbtns">
-            <button type="button" class="btn sm primary t-label" @click="finish(true)">Finish</button>
-            <button type="button" class="btn sm secondary t-label" @click="confirming = null">Keep going</button>
-          </div>
-        </template>
-        <template v-else>
-          <h3 id="wc-h" class="t-head m0">{{ confirming === "empty" ? "Nothing ticked off yet" : "Discard this workout?" }}</h3>
-          <p id="wc-d" class="t-label c2 m0">{{ confirming === "empty" ? "Tick off a set to finish, or discard the workout." : "Nothing in it is saved." }}</p>
-          <div class="row cbtns">
-            <button type="button" class="btn sm secondary t-label" @click="discard">Discard</button>
-            <button type="button" class="btn sm primary t-label" @click="confirming = null">Keep going</button>
-          </div>
-        </template>
-      </div>
-
+      <WorkoutTimes v-if="timesOpen" :now="now" />
       <div v-if="workoutDescribe.unmatched" class="well row unmatched" role="status" data-describe-unmatched>
         <span class="t-label grow">{{ workoutDescribe.unmatched }}</span>
         <button type="button" class="cbtn" aria-label="Dismiss" @click="workoutDescribe.unmatched = ''"><Icon name="x" :size="16" /></button>
@@ -475,8 +488,6 @@ async function deletePastNow() {
       <div class="row more">
         <button type="button" class="btn sm secondary t-label" @click="view = 'add'"><Icon name="plus" :size="14" /> Exercise</button>
         <button v-if="describe.available" type="button" class="btn sm secondary t-label" data-describe-workout @click="startDescribe"><Icon name="sparkle" :size="14" /> Describe</button>
-        <span class="grow" />
-        <button type="button" class="btn sm secondary t-label" @click="confirming = 'discard'"><Icon name="trash" :size="14" /> Discard</button>
       </div>
     </div>
 
@@ -507,8 +518,8 @@ async function deletePastNow() {
         <button type="button" class="btn primary t-bodys grow" :disabled="workout.saving" @click="savePastNow">Save</button>
       </div>
     </template>
-    <template v-else-if="active && left != null && view === 'log'" #footer>
-      <div class="col" data-rest>
+    <template v-else-if="active && view === 'log'" #footer>
+      <div v-if="left != null" class="col" data-rest>
         <div class="row rest">
           <span class="col grow g2">
             <span class="t-capn c2">{{ left ? "Rest" : "Rest over" }}</span>
@@ -520,6 +531,31 @@ async function deletePastNow() {
         </div>
         <span class="restbar" aria-hidden="true"><span class="restfill" :style="{ transform: `scaleX(${restShare})` }" /></span>
       </div>
+      <!-- End's check takes End's place, so the answer is under the finger that asked. -->
+      <div v-if="confirming" class="col confirm" role="alertdialog" aria-labelledby="wc-h" aria-describedby="wc-d" data-end-confirm>
+        <template v-if="confirming === 'undone'">
+          <h3 id="wc-h" class="t-bodys m0">End the workout?</h3>
+          <p id="wc-d" class="t-label c2 m0">{{ undoneSets(active) }} {{ undoneSets(active) === 1 ? "set isn't" : "sets aren't" }} ticked off. They're left out.</p>
+          <div class="row endacts">
+            <button type="button" class="btn secondary t-bodys" @click="confirming = null">Keep going</button>
+            <button type="button" class="btn primary t-bodys fill" :disabled="workout.saving" @click="finish(true)">End workout</button>
+          </div>
+        </template>
+        <template v-else>
+          <h3 id="wc-h" class="t-bodys m0">Nothing ticked off yet</h3>
+          <p id="wc-d" class="t-label c2 m0">Tick off a set to save the workout, or discard it.</p>
+          <div class="row endacts">
+            <button type="button" class="btn secondary t-bodys" @click="discard"><Icon name="trash" :size="16" /> Discard</button>
+            <button type="button" class="btn primary t-bodys fill" @click="confirming = null">Keep going</button>
+          </div>
+        </template>
+      </div>
+      <div v-else class="row endacts" data-workout-end>
+        <button type="button" class="btn secondary t-bodys" data-workout-discard @click="discard"><Icon name="trash" :size="16" /> Discard</button>
+        <button type="button" class="btn primary t-bodys fill" :disabled="workout.saving" data-workout-end-now @click="finish()">
+          <span class="tnum">{{ endWhen ? `${endLabel} · ${endWhen}` : endLabel }}</span>
+        </button>
+      </div>
     </template>
   </BottomSheet>
 </template>
@@ -530,8 +566,15 @@ async function deletePastNow() {
 /* The large text sizes wrap every .row (main.css); the header keeps its buttons beside the title. */
 .row.hdr { gap: var(--space-s); flex-wrap: nowrap; }
 .body { gap: var(--space-s); padding-bottom: var(--space-l); }
-.confirm { gap: var(--space-s); }
-.cbtns { gap: var(--space-s); flex-wrap: wrap; }
+.confirm { gap: var(--space-xs); }
+.addv { gap: var(--space-m); }
+/* Discard and End side by side; End takes the room that's left. At XL they stack. */
+.row.endacts { gap: var(--space-s); flex-wrap: nowrap; }
+.confirm .endacts { padding-top: var(--space-xs); }
+.endacts .fill { flex: 1 1 0; min-width: 0; }
+html.dt-xl .row.endacts { flex-wrap: wrap; }
+html.dt-xl .endacts .btn { flex-basis: 100%; }
+.tnum { font-variant-numeric: tabular-nums; }
 .empty { padding: var(--space-m); }
 /* A superset or circuit: its exercises under one heading, joined by a rail down the left. */
 .solo { display: contents; }

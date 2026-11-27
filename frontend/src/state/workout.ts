@@ -192,8 +192,10 @@ async function loadPrevious(exerciseId: string): Promise<void> {
 }
 
 /** Adds an exercise with as many sets as last time (3 when it is new, 1 for cardio: one run), and loads its "last time". */
-export async function addExercise(exerciseId: string): Promise<string> {
-  const active = editing() ?? startWorkout();
+export async function addExercise(exerciseId: string, now = new Date()): Promise<string> {
+  const active = editing() ?? startWorkout(now);
+  // Quick add starts at "now": the first exercise moves the start to when it was added, unless it was set by hand.
+  if (active === workout.active && !active.exercises.length && !active.timesSet && !active.plan) active.startedAt = now.toISOString();
   await loadPrevious(exerciseId);
   const last = workout.previous[exerciseId];
   const sets = Array.from({ length: startingSets(last, exerciseItem(exerciseId)?.category === "cardio") }, () => emptySet());
@@ -522,8 +524,33 @@ export function shiftRest(seconds: number | null, now = new Date()): void {
   save();
 }
 
-export function discardWorkout(): void {
+/** Drops the workout in progress and hands it back, so Undo can bring it back whole. */
+export function discardWorkout(): DraftWorkout | null {
+  const dropped = workout.active;
   workout.active = null;
+  save();
+  return dropped;
+}
+
+/** Undo for Discard: the workout comes back as it was, unless another has started since. */
+export function restoreWorkout(dropped: DraftWorkout): boolean {
+  if (workout.active) return false;
+  workout.active = dropped;
+  save();
+  return true;
+}
+
+/**
+ * The time card: when the workout started, and when it ended (null: still going). The day follows the start.
+ * Checked with `timesProblem` first.
+ */
+export function setWorkoutTimes(startedAt: string, endedAt: string | null): void {
+  const active = workout.active;
+  if (!active) return;
+  active.startedAt = startedAt;
+  active.endedAt = endedAt;
+  active.date = todayInZone(deviceTimeZone(), new Date(startedAt));
+  active.timesSet = true;
   save();
 }
 
@@ -544,7 +571,8 @@ export function forgetWorkouts(): void {
 export async function finishWorkout(now = new Date()): Promise<"saved" | "waiting" | "failed"> {
   const active = workout.active;
   if (!active) return "failed";
-  const done = finished(active, now);
+  // An end set on the time card is when it ended; otherwise it ends now.
+  const done = finished(active, active.endedAt ? new Date(active.endedAt) : now);
   let outcome: "saved" | "waiting" | "failed";
   workout.saving = true;
   try {
