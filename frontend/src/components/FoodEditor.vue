@@ -36,6 +36,7 @@ import {
 } from "../lib/customFood";
 import BarcodeScanner from "./BarcodeScanner.vue";
 import Icon from "./Icon.vue";
+import NumberField from "./NumberField.vue";
 import Segmented from "./Segmented.vue";
 
 const props = defineProps<{
@@ -234,6 +235,11 @@ const fields = [
   ["fat", "Fat", "g"],
   ["carbs", "Carbs", "g"],
 ] as const;
+const macroText = { kcal, protein, fat, carbs };
+/** On the wheel, a value per 100 g tops out at 1,200 kcal or 100 g; per serving at 10,000 kcal or 1,000 g. */
+const per = computed(() => (basis.value === "100g" ? "per 100 g" : "per serving"));
+const kcalMax = computed(() => (basis.value === "100g" ? 1200 : 10000));
+const gramsMax = computed(() => (basis.value === "100g" ? 100 : 1000));
 </script>
 
 <template>
@@ -275,7 +281,7 @@ const fields = [
         <input v-model="servingName" class="field t-body" type="text" autocomplete="off" placeholder="serving" />
       </label>
       <label class="fl col grow"><span class="t-capm c2">Serving size · optional</span>
-        <span class="field t-body"><input v-model="servingGrams" class="bare grow t-body" inputmode="decimal" autocomplete="off" placeholder="e.g. 60" /><span class="c2">g</span></span>
+        <span class="field t-body"><NumberField v-model="servingGrams" class="bare grow t-body" dial="food.grams" label="Serving size in grams" placeholder="e.g. 60" /><span class="c2">g</span></span>
       </label>
     </div>
     <p v-if="servingOnly" class="t-capn c2 m0">{{ servingOnlyNote }}</p>
@@ -284,10 +290,10 @@ const fields = [
       <label v-for="[key, label, unit] in fields" :key="key" class="fl col">
         <span class="t-capm c2">{{ label }}<span v-if="key === 'kcal'" aria-hidden="true"> *</span> <span class="sub">{{ basis === "100g" ? "/100 g" : "/serving" }}</span></span>
         <span class="field t-body" :class="{ bad: key === 'kcal' && errKcal }">
-          <input v-if="key === 'kcal'" v-model="kcal" class="bare grow t-body" inputmode="decimal" autocomplete="off" placeholder="0" required :aria-invalid="errKcal" />
-          <input v-else-if="key === 'protein'" v-model="protein" class="bare grow t-body" inputmode="decimal" autocomplete="off" placeholder="0" />
-          <input v-else-if="key === 'fat'" v-model="fat" class="bare grow t-body" inputmode="decimal" autocomplete="off" placeholder="0" />
-          <input v-else v-model="carbs" class="bare grow t-body" inputmode="decimal" autocomplete="off" placeholder="0" />
+          <NumberField
+            v-model="macroText[key].value" class="bare grow t-body" :dial="key === 'kcal' ? 'label.kcal' : 'label.grams'" :label="`${label} ${per}`"
+            :max="key === 'kcal' ? kcalMax : gramsMax" placeholder="0" :invalid="key === 'kcal' && errKcal"
+          />
           <span class="c2">{{ unit }}</span>
         </span>
       </label>
@@ -300,7 +306,7 @@ const fields = [
       <label v-for="key in EXTRA_KEYS" :key="key" class="fl col">
         <span class="t-capm c2">{{ EXTRA_LABELS[key] }} <span class="sub">{{ basis === "100g" ? "/100 g" : "/serving" }}</span></span>
         <span class="field t-body">
-          <input v-model="extra[key]" class="bare grow t-body" inputmode="decimal" autocomplete="off" placeholder="optional" />
+          <NumberField v-model="extra[key]" class="bare grow t-body" dial="label.grams" :label="`${EXTRA_LABELS[key]} ${per}`" :max="gramsMax" placeholder="optional" />
           <span class="c2">g</span>
         </span>
       </label>
@@ -332,7 +338,7 @@ const fields = [
 .m0 { margin: 0; }
 input.field { width: 100%; }
 .field.bad { box-shadow: inset 0 0 0 1.5px var(--text-primary); }
-.bare { background: transparent; border: 0; outline: 0; color: inherit; font: inherit; min-width: 0; padding: 0; height: 100%; width: 100%; }
+.bare { background: transparent; border: 0; outline: 0; color: inherit; font: inherit; min-width: 0; padding: 0; height: 100%; width: 100%; text-align: left; }
 .bare::placeholder { color: var(--text-tertiary); }
 .grid4 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-s); }
 .sub { color: var(--text-secondary); font-weight: 400; text-transform: none; letter-spacing: 0; }

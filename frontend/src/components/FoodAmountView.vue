@@ -2,6 +2,7 @@
 import { computed, reactive, ref } from "vue";
 import AmountScreen, { type AmountChip, type AmountUnit } from "./AmountScreen.vue";
 import Icon from "./Icon.vue";
+import NumberField from "./NumberField.vue";
 import NutrientCard from "./NutrientCard.vue";
 import { primeKeyboard } from "../lib/focusField";
 import { amountDial, dialSpec } from "../lib/dial";
@@ -114,7 +115,10 @@ function editServing(row: OwnServing) {
           <span class="t-label">1</span>
           <input v-model="a.servingNameText" v-autofocus class="field sinp t-body" type="text" maxlength="16" autocomplete="off" aria-label="Serving name" placeholder="slice" />
           <span class="t-label">=</span>
-          <input v-model="a.servingGrams" class="field sinp t-body num" inputmode="decimal" autocomplete="off" :aria-label="`${a.servingWord === 'oz' ? 'Ounces' : 'Grams'} in one serving`" :placeholder="a.servingWord === 'oz' ? '1.2' : '35'" @keydown.enter.prevent="a.saveServing" />
+          <NumberField
+            v-model="a.servingGrams" class="field sinp t-body num" :dial="a.servingWord === 'oz' ? 'food.oz' : 'food.grams'" :label="`${a.servingWord === 'oz' ? 'Ounces' : 'Grams'} in one serving`"
+            :placeholder="a.servingWord === 'oz' ? '1.2' : '35'" @keydown.enter.prevent="a.saveServing"
+          />
           <span class="t-label c2">{{ a.servingWord }}</span>
           <button type="button" class="btn sm primary t-label" :disabled="Boolean(a.servingProblem) || a.savingServing" @click="a.saveServing"><Icon name="check" :size="14" :sw="2.4" /> Save</button>
         </div>

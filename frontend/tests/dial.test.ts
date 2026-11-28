@@ -228,3 +228,24 @@ describe("Quick Add's wheels", () => {
     expect(Math.min(...DIAL_PRESETS["quick.grams"].steps)).toBe(0.5);
   });
 });
+
+describe("the forms' wheels", () => {
+  it("keep a profile inside what it saves", () => {
+    expect(DIAL_PRESETS["body.height.cm"]).toMatchObject({ min: 100, max: 250 });
+    expect(DIAL_PRESETS["body.height.in"]).toMatchObject({ min: 0, max: 11.5, format: "half" });
+    expect(DIAL_PRESETS["profile.protein"]).toMatchObject({ min: 1.2, max: 3, steps: [0.1] });
+    expect(DIAL_PRESETS["profile.fat"]).toMatchObject({ min: 15, max: 40, steps: [5] });
+  });
+
+  it("take a birth year's range from the screen, and show it without a thousands comma", () => {
+    const spec = dialSpec("body.year", { label: "Birth year", value: null, min: 1926, max: 2013 });
+    expect(spec).toMatchObject({ min: 1926, max: 2013, value: 1990 });
+    expect(dialText(1990, spec.format, spec.step)).toBe("1990");
+  });
+
+  it("let a food's label top out per 100 g or per serving", () => {
+    expect(dialSpec("label.kcal", { label: "Calories per 100 g", value: 370, max: 1200 }).max).toBe(1200);
+    expect(dialSpec("label.grams", { label: "Fat per serving", value: null, max: 1000 })).toMatchObject({ max: 1000, value: 0 });
+    expect(DIAL_PRESETS["label.grams"].steps).toContain(0.1);
+  });
+});

@@ -95,7 +95,8 @@ test.describe("phone inputs", () => {
     expect(await name.evaluate((node) => parseFloat(getComputedStyle(node).fontSize))).toBeGreaterThan(16);
 
     await page.goto("/profile");
-    const year = page.getByRole("textbox", { name: "Birth year" });
+    // A phone picks the birth year on the wheel: the button keeps the field's type size.
+    const year = page.getByRole("button", { name: /^Birth year,/ });
     await expect(year).toBeVisible();
     expect(await year.evaluate((node) => parseFloat(getComputedStyle(node).fontSize))).toBeGreaterThanOrEqual(16);
     await page.getByRole("button", { name: "Settings" }).click();

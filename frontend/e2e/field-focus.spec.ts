@@ -299,12 +299,14 @@ test("profile does not focus a field when it loads", async ({ page }) => {
 test.describe("setup", () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
 
-  test("setup focuses the birth year", async ({ page }) => {
+  test("setup picks the birth year on the wheel, so no keyboard comes up", async ({ page }) => {
     const oid = `e2e-setup-focus-${Date.now()}-${test.info().project.name}`;
     await sign(page, oid);
     await page.goto("/setup");
-    const year = page.getByRole("textbox", { name: "Birth year" });
-    await expectReplace(page, year, "1992");
+    await expect(page.getByRole("textbox", { name: "Birth year" })).toHaveCount(0);
+    const year = page.getByRole("button", { name: /^Birth year,/ });
+    await pick(page, year, 1992);
+    await expect(year).toHaveText("1992");
     await fieldsAtLeast16(page.locator("main"));
   });
 });

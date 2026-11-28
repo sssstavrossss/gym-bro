@@ -47,8 +47,8 @@ test("units: pounds and feet in Settings, typed values kept exactly", async ({ p
   await expect(goal).toBeVisible();
   await expect(page.getByText("lb/wk")).toBeVisible();
   await expect(page.getByRole("radiogroup", { name: "Rate" }).getByRole("radio", { name: "1.1" })).toHaveAttribute("aria-checked", "true");
-  await expect(page.getByRole("textbox", { name: "Height, feet" })).toHaveValue("5");
-  await expect(page.getByRole("textbox", { name: "Height, inches" })).toHaveValue("10.9");
+  await expect(page.getByRole("button", { name: /^Height, feet,/ })).toHaveText("5");
+  await expect(page.getByRole("button", { name: /^Height, inches,/ })).toHaveText("10.9");
   await expect(page.locator("[data-goal-line]")).toContainText("lb");
   await expect(page.getByRole("button", { name: /Weight.*184\.3 lb/ })).toBeVisible();
   if (test.info().project.name === "chromium") {
@@ -69,10 +69,8 @@ test("units: pounds and feet in Settings, typed values kept exactly", async ({ p
   await goalSheet.getByRole("button", { name: "Save" }).click();
   await expect(goalSheet).toBeHidden();
   await expect.poll(async () => (await (await page.request.get("/api/profile", { headers })).json()).profile.goalWeightKg).toBe(74.84);
-  // A height typed in feet and inches.
-  const inches = page.getByRole("textbox", { name: "Height, inches" });
-  await inches.fill("11");
-  await inches.blur();
+  // A height picked in feet and inches.
+  await pick(page, page.getByRole("button", { name: /^Height, inches,/ }), 11);
   await expect.poll(async () => (await (await page.request.get("/api/profile", { headers })).json()).profile.heightCm).toBe(180.3);
 
   // A weigh-in typed in pounds comes back as typed.
@@ -93,7 +91,7 @@ test("units: pounds and feet in Settings, typed values kept exactly", async ({ p
   // After a reload the units and values stay.
   await page.reload();
   await expect(page.getByRole("button", { name: /^Goal weight 165 lb\b/ })).toBeVisible();
-  await expect(page.getByRole("textbox", { name: "Height, inches" })).toHaveValue("11");
+  await expect(page.getByRole("button", { name: /^Height, inches,/ })).toHaveText("11");
 
   // Home follows.
   await page.goto("/today");
@@ -114,19 +112,20 @@ test("units: Setup in pounds and feet", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Set up" })).toBeVisible();
 
   await page.getByRole("radio", { name: "Male", exact: true }).click();
-  await page.getByRole("textbox", { name: "Birth year" }).fill(String(new Date().getFullYear() - 36));
-  await page.getByRole("textbox", { name: "Height in centimetres" }).fill("180");
+  // On a phone each number is picked on the wheel.
+  await pick(page, page.getByRole("button", { name: /^Birth year,/ }), new Date().getFullYear() - 36);
+  await pick(page, page.getByRole("button", { name: /^Height in centimetres,/ }), 180);
   // Switching carries what was typed.
   await page.getByRole("radiogroup", { name: "Height unit" }).getByRole("radio", { name: "feet and inches" }).click();
-  await expect(page.getByRole("textbox", { name: "Height, feet" })).toHaveValue("5");
-  await expect(page.getByRole("textbox", { name: "Height, inches" })).toHaveValue("10.9");
+  await expect(page.getByRole("button", { name: /^Height, feet,/ })).toHaveText("5");
+  await expect(page.getByRole("button", { name: /^Height, inches,/ })).toHaveText("10.9");
   await page.getByRole("radiogroup", { name: "Weight unit" }).getByRole("radio", { name: "lb" }).click();
   await page.getByRole("button", { name: "Activity" }).click();
   await page.getByRole("button", { name: "Moderate" }).click();
   await page.getByRole("radio", { name: "Lose" }).click();
   await page.getByRole("button", { name: "1.1" }).click();
-  await page.getByRole("textbox", { name: "Goal weight in pounds" }).fill("165");
-  await page.getByRole("textbox", { name: "Starting weight in pounds" }).fill("184,3");
+  await pick(page, page.getByRole("button", { name: /^Goal weight in pounds,/ }), 165);
+  await pick(page, page.getByRole("button", { name: /^Starting weight in pounds,/ }), "184.3");
   if (test.info().project.name === "chromium") {
     await page.screenshot({ path: "/opt/cursor/artifacts/units-setup.png", fullPage: true });
   }
