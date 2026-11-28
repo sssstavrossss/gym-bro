@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, ref, watch } from "vue";
 import Icon from "./Icon.vue";
+import { holdNoSelect } from "../lib/noSelect";
 
 // A small menu that floats over the page from the thing tapped (README, *Logging a workout*; DESIGN.md): the
 // workout timeline's +, an exercise's photo, a held set. It opens under its anchor, or over it when there's no room
@@ -74,22 +75,15 @@ function onKey(event: KeyboardEvent) {
  * A long press opens the menu while the finger is still down, on the scrim. iOS then counts the same press as a
  * text-selection hold and selects the whole sheet behind it, so nothing on the page starts a selection while it's open.
  */
-function noSelect(event: Event) {
-  event.preventDefault();
-}
-function clearSelection() {
-  const selection = window.getSelection();
-  if (selection && !selection.isCollapsed) selection.removeAllRanges();
-}
+let releaseSelect: (() => void) | null = null;
 function listen(on: boolean) {
   if (on) {
     window.addEventListener("keydown", onKey, true);
-    document.addEventListener("selectstart", noSelect, true);
-    document.addEventListener("selectionchange", clearSelection);
+    releaseSelect ??= holdNoSelect();
   } else {
     window.removeEventListener("keydown", onKey, true);
-    document.removeEventListener("selectstart", noSelect, true);
-    document.removeEventListener("selectionchange", clearSelection);
+    releaseSelect?.();
+    releaseSelect = null;
   }
 }
 
@@ -97,7 +91,6 @@ watch(() => props.anchor, (anchor) => {
   listen(false);
   if (!anchor) return;
   openedAt = Date.now();
-  clearSelection();
   listen(true);
   void place(anchor);
 }, { immediate: true });
