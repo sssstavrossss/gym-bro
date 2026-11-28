@@ -29,6 +29,7 @@ import { dialSpec, REST_HINTS, restDial } from "../lib/dial";
 import { moveExercise, moveSet, setUnit, type MoveAsk, type MoveContext, type MoveVerdict } from "../lib/timelineMove";
 import { exercisePlace, joinAt, landing, runBlocks, setPlace, shiftOf, type Box, type Neighbour, type Slot } from "../lib/timelineDrag";
 import { scrollParent } from "../lib/cleanTap";
+import { holdNoSelect } from "../lib/noSelect";
 import { exercises as library } from "../state/exercises";
 import { describe } from "../state/describe";
 import {
@@ -384,6 +385,20 @@ async function pickUp(row: TimelineRow, anchor: Element, from: From, what: Pick<
 let headTimer: number | undefined;
 let headFrom: From | null = null;
 let headHeld = false;
+// A finger down on the timeline may turn into a hold. iOS reads a hold as the start of a text selection and jumps to
+// the nearest text it can select (the footer's Discard), so nothing on the page may be selected until it lifts.
+let releaseSelect: (() => void) | null = null;
+function fingerDown(event: PointerEvent) {
+  if (event.pointerType === "mouse" || releaseSelect) return;
+  releaseSelect = holdNoSelect();
+  const up = () => {
+    window.removeEventListener("pointerup", up, true);
+    window.removeEventListener("pointercancel", up, true);
+    window.setTimeout(() => { releaseSelect?.(); releaseSelect = null; }, 0);
+  };
+  window.addEventListener("pointerup", up, true);
+  window.addEventListener("pointercancel", up, true);
+}
 function headPress(event: PointerEvent, row: TimelineRow) {
   headHeld = false;
   if ((row.type !== "exercise" && row.type !== "run") || event.button !== 0 || drag.value || workout.saving) return;
@@ -623,11 +638,12 @@ onBeforeUnmount(() => {
   cancelAnimationFrame(scrollRaf);
   window.clearTimeout(headTimer);
   list.value?.removeEventListener("touchmove", onTouchMove);
+  releaseSelect?.();
 });
 
 // ---- The rail ----
 // Drawn from where the nodes landed, so it follows the rows whatever they hold and at any text size.
-const LANE_X: Record<Lane, number> = { 0: 14, 1: 40 };
+const LANE_X: Record<Lane, number> = { 0: 16, 1: 44 };
 interface Stretch { d: string; kind: "done" | "next" | "rest"; lane: Lane; x0: number; y0: number; y1: number }
 const stretches = ref<Stretch[]>([]);
 const railH = ref(0);
@@ -685,8 +701,8 @@ const infoLines = (exercise: DraftExercise) => Object.entries(info(exercise)).so
 </script>
 
 <template>
-  <ol ref="list" class="tl" :class="{ dragging: !!drag, settling }" aria-label="The workout, in order" data-timeline @selectstart.prevent>
-    <svg class="rail" :height="railH" width="56" aria-hidden="true">
+  <ol ref="list" class="tl" :class="{ dragging: !!drag, settling }" aria-label="The workout, in order" data-timeline @selectstart.prevent @pointerdown.capture="fingerDown">
+    <svg class="rail" :height="railH" width="70" aria-hidden="true">
       <path v-for="path in paths" :key="path.key" :d="path.d" :class="path.cls" fill="none" />
     </svg>
 
@@ -842,7 +858,7 @@ const infoLines = (exercise: DraftExercise) => Object.entries(info(exercise)).so
 /* The rail's gutter holds both lanes; the rows sit to its right. No text selection or iOS callout on it: a long
    press is the set's menu. iOS ignores user-select on a long hold, so the list also cancels selectstart. */
 .tl {
-  --gutter: 56px; position: relative; list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column;
+  --gutter: 70px; position: relative; list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column;
   -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
 }
 .rail { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
@@ -858,6 +874,11 @@ const infoLines = (exercise: DraftExercise) => Object.entries(info(exercise)).so
 .ev.part { min-height: 0; padding-top: var(--space-m); }
 .ev.run { flex-direction: column; align-items: stretch; margin-top: var(--space-s); }
 .ev.run > :deep(*) { min-width: 0; }
+/* A hairline under each exercise and set, from where the text starts: the rail runs clear of it. */
+.ev.exercise::after, .ev.set::after {
+  content: ""; position: absolute; left: var(--gutter); right: 0; bottom: 0; height: 1px; background: var(--color-border); pointer-events: none;
+}
+.ev.lifted::after, .ev.join::after { display: none; }
 
 /* Every node sits in its own 44px, centred on its lane */
 .nodehit {
@@ -870,13 +891,13 @@ button.nodehit:disabled { opacity: 1; }
 .ev.run .nodehit { top: 22px; }
 .node {
   position: relative; box-sizing: border-box; flex: none; transition: transform .12s;
-  width: 10px; height: 10px; border-radius: 50%; background: var(--color-bg); box-shadow: inset 0 0 0 2px var(--color-border-strong);
+  width: 12px; height: 12px; border-radius: 50%; background: var(--color-bg); box-shadow: inset 0 0 0 2px var(--color-border-strong);
   display: flex; align-items: center; justify-content: center; color: var(--text-tertiary);
 }
 .ev.start.done .node, .ev.run.done .node, .ev.merge.done .node { background: var(--text-primary); box-shadow: none; }
 
 /* The exercise: its photo on the rail, ⋯ on its corner */
-.ev.exercise .node { width: 28px; height: 28px; background: none; box-shadow: none; }
+.ev.exercise .node { width: 32px; height: 32px; background: none; box-shadow: none; }
 .ph {
   width: 100%; height: 100%; border-radius: 50%; overflow: hidden; display: flex; align-items: center; justify-content: center;
   background: var(--color-surface-2); box-shadow: 0 0 0 1.5px var(--color-border-strong);
@@ -893,20 +914,20 @@ button.nodehit:disabled { opacity: 1; }
 .nodehit[aria-expanded="true"] .badge { background: var(--text-primary); color: var(--color-bg); }
 
 /* Sets: the number, a flame for a warm-up, stairs for a drop set, ✓ once done */
-.ev.set .node { width: 18px; height: 18px; }
-.nn { font-size: 9px; font-weight: 700; line-height: 1; letter-spacing: -0.02em; }
-.ev.set.done .node { width: 16px; height: 16px; background: var(--text-primary); box-shadow: none; color: var(--color-bg); }
+.ev.set .node { width: 20px; height: 20px; }
+.nn { font-size: 10px; font-weight: 700; line-height: 1; letter-spacing: -0.02em; }
+.ev.set.done .node { width: 18px; height: 18px; background: var(--text-primary); box-shadow: none; color: var(--color-bg); }
 .ev.l1.set.done .node { background: var(--text-secondary); }
 .ev.set.now .node {
-  width: 20px; height: 20px; color: var(--text-primary);
+  width: 22px; height: 22px; color: var(--text-primary);
   box-shadow: inset 0 0 0 2px var(--color-action), 0 0 0 4px color-mix(in srgb, var(--color-action) 18%, transparent);
 }
 
 /* Rests: a small timer, filled once over; running, its ring fills with the countdown */
-.ev.pause .node { width: 16px; height: 16px; box-shadow: none; background: var(--color-surface-2); color: var(--text-tertiary); }
+.ev.pause .node { width: 18px; height: 18px; box-shadow: none; background: var(--color-surface-2); color: var(--text-tertiary); }
 .ev.pause.done .node { background: var(--text-primary); color: var(--color-bg); }
 .ev.rest .node {
-  width: 24px; height: 24px; box-shadow: none; color: var(--color-action);
+  width: 26px; height: 26px; box-shadow: none; color: var(--color-action);
   background:
     radial-gradient(closest-side, var(--color-bg) 76%, transparent 79%),
     conic-gradient(var(--color-action) calc(var(--p, 0) * 360deg), var(--color-border-strong) 0);
@@ -920,7 +941,7 @@ button.nodehit:disabled { opacity: 1; }
 .tick > :deep(svg) { margin-right: 5px; }
 
 /* The one + at the end */
-.ev.add .node { width: 24px; height: 24px; color: var(--text-secondary); box-shadow: inset 0 0 0 1.5px var(--color-border-strong); }
+.ev.add .node { width: 26px; height: 26px; color: var(--text-secondary); box-shadow: inset 0 0 0 1.5px var(--color-border-strong); }
 .ev.add .node :deep(svg) { transition: transform .2s; }
 .nodehit[aria-expanded="true"] .node { background: var(--text-primary); color: var(--color-bg); box-shadow: none; }
 .nodehit[aria-expanded="true"] .node :deep(svg) { transform: rotate(45deg); }
