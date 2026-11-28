@@ -188,6 +188,9 @@ test("exercises drag by their heading: reordered with Undo, joined, out of a sup
   // Dragged to the top: everything folds while it's up, it's there at once, and Undo puts it back.
   await dragTo(page, heading(row), above(bench), true);
   await expect(workout.locator('[data-timeline] [data-set]')).toHaveCount(0);
+  // It's up as a chip, its photo and name, not a row as wide as the timeline.
+  const chip = (await workout.locator("[data-timeline] .ev.lifted").first().boundingBox())!;
+  expect(chip.width).toBeLessThan((await workout.locator("[data-timeline]").boundingBox())!.width * 0.8);
   await page.mouse.up();
   await expect.poll(() => order(page)).toBe(`${row} ${bench} ${incline}`);
   await page.locator(".toast.front").filter({ hasText: "Bent Over Barbell Row moved" }).getByRole("button", { name: "Undo" }).click();
@@ -197,6 +200,8 @@ test("exercises drag by their heading: reordered with Undo, joined, out of a sup
   const middleOf = (id: string) => async () => { const box = (await heading(id).boundingBox())!; return box.y + box.height / 2; };
   await dragTo(page, heading(row), middleOf(incline), true);
   await expect(workout.locator(`[data-row].join [data-workout-exercise="${incline}"]`)).toBeVisible();
+  // Where it would go shows as a branch off that exercise.
+  await expect(workout.locator("[data-timeline] [data-join-ghost]")).toBeVisible();
   await expect(page.locator("[data-drag-note]")).toContainText("Superset Bent Over Barbell Row with Barbell Incline Bench Press - Medium Grip?");
   await page.mouse.up();
   await expect(page.locator("[data-move-ask]")).toContainText("You do one set of each, then rest.");

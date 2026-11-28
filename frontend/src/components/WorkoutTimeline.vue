@@ -319,7 +319,11 @@ interface Drag {
   /** Room over the timeline while it's up, so rows that folded away above don't pull the ones held from the finger. */
   pad: number;
   /** Over the middle of another exercise (or superset): its rows, and where they end, to do them together. */
-  join: { keys: string[]; bottom: number } | null;
+  join: { keys: string[]; top: number; bottom: number } | null;
+  /** An exercise lifted is a chip as wide as its widest heading. */
+  chip: number;
+  /** Room under the timeline while it's up, so it can scroll as far as the rows held rise, even when short. */
+  tail: number;
   verdict: MoveVerdict | null;
 }
 const drag = ref<Drag | null>(null);
@@ -365,11 +369,17 @@ async function pickUp(row: TimelineRow, anchor: Element, from: From, what: Pick<
   const before = li.getBoundingClientRect().top;
   const pick: typeof lift = { anchor, y: from.y, pointerId: from.pointerId, startY: 0, lastY: from.y, travelled: 0, scroller: scrollParent(list.value) };
   lift = pick;
-  drag.value = { ...what, dy: 0, height: 0, gap: -1, open: false, moved: false, place: null, spot: null, grab: 0, raise: 0, viewTop: 0, pad: 0, join: null, verdict: null };
+  drag.value = { ...what, dy: 0, height: 0, gap: -1, open: false, moved: false, place: null, spot: null, grab: 0, raise: 0, viewTop: 0, pad: 0, chip: 0, tail: 0, join: null, verdict: null };
   foldAll.value = what.what === "exercise";
   listen(true);
   await nextTick();
   if (lift !== pick || !drag.value) return;
+  if (what.what === "exercise") {
+    const chips = [...list.value.querySelectorAll<HTMLElement>(".ev.lifted")];
+    if (chips.length > 1) drag.value.chip = Math.max(0, ...chips.map((el) => el.offsetWidth));
+    await nextTick();
+    if (lift !== pick || !drag.value) return;
+  }
   measure();
   const lifted = unitBoxes(drag.value);
   drag.value.height = lifted.reduce((sum, box) => sum + box.height, 0);
@@ -381,6 +391,8 @@ async function pickUp(row: TimelineRow, anchor: Element, from: From, what: Pick<
   // so their place is where they're drawn, and carry what the scroll can't take up. Nothing has moved yet. Room
   // under the timeline (as much as they rise) lets it scroll that far even at its end.
   if (drag.value.raise) {
+    const scroller = pick.scroller;
+    drag.value.tail = drag.value.raise + (scroller ? Math.max(0, scroller.clientHeight - scroller.scrollHeight) : 0);
     await nextTick();
     if (lift !== pick || !drag.value) return;
   }
@@ -483,7 +495,7 @@ function update() {
     const over = moved ? joinAt(runBlocks(others, slots, drawn), middle) : null;
     if (over) {
       const verdict = moveExercise(props.exercises, { key: current.exercise, whole: current.whole, at: over.index, join: true }, moveContext);
-      drag.value = { ...current, dy, viewTop, gap: held, spot: null, join: { keys: over.keys, bottom: over.bottom }, verdict, moved };
+      drag.value = { ...current, dy, viewTop, gap: held, spot: null, join: { keys: over.keys, top: over.top, bottom: over.bottom }, verdict, moved };
       return;
     }
     const spot = exercisePlace(slots, others.filter((box, at) => drawn(box, at) + box.height / 2 < middle).length);
@@ -593,12 +605,16 @@ const note = computed(() => {
 /** Pinned to the top of the timeline in view, where neither the finger nor the rows held cover it. */
 const noteTop = computed(() => drag.value?.viewTop ?? 0);
 
+const DOCK_GAP = 6;
 /** Where a row is drawn while a set is up: the lifted ones follow the finger; the others make room. */
 function shift(key: string): string | undefined {
   const current = drag.value;
   if (!current) return undefined;
-  // Over an exercise it would join, the lifted one steps aside and shrinks, so the one under it shows.
-  if (current.unit.includes(key)) return current.join ? `translate(46%, ${current.dy + 18}px) scale(.8)` : `translateY(${current.dy}px)`;
+  // Over an exercise it would join, the lifted one waits just over it on the second lane, so the one it joins shows.
+  if (current.unit.includes(key)) {
+    const top = unitBoxes(current)[0]?.top ?? 0;
+    return current.join ? `translate(${LANE_X[1] - LANE_X[0]}px, ${current.join.top - current.height - DOCK_GAP - top}px)` : `translateY(${current.dy}px)`;
+  }
   const own = boxes.find((box) => box.key === key);
   const lifted = unitBoxes(current);
   if (!own || !lifted.length) return undefined;
@@ -652,6 +668,7 @@ onBeforeUnmount(() => {
 
 // ---- The rail ----
 // Drawn from where the nodes landed, so it follows the rows whatever they hold and at any text size.
+// The same as --lane0 and --lane1 in the styles.
 const LANE_X: Record<Lane, number> = { 0: 16, 1: 44 };
 interface Stretch { d: string; kind: "done" | "next" | "rest"; lane: Lane; x0: number; y0: number; y1: number }
 const stretches = ref<Stretch[]>([]);
@@ -711,7 +728,7 @@ const infoLines = (exercise: DraftExercise) => Object.entries(info(exercise)).so
 
 <template>
   <ol ref="list" class="tl" :class="{ dragging: !!drag, settling }" aria-label="The workout, in order" data-timeline
-    :style="drag ? { paddingTop: `${drag.pad}px`, paddingBottom: `${drag.raise}px` } : undefined" @selectstart.prevent @pointerdown.capture="fingerDown"
+    :style="drag ? { paddingTop: `${drag.pad}px`, paddingBottom: `${drag.tail}px`, '--pad': `${drag.pad}px`, '--tail': `${drag.tail}px` } : undefined" @selectstart.prevent @pointerdown.capture="fingerDown"
   >
     <svg class="rail" :height="railH" width="70" aria-hidden="true">
       <path v-for="path in paths" :key="path.key" :d="path.d" :class="path.cls" fill="none" />
@@ -722,13 +739,20 @@ const infoLines = (exercise: DraftExercise) => Object.entries(info(exercise)).so
         lifted: drag?.unit.includes(row.key),
         join: drag?.join?.keys.includes(row.key) && drag.verdict?.ok,
         nojoin: drag?.join?.keys.includes(row.key) && !drag.verdict?.ok,
+        docked: !!drag?.join && drag.unit.includes(row.key),
+        exup: drag?.what === 'exercise' && drag.unit.includes(row.key),
       }]" :data-row="row.key"
-      :style="{ transform: shift(row.key) }"
+      :style="{ transform: shift(row.key), width: drag?.chip && drag.unit.includes(row.key) ? `${drag.chip}px` : undefined }"
       :role="row.type === 'run' ? 'group' : undefined" :aria-label="row.type === 'run' ? runLabel(runOf(row.head)) : undefined"
       :data-superset="row.type === 'run' ? row.size : undefined"
       @pointerdown="headPress($event, row)" @pointermove="headMove" @pointerup="headCancel" @pointerleave="headHeld || headCancel()"
       @click.capture="headClick"
     >
+      <!-- Joining: where the exercise lifted would go, branching off this one -->
+      <svg v-if="drag?.verdict?.ok && drag.join?.keys.at(-1) === row.key" class="ghost" width="70" height="30" aria-hidden="true" data-join-ghost>
+        <path :d="`M${LANE_X[0]} 0 C${LANE_X[0]} 14 ${LANE_X[1]} 8 ${LANE_X[1]} 20`" fill="none" />
+        <circle :cx="LANE_X[1]" cy="20" r="7" />
+      </svg>
       <!-- Its node on the rail: a button wherever it does something, in its own 44px -->
       <template v-if="hasNode(row)">
         <button
@@ -869,7 +893,7 @@ const infoLines = (exercise: DraftExercise) => Object.entries(info(exercise)).so
 /* The rail's gutter holds both lanes; the rows sit to its right. No text selection or iOS callout on it: a long
    press is the set's menu. iOS ignores user-select on a long hold, so the list also cancels selectstart. */
 .tl {
-  --gutter: 70px; position: relative; list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column;
+  --gutter: 70px; --lane0: 16px; --lane1: 44px; position: relative; list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column;
   -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
 }
 .rail { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
@@ -979,6 +1003,21 @@ button.nodehit:disabled { opacity: 1; }
 .ev.lifted + .ev.lifted { border-top-left-radius: 0; border-top-right-radius: 0; }
 .ev.lifted:has(+ .ev.lifted) { border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
 .tl.dragging .rail { opacity: 0; }
+/* While something's up the rail is one dotted line down the first lane, so the timeline still reads as one; an
+   exercise on the second lane hangs off it. */
+.tl.dragging::before {
+  content: ""; position: absolute; left: calc(var(--lane0) - var(--line-rail) / 2); top: calc(var(--pad, 0px) + 22px); bottom: calc(var(--tail, 0px) + 22px); width: var(--line-rail);
+  background: repeating-linear-gradient(to bottom, var(--color-border-strong) 0 2px, transparent 2px 7px); pointer-events: none;
+}
+.tl.dragging .ev.l1 > .nodehit::before {
+  content: ""; position: absolute; right: 50%; top: 50%; width: calc(var(--lane1) - var(--lane0)); height: 0; border-top: var(--line-rail) dotted var(--color-border-strong);
+}
+/* An exercise lifted is a chip: its photo and name, no wider than they need */
+.ev.lifted.exup { align-self: flex-start; padding-right: var(--space-l); }
+.tl.dragging .ev.lifted.docked { transition: transform .18s cubic-bezier(.2, .8, .2, 1); }
+.ghost { position: absolute; left: 0; bottom: -20px; z-index: 2; overflow: visible; pointer-events: none; }
+.ghost path, .ghost circle { stroke: var(--color-action); stroke-width: var(--line-rail); stroke-dasharray: 3 3; }
+.ghost circle { fill: var(--color-bg); }
 .rail { transition: opacity .15s; }
 .dragnote {
   position: absolute; left: var(--space-xs); right: var(--space-xs); z-index: 4; pointer-events: none; margin-top: var(--space-xs);
@@ -989,7 +1028,6 @@ button.nodehit:disabled { opacity: 1; }
 /* What a lifted exercise would join: lit while it's over it, or greyed where it can't */
 .ev.join { background: color-mix(in srgb, var(--color-action) 14%, var(--color-bg)); box-shadow: inset 3px 0 0 var(--color-action); }
 .ev.nojoin { opacity: .5; }
-.ev.lifted { transform-origin: left center; }
 .askh { gap: var(--space-2xs); padding: var(--space-xs) var(--space-s) var(--space-s); border-bottom: 1px solid var(--color-border); margin-bottom: var(--space-xs); max-width: 18rem; }
 
 /* A held set, while its menu is open */
