@@ -22,6 +22,7 @@ import {
   foodAmountLabel,
   isConverted,
   quickChips,
+  fromShown,
   readField,
   servingErrorIn,
   shownChoices,
@@ -219,6 +220,15 @@ export function useFoodAmount(options: FoodAmountOptions) {
     return typingLimits(unit.value, setting.value);
   }
 
+  /** For the number wheel as it turns: what an amount in the shown unit adds. "248 kcal · 31 g protein", "= 113 g" in ounces. */
+  function liveLine(shown: number): string {
+    const amount = fromShown(shown, unit.value, setting.value);
+    const scaled = entry.value ? scaleStored(entry.value, amount, unit.value) : food.value ? macrosForFood(food.value, amount, unit.value) : null;
+    if (!scaled) return "";
+    const line = `${int(scaled.kcal)} kcal · ${int(scaled.protein)} g protein`;
+    return isConverted(unit.value, setting.value) ? `= ${int(amount)} ${normalizeUnit(unit.value)} · ${line}` : line;
+  }
+
   function key(pressed: string) {
     const { maxInt, decimals } = limits();
     if (fresh.value && pressed !== ".") {
@@ -388,6 +398,7 @@ export function useFoodAmount(options: FoodAmountOptions) {
     showStored,
     setUnit,
     setAmount,
+    liveLine,
     pickChip,
     key,
     input,

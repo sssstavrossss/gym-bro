@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { ref } from "vue";
-import Keypad from "./Keypad.vue";
 import { markWholeSelection } from "../lib/quickEntry";
 import { keyboardEntry } from "../lib/viewport";
 
 /**
  * The amount screen's layout. The page starts at the top: the name, a box with the amount in large
- * type and its units, and the nutrient card. Under it, a tray stays at the bottom of the sheet like
- * the phone's own keyboard: the quick amounts, the keypad and the buttons. When the page is taller
+ * type and its units, and the nutrient card. Under it, a tray stays at the bottom of the sheet: the
+ * quick amounts and the buttons. On a touch screen the amount is a button that opens the number
+ * wheel (the screen asks for it with `pick`); with a keyboard it is a field. When the page is taller
  * than the room above the tray (a small phone, large text), the page scrolls and the tray stays.
  * Logging a food, adding an ingredient and logging a recipe all use it. The state stays with the
  * screen that shows it.
@@ -42,7 +42,8 @@ const emit = defineEmits<{
   submit: [];
   unit: [id: string];
   chip: [id: string];
-  key: [key: string];
+  /** The amount was tapped on a touch screen: open the number wheel from it. */
+  pick: [from: Element];
 }>();
 
 const field = ref<HTMLInputElement | null>(null);
@@ -61,11 +62,15 @@ defineExpose({ field });
       <div class="amount-box" data-amount-box>
         <div class="base">
           <!-- The mirror sizes the field to its digits, so the unit sits right after the number. -->
-          <span class="autosize">
+          <span v-if="keyboardEntry" class="autosize">
             <span class="mirror fig" aria-hidden="true">{{ amountText || "0" }}</span>
-            <input ref="field" v-autofocus :value="amountText" data-replace="1" class="fig ginput" size="1" :inputmode="keyboardEntry ? 'decimal' : 'none'" autocomplete="off" :aria-label="fieldLabel"
+            <input ref="field" v-autofocus :value="amountText" data-replace="1" class="fig ginput" size="1" inputmode="decimal" autocomplete="off" :aria-label="fieldLabel"
               @beforeinput="markWholeSelection" @focus="emit('focus', $event)" @input="emit('input', $event)" @keydown.enter.prevent="emit('submit')" />
           </span>
+          <button
+            v-else type="button" class="fig gpick tnum" :aria-label="`${fieldLabel}, ${amountText || '0'}, change`" data-amount-pick
+            @click="emit('pick', $event.currentTarget as Element)"
+          >{{ amountText || "0" }}</button>
           <span class="t-head c2 unitword">{{ unitWord }}</span>
           <span class="t-capn c2 subline"><slot name="subline" /></span>
         </div>
@@ -89,9 +94,8 @@ defineExpose({ field });
       <div v-if="chips.length" class="row chips" role="group" aria-label="Quick amounts">
         <button v-for="chip in chips" :key="chip.id" type="button" class="chip t-label" @click="emit('chip', chip.id)">{{ chip.label }}</button>
       </div>
-      <Keypad v-if="!keyboardEntry" @key="emit('key', $event)" />
-      <!-- With a keyboard instead of the keypad: what Enter and Esc do. -->
-      <p v-else class="t-capn c3 khint keyhint"><slot name="hint" /></p>
+      <!-- With a keyboard: what Enter and Esc do. -->
+      <p v-if="keyboardEntry" class="t-capn c3 khint keyhint"><slot name="hint" /></p>
       <slot name="note" />
       <div class="row gap8 actions">
         <slot name="actions" />
@@ -104,7 +108,7 @@ defineExpose({ field });
 /* Its own class: a parent's scoped `.body` would also reach this root and change the gap. */
 .amount-screen { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
 .page { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: var(--space-s); padding-bottom: var(--space-m); }
-/* The same line and spacing as a sheet's footer (the Weight sheet's keypad). */
+/* The same line and spacing as a sheet's footer. */
 .tray { flex: none; display: flex; flex-direction: column; gap: var(--space-m); padding-top: var(--space-m); border-top: 1px solid var(--color-border); }
 .gap6, .gap8 { gap: var(--space-s); }
 .lead { gap: 0; }
@@ -123,6 +127,10 @@ defineExpose({ field });
 /* The Weight sheet's big number, a little smaller so the name and card keep their room. */
 .fig { font-size: min(2.6rem, 46px); line-height: 1.1; font-weight: 700; letter-spacing: -0.03em; }
 .mirror { visibility: hidden; white-space: pre; padding-right: 0.08em; }
+/* On a touch screen the number is a button that opens the wheel, as big as the field it replaces. */
+.gpick { min-height: 44px; padding: 0 var(--space-xs); margin-left: calc(-1 * var(--space-xs)); border: 0; border-radius: var(--radius-m); background: none; color: var(--text-primary); white-space: nowrap; }
+.gpick:active { background: var(--color-hover); }
+.tnum { font-variant-numeric: tabular-nums; }
 .ginput { width: 0; min-width: 100%; background: transparent; border: 0; outline: 0; padding: 0; caret-color: var(--text-primary); }
 .unitword { font-size: max(16px, 0.8824rem); line-height: 1.1; }
 .subline:empty { display: none; }

@@ -168,8 +168,9 @@ for (const width of [375, 390]) {
       await expect(search).not.toBeFocused();
       await search.fill(foodName);
       await food.getByRole("button", { name: new RegExp(foodName) }).click();
-      const amount = food.getByRole("textbox", { name: "Amount in g" });
-      await expectReplace(page, amount, "55", "caret");
+      // The amount is a button that opens the number wheel, so no keyboard comes up.
+      await pick(page, food.locator("[data-amount-pick]"), 55);
+      await expect(food.locator("[data-amount-pick]")).toHaveText("55");
       await fieldsAtLeast16(food);
 
       await food.getByRole("button", { name: "Add a serving" }).click();
@@ -228,15 +229,15 @@ for (const width of [375, 390]) {
       await expectReplace(page, ingredientSearch, foodName);
       await recipe.getByRole("button", { name: new RegExp(foodName) }).click();
       // The same amount screen as logging a food.
-      await expectReplace(page, recipe.getByRole("textbox", { name: "Amount in g" }), "40", "caret");
+      await pick(page, recipe.locator("[data-amount-pick]"), 40);
       await recipe.getByRole("button", { name: "Add to recipe" }).click();
       // Back on the form, Name keeps its text and does not grab focus, so the next key can't replace it.
-      await expect(recipe.getByRole("textbox", { name: `Amount of ${foodName}` })).toBeVisible();
+      await expect(recipe.getByRole("button", { name: `Amount of ${foodName}, 40, change` })).toBeVisible();
       await expect(recipe.getByRole("textbox", { name: "Recipe name" })).not.toBeFocused();
       await expect(recipe.getByRole("textbox", { name: "Recipe name" })).toHaveValue("Soup");
       await fieldsAtLeast16(recipe);
       // A new recipe starts at one portion, so the Per portion card already counts this food.
-      await expect(recipe.getByRole("textbox", { name: "Portions" })).toHaveValue("1");
+      await expect(recipe.locator("[data-pick-portions]")).toHaveText("1");
       await expect(recipe.locator("[data-recipe-card]")).toContainText("Per portion");
       await expect(recipe.locator("[data-recipe-total]")).toContainText("kcal · P");
       if (width === 390 && test.info().project.name === "chromium") {

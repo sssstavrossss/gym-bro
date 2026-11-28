@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { pick } from "./dial";
 
 // Import a recipe runs on stand-ins in E2e: every link reads as the same test page ("Fictional test
 // stew & rice", 4 portions, three ingredients), a link ending in /no-recipe as a page without one,
@@ -81,7 +82,7 @@ test("a link fills New recipe with its name, portions and the matched ingredient
 
   await expect(sheet(page).getByRole("heading", { name: "New recipe" })).toBeVisible();
   await expect(sheet(page).getByLabel("Recipe name")).toHaveValue("Fictional test stew & rice");
-  await expect(sheet(page).getByLabel("Portions")).toHaveValue("4");
+  await expect(sheet(page).locator("[data-pick-portions]")).toHaveText("4");
   await expect(sheet(page).getByText("Imported from example.com. 1 ingredient wasn't added. Check the amounts before you save.")).toBeVisible();
   await expect(sheet(page).locator("[data-recipe-total]")).toContainText("700 kcal");
   // With ingredients in, only the top-bar door is left.
@@ -106,7 +107,7 @@ test("pasted ingredients can be changed, searched and left out before they go in
 
   // Change the chicken's amount: the amount screen's button says Use and comes back here.
   await sheet(page).getByRole("button", { name: /^Fictional stew chicken/ }).click();
-  await sheet(page).getByLabel("Amount in g").fill("500");
+  await pick(page, sheet(page).locator("[data-amount-pick]"), 500);
   await sheet(page).getByRole("button", { name: "Use · 550 kcal" }).click();
   await expect(sheet(page).getByRole("heading", { name: "2 of 3 found" })).toBeVisible();
 
@@ -115,7 +116,7 @@ test("pasted ingredients can be changed, searched and left out before they go in
   await expect(sheet(page).getByRole("heading", { name: "Find ingredient" })).toBeVisible();
   await sheet(page).getByLabel("Search foods").fill("Fictional stew spice");
   await sheet(page).getByRole("button", { name: /Fictional stew spice/ }).click();
-  await sheet(page).getByLabel("Amount in g").fill("10");
+  await pick(page, sheet(page).locator("[data-amount-pick]"), 10);
   await sheet(page).getByRole("button", { name: "Use · 30 kcal" }).click();
   await expect(sheet(page).getByRole("heading", { name: "3 ingredients" })).toBeVisible();
 
