@@ -17,6 +17,7 @@ import {
   samePart,
   shortDay,
   type DraftExercise,
+  type WorkoutPart,
 } from "../lib/workout";
 import { setLabels, setName } from "../lib/setEntry";
 import { hasNode, nextSet, timelineEdges, timelineRows, type Lane, type TimelineRow } from "../lib/timeline";
@@ -25,8 +26,8 @@ import { FIRST_TIME_LINE, suggestionLine } from "../lib/progression";
 import { maxText } from "../lib/records";
 import { formatLabel } from "../lib/timed";
 import { dialSpec, REST_HINTS, restDial } from "../lib/dial";
-import { moveSet, setUnit, type MoveAsk, type MoveContext, type MoveVerdict } from "../lib/timelineMove";
-import { landing, setPlace, shiftOf, type Box, type Neighbour } from "../lib/timelineDrag";
+import { moveExercise, moveSet, setUnit, type MoveAsk, type MoveContext, type MoveVerdict } from "../lib/timelineMove";
+import { exercisePlace, landing, setPlace, shiftOf, type Box, type Neighbour, type Slot } from "../lib/timelineDrag";
 import { scrollParent } from "../lib/cleanTap";
 import { exercises as library } from "../state/exercises";
 import { describe } from "../state/describe";
@@ -69,7 +70,9 @@ const runOf = (head: string) => runs.value.find((run) => run[0].key === head) ??
 // ---- Which runs are open ----
 // The run with the set to do is open, the others folded; a tap opens or folds one by hand until it is done.
 const overrides = reactive(new Map<string, boolean>());
-const isOpen = (head: string, current: boolean) => overrides.get(head) ?? (props.live ? current : true);
+/** While an exercise is up, every one folds to its heading, so the whole workout is in reach. */
+const foldAll = ref(false);
+const isOpen = (head: string, current: boolean) => !foldAll.value && (overrides.get(head) ?? (props.live ? current : true));
 function toggle(head: string, open: boolean) {
   overrides.set(head, !open);
 }
@@ -280,19 +283,24 @@ const headSub = computed(() => {
   return muscles.map((muscle) => muscle.replace(/-/g, " ")).join(", ");
 });
 
-// ---- Dragging a set (docs/training.md, decision 15) ----
+// ---- Dragging a set or an exercise (docs/training.md, decision 15) ----
 // Held, a set lifts (with its drop sets): let go where it was and its menu opens; move it and it drags. The rests
-// between sets fold away while it's up, so the sets close up. Where it can go, the rows slide apart to make room;
-// where it can't, nothing moves and a note says why. lib/timelineMove.ts says what a drop does: done at once with
-// Undo, or, where it changes what the set is (or which exercise it counts for), shown and asked about first.
+// between sets fold away while it's up, so the sets close up. An exercise lifts by its heading (a superset by its
+// own heading; one exercise of it by that exercise's), and every exercise folds while it's up. Where it can go, the
+// rows slide apart to make room; where it can't, nothing moves and a note says why. lib/timelineMove.ts says what a
+// drop does: done at once with Undo, or, where it changes what the set is (or which exercise it counts for), or
+// which part or superset an exercise is in, shown and asked about first.
 const moveContext: MoveContext = {
   nameOf: (id) => exerciseItem(id)?.name ?? id,
   measureOf: (id) => exerciseItem(id)?.measure ?? "weight_reps",
 };
-interface SetDrag {
+interface Drag {
+  what: "set" | "exercise";
   exercise: string;
   index: number;
-  /** The rows lifted: the set and its drop sets. */
+  /** An exercise: the whole superset it's in, or only it, out of the superset. */
+  whole: boolean;
+  /** The rows lifted: the set and its drop sets, or the exercise's heading (a superset's headings). */
   unit: string[];
   dy: number;
   height: number;
@@ -301,9 +309,10 @@ interface SetDrag {
   open: boolean;
   moved: boolean;
   place: { key: string; at: number } | null;
+  spot: { at: number; part?: WorkoutPart | null } | null;
   verdict: MoveVerdict | null;
 }
-const drag = ref<SetDrag | null>(null);
+const drag = ref<Drag | null>(null);
 /** Just let go: the rows go to their new places without sliding back first. */
 const settling = ref(false);
 let boxes: Box[] = [];
@@ -315,24 +324,44 @@ const scrollTop = () => lift?.scroller?.scrollTop ?? 0;
 function measure() {
   boxes = [...(list.value?.querySelectorAll<HTMLElement>("[data-row]") ?? [])].map((el) => ({ key: el.dataset.row!, top: el.offsetTop, height: el.offsetHeight }));
 }
-const unitBoxes = (current: SetDrag) => boxes.filter((box) => current.unit.includes(box.key));
+const unitBoxes = (current: Drag) => boxes.filter((box) => current.unit.includes(box.key));
 
-async function hold(row: TimelineRow, anchor: Element, from: { x: number; y: number; pointerId: number }) {
-  if (row.type !== "set" || drag.value || workout.saving) return;
+type From = { x: number; y: number; pointerId: number };
+function hold(row: TimelineRow, anchor: Element, from: From) {
+  if (row.type !== "set" || !ex(row.exercise)) return;
   const exercise = ex(row.exercise);
-  const li = anchor.closest("li");
-  if (!exercise || !li || !list.value) return;
-  const before = li.getBoundingClientRect().top;
   const { start, end } = setUnit(exercise.sets, row.index);
   const unit = Array.from({ length: end - start }, (_, n) => `set:${exercise.key}:${start + n}`);
+  void pickUp(row, anchor, from, { what: "set", exercise: exercise.key, index: row.index, whole: true, unit });
+}
+function holdExercise(row: TimelineRow, anchor: Element, from: From) {
+  if (row.type !== "exercise" && row.type !== "run") return;
+  const run = runOf(row.head);
+  if (!run.length) return;
+  // A superset's own heading lifts all of it; an exercise's, only it (out of the superset), unless the block is on
+  // a clock, which moves whole.
+  const whole = row.type === "run" || run.length === 1 || !!run[0].timed;
+  const key = row.type === "run" ? row.head : row.exercise;
+  const unit = whole
+    ? [...(run.length > 1 || run[0].timed ? [`run:${row.head}`] : []), ...run.map((exercise) => `ex:${exercise.key}`), ...(run.length > 1 ? [`merge:${row.head}`] : [])]
+    : [`ex:${key}`];
+  void pickUp(row, anchor, from, { what: "exercise", exercise: key, index: 0, whole, unit });
+}
+
+async function pickUp(row: TimelineRow, anchor: Element, from: From, what: Pick<Drag, "what" | "exercise" | "index" | "whole" | "unit">) {
+  if (drag.value || workout.saving) return;
+  const li = anchor.closest("li");
+  if (!li || !list.value) return;
+  const before = li.getBoundingClientRect().top;
   const pick: typeof lift = { anchor, y: from.y, pointerId: from.pointerId, startY: 0, lastY: from.y, travelled: 0, scroller: scrollParent(list.value) };
   lift = pick;
-  drag.value = { exercise: exercise.key, index: row.index, unit, dy: 0, height: 0, gap: -1, open: false, moved: false, place: null, verdict: null };
+  drag.value = { ...what, dy: 0, height: 0, gap: -1, open: false, moved: false, place: null, spot: null, verdict: null };
+  foldAll.value = what.what === "exercise";
   listen(true);
   await nextTick();
   if (lift !== pick || !drag.value) return;
-  // The rests folded away above it: scroll by what moved, and carry what the scroll can't take up, so the set stays
-  // under the finger.
+  // The rests (or the exercises) folded away above it: scroll by what moved, and carry what the scroll can't take
+  // up, so what's held stays under the finger.
   const now = () => list.value?.querySelector(`[data-row="${row.key}"]`)?.getBoundingClientRect().top ?? before;
   pick.scroller?.scrollBy(0, now() - before);
   const dy0 = before - now();
@@ -343,11 +372,50 @@ async function hold(row: TimelineRow, anchor: Element, from: { x: number; y: num
   autoScroll();
 }
 
+// An exercise's heading (or a superset's) held: the same long press a set row has. Moving first is a scroll; the
+// press that lifted it opens or folds nothing when it's let go.
+let headTimer: number | undefined;
+let headFrom: From | null = null;
+let headHeld = false;
+function headPress(event: PointerEvent, row: TimelineRow) {
+  headHeld = false;
+  if ((row.type !== "exercise" && row.type !== "run") || event.button !== 0 || drag.value || workout.saving) return;
+  const anchor = event.currentTarget as Element;
+  const from = { x: event.clientX, y: event.clientY, pointerId: event.pointerId };
+  headFrom = from;
+  window.clearTimeout(headTimer);
+  headTimer = window.setTimeout(() => {
+    headHeld = true;
+    navigator.vibrate?.(10);
+    holdExercise(row, anchor, from);
+  }, 450);
+}
+function headMove(event: PointerEvent) {
+  if (!headHeld && headFrom && Math.hypot(event.clientX - headFrom.x, event.clientY - headFrom.y) > 8) headCancel();
+}
+function headCancel() {
+  window.clearTimeout(headTimer);
+  headFrom = null;
+}
+function headClick(event: MouseEvent) {
+  if (!headHeld) return;
+  headHeld = false;
+  event.preventDefault();
+  event.stopPropagation();
+}
+
 function neighbour(box: Box | undefined): Neighbour | undefined {
   const row = box && shownRows.value.find((each) => each.key === box.key);
   if (!row) return undefined;
   if (row.type === "set") return { type: "set", exercise: row.exercise, index: row.index };
   if (row.type === "exercise") return { type: "exercise", exercise: row.exercise, sets: ex(row.exercise).sets.length, open: row.open };
+  return { type: "other" };
+}
+
+function slot(box: Box): Slot {
+  const row = shownRows.value.find((each) => each.key === box.key);
+  if (row?.type === "part") return { type: "part", part: row.part === "main" ? null : (row.part as WorkoutPart) };
+  if (row?.type === "run" || row?.type === "exercise" || row?.type === "merge") return { type: "run", head: row.head, part: ex(row.head)?.part ?? null };
   return { type: "other" };
 }
 
@@ -360,6 +428,12 @@ function update() {
   const end = boxes[boxes.length - 1];
   const dy = Math.max(-top, Math.min(end.top + end.height - current.height - top, lift.lastY + scrollTop() - lift.startY));
   const others = boxes.filter((box) => !current.unit.includes(box.key));
+  if (current.what === "exercise") {
+    const spot = exercisePlace(others.map(slot), landing(others, top, dy, current.height));
+    const verdict = moveExercise(props.exercises, { key: current.exercise, whole: current.whole, at: spot.at, part: spot.part }, moveContext);
+    drag.value = { ...current, dy, gap: spot.gap, open: verdict.ok, spot, verdict, moved: lift.travelled > 6 };
+    return;
+  }
   const gap = landing(others, top, dy, current.height);
   const exercise = ex(current.exercise);
   const place = exercise ? setPlace(neighbour(others[gap - 1]), neighbour(others[gap]), { exercise: current.exercise, ...setUnit(exercise.sets, current.index) }) : null;
@@ -414,29 +488,41 @@ async function drop(cancelled: boolean) {
   drag.value = null;
   lift = null;
   requestAnimationFrame(() => { settling.value = false; });
+  // The click that follows the release (if it's on the heading held) is swallowed; after that, taps are taps.
+  window.setTimeout(() => { headHeld = false; }, 0);
+  const verdict = current?.verdict;
+  const changes = !!verdict?.ok && !(verdict.exercises.length === props.exercises.length && verdict.exercises.every((exercise, at) => exercise === props.exercises[at]));
+  // An exercise asking stays folded behind the question, so what changed is in view; otherwise they open again.
+  if (!(current?.moved && changes && verdict?.ok && verdict.ask && current.what === "exercise")) foldAll.value = false;
   if (!current || !pick || cancelled) return;
   if (!current.moved) {
-    // Held and let go where it was: its menu, as a hold always opened.
+    // Held and let go where it was: its menu, as a hold (or a tap on its photo) always opened.
     await nextTick();
-    setMenu(ex(current.exercise), current.index, pick.anchor);
+    if (current.what === "set") setMenu(ex(current.exercise), current.index, pick.anchor);
+    else if (!current.unit[0].startsWith("run:")) {
+      const node = list.value?.querySelector(`[data-row="ex:${current.exercise}"] [data-exercise-menu]`);
+      if (node) exerciseMenu(ex(current.exercise), node);
+    }
     return;
   }
-  const verdict = current.verdict;
   if (!verdict) return;
   if (!verdict.ok) {
     toast(verdict.reason);
     return;
   }
-  if (verdict.exercises.every((exercise, at) => exercise === props.exercises[at]) && verdict.exercises.length === props.exercises.length) return;
+  if (!changes) return;
+  const run = runOf(current.exercise);
+  const what = current.what === "set" ? "Set" : current.whole && run.length > 1 ? groupName(run.length) : nameOf(ex(current.exercise));
   const before = setExercises(verdict.exercises);
   if (!verdict.ask) {
-    toast("Set moved", { label: "Undo", run: () => void setExercises(before) });
+    toast(`${what} moved`, { label: "Undo", run: () => void setExercises(before) });
     return;
   }
   // It asks first, with the move already shown behind the question.
   pending.value = { before, ask: verdict.ask };
   await nextTick();
-  asking.value = list.value?.querySelector(`[data-row="ex:${current.place?.key}"]`) ?? list.value;
+  const at = current.what === "set" ? current.place?.key : current.exercise;
+  asking.value = list.value?.querySelector(`[data-row="ex:${at}"]`) ?? list.value;
 }
 
 const note = computed(() => {
@@ -445,9 +531,20 @@ const note = computed(() => {
   if (!current.verdict.ok) return { blocked: true, text: current.verdict.reason };
   return current.verdict.ask ? { blocked: false, text: current.verdict.ask.title } : null;
 });
+/** Over the rows lifted, or under them when they're near the top of the sheet and it would be cut off. */
+const noteBelow = ref(false);
 const noteTop = computed(() => {
   const current = drag.value;
-  return current ? (unitBoxes(current)[0]?.top ?? 0) + current.dy : 0;
+  if (!current) return 0;
+  const lifted = unitBoxes(current);
+  const top = (lifted[0]?.top ?? 0) + current.dy;
+  return noteBelow.value ? top + current.height : top;
+});
+watch(noteTop, (top) => {
+  if (!drag.value || !list.value) return;
+  const view = lift?.scroller?.getBoundingClientRect().top ?? 0;
+  const at = list.value.getBoundingClientRect().top + (noteBelow.value ? top - (drag.value.height ?? 0) : top);
+  noteBelow.value = at - view < 56;
 });
 
 /** Where a row is drawn while a set is up: the lifted ones follow the finger; the others make room. */
@@ -481,12 +578,14 @@ function keepMove() {
   const before = pending.value?.before;
   pending.value = null;
   asking.value = null;
+  foldAll.value = false;
   if (before) toast("Moved", { label: "Undo", run: () => void setExercises(before) });
 }
 function putBack() {
   if (pending.value) setExercises(pending.value.before);
   pending.value = null;
   asking.value = null;
+  foldAll.value = false;
 }
 function closeAsk() {
   // Closed without an answer (a tap outside, Escape): nothing changes. The menu closes before it runs the item
@@ -498,6 +597,7 @@ onMounted(() => list.value?.addEventListener("touchmove", onTouchMove, { passive
 onBeforeUnmount(() => {
   listen(false);
   cancelAnimationFrame(scrollRaf);
+  window.clearTimeout(headTimer);
   list.value?.removeEventListener("touchmove", onTouchMove);
 });
 
@@ -571,6 +671,8 @@ const infoLines = (exercise: DraftExercise) => Object.entries(info(exercise)).so
       :style="{ transform: shift(row.key) }"
       :role="row.type === 'run' ? 'group' : undefined" :aria-label="row.type === 'run' ? runLabel(runOf(row.head)) : undefined"
       :data-superset="row.type === 'run' ? row.size : undefined"
+      @pointerdown="headPress($event, row)" @pointermove="headMove" @pointerup="headCancel" @pointerleave="headHeld || headCancel()"
+      @click.capture="headClick"
     >
       <!-- Its node on the rail: a button wherever it does something, in its own 44px -->
       <template v-if="hasNode(row)">
@@ -669,7 +771,7 @@ const infoLines = (exercise: DraftExercise) => Object.entries(info(exercise)).so
     </li>
 
     <!-- What a drop here would do, just above the set lifted -->
-    <li v-if="note" class="dragnote t-capn" :class="{ blocked: note.blocked }" :style="{ top: `${noteTop}px` }" role="status" data-drag-note>
+    <li v-if="note" class="dragnote t-capn" :class="{ blocked: note.blocked, below: noteBelow }" :style="{ top: `${noteTop}px` }" role="status" data-drag-note>
       <Icon v-if="note.blocked" name="lock" :size="12" />
       <span>{{ note.text }}</span>
     </li>
@@ -824,6 +926,7 @@ button.nodehit:disabled { opacity: 1; }
   background: var(--color-action); color: var(--color-on-action, var(--color-bg)); box-shadow: var(--d-float);
 }
 .dragnote.blocked { background: var(--color-surface-2); color: var(--text-primary); }
+.dragnote.below { transform: translateY(var(--space-2xs)); }
 .askh { gap: var(--space-2xs); padding: var(--space-xs) var(--space-s) var(--space-s); border-bottom: 1px solid var(--color-border); margin-bottom: var(--space-xs); max-width: 18rem; }
 
 /* A held set, while its menu is open */
