@@ -1,3 +1,5 @@
+import type { WorkoutPart } from "./workout";
+
 // Where a drag on the workout timeline lands (README, *Logging a workout*; docs/training.md, decision 15). The rules
 // for what a drop may do are in lib/timelineMove.ts; this is the geometry: which gap the lifted rows are over, how
 // far the other rows slide to open it, and which place in which exercise that gap is.
@@ -57,4 +59,49 @@ export function setPlace(
     return { key: above.exercise, at: above.open ? 0 : Math.max(0, count) };
   }
   return null;
+}
+
+/** A row beside the gap, as far as an exercise's place goes: a row of a run (by its first exercise), a part's
+ * heading, or anything else (the start, a rest, the +). */
+export type Slot =
+  | { type: "run"; head: string; part: WorkoutPart | null }
+  | { type: "part"; part: WorkoutPart | null }
+  | { type: "other" };
+
+/**
+ * Where a lifted exercise (or a whole superset) goes, with every exercise folded to its heading: `rows` are the rows
+ * not lifted, `gap` the landing among them. The gap moves out of a run to whichever end of it is nearer, and stays
+ * after the start and before the + at the end. `at` counts the runs above it. Right under a part's heading it goes in
+ * that part; right over one, in the part above; elsewhere `part` is left out and the rules take it from its
+ * neighbours.
+ */
+export function exercisePlace(rows: readonly Slot[], gap: number): { gap: number; at: number; part?: WorkoutPart | null } {
+  let at = gap;
+  // Out of the middle of a run.
+  for (let first = 0; first < rows.length; first++) {
+    const row = rows[first];
+    if (row.type !== "run") continue;
+    let last = first;
+    while (rows[last + 1]?.type === "run" && (rows[last + 1] as { head: string }).head === row.head) last++;
+    if (at > first && at <= last) at = at - first <= last + 1 - at ? first : last + 1;
+    first = last;
+  }
+  // After what leads (the start), before what trails (a rest, the +).
+  let lo = 0;
+  while (rows[lo]?.type === "other") lo++;
+  let hi = rows.length;
+  while (hi > lo && rows[hi - 1]?.type === "other") hi--;
+  at = Math.max(lo, Math.min(hi, at));
+  const heads = new Set<string>();
+  let runPart: WorkoutPart | null | undefined;
+  for (const row of rows.slice(0, at)) {
+    if (row.type === "run") {
+      heads.add(row.head);
+      runPart = row.part;
+    }
+  }
+  const under = rows[at - 1];
+  const over = rows[at];
+  const part = under?.type === "part" ? under.part : over?.type === "part" ? runPart : undefined;
+  return part === undefined ? { gap: at, at: heads.size } : { gap: at, at: heads.size, part };
 }

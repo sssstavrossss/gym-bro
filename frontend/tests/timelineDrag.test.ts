@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { landing, setPlace, shiftOf, type Box } from "../src/lib/timelineDrag";
+import { exercisePlace, landing, setPlace, shiftOf, type Box, type Slot } from "../src/lib/timelineDrag";
 
 // Five 44px rows; the one at 88 is lifted.
 const rows: Box[] = [0, 44, 88, 132, 176].map((top, n) => ({ key: `r${n}`, top, height: 44 }));
@@ -50,5 +50,41 @@ describe("which place a gap is", () => {
   it("is nowhere by the start or a part's heading", () => {
     expect(setPlace({ type: "other" }, { type: "exercise", exercise: "b", sets: 1, open: true }, unit)).toBeNull();
     expect(setPlace(undefined, { type: "other" }, unit)).toBeNull();
+  });
+});
+
+describe("which place a gap is for an exercise", () => {
+  // Start, WARM-UP, a, WORKOUT, a superset (run, b, c, merge), d, COOL-DOWN, e, the +.
+  const rows: Slot[] = [
+    { type: "other" },
+    { type: "part", part: "warmup" },
+    { type: "run", head: "a", part: "warmup" },
+    { type: "part", part: null },
+    { type: "run", head: "b", part: null },
+    { type: "run", head: "b", part: null },
+    { type: "run", head: "b", part: null },
+    { type: "run", head: "b", part: null },
+    { type: "run", head: "d", part: null },
+    { type: "part", part: "cooldown" },
+    { type: "run", head: "e", part: "cooldown" },
+    { type: "other" },
+  ];
+
+  it("counts the exercises above it, and never stops inside a superset", () => {
+    expect(exercisePlace(rows, 8)).toEqual({ gap: 8, at: 2 });
+    expect(exercisePlace(rows, 5)).toEqual({ gap: 4, at: 1, part: null });
+    expect(exercisePlace(rows, 7)).toEqual({ gap: 8, at: 2 });
+  });
+
+  it("goes in the part of the heading right above it, or of the exercise above a heading right below it", () => {
+    expect(exercisePlace(rows, 2)).toEqual({ gap: 2, at: 0, part: "warmup" });
+    expect(exercisePlace(rows, 3)).toEqual({ gap: 3, at: 1, part: "warmup" });
+    expect(exercisePlace(rows, 10)).toEqual({ gap: 10, at: 3, part: "cooldown" });
+    expect(exercisePlace(rows, 9)).toEqual({ gap: 9, at: 3, part: null });
+  });
+
+  it("stays after the start and before the +", () => {
+    expect(exercisePlace(rows, 0)).toEqual({ gap: 1, at: 0 });
+    expect(exercisePlace(rows, 12)).toEqual({ gap: 11, at: 4 });
   });
 });

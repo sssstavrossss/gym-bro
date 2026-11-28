@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { pick, setRow } from "./dial";
-import { addToWorkout, closeMenu, menu } from "./timeline";
+import { addToWorkout, closeMenu, exerciseMenu, fromExerciseMenu, menu } from "./timeline";
 
 // Dragging sets on the workout timeline (README, *Logging a workout*; docs/training.md, decision 15).
 
@@ -135,4 +135,103 @@ test("sets drag into place: reordered at once with Undo, asked about where they'
   await expect.poll(() => weights(page, bench)).toMatch(/ 60 70$/);
   await page.locator(".toast.front").filter({ hasText: /^\s*Moved/ }).getByRole("button", { name: "Undo" }).click();
   await expect.poll(() => weights(page, bench)).toMatch(/ 60 70 80$/);
+});
+
+/** Holds `from` until it lifts (and the exercises fold), then moves it so the finger is at the height `aim` gives
+ * then, before anything slides to make room, and lets go unless `keep`. */
+async function dragTo(page: Page, from: Locator, aim: () => Promise<number>, keep = false): Promise<void> {
+  await from.click({ trial: true }); // still: not sliding in with the sheet
+  const start = (await from.boundingBox())!;
+  const x = start.x + 100;
+  await page.mouse.move(x, start.y + start.height / 2);
+  await page.mouse.down();
+  await page.waitForTimeout(600);
+  const y = await aim();
+  await page.mouse.move(x, y, { steps: 12 });
+  await page.waitForTimeout(200);
+  if (!keep) await page.mouse.up();
+}
+
+const order = (page: Page) => page.locator("[data-timeline] [data-workout-exercise]").evaluateAll((rows) => rows.map((row) => row.getAttribute("data-workout-exercise")).join(" "));
+
+test("exercises drag by their heading: reordered with Undo, out of a superset or into another part when asked, the started ones kept first", async ({ page }) => {
+  await page.goto("/");
+  await setup(page);
+  await page.goto("/train");
+  await page.getByRole("button", { name: "Empty workout" }).click();
+  const workout = page.getByRole("dialog", { name: "Workout" });
+  const adding = page.getByRole("dialog", { name: "Add exercise" });
+  const bench = "barbell-bench-press-medium-grip";
+  const incline = "barbell-incline-bench-press-medium-grip";
+  const row = "bent-over-barbell-row";
+  for (const [query, name] of [["barbell bench press", "Barbell Bench Press - Medium Grip"], ["barbell incline bench press", "Barbell Incline Bench Press - Medium Grip"], ["bent over barbell row", "Bent Over Barbell Row"]]) {
+    await addToWorkout(page, "add-exercise");
+    await adding.getByLabel("Search exercises").fill(query);
+    await adding.getByRole("button", { name: `Add ${name}`, exact: true }).click();
+    await expect(adding).toHaveCount(0);
+  }
+  await expect.poll(() => order(page)).toBe(`${bench} ${incline} ${row}`);
+  const heading = (id: string) => workout.locator(`[data-workout-exercise="${id}"]`);
+  const above = (id: string) => async () => { const box = (await heading(id).boundingBox())!; return box.y + 4; };
+
+  // Held and let go: its menu, as a tap on its photo opens.
+  const still = (await heading(incline).boundingBox())!;
+  await page.mouse.move(still.x + 100, still.y + still.height / 2);
+  await page.mouse.down();
+  await page.waitForTimeout(600);
+  await page.mouse.up();
+  await expect(menu(page).locator('[data-menu-item="how-to"]')).toBeVisible();
+  // The press opened nothing else: the exercise didn't fold or open.
+  await expect(heading(incline)).not.toHaveAttribute("data-open");
+  await closeMenu(page);
+
+  // Dragged to the top: everything folds while it's up, it's there at once, and Undo puts it back.
+  await dragTo(page, heading(row), above(bench), true);
+  await expect(workout.locator('[data-timeline] [data-set]')).toHaveCount(0);
+  await page.mouse.up();
+  await expect.poll(() => order(page)).toBe(`${row} ${bench} ${incline}`);
+  await page.locator(".toast.front").filter({ hasText: "Bent Over Barbell Row moved" }).getByRole("button", { name: "Undo" }).click();
+  await expect.poll(() => order(page)).toBe(`${bench} ${incline} ${row}`);
+
+  // Out of a superset: asked first, with it already out behind the question.
+  await (await exerciseMenu(page, row)).locator('[data-menu-item="superset"]').click();
+  await expect(workout.locator("[data-superset]")).toHaveCount(1);
+  await dragTo(page, heading(row), above(bench));
+  await expect(page.locator("[data-move-ask]")).toContainText("Take Bent Over Barbell Row out of the superset?");
+  await expect.poll(() => order(page)).toBe(`${row} ${bench} ${incline}`);
+  await expect(workout.locator("[data-superset]")).toHaveCount(0);
+  await menu(page).locator('[data-menu-item="move-back"]').click();
+  await expect.poll(() => order(page)).toBe(`${bench} ${incline} ${row}`);
+  await expect(workout.locator("[data-superset]")).toHaveCount(1);
+  // The superset's own heading moves all of it.
+  await dragTo(page, workout.locator('[data-superset] [data-run-heading]'), above(bench));
+  await expect.poll(() => order(page)).toBe(`${incline} ${row} ${bench}`);
+  await page.locator(".toast.front").filter({ hasText: "Superset moved" }).getByRole("button", { name: "Undo" }).click();
+  await expect.poll(() => order(page)).toBe(`${bench} ${incline} ${row}`);
+  await fromExerciseMenu(page, row, "superset");
+
+  // With a warm-up part (from a plan): dropped under its heading, an exercise asks to join it.
+  await page.evaluate((id) => {
+    const key = Object.keys(localStorage).find((each) => each.startsWith("gymbro-workout:"))!;
+    const draft = JSON.parse(localStorage.getItem(key)!);
+    draft.exercises.find((each: { exerciseId: string }) => each.exerciseId === id).part = "warmup";
+    localStorage.setItem(key, JSON.stringify(draft));
+  }, bench);
+  await page.reload();
+  await page.getByRole("button", { name: "Resume", exact: true }).click();
+  await expect(workout.locator('[data-part="main"]')).toBeVisible();
+  // Just over the WORKOUT heading: the end of the warm-up.
+  await dragTo(page, heading(row), async () => { const box = (await workout.locator('[data-part="main"]').boundingBox())!; return box.y + 6; });
+  await expect(page.locator("[data-move-ask]")).toContainText("Move Bent Over Barbell Row to the warm-up?");
+  await menu(page).locator('[data-menu-item="move-back"]').click();
+  await expect.poll(() => order(page)).toBe(`${bench} ${incline} ${row}`);
+
+  // Once an exercise is started, nothing goes above it.
+  await workout.locator(`[data-set-node="${bench}-0"]`).click();
+  await expect(workout.locator(`[data-set-node="${bench}-0"]`)).toHaveAttribute("aria-pressed", "true");
+  await dragTo(page, heading(row), above(bench), true);
+  await expect(page.locator("[data-drag-note]")).toContainText("The exercises you've done stay first.");
+  await page.mouse.up();
+  await expect(page.locator(".toast").filter({ hasText: "The exercises you've done stay first." })).toBeVisible();
+  await expect.poll(() => order(page)).toBe(`${bench} ${incline} ${row}`);
 });
