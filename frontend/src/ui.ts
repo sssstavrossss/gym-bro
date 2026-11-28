@@ -299,14 +299,14 @@ export function openRecalculate(): void {
 }
 
 export function openWeight(): void {
-  // No primeKeyboard: the weight field never takes focus on open, and a phone types on the app keypad.
+  // No primeKeyboard: the weight field never takes focus on open, and a phone picks on the number wheel.
   // Priming would leave the hidden text proxy focused and raise the letter keyboard over the sheet.
   rememberOpener();
   ui.editEntryId = null;
   ui.sheet = "weight";
 }
 
-/** Goal weight types on the app keypad on a phone, like the weight sheet, so nothing primes the keyboard. */
+/** Goal weight is picked on the number wheel on a phone, like the weight sheet, so nothing primes the keyboard. */
 export function openGoalWeight(): void {
   rememberOpener();
   ui.sheet = "goal-weight";

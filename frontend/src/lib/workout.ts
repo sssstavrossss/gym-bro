@@ -100,13 +100,6 @@ export function measureFields(measure: ExerciseMeasure): SetField[] {
 
 export const FIELD_LABELS: Record<SetField, string> = { kg: "kg", reps: "Reps", rir: "RIR", seconds: "Time", metres: "m" };
 
-/** Whole numbers only, apart from kg (to 0.25 on the keypad: any 2 decimals) and metres. */
-export function fieldDecimals(field: SetField): number {
-  return field === "kg" ? 2 : field === "metres" ? 1 : 0;
-}
-
-const LIMITS: Record<SetField, number> = { kg: 1000, reps: 1000, rir: 10, seconds: 86_400, metres: 1_000_000 };
-
 export function emptySet(type: SetType = "working"): DraftSet {
   return { type, kg: null, reps: null, rir: null, seconds: null, metres: null, doneAt: null };
 }
@@ -232,45 +225,6 @@ export function formatSet(set: WorkoutSetValues, measure: ExerciseMeasure, exerc
 export function fieldText(field: SetField, value: number | null): string {
   if (value == null) return "";
   return field === "seconds" ? clock(value) : number(value);
-}
-
-/**
- * What the keypad typed, as a number for the field, or null when it is empty or not a number. Time is typed
- * as digits read from the right (130 → 1:30), like a microwave. Values past the API's limits are refused.
- */
-export function parseField(field: SetField, text: string): number | null | undefined {
-  const trimmed = text.trim().replace(",", ".");
-  if (!trimmed) return null;
-  if (field === "seconds") {
-    if (!/^\d{1,6}$/.test(trimmed)) return undefined;
-    const digits = trimmed.padStart(6, "0");
-    const value = Number(digits.slice(0, 2)) * 3600 + Number(digits.slice(2, 4)) * 60 + Number(digits.slice(4));
-    return value <= LIMITS.seconds ? value : undefined;
-  }
-  if (!/^\d+(\.\d*)?$/.test(trimmed)) return undefined;
-  const value = Number(trimmed);
-  const places = fieldDecimals(field);
-  if (!places && !Number.isInteger(value)) return undefined;
-  if (value > LIMITS[field]) return undefined;
-  return Math.round(value * 10 ** places) / 10 ** places;
-}
-
-/** The digits the keypad edits for a stored time: 90 s → "130". */
-export function secondsDigits(value: number | null): string {
-  if (value == null) return "";
-  const h = Math.floor(value / 3600);
-  const m = Math.floor((value % 3600) / 60);
-  const ss = String(value % 60).padStart(2, "0");
-  if (h) return `${h}${String(m).padStart(2, "0")}${ss}`;
-  return m ? `${m}${ss}` : String(value % 60);
-}
-
-/** One key on the app keypad, applied to the text being typed. */
-export function typeKey(text: string, key: string, field: SetField): string {
-  if (key === "⌫") return text.slice(0, -1);
-  if (key === ".") return fieldDecimals(field) && !text.includes(".") ? (text || "0") + "." : text;
-  const next = text === "0" ? key : text + key;
-  return parseField(field, next) === undefined ? text : next;
 }
 
 /** The whole workout as `PUT /api/workouts/{id}` takes it. Each exercise is its own block, except that a superset shares one. */

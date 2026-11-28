@@ -5,7 +5,6 @@ import BottomSheet from "./BottomSheet.vue";
 import FoodEditor from "./FoodEditor.vue";
 import Icon from "./Icon.vue";
 import MicroRing from "./MicroRing.vue";
-import Keypad from "./Keypad.vue";
 import Segmented from "./Segmented.vue";
 import TimeChip from "./TimeChip.vue";
 import FoodAmountView from "./FoodAmountView.vue";
@@ -64,7 +63,8 @@ import {
 import { quickAddFoodWrite } from "../lib/customFood";
 import { kcalFromMacros, type MacroAmounts } from "../lib/macros";
 import { bindPick, clickPick } from "../lib/cleanTap";
-import { afterInsertion, markWholeSelection, nextQuickInput, nextQuickNumber, tookWholeSelection } from "../lib/quickEntry";
+import { afterInsertion, markWholeSelection, nextQuickInput, tookWholeSelection } from "../lib/quickEntry";
+import { dialSpec, quickDial } from "../lib/dial";
 import { keyboardEntry } from "../lib/viewport";
 import { connection } from "../state/connection";
 import { deviceTimeZone, foodCountry } from "../state/profile";
@@ -78,7 +78,7 @@ import { deleteSavedGroup, loadGroups, readdSavedGroup, restoreSavedGroup, saved
 import { loadRecipes, savedRecipes } from "../state/recipes";
 import { foodAmount, foodUnit } from "../state/units";
 import { addChosen, describe, loadDescribe, resetDescribe, setRowAmount } from "../state/describe";
-import { closeFoodLayer, closeSheet, editAdded, endAddedPick, leaveAddedEdit, openCopy, openFoodScan, openGroupSheet, openRecipeCreate, openRecipeEdit, openRecipeFromEntries, openRecipeLog, toast, toastError, ui, type FoodTab } from "../ui";
+import { closeFoodLayer, closeSheet, editAdded, openDial, endAddedPick, leaveAddedEdit, openCopy, openFoodScan, openGroupSheet, openRecipeCreate, openRecipeEdit, openRecipeFromEntries, openRecipeLog, toast, toastError, ui, type FoodTab } from "../ui";
 
 const open = computed(() => ui.sheet === "food");
 const editing = computed(() => findEntry(ui.editEntryId));
@@ -238,16 +238,27 @@ function onQuickFocus(field: Field) {
 function onQuickBlur(field: Field) {
   armQuick(field);
 }
-function onQuickTap(field: Field) {
-  if (active.value !== field) armQuick(active.value);
+/**
+ * On a touch screen a field is a button that opens the number wheel (README, *Picking a number*).
+ * Calories turned to 0 are worked out from the macros; a macro's wheel says what that comes to.
+ */
+function pickQuick(field: Field, event: MouseEvent) {
   active.value = field;
-  armQuick(field);
-}
-function qKey(key: string) {
-  const field = active.value;
-  const armed = replace.value[field];
-  qa.value[field] = nextQuickNumber(qa.value[field], key, armed, field === "kcal" ? 5 : 4);
-  if (armed) replace.value[field] = false;
+  const label = fields.find((item) => item.key === field)?.label ?? "";
+  const kcal = field === "kcal";
+  const fromMacros = (shown: number) => {
+    const grams = { p: num("p"), f: num("f"), c: num("c"), [field]: shown };
+    return Math.round(kcalFromMacros(grams.p, grams.f, grams.c));
+  };
+  const spec = dialSpec(quickDial(field), {
+    label,
+    hint: kcal ? "0 works it out from P · F · C" : undefined,
+    value: qa.value[field] !== "" ? num(field) : kcal && qKcalAuto.value ? qKcalAuto.value : null,
+    live: kcal || qa.value.kcal !== "" ? undefined : (shown) => `${int(fromMacros(shown))} kcal from P · F · C`,
+  });
+  openDial(spec, event.currentTarget as Element, (value) => {
+    qa.value[field] = kcal && value === 0 ? "" : String(value);
+  });
 }
 function qInput(key: Field, event: Event) {
   const input = event.target as HTMLInputElement;
@@ -1585,7 +1596,7 @@ async function deleteEdited() {
           </label>
         </template>
         <template v-else>
-          <button v-for="field in fields" :key="field.key" type="button" class="qf" :class="{ on: active === field.key }" :aria-label="field.label" @click="onQuickTap(field.key)">
+          <button v-for="field in fields" :key="field.key" type="button" class="qf" :class="{ on: active === field.key }" :aria-label="field.label" @click="pickQuick(field.key, $event)">
             <span class="t-capm c2">{{ field.label }}</span>
             <span class="base">
               <span v-if="field.key === 'kcal' && qa.kcal === '' && qKcalAuto" class="t-nm num c3" data-num>{{ qKcalAuto }}</span>
@@ -1612,8 +1623,7 @@ async function deleteEdited() {
         </span>
         <button type="button" class="btn sm secondary t-label" @click="saveError = false">Dismiss</button>
       </div>
-      <Keypad v-if="!keyboardEntry" data-toast-floor @key="qKey" />
-      <p v-else class="t-capn c3 khint keyhint"><kbd>Tab</kbd> next field · <kbd>Enter</kbd> {{ editing ? "save" : "add" }} · <kbd>Esc</kbd> close</p>
+      <p v-if="keyboardEntry" class="t-capn c3 khint keyhint"><kbd>Tab</kbd> next field · <kbd>Enter</kbd> {{ editing ? "save" : "add" }} · <kbd>Esc</kbd> close</p>
       <OfflineNote :entry="editing" />
       <div class="row gap8 actions" data-toast-floor>
         <button v-if="editing && editing.queued !== 'failed'" type="button" class="btn secondary t-bodys" aria-label="Copy to another day" :disabled="saving" @click="copyEdited">

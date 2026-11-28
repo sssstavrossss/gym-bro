@@ -970,7 +970,7 @@ async function addLog() {
 
     <div v-else class="stack" @focusin="reveal">
       <p v-if="notice" class="t-label note" role="status">{{ notice }}</p>
-      <!-- Scrolls with the form: pinned, it would leave the keypad room for one ingredient. -->
+      <!-- Scrolls with the form: pinned, it would leave the phone keyboard room for one ingredient. -->
       <div class="pcard" data-recipe-card>
         <NutrientCard title="Per portion" :goal="profile.targets" :eaten="perAmounts" :tags="false" :values="perValues" :entries="lineSources" :carbs="perAmounts.c" portion label="Nutrients per portion" />
       </div>

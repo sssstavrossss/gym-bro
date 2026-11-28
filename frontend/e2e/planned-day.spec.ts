@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { pick } from "./dial";
 
 function headers(oid: string) {
   return { "X-Test-Oid": oid, "X-Test-Name": "Test User", "Content-Type": "application/json" };
@@ -48,10 +49,9 @@ async function quickAdd(page: Page, name: string, kcal: number) {
   await sheet.getByRole("searchbox", { name: "Search foods" }).blur();
   await sheet.getByRole("radio", { name: "Quick add" }).click();
   await sheet.getByRole("textbox", { name: "Name (optional)", exact: true }).fill(name);
-  // On a phone the numbers go in through the sheet's own keypad.
-  for (const [field, value] of [["Calories", String(kcal)], ["Protein", "20"], ["Fat", "10"], ["Carbs", "40"]]) {
-    await sheet.getByRole("button", { name: field, exact: true }).click();
-    for (const digit of value) await sheet.getByRole("group", { name: "Number keypad" }).getByRole("button", { name: digit, exact: true }).click();
+  // On a phone each number is picked on the wheel.
+  for (const [field, value] of [["Calories", kcal], ["Protein", 20], ["Fat", 10], ["Carbs", 40]] as const) {
+    await pick(page, sheet.getByRole("button", { name: field, exact: true }), value);
   }
 }
 

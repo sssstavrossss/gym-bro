@@ -3,7 +3,7 @@
    Three tiers, six tokens. Every shadow in the app's surfaces comes from one of these:
    - Medium, things that float over the page: --d-float (toast, add chooser, menus, popovers).
    - Subtle, things that sit on the page or are pressed: --d-card (cards, the week strip),
-     --d-control (grey buttons, chips, keys) and --d-action (white or accent buttons, the chosen
+     --d-control (grey buttons, chips) and --d-action (white or accent buttons, the chosen
      segment, the chosen day).
    - Light, things inside a card: --d-sunk (fields and number boxes) and --d-edge (inner panels,
      icon discs).

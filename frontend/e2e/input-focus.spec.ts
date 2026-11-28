@@ -1,4 +1,5 @@
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
+import { pick } from "./dial";
 
 function headers(oid: string): Record<string, string> {
   return { "X-Test-Oid": oid, "X-Test-Name": "Test User", "Content-Type": "application/json" };
@@ -104,7 +105,7 @@ test.describe("phone inputs", () => {
     expect(await zone.evaluate((node) => parseFloat(getComputedStyle(node).fontSize))).toBeGreaterThanOrEqual(16);
   });
 
-  test("the keypad replaces a number after leaving the field", async ({ page }) => {
+  test("Quick Add picks each number on the wheel, and calories at 0 come from the macros", async ({ page }) => {
     const oid = `e2e-keys-${Date.now()}-${test.info().project.name}`;
     const when = await clock(page);
     await putWeighIn(page.request, oid, when.today, when.zone);
@@ -116,28 +117,23 @@ test.describe("phone inputs", () => {
 
     const calories = sheet(page).getByRole("button", { name: "Calories" });
     const protein = sheet(page).getByRole("button", { name: "Protein" });
-    const key = (label: string) => sheet(page).getByRole("button", { name: label, exact: true });
+    await expect(sheet(page).getByRole("textbox", { name: "Calories" })).toHaveCount(0);
 
-    await calories.click();
-    await key("2").click();
-    await key("5").click();
+    await pick(page, calories, 25);
     await expect(calories.locator("[data-num]")).toHaveText("25");
-    await protein.click();
+    await pick(page, protein, 30);
+    await expect(protein.locator("[data-num]")).toHaveText("30");
     await expect(calories.locator("[data-num]")).toHaveText("25");
-    await calories.click();
-    await key("3").click();
-    await key("0").click();
-    await expect(calories.locator("[data-num]")).toHaveText("30");
 
-    await protein.click();
-    await calories.click();
-    await key("Delete digit").click();
-    await expect(calories.locator("[data-num]")).toHaveText("3");
-    await protein.click();
-    await calories.click();
-    await key(".").click();
-    await key("5").click();
-    await expect(calories.locator("[data-num]")).toHaveText("0.5");
+    // Calories turned to 0 are worked out from the macros: 30 g protein is 120 kcal.
+    await pick(page, calories, 0);
+    await expect(calories.locator("[data-num]")).toHaveText("120");
+    // While they are, a macro's wheel says what they come to.
+    await sheet(page).getByRole("button", { name: "Fat" }).click();
+    await page.keyboard.type("10");
+    await expect(page.locator("[data-dial-live]")).toHaveText("210 kcal from P · F · C");
+    await page.keyboard.press("Enter");
+    await expect(sheet(page).getByRole("button", { name: /Add · 210 kcal/ })).toBeVisible();
   });
 });
 

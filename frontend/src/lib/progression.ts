@@ -85,7 +85,7 @@ function topSets(sets: readonly LoggedSet[]) {
 
 const missed = (top: NonNullable<ReturnType<typeof topSets>>, target: LoadTarget) => top.sets.some((set) => set.reps < target.repMin);
 
-/** To the nearest 0.25 kg, the finest the keypad takes. */
+/** To the nearest 0.25 kg, the finest a set is saved to. */
 const quarter = (kg: number) => Math.round(kg * 4) / 4;
 
 /**

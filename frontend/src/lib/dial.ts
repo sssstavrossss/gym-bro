@@ -39,6 +39,9 @@ export const DIAL_PRESETS = {
   "recipe.portions": { unit: "portions", min: 0.5, max: 100, steps: [0.5, 1], step: 1, format: "half", start: 4 },
   "recipe.grams": { unit: "g", min: 0, max: 10000, steps: [10, 50, 100, 500], step: 50, start: 1000 },
   "recipe.oz": { unit: "oz", min: 0, max: 352, steps: [0.5, 1, 5, 10], step: 1, start: 35 },
+  // Quick Add: calories (0 works them out from the macros) and a macro's grams, to the half gram.
+  "quick.kcal": { unit: "kcal", min: 0, max: 10000, steps: [1, 10, 50, 100], step: 10, start: 300 },
+  "quick.grams": { unit: "g", min: 0, max: 1000, steps: [0.5, 1, 5, 10], step: 1, start: 20 },
   "water.ml": { unit: "ml", min: 0, max: 3000, steps: [50, 100, 250], step: 250, start: 250 },
   // A set's load, by the kit
   "set.kg.barbell": { unit: "kg", min: 0, max: 500, steps: [1.25, 2.5, 5, 10], step: 2.5, start: 20 },
@@ -177,7 +180,7 @@ export function arcSteps(x: number, gap: number, radius = ARC_RADIUS): number {
 
 /**
  * Digits typed on a keyboard while the wheel is open: a number, or for a clock digits read from the right (230 → 2:30),
- * like the keypad. Null when it isn't a number yet.
+ * like a microwave. Null when it isn't a number yet.
  */
 export function typedValue(text: string, format: DialFormat): number | null {
   const trimmed = text.trim().replace(",", ".");
@@ -237,6 +240,11 @@ export function weightDial(kind: "weight" | "goal", unit: "kg" | "lb"): DialId {
 }
 
 /** An amount's wheel by the unit it is shown in: "g", "ml", "oz", "fl oz", or a count (a piece, a serving, a portion). */
+/** Quick Add's wheel for a field: calories, or a macro's grams. */
+export function quickDial(field: "kcal" | "p" | "f" | "c"): DialId {
+  return field === "kcal" ? "quick.kcal" : "quick.grams";
+}
+
 export function amountDial(shown: string, count: boolean): DialId {
   if (count) return "food.pieces";
   if (shown === "oz" || shown === "fl oz") return "food.oz";
