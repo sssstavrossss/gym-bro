@@ -25,3 +25,17 @@ export async function pick(page: Page, target: Locator, value: number | string):
 export function setRow(scope: Page | Locator, exerciseId: string, index: number): Locator {
   return scope.locator(`[data-set="${index}"][data-exercise="${exerciseId}"]`);
 }
+
+/** A form's number (`NumberField`, README *Picking a number*), by its label: typed with a keyboard, picked on the wheel on a touch screen. */
+export function numberField(page: Page, label: string): Locator {
+  const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return page.getByRole("textbox", { name: label, exact: true }).or(page.getByRole("button", { name: new RegExp(`^${escaped}, `) }));
+}
+
+/** Enters `value` in the form's number `label`, the way the device would: fill the field, or pick it on the wheel. */
+export async function enterNumber(page: Page, label: string, value: number | string): Promise<void> {
+  const target = numberField(page, label);
+  await expect(target).toBeVisible();
+  if ((await target.getAttribute("data-number-pick")) === null) await target.fill(String(value));
+  else await pick(page, target, String(value).replace(",", "."));
+}

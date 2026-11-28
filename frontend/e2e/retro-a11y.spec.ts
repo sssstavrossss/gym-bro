@@ -1,6 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
 import { appendFileSync } from "node:fs";
+import { enterNumber, numberField } from "./dial";
 
 const reportPath = "/tmp/gymbro-axe.jsonl";
 
@@ -38,20 +39,20 @@ test("setup, profile, weight sheet, and placeholders", async ({ page }, info) =>
 
   const birthYear = String(new Date().getFullYear() - 36);
   await page.getByRole("radio", { name: "Male", exact: true }).click();
-  await page.getByRole("textbox", { name: "Birth year" }).fill(birthYear);
-  await page.getByRole("textbox", { name: "Height in centimetres" }).fill("180");
+  await enterNumber(page, "Birth year", birthYear);
+  await enterNumber(page, "Height in centimetres", 180);
   await page.getByRole("button", { name: "Activity" }).click();
   await page.getByRole("button", { name: "Moderate" }).click();
   await page.getByRole("radio", { name: "Lose" }).click();
   await page.getByRole("button", { name: "0.5" }).click();
-  await page.getByRole("textbox", { name: "Goal weight in kilograms" }).fill("80");
-  await page.getByRole("textbox", { name: "Starting weight in kilograms" }).fill("83,6");
+  await enterNumber(page, "Goal weight in kilograms", 80);
+  await enterNumber(page, "Starting weight in kilograms", "83,6");
   await page.getByRole("button", { name: "Save and see targets" }).click();
   await expect(page.locator("[data-field=kcal]")).toHaveText("2,218");
   await check(page, `${info.project.name} profile`);
 
   await page.getByRole("button", { name: "Exact values" }).click();
-  await expect(page.getByRole("textbox", { name: "Exact protein, grams per kilogram" })).toBeVisible();
+  await expect(numberField(page, "Exact protein, grams per kilogram")).toBeVisible();
   await check(page, `${info.project.name} customise`);
 
   await page.getByRole("button", { name: /trend/i }).click();
