@@ -27,7 +27,7 @@ import { maxText } from "../lib/records";
 import { formatLabel } from "../lib/timed";
 import { dialSpec, REST_HINTS, restDial } from "../lib/dial";
 import { moveExercise, moveSet, setUnit, type MoveAsk, type MoveContext, type MoveVerdict } from "../lib/timelineMove";
-import { exercisePlace, landing, setPlace, shiftOf, type Box, type Neighbour, type Slot } from "../lib/timelineDrag";
+import { exercisePlace, joinAt, landing, runBlocks, setPlace, shiftOf, type Box, type Neighbour, type Slot } from "../lib/timelineDrag";
 import { scrollParent } from "../lib/cleanTap";
 import { exercises as library } from "../state/exercises";
 import { describe } from "../state/describe";
@@ -310,6 +310,10 @@ interface Drag {
   moved: boolean;
   place: { key: string; at: number } | null;
   spot: { at: number; part?: WorkoutPart | null } | null;
+  /** How far down the lifted rows they were picked up. */
+  grab: number;
+  /** Over the middle of another exercise (or superset): its rows, and where they end, to do them together. */
+  join: { keys: string[]; bottom: number } | null;
   verdict: MoveVerdict | null;
 }
 const drag = ref<Drag | null>(null);
@@ -355,7 +359,7 @@ async function pickUp(row: TimelineRow, anchor: Element, from: From, what: Pick<
   const before = li.getBoundingClientRect().top;
   const pick: typeof lift = { anchor, y: from.y, pointerId: from.pointerId, startY: 0, lastY: from.y, travelled: 0, scroller: scrollParent(list.value) };
   lift = pick;
-  drag.value = { ...what, dy: 0, height: 0, gap: -1, open: false, moved: false, place: null, spot: null, verdict: null };
+  drag.value = { ...what, dy: 0, height: 0, gap: -1, open: false, moved: false, place: null, spot: null, grab: 0, join: null, verdict: null };
   foldAll.value = what.what === "exercise";
   listen(true);
   await nextTick();
@@ -367,7 +371,10 @@ async function pickUp(row: TimelineRow, anchor: Element, from: From, what: Pick<
   const dy0 = before - now();
   pick.startY = from.y + scrollTop() - dy0;
   measure();
-  drag.value.height = unitBoxes(drag.value).reduce((sum, box) => sum + box.height, 0);
+  const lifted = unitBoxes(drag.value);
+  drag.value.height = lifted.reduce((sum, box) => sum + box.height, 0);
+  // Where on the lifted rows the finger is: what's under it is what an exercise joins or passes.
+  drag.value.grab = from.y - (list.value.getBoundingClientRect().top + (lifted[0]?.top ?? 0) + dy0);
   update();
   autoScroll();
 }
@@ -429,9 +436,23 @@ function update() {
   const dy = Math.max(-top, Math.min(end.top + end.height - current.height - top, lift.lastY + scrollTop() - lift.startY));
   const others = boxes.filter((box) => !current.unit.includes(box.key));
   if (current.what === "exercise") {
-    const spot = exercisePlace(others.map(slot), landing(others, top, dy, current.height));
+    // By bands: with the finger over the middle of another exercise (or superset) it would join it, and the gap
+    // holds still; pushed on past that, the gap moves. Hit-tested where the rows are drawn, so a run that slid aside
+    // can still be joined. A superset lifted by its heading goes by the finger, not by its middle far below it.
+    const slots = others.map(slot);
+    const middle = top + dy + Math.max(0, Math.min(current.height, current.grab));
+    const held = current.gap >= 0 ? current.gap : exercisePlace(slots, landing(others, top, 0, current.height)).gap;
+    const drawn = (box: Box, at: number) => box.top + shiftOf(box, at, held, top, current.height, current.open);
+    const moved = lift.travelled > 6;
+    const over = moved ? joinAt(runBlocks(others, slots, drawn), middle) : null;
+    if (over) {
+      const verdict = moveExercise(props.exercises, { key: current.exercise, whole: current.whole, at: over.index, join: true }, moveContext);
+      drag.value = { ...current, dy, gap: held, spot: null, join: { keys: over.keys, bottom: over.bottom }, verdict, moved };
+      return;
+    }
+    const spot = exercisePlace(slots, others.filter((box, at) => drawn(box, at) + box.height / 2 < middle).length);
     const verdict = moveExercise(props.exercises, { key: current.exercise, whole: current.whole, at: spot.at, part: spot.part }, moveContext);
-    drag.value = { ...current, dy, gap: spot.gap, open: verdict.ok, spot, verdict, moved: lift.travelled > 6 };
+    drag.value = { ...current, dy, gap: spot.gap, open: verdict.ok, spot, join: null, verdict, moved };
     return;
   }
   const gap = landing(others, top, dy, current.height);
@@ -536,12 +557,13 @@ const noteBelow = ref(false);
 const noteTop = computed(() => {
   const current = drag.value;
   if (!current) return 0;
+  if (current.join) return current.join.bottom;
   const lifted = unitBoxes(current);
   const top = (lifted[0]?.top ?? 0) + current.dy;
   return noteBelow.value ? top + current.height : top;
 });
 watch(noteTop, (top) => {
-  if (!drag.value || !list.value) return;
+  if (!drag.value || !list.value || drag.value.join) return;
   const view = lift?.scroller?.getBoundingClientRect().top ?? 0;
   const at = list.value.getBoundingClientRect().top + (noteBelow.value ? top - (drag.value.height ?? 0) : top);
   noteBelow.value = at - view < 56;
@@ -551,7 +573,8 @@ watch(noteTop, (top) => {
 function shift(key: string): string | undefined {
   const current = drag.value;
   if (!current) return undefined;
-  if (current.unit.includes(key)) return `translateY(${current.dy}px)`;
+  // Over an exercise it would join, the lifted one steps aside and shrinks, so the one under it shows.
+  if (current.unit.includes(key)) return current.join ? `translate(46%, ${current.dy + 18}px) scale(.8)` : `translateY(${current.dy}px)`;
   const own = boxes.find((box) => box.key === key);
   const lifted = unitBoxes(current);
   if (!own || !lifted.length) return undefined;
@@ -566,7 +589,8 @@ const asking = ref<Element | null>(null);
 const askSections = computed<MenuSection[]>(() => {
   const ask = pending.value?.ask;
   if (!ask) return [];
-  const items: MenuItem[] = [{ id: "move-yes", icon: "check", label: ask.action, run: () => keepMove() }];
+  const made = ask.action === "Superset" ? "Superset made" : ask.action === "Make a circuit" ? "Circuit made" : "Moved";
+  const items: MenuItem[] = [{ id: "move-yes", icon: "check", label: ask.action, run: () => keepMove(made) }];
   if (ask.alternative) {
     const other = ask.alternative.exercises;
     items.push({ id: "move-alt", icon: "right", label: ask.alternative.action, run: () => { setExercises(other); keepMove(); } });
@@ -574,12 +598,12 @@ const askSections = computed<MenuSection[]>(() => {
   items.push({ id: "move-back", icon: "undo", label: "Put it back", apart: true, run: () => putBack() });
   return [{ items }];
 });
-function keepMove() {
+function keepMove(said = "Moved") {
   const before = pending.value?.before;
   pending.value = null;
   asking.value = null;
   foldAll.value = false;
-  if (before) toast("Moved", { label: "Undo", run: () => void setExercises(before) });
+  if (before) toast(said, { label: "Undo", run: () => void setExercises(before) });
 }
 function putBack() {
   if (pending.value) setExercises(pending.value.before);
@@ -667,7 +691,11 @@ const infoLines = (exercise: DraftExercise) => Object.entries(info(exercise)).so
     </svg>
 
     <li
-      v-for="row in shownRows" :key="row.key" :class="[rowClass(row), { lifted: drag?.unit.includes(row.key) }]" :data-row="row.key"
+      v-for="row in shownRows" :key="row.key" :class="[rowClass(row), {
+        lifted: drag?.unit.includes(row.key),
+        join: drag?.join?.keys.includes(row.key) && drag.verdict?.ok,
+        nojoin: drag?.join?.keys.includes(row.key) && !drag.verdict?.ok,
+      }]" :data-row="row.key"
       :style="{ transform: shift(row.key) }"
       :role="row.type === 'run' ? 'group' : undefined" :aria-label="row.type === 'run' ? runLabel(runOf(row.head)) : undefined"
       :data-superset="row.type === 'run' ? row.size : undefined"
@@ -771,7 +799,7 @@ const infoLines = (exercise: DraftExercise) => Object.entries(info(exercise)).so
     </li>
 
     <!-- What a drop here would do, just above the set lifted -->
-    <li v-if="note" class="dragnote t-capn" :class="{ blocked: note.blocked, below: noteBelow }" :style="{ top: `${noteTop}px` }" role="status" data-drag-note>
+    <li v-if="note" class="dragnote t-capn" :class="{ blocked: note.blocked, below: noteBelow || !!drag?.join }" :style="{ top: `${noteTop}px` }" role="status" data-drag-note>
       <Icon v-if="note.blocked" name="lock" :size="12" />
       <span>{{ note.text }}</span>
     </li>
@@ -927,6 +955,10 @@ button.nodehit:disabled { opacity: 1; }
 }
 .dragnote.blocked { background: var(--color-surface-2); color: var(--text-primary); }
 .dragnote.below { transform: translateY(var(--space-2xs)); }
+/* What a lifted exercise would join: lit while it's over it, or greyed where it can't */
+.ev.join { background: color-mix(in srgb, var(--color-action) 14%, var(--color-bg)); box-shadow: inset 3px 0 0 var(--color-action); }
+.ev.nojoin { opacity: .5; }
+.ev.lifted { transform-origin: left center; }
 .askh { gap: var(--space-2xs); padding: var(--space-xs) var(--space-s) var(--space-s); border-bottom: 1px solid var(--color-border); margin-bottom: var(--space-xs); max-width: 18rem; }
 
 /* A held set, while its menu is open */

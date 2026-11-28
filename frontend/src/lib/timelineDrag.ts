@@ -105,3 +105,45 @@ export function exercisePlace(rows: readonly Slot[], gap: number): { gap: number
   const part = under?.type === "part" ? under.part : over?.type === "part" ? runPart : undefined;
   return part === undefined ? { gap: at, at: heads.size } : { gap: at, at: heads.size, part };
 }
+
+/** A run among the rows not lifted, where it's drawn: its rows' keys, its top and bottom, and its last row's place. */
+export interface Block {
+  index: number;
+  keys: string[];
+  top: number;
+  bottom: number;
+  last: number;
+}
+
+/** The runs among `rows` (the rows not lifted, `slots` saying what each is), drawn where `drawn` puts each. */
+export function runBlocks(rows: readonly Box[], slots: readonly Slot[], drawn: (box: Box, at: number) => number): Block[] {
+  const blocks: (Block & { head: string })[] = [];
+  rows.forEach((box, at) => {
+    const slot = slots[at];
+    if (slot?.type !== "run") return;
+    const top = drawn(box, at);
+    const last = blocks[blocks.length - 1];
+    if (last && last.head === slot.head && last.last === at - 1) {
+      last.keys.push(box.key);
+      last.bottom = top + box.height;
+      last.last = at;
+    } else {
+      blocks.push({ index: blocks.length, head: slot.head, keys: [box.key], top, bottom: top + box.height, last: at });
+    }
+  });
+  return blocks.map(({ head: _head, ...block }) => block);
+}
+
+/**
+ * The run a lifted exercise would join: the one whose middle band its middle is over. A quarter of the run at each
+ * end is left out (at least 14px, at most half), so the edges still move it between runs; every run has to be passed
+ * through its middle, so each can be joined from above or below.
+ */
+export function joinAt(blocks: readonly Block[], middle: number): Block | null {
+  for (const block of blocks) {
+    const height = block.bottom - block.top;
+    const inner = Math.min(height / 2, Math.max(14, height / 4));
+    if (middle > block.top + inner && middle < block.bottom - inner) return block;
+  }
+  return null;
+}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { exercisePlace, landing, setPlace, shiftOf, type Box, type Slot } from "../src/lib/timelineDrag";
+import { exercisePlace, joinAt, landing, runBlocks, setPlace, shiftOf, type Box, type Slot } from "../src/lib/timelineDrag";
 
 // Five 44px rows; the one at 88 is lifted.
 const rows: Box[] = [0, 44, 88, 132, 176].map((top, n) => ({ key: `r${n}`, top, height: 44 }));
@@ -86,5 +86,45 @@ describe("which place a gap is for an exercise", () => {
   it("stays after the start and before the +", () => {
     expect(exercisePlace(rows, 0)).toEqual({ gap: 1, at: 0 });
     expect(exercisePlace(rows, 12)).toEqual({ gap: 11, at: 4 });
+  });
+});
+
+describe("which exercise a lifted one would join", () => {
+  // The start, a (52px), a superset of b and c (run, b, c, merge), the +.
+  const boxes: Box[] = [
+    { key: "start", top: 0, height: 28 },
+    { key: "ex:a", top: 28, height: 52 },
+    { key: "run:b", top: 80, height: 40 },
+    { key: "ex:b", top: 120, height: 52 },
+    { key: "ex:c", top: 172, height: 52 },
+    { key: "merge:b", top: 224, height: 24 },
+    { key: "add", top: 248, height: 44 },
+  ];
+  const slots: Slot[] = [
+    { type: "other" }, { type: "run", head: "a", part: null },
+    { type: "run", head: "b", part: null }, { type: "run", head: "b", part: null }, { type: "run", head: "b", part: null }, { type: "run", head: "b", part: null },
+    { type: "other" },
+  ];
+  const blocks = runBlocks(boxes, slots, (box) => box.top);
+
+  it("groups a superset's rows into one block", () => {
+    expect(blocks.map((block) => [block.index, block.keys.join(" "), block.top, block.bottom])).toEqual([
+      [0, "ex:a", 28, 80],
+      [1, "run:b ex:b ex:c merge:b", 80, 248],
+    ]);
+  });
+
+  it("is the one whose middle it's over, never by its edges", () => {
+    expect(joinAt(blocks, 54)?.index).toBe(0);
+    expect(joinAt(blocks, 30)).toBeNull();
+    expect(joinAt(blocks, 78)).toBeNull();
+    expect(joinAt(blocks, 160)?.index).toBe(1);
+    expect(joinAt(blocks, 100)).toBeNull();
+  });
+
+  it("goes by where the rows are drawn", () => {
+    const moved = runBlocks(boxes, slots, (box, at) => box.top + (at >= 2 ? 52 : 0));
+    expect(moved[1].top).toBe(132);
+    expect(joinAt(moved, 160)).toBeNull();
   });
 });
