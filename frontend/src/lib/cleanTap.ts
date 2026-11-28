@@ -1,6 +1,6 @@
 const moveLimit = 10;
 
-function scrollParent(el: HTMLElement): HTMLElement | null {
+export function scrollParent(el: HTMLElement): HTMLElement | null {
   let node: HTMLElement | null = el.parentElement;
   while (node) {
     const style = getComputedStyle(node);
