@@ -154,7 +154,7 @@ async function dragTo(page: Page, from: Locator, aim: () => Promise<number>, kee
 
 const order = (page: Page) => page.locator("[data-timeline] [data-workout-exercise]").evaluateAll((rows) => rows.map((row) => row.getAttribute("data-workout-exercise")).join(" "));
 
-test("exercises drag by their heading: reordered with Undo, out of a superset or into another part when asked, the started ones kept first", async ({ page }) => {
+test("exercises drag by their heading: reordered with Undo, joined, out of a superset or into another part when asked, the started ones kept first", async ({ page }) => {
   await page.goto("/");
   await setup(page);
   await page.goto("/train");
@@ -193,6 +193,27 @@ test("exercises drag by their heading: reordered with Undo, out of a superset or
   await page.locator(".toast.front").filter({ hasText: "Bent Over Barbell Row moved" }).getByRole("button", { name: "Undo" }).click();
   await expect.poll(() => order(page)).toBe(`${bench} ${incline} ${row}`);
 
+  // Onto the middle of another exercise: lit while it's over it, and asked to make a superset.
+  const middleOf = (id: string) => async () => { const box = (await heading(id).boundingBox())!; return box.y + box.height / 2; };
+  await dragTo(page, heading(row), middleOf(incline), true);
+  await expect(workout.locator(`[data-row].join [data-workout-exercise="${incline}"]`)).toBeVisible();
+  await expect(page.locator("[data-drag-note]")).toContainText("Superset Bent Over Barbell Row with Barbell Incline Bench Press - Medium Grip?");
+  await page.mouse.up();
+  await expect(page.locator("[data-move-ask]")).toContainText("You do one set of each, then rest.");
+  await expect(workout.locator("[data-superset]")).toHaveCount(1);
+  await menu(page).locator('[data-menu-item="move-yes"]').click();
+  await expect(workout.locator("[data-superset]")).toHaveCount(1);
+  await page.locator(".toast.front").filter({ hasText: "Superset made" }).getByRole("button", { name: "Undo" }).click();
+  await expect(workout.locator("[data-superset]")).toHaveCount(0);
+  // Or just moved there, under it, on its own.
+  await dragTo(page, heading(row), middleOf(bench));
+  await expect(page.locator("[data-move-ask]")).toContainText("Superset Bent Over Barbell Row with Barbell Bench Press - Medium Grip?");
+  await menu(page).locator('[data-menu-item="move-alt"]').click();
+  await expect.poll(() => order(page)).toBe(`${bench} ${row} ${incline}`);
+  await expect(workout.locator("[data-superset]")).toHaveCount(0);
+  await page.locator(".toast.front").filter({ hasText: /^\s*Moved/ }).getByRole("button", { name: "Undo" }).click();
+  await expect.poll(() => order(page)).toBe(`${bench} ${incline} ${row}`);
+
   // Out of a superset: asked first, with it already out behind the question.
   await (await exerciseMenu(page, row)).locator('[data-menu-item="superset"]').click();
   await expect(workout.locator("[data-superset]")).toHaveCount(1);
@@ -221,7 +242,7 @@ test("exercises drag by their heading: reordered with Undo, out of a superset or
   await page.getByRole("button", { name: "Resume", exact: true }).click();
   await expect(workout.locator('[data-part="main"]')).toBeVisible();
   // Just over the WORKOUT heading: the end of the warm-up.
-  await dragTo(page, heading(row), async () => { const box = (await workout.locator('[data-part="main"]').boundingBox())!; return box.y + 6; });
+  await dragTo(page, heading(row), async () => { const box = (await workout.locator('[data-part="main"]').boundingBox())!; return box.y - 4; });
   await expect(page.locator("[data-move-ask]")).toContainText("Move Bent Over Barbell Row to the warm-up?");
   await menu(page).locator('[data-menu-item="move-back"]').click();
   await expect.poll(() => order(page)).toBe(`${bench} ${incline} ${row}`);
