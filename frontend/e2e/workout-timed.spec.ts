@@ -37,13 +37,12 @@ async function circuit(page: Page, format: string) {
   const adding = page.getByRole("dialog", { name: "Add exercise" });
   await adding.getByLabel("Search exercises").fill("pullups");
   await adding.getByRole("button", { name: "Add Pullups", exact: true }).click();
-  // Each opens on its own screen; joining the second to the first goes back to the workout.
-  await page.getByRole("button", { name: "Back to the workout" }).click();
   const workout = page.getByRole("dialog", { name: "Workout" });
   await workout.getByRole("button", { name: "Exercise", exact: true }).click();
   await adding.getByLabel("Search exercises").fill("pushups");
   await adding.getByRole("button", { name: "Add Pushups", exact: true }).click();
-  await page.locator("[data-exercise-screen]").getByRole("button", { name: "Superset with Pullups" }).click();
+  // The second opens on the timeline, and joins the first.
+  await workout.getByRole("button", { name: "Superset with Pullups" }).click();
 
   await workout.getByRole("group", { name: "Superset: Pullups, Pushups" }).getByRole("button", { name: "Format: Rounds. Change" }).click();
   await workout.getByRole("radiogroup", { name: "Format" }).getByRole("radio", { name: format, exact: true }).click();
@@ -134,7 +133,7 @@ test("an EMOM gives each exercise a set for every round", async ({ page }) => {
   await setup(page);
   const { block } = await circuit(page, "EMOM");
   await expect(block.locator("[data-run-heading]")).toHaveText("EMOM 10 min · a round each minute");
-  await expect(block.locator('[data-workout-exercise="pullups"] [data-set]')).toHaveCount(10);
+  await expect(page.getByRole("dialog", { name: "Workout" }).locator('[data-set][data-exercise="pullups"]')).toHaveCount(10);
   await expect(block.locator("[data-block-clock]")).toContainText("10 rounds, one each minute");
   await block.getByRole("button", { name: "Start", exact: true }).click();
   await expect(block.locator("[data-block-clock]")).toContainText("Round 1 of 10");

@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { pick, setRow } from "./dial";
 
 function headers(oid: string) {
   return { "X-Test-Oid": oid, "X-Test-Name": "Test User", "Content-Type": "application/json" };
@@ -80,16 +81,15 @@ test("Quick add: the start waits for the first exercise, an empty workout closes
   await add.getByLabel("Search exercises").fill("barbell squat");
   await add.getByRole("button", { name: "Add Barbell Squat", exact: true }).click();
 
-  // The squat opens on its own screen: one set at a time, logged from the footer.
-  await expect(page.locator('[data-exercise-screen][data-workout-exercise="barbell-squat"]')).toBeVisible();
-  await page.getByLabel("Set 1, kg").fill("80");
-  await page.getByLabel("Set 1, Reps").fill("5");
-  await page.getByRole("button", { name: "Log set 1" }).click();
-  await expect(page.locator("[data-exercise-status]")).toHaveText("Set 2 of 3");
-  await page.locator("[data-exercise-done]").click();
+  // The squat opens on the timeline, on its first set to do.
+  const workout = page.getByRole("dialog", { name: "Workout", exact: true });
+  await expect(setRow(workout, "barbell-squat", 0)).toHaveAttribute("data-set-state", "now");
+  await pick(page, workout.getByLabel("Set 1, kg"), 80);
+  await pick(page, workout.getByLabel("Set 1, Reps"), 5);
+  await workout.getByRole("button", { name: "Set 1 done" }).click();
+  await expect(setRow(workout, "barbell-squat", 1)).toHaveAttribute("data-set-state", "now");
 
   // The start held: the live header shows it, and the chip opens the same card.
-  const workout = page.getByRole("dialog", { name: "Workout", exact: true });
   const chip = workout.locator("[data-workout-times-chip]");
   await expect(chip).toHaveText(`${start.time} – now`);
 
@@ -120,7 +120,7 @@ test("Quick add: the start waits for the first exercise, an empty workout closes
   expect(Math.round((Date.parse(saved.endedAt) - Date.parse(saved.startedAt)) / 60_000)).toBe(60);
 });
 
-test("One set at a time: quick fills, correcting a done set, and one more after the last", async ({ page }) => {
+test("The timeline: the set to do, numbers that carry on, a done set corrected, and one more after the last", async ({ page }) => {
   await page.goto("/");
   const oid = await setup(page);
   await page.goto("/train");
@@ -142,42 +142,46 @@ test("One set at a time: quick fills, correcting a done set, and one more after 
   await add.getByLabel("Search exercises").fill("barbell squat");
   await add.getByRole("button", { name: "Add Barbell Squat", exact: true }).click();
 
-  const screen = page.locator('[data-exercise-screen][data-workout-exercise="barbell-squat"]');
-  const rows = screen.locator("[data-set]");
-  const status = page.locator("[data-exercise-status]");
-  await expect(status).toHaveText("Set 1 of 3");
-  await page.getByLabel("Set 1, kg").fill("100");
-  await page.getByLabel("Set 1, Reps").fill("5");
-  await page.getByRole("button", { name: "Log set 1" }).click();
-  await expect(rows.nth(0)).toContainText("100 × 5");
-
-  // Same as before takes set 1's numbers; +2.5 kg steps up from them.
-  await page.locator("[data-same-as]").click();
-  await expect(page.getByLabel("Set 2, kg")).toHaveValue("100");
-  await page.getByRole("button", { name: "2.5 kg more" }).click();
-  await expect(page.getByLabel("Set 2, kg")).toHaveValue("102.5");
-  await page.getByRole("button", { name: "Log set 2" }).click();
-  await expect(rows.nth(1)).toContainText("102.5 × 5");
-
-  // A done set can be picked and corrected; Next set goes back to the one up next.
-  await rows.nth(0).click();
-  await expect(status).toHaveText("Editing set 1");
-  await page.getByLabel("Set 1, Reps").fill("6");
-  await expect(rows.nth(0)).toContainText("100 × 6");
-  await page.getByRole("button", { name: "Next set" }).click();
-  await expect(status).toHaveText("Set 3 of 3");
-  await page.getByRole("button", { name: "Log set 3" }).click();
-
-  // After the last, a log adds one more.
-  await expect(status).toHaveText("3 of 3 done · one more?");
-  await expect(screen.locator("[data-set-extra]")).toBeVisible();
-  await page.getByRole("button", { name: "Log set 4" }).click();
-  await expect(rows).toHaveCount(4);
-  await expect(rows.nth(3)).toContainText("102.5 × 5");
-
-  await page.locator("[data-exercise-done]").click();
   const workout = page.getByRole("dialog", { name: "Workout", exact: true });
-  await expect(workout.locator('[data-workout-exercise="barbell-squat"]')).toContainText("100 × 6, 102.5 × 5, 102.5 × 5, 102.5 × 5");
+  const squat = (index: number) => setRow(workout, "barbell-squat", index);
+  await expect(squat(0)).toHaveAttribute("data-set-state", "now");
+  await expect(squat(2)).toHaveAttribute("data-set-state", "next");
+
+  // A number picked for the set to do carries on to the sets after it.
+  await pick(page, squat(0).getByLabel("Set 1, kg"), 100);
+  await pick(page, squat(0).getByLabel("Set 1, Reps"), 5);
+  await expect(squat(2).getByLabel("Set 3, kg")).toHaveText(/^100\s?kg$/);
+  await workout.getByRole("button", { name: "Set 1 done" }).click();
+  await expect(squat(0)).toHaveAttribute("data-done", "");
+  await expect(squat(0).getByLabel("Set 1, Reps")).toHaveText("5");
+  // Logging starts the rest, on the rail before the next set; Skip ends it.
+  await expect(workout.locator("[data-rest]")).toBeVisible();
+  await workout.locator("[data-rest-skip]").click();
+  await expect(workout.locator("[data-rest]")).toHaveCount(0);
+
+  // Stepping up on set 2 takes set 3 with it, not set 1.
+  await expect(squat(1)).toHaveAttribute("data-set-state", "now");
+  await pick(page, squat(1).getByLabel("Set 2, kg"), 102.5);
+  await expect(squat(2).getByLabel("Set 3, kg")).toHaveText(/^102.5\s?kg$/);
+  await workout.getByRole("button", { name: "Set 2 done" }).click();
+
+  // A done set is corrected in place, and nothing else changes.
+  await pick(page, squat(0).getByLabel("Set 1, Reps"), 6);
+  await expect(squat(0).getByLabel("Set 1, Reps")).toHaveText("6");
+  // Set 3 is the set to do now, its scoreboard captioned.
+  await expect(squat(2).getByLabel("Set 3, Reps")).toHaveText(/^Reps\s?5$/);
+  await workout.getByRole("button", { name: "Set 3 done" }).click();
+
+  // Done, it folds to its heading. Opened again, + Set adds one more, offering the set before's numbers.
+  const heading = workout.locator('[data-workout-exercise="barbell-squat"]');
+  await expect(heading).not.toHaveAttribute("data-open");
+  await heading.getByRole("button", { expanded: false }).click();
+  await workout.getByRole("button", { name: "Set", exact: true }).click();
+  await expect(squat(3)).toHaveAttribute("data-set-state", "now");
+  await expect(squat(3).getByLabel("Set 4, kg")).toHaveText(/^kg\s?102.5$/);
+  await workout.getByRole("button", { name: "Set 4 done" }).click();
+  await expect(heading).toContainText("100 × 6, 102.5 × 5, 102.5 × 5, 102.5 × 5");
+  await expect(heading).not.toHaveAttribute("data-open");
   await workout.locator("[data-workout-end-now]").click();
   await page.getByRole("dialog", { name: "Workout done" }).getByRole("button", { name: "Done", exact: true }).click();
   const today = await page.evaluate(() => new Intl.DateTimeFormat("en-CA", { year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date()));

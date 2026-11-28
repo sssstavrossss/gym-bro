@@ -74,9 +74,11 @@ test("Plan: a mobility warm-up and cool-down frame each workout", async ({ page 
   await expect(workout.locator("[data-workout-exercise]")).toHaveCount(first.warmUp.length + first.exercises.length + first.coolDown.length);
   await expect(workout.locator("[data-workout-exercise]").first()).toHaveAttribute("data-workout-exercise", (first.warmUp[0] as { exerciseId: string }).exerciseId);
   // The first move is open: it goes for 30 s, with no warm-up set of its own.
-  const move = workout.locator("[data-workout-exercise][data-open]");
-  await expect(move).toContainText("30 s · First time");
-  await expect(move.locator("[data-add-warmup]")).toHaveCount(0);
+  await expect(workout.locator("[data-workout-exercise][data-open]")).toHaveCount(1);
+  const move = workout.locator("[data-info]");
+  await expect(move).toContainText("30 s");
+  await expect(move).toContainText("First time");
+  await expect(workout.locator("[data-add-warmup]")).toHaveCount(0);
 
   // Turned off again in Your training, the plan follows at once: same workouts, and the line goes.
   await page.goto("/train");

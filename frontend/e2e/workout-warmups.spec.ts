@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { pick } from "./dial";
 
 function headers(oid: string) {
   return { "X-Test-Oid": oid, "X-Test-Name": "Test User", "Content-Type": "application/json" };
@@ -39,25 +40,28 @@ test("+ Warm-up ramps up to the working weight, then adds single empty ones", as
   await adding.getByLabel("Search exercises").fill("barbell squat");
   await adding.getByRole("button", { name: "Add Barbell Squat", exact: true }).click();
 
-  // The exercise opens on its own screen: the sets listed, the one up next typed in the footer.
-  const squat = page.locator('[data-exercise-screen][data-workout-exercise="barbell-squat"]');
-  await page.getByLabel("Set 1, kg", { exact: true }).fill("100");
-  await squat.locator("[data-add-warmup]").click();
+  // The exercise opens on the timeline, its first set to do.
+  const workout = page.getByRole("dialog", { name: "Workout" });
+  await pick(page, workout.getByLabel("Set 1, kg", { exact: true }), 100);
+  await workout.locator("[data-add-warmup]").click();
   await expect(page.getByText("4 warm-up sets, building to 100 kg")).toBeVisible();
 
-  // The empty bar for 10, then about 40%, 60% and 80%, before set 1; the first warm-up is up next.
-  const rows = squat.locator("[data-set]");
+  // The empty bar for 10, then about 40%, 60% and 80%, before set 1; the first warm-up is the set to do.
+  const rows = workout.locator('[data-set][data-exercise="barbell-squat"]');
   const ramp = [["20", "10"], ["40", "8"], ["60", "5"], ["80", "3"]];
-  for (const [index, [kg, reps]] of ramp.entries()) await expect(rows.nth(index)).toContainText(`${kg} × ${reps}`);
-  await expect(rows.nth(4)).toContainText("100");
-  await expect(page.getByLabel("Warm-up set 1, kg", { exact: true })).toHaveValue("20");
-  await expect(page.getByLabel("Warm-up set 1, Reps", { exact: true })).toHaveValue("10");
+  for (const [index, [kg, reps]] of ramp.entries()) {
+    await expect(rows.nth(index).locator('[data-cell$="-kg"]')).toContainText(kg);
+    await expect(rows.nth(index).locator('[data-cell$="-reps"]')).toContainText(reps);
+  }
+  await expect(rows.nth(4).locator('[data-cell$="-kg"]')).toContainText("100");
+  await expect(rows.nth(0)).toHaveAttribute("data-set-state", "now");
+  await expect(workout.getByLabel("Warm-up set 1, kg", { exact: true })).toHaveText(/20$/);
 
   // Once there are warm-ups, the button adds one more, empty, after the others.
-  await squat.locator("[data-add-warmup]").click();
+  await workout.locator("[data-add-warmup]").click();
   await expect(rows).toHaveCount(8);
-  await expect(rows.nth(4)).toContainText("—");
-  await page.locator("[data-log-set]").click();
+  await expect(rows.nth(4).locator('[data-cell$="-kg"]')).toContainText("—");
+  await workout.locator("[data-log-set]").click();
   await expect(rows.nth(0)).toHaveAttribute("data-done", "");
-  await expect(page.locator("[data-exercise-status]")).toHaveText("Warm-up set 2");
+  await expect(rows.nth(1)).toHaveAttribute("data-set-state", "now");
 });

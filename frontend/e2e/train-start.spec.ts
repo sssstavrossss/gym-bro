@@ -1,5 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
+import { pick } from "./dial";
 
 function headers(oid: string) {
   return { "X-Test-Oid": oid, "X-Test-Name": "Test User", "Content-Type": "application/json" };
@@ -82,7 +83,7 @@ test("A first visit: start a workout, make a plan, explore by body area, and log
   await add.getByLabel("Search exercises").fill("plank");
   await add.locator('[data-exercise="plank"]:visible').click();
   const log = page.getByRole("dialog", { name: "Log a workout" });
-  await log.getByLabel("Set 1, Time").fill("60");
+  await pick(page, log.getByLabel("Set 1, Time"), 100);
   await log.getByRole("button", { name: "Set 1 done" }).click();
   await log.getByRole("button", { name: "Save", exact: true }).click();
   await expect(log).toHaveCount(0);

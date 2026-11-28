@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { pick, setRow } from "./dial";
 
 function headers(oid: string) {
   return { "X-Test-Oid": oid, "X-Test-Name": "Test User", "Content-Type": "application/json" };
@@ -59,21 +60,22 @@ test("a plan workout suggests each lift's weight from the last two times, and ti
   await page.locator("[data-up-next]").getByRole("button", { name: "Start Upper A" }).click();
   const workout = page.getByRole("dialog", { name: "Upper A" });
 
-  const benchCard = workout.locator(`[data-workout-exercise="${bench}"][data-open]`);
-  await expect(benchCard.locator('[data-load-suggestion="up"]')).toHaveText("Try 62.5 kg, up 2.5: every set reached 10 last time");
-  await expect(benchCard.getByLabel("Set 1, kg")).toHaveAttribute("placeholder", "62.5");
-  await expect(benchCard.getByLabel("Set 1, Reps")).toHaveAttribute("placeholder", "6");
-  await benchCard.getByRole("button", { name: "Set 1 done" }).click();
-  await expect(benchCard.getByLabel("Set 1, kg")).toHaveValue("62.5");
-  await expect(benchCard.getByLabel("Set 1, Reps")).toHaveValue("6");
+  const benchSet = setRow(workout, bench, 0);
+  await expect(workout.locator('[data-load-suggestion="up"]')).toHaveText("Try 62.5 kg, up 2.5: every set reached 10 last time");
+  // The suggestion is the set's grey hint, and ticking it off takes it.
+  await expect(benchSet.getByLabel("Set 1, kg")).toContainText("62.5");
+  await expect(benchSet.getByLabel("Set 1, Reps")).toContainText("6");
+  await benchSet.getByRole("button", { name: "Set 1 done" }).click();
+  await expect(benchSet).toHaveAttribute("data-done", "");
+  await expect(benchSet.getByLabel("Set 1, kg")).toContainText("62.5");
+  await expect(benchSet.getByLabel("Set 1, Reps")).toContainText("6");
 
   await workout.locator(`[data-workout-exercise="${row}"]`).getByRole("button").first().click();
-  const rowCard = workout.locator(`[data-workout-exercise="${row}"][data-open]`);
-  await expect(rowCard.locator('[data-load-suggestion="ease"]')).toHaveText("Try 62.5 kg, down 7.5: short of the range twice");
-  await expect(rowCard.getByLabel("Set 1, kg")).toHaveAttribute("placeholder", "62.5");
+  await expect(workout.locator(`[data-workout-exercise="${row}"][data-open]`)).toBeVisible();
+  await expect(workout.locator('[data-load-suggestion="ease"]')).toHaveText("Try 62.5 kg, down 7.5: short of the range twice");
+  await expect(setRow(workout, row, 0).getByLabel("Set 1, kg")).toContainText("62.5");
 
   await workout.locator('[data-workout-exercise="standing-military-press"]').getByRole("button").first().click();
-  const press = workout.locator('[data-workout-exercise="standing-military-press"][data-open]');
-  await expect(press.locator('[data-load-suggestion="first"]')).toHaveText("First time: pick a weight that leaves about 3 reps");
-  await expect(press).not.toContainText("· First time");
+  await expect(workout.locator('[data-load-suggestion="first"]')).toHaveText("First time: pick a weight that leaves about 3 reps");
+  await expect(workout.locator('[data-info="standing-military-press"]')).not.toContainText("· First time");
 });

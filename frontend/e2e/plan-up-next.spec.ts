@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { pick, setRow } from "./dial";
 
 function headers(oid: string) {
   return { "X-Test-Oid": oid, "X-Test-Name": "Test User", "Content-Type": "application/json" };
@@ -80,14 +81,16 @@ test("Up next: skip with Undo, start the plan workout prefilled, finish it, and 
   const workout = page.getByRole("dialog", { name: "Upper A" });
   await expect(workout).toBeVisible();
   await expect(workout.locator("[data-workout-exercise]")).toHaveCount(upperA.exercises.length);
-  const card = workout.locator('[data-workout-exercise="barbell-bench-press-medium-grip"][data-open]');
-  await expect(card).toContainText("6–10 reps · 3 in reserve");
-  await expect(card.locator("[data-set]")).toHaveCount(3);
-  await expect(card.getByLabel("Set 1, RIR")).toHaveAttribute("placeholder", "3");
+  const bench = "barbell-bench-press-medium-grip";
+  await expect(workout.locator(`[data-workout-exercise="${bench}"][data-open]`)).toBeVisible();
+  await expect(workout.locator(`[data-info="${bench}"]`)).toContainText("6–10 reps · 3 in reserve");
+  await expect(workout.locator(`[data-set][data-exercise="${bench}"]`)).toHaveCount(3);
+  const card = setRow(workout, bench, 0);
+  await expect(card.getByLabel("Set 1, RIR")).toContainText("3");
   await expect(workout.locator("[data-workout-status]")).toContainText(`0 of ${sets} sets`);
 
-  await card.getByLabel("Set 1, kg").fill("60");
-  await card.getByLabel("Set 1, Reps").fill("8");
+  await pick(page, card.getByLabel("Set 1, kg"), 60);
+  await pick(page, card.getByLabel("Set 1, Reps"), 8);
   await card.getByRole("button", { name: "Set 1 done" }).click();
   // The plan's rest for a big upper-body lift: 2:00.
   await expect(workout.locator("[data-rest]").getByRole("timer")).toHaveText(/^(2:00|1:5\d)$/);

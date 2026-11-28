@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { pick } from "./dial";
 
 function headers(oid: string) {
   return { "X-Test-Oid": oid, "X-Test-Name": "Test User", "Content-Type": "application/json" };
@@ -40,17 +41,16 @@ test("a run saves as cardio with its pace and distance", async ({ page }) => {
   await adding.getByRole("button", { name: "Add Run", exact: true }).click();
 
   const workout = page.getByRole("dialog", { name: "Workout" });
-  const run = page.locator('[data-exercise-screen][data-workout-exercise="run"]');
   // Cardio starts with one set: one run.
-  await expect(run.locator("[data-set]")).toHaveCount(1);
-  await page.getByLabel("Set 1, m", { exact: true }).fill("5000");
-  await page.getByLabel("Set 1, Time", { exact: true }).fill("2500");
-  await expect(run.locator("[data-pace]")).toHaveText("Pace 5:00 /km");
-  await page.getByRole("button", { name: "Log set 1" }).click();
-  // No rest after cardio.
-  await expect(run.locator("[data-set]").first()).toHaveAttribute("data-done", "");
-  await expect(page.locator("[data-rest]")).toHaveCount(0);
-  await page.getByRole("button", { name: "Done", exact: true }).click();
+  await expect(workout.locator('[data-set][data-exercise="run"]')).toHaveCount(1);
+  await pick(page, workout.getByLabel("Set 1, m", { exact: true }), 5000);
+  await pick(page, workout.getByLabel("Set 1, Time", { exact: true }), 2500);
+  await expect(workout.locator("[data-pace]")).toHaveText("Pace 5:00 /km");
+  await workout.getByRole("button", { name: "Set 1 done" }).click();
+  // Done, the run folds to its heading; no rest after cardio.
+  await expect(workout.locator('[data-workout-exercise="run"]')).not.toHaveAttribute("data-open");
+  await expect(workout.locator('[data-workout-exercise="run"]')).toContainText("5 km");
+  await expect(workout.locator("[data-rest]")).toHaveCount(0);
 
   await workout.getByRole("button", { name: /^End now/ }).click();
   const done = page.getByRole("dialog", { name: "Workout done" });
