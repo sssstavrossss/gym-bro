@@ -13,6 +13,7 @@ import {
   groupName,
   groupOf,
   restLeft,
+  canJoin,
   samePart,
   shortDay,
   type DraftExercise,
@@ -144,7 +145,7 @@ const broken = reactive(new Set<string>());
 /** The one before, for "Superset with"; none across the warm-up, the workout and the cool-down. */
 function prevName(exercise: DraftExercise) {
   const before = props.exercises[props.exercises.indexOf(exercise) - 1];
-  return before && samePart(before, exercise) ? nameOf(before) : "";
+  return before && samePart(before, exercise) && (exercise.superset || canJoin(before, exercise)) ? nameOf(before) : "";
 }
 async function join(exercise: DraftExercise) {
   const before = props.exercises[props.exercises.indexOf(exercise) - 1];
