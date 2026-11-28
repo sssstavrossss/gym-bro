@@ -37,6 +37,8 @@ test("A workout: start it, add an exercise, tick off sets, rest, finish, and see
   await page.goto("/train");
 
   await page.getByRole("button", { name: "Empty workout" }).click();
+  // Quick start opens the workout on its timeline; + Exercise opens Add exercise.
+  await page.getByRole("dialog", { name: "Workout" }).locator("[data-add-exercise]").click();
   const sheet = page.getByRole("dialog", { name: "Add exercise" });
   await expect(sheet).toBeVisible();
   await sheet.getByLabel("Search exercises").fill("barbell bench press");
@@ -92,6 +94,8 @@ test("A workout: start it, add an exercise, tick off sets, rest, finish, and see
 
   // Next time, the exercise starts with last time's two sets, and last time above them.
   await page.getByRole("button", { name: "Empty workout" }).click();
+  // Quick start opens the workout on its timeline; + Exercise opens Add exercise.
+  await page.getByRole("dialog", { name: "Workout" }).locator("[data-add-exercise]").click();
   await page.getByRole("dialog", { name: "Add exercise" }).getByLabel("Search exercises").fill("barbell bench press");
   await page.getByRole("button", { name: "Add Barbell Bench Press - Medium Grip" }).click();
   await expect(workout.locator(`[data-set][data-exercise="${id}"]`)).toHaveCount(2);

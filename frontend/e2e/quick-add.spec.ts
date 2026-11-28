@@ -44,58 +44,55 @@ async function local(page: Page, ...offsets: number[]) {
   }, offsets);
 }
 
-test("Quick add: the start waits for the first exercise, an empty workout closes to nothing, and one done earlier gets its own times", async ({ page }) => {
+test("Quick start: the workout starts now on its timeline, an empty one closes to nothing, and one done earlier gets its own times", async ({ page }) => {
   await page.goto("/");
   const oid = await setup(page);
   await page.goto("/train");
-  await expect(page.locator("[data-start-workout]")).toContainText("Quick add");
+  await expect(page.locator("[data-start-workout]")).toContainText("Quick start");
 
-  // + opens the picker with the times chip at "Now"; × closes it and nothing was started.
+  // + starts the workout now and opens it on its timeline, empty: its clock runs, with + Exercise and End.
   await page.getByRole("button", { name: "Empty workout" }).click();
+  const workout = page.getByRole("dialog", { name: "Workout", exact: true });
+  const chip = workout.locator("[data-workout-times-chip]");
+  await expect(chip).toHaveText(/\d{2}:\d{2} – now$/);
+  await expect(workout.getByText(/^Started \d{2}:\d{2}$/)).toBeVisible();
+  await expect(workout.locator("[data-workout-end-now]")).toBeVisible();
+  // + Exercise opens Add exercise; nothing grabs focus there, so no keyboard comes up. ← goes back to the workout.
+  await workout.locator("[data-add-exercise]").click();
   const add = page.getByRole("dialog", { name: "Add exercise" });
-  await expect(add.getByRole("button", { name: "Times: starts now" })).toHaveText("Now");
-  // Nothing grabs focus, so no keyboard comes up: the search waits for a tap.
   await expect(add.getByLabel("Search exercises")).not.toBeFocused();
-  // Nothing has started: Train under the sheet still shows Quick add, not a workout in progress.
-  await expect(page.locator("[data-workout-card]")).toHaveCount(0);
-  await expect(page.locator("[data-start-workout]")).toHaveCount(1);
-  // Describe and back is Add exercise again: there is no workout yet to go back to.
-  await add.locator("[data-describe-workout]").click();
-  const describe = page.getByRole("dialog", { name: "Describe a workout" });
-  await describe.getByRole("button", { name: "Back to Add exercise" }).click();
-  await expect(add.getByLabel("Search exercises")).toBeVisible();
-  await expect(page.getByRole("dialog", { name: "Workout", exact: true })).toHaveCount(0);
-  await add.getByRole("button", { name: "Close" }).click();
-  await expect(add).toHaveCount(0);
+  await add.getByRole("button", { name: "Back to the workout" }).click();
+  await expect(workout.locator("[data-add-exercise]")).toBeVisible();
+  // Hidden with nothing added, it goes quietly: Train shows Quick start again, not a workout in progress.
+  await workout.getByRole("button", { name: "Hide the workout" }).click();
+  await expect(workout).toHaveCount(0);
   await expect(page.locator("[data-workout-card]")).toHaveCount(0);
   await expect(page.locator("[data-start-workout]")).toBeVisible();
 
   // Again, this time moving the start back 90 minutes before adding anything.
   await page.getByRole("button", { name: "Empty workout" }).click();
-  await add.getByRole("button", { name: "Times: starts now" }).click();
-  const times = add.locator("[data-workout-times]");
+  await chip.click();
+  const live = workout.locator("[data-workout-times]");
   const [start, end, later] = await local(page, -90, -30, 30);
-  await times.getByLabel("Day it started").fill(start.day);
-  await times.getByLabel("Time it started").fill(start.time);
-  await expect(add.getByRole("button", { name: "Times: starts now" })).toHaveText(`${start.time} – now`);
+  await live.getByLabel("Day it started").fill(start.day);
+  await live.getByLabel("Time it started").fill(start.time);
+  await expect(chip).toHaveText(`${start.time} – now`);
+  await workout.locator("[data-add-exercise]").click();
   await add.getByLabel("Search exercises").fill("barbell squat");
   await add.getByRole("button", { name: "Add Barbell Squat", exact: true }).click();
 
   // The squat opens on the timeline, on its first set to do.
-  const workout = page.getByRole("dialog", { name: "Workout", exact: true });
   await expect(setRow(workout, "barbell-squat", 0)).toHaveAttribute("data-set-state", "now");
   await pick(page, workout.getByLabel("Set 1, kg"), 80);
   await pick(page, workout.getByLabel("Set 1, Reps"), 5);
   await workout.getByRole("button", { name: "Set 1 done" }).click();
   await expect(setRow(workout, "barbell-squat", 1)).toHaveAttribute("data-set-state", "now");
 
-  // The start held: the live header shows it, and the chip opens the same card.
-  const chip = workout.locator("[data-workout-times-chip]");
+  // The start held, and the chip opens the same card.
   await expect(chip).toHaveText(`${start.time} – now`);
 
   // It ended an hour after it started: End says when, and saves that.
   await chip.click();
-  const live = workout.locator("[data-workout-times]");
   await live.getByRole("radio", { name: "At a time" }).click();
   await live.getByLabel("Time it ended").fill(end.time);
   await expect(chip).toHaveText(`${start.time} – ${end.time}`);
@@ -125,6 +122,7 @@ test("The timeline: the set to do, numbers that carry on, a done set corrected, 
   const oid = await setup(page);
   await page.goto("/train");
   await page.getByRole("button", { name: "Empty workout" }).click();
+  await page.getByRole("dialog", { name: "Workout" }).locator("[data-add-exercise]").click();
   const add = page.getByRole("dialog", { name: "Add exercise" });
   // Only the exercises scroll, like Add food: the sheet itself has nothing to scroll, and each muscle group's page
   // scrolls on its own under the search and both rows of chips.

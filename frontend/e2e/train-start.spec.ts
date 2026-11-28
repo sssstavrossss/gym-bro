@@ -41,7 +41,7 @@ test("A first visit: start a workout, make a plan, explore by body area, and log
   const before = page.locator("[data-trained-before]");
   await expect(before).toContainText("Trained before?");
   await expect(page.locator("[data-workout-history]")).toHaveCount(0);
-  await expect(page.locator("[data-start-workout]")).toContainText("Quick add");
+  await expect(page.locator("[data-start-workout]")).toContainText("Quick start");
   await expect(page.locator("[data-plan-card]")).toContainText("Make a plan");
 
   // A body area opens the library on that area.
@@ -61,7 +61,7 @@ test("A first visit: start a workout, make a plan, explore by body area, and log
   await expect(library.getByRole("group", { name: "Type" }).getByRole("button", { name: "All", exact: true })).toHaveAttribute("aria-pressed", "true");
   await page.keyboard.press("Escape");
 
-  // ✨ opens Quick add straight on Describe; ← is Add exercise, Quick add's first page, as nothing has started.
+  // ✨ opens Describe with nothing started (the exercises found start it); ← is Add exercise, as there is no workout yet.
   await page.getByRole("button", { name: "Describe a workout" }).click();
   const describe = page.getByRole("dialog", { name: "Describe a workout" });
   await expect(describe.getByLabel("What you did")).toBeVisible();
@@ -73,7 +73,7 @@ test("A first visit: start a workout, make a plan, explore by body area, and log
   }).toPass();
   await picker.getByRole("button", { name: "Close" }).click();
 
-  // Nothing was added, so nothing started: Quick add is back, with no workout in progress.
+  // Nothing was added, so nothing started: Quick start is back, with no workout in progress.
   await expect(page.locator("[data-workout-card]")).toHaveCount(0);
   await expect(page.locator("[data-start-workout]")).toBeVisible();
 

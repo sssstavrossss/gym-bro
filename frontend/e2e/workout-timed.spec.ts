@@ -34,6 +34,8 @@ async function setup(page: Page): Promise<string> {
 async function circuit(page: Page, format: string) {
   await page.goto("/train");
   await page.getByRole("button", { name: "Empty workout" }).click();
+  // Quick start opens the workout on its timeline; + Exercise opens Add exercise.
+  await page.getByRole("dialog", { name: "Workout" }).locator("[data-add-exercise]").click();
   const adding = page.getByRole("dialog", { name: "Add exercise" });
   await adding.getByLabel("Search exercises").fill("pullups");
   await adding.getByRole("button", { name: "Add Pullups", exact: true }).click();

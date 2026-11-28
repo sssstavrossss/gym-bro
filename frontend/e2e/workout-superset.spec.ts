@@ -36,6 +36,8 @@ test("two exercises done as a superset rest after each round and save as one blo
   const oid = await setup(page);
   await page.goto("/train");
   await page.getByRole("button", { name: "Empty workout" }).click();
+  // Quick start opens the workout on its timeline; + Exercise opens Add exercise.
+  await page.getByRole("dialog", { name: "Workout" }).locator("[data-add-exercise]").click();
   const adding = page.getByRole("dialog", { name: "Add exercise" });
   await adding.getByLabel("Search exercises").fill("barbell bench press");
   await adding.getByRole("button", { name: "Add Barbell Bench Press - Medium Grip", exact: true }).click();
