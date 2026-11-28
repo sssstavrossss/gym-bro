@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { pick } from "./dial";
 
 function headers(oid: string): Record<string, string> {
   return { "X-Test-Oid": oid, "X-Test-Name": "Test User", "Content-Type": "application/json" };
@@ -67,14 +68,14 @@ async function geometry(page: Page) {
   });
 }
 
-test("the keypad tray stays at the bottom and the page starts at the top", async ({ page }) => {
+test("the amount tray stays at the bottom and the page starts at the top", async ({ page }) => {
   const name = "Fictional tray skyr";
   await setUp(page, name);
   await openFood(page, name);
 
   const sheet = foodSheet(page);
   const tray = sheet.locator("[data-amount-tray]");
-  await expect(sheet.locator("[data-amount-box]").getByRole("textbox", { name: "Amount in g" })).toHaveValue("100");
+  await expect(sheet.locator("[data-amount-box] [data-amount-pick]")).toHaveText("100");
   await expect(tray.getByRole("group", { name: "Quick amounts" }).getByRole("button", { name: "150 g", exact: true })).toBeVisible();
   await expect(tray.getByRole("button", { name: /^Add · \d+ kcal/ })).toBeVisible();
   await expect(sheet.getByRole("button", { name: "Add a serving" })).toBeVisible();
@@ -84,8 +85,8 @@ test("the keypad tray stays at the bottom and the page starts at the top", async
   expect(tall.trayBottom).toBeLessThanOrEqual(tall.viewport);
   expect(tall.chipLines).toBe(1);
 
-  // A small phone: the page scrolls above the tray, and the tray keeps its buttons on screen.
-  await page.setViewportSize({ width: 375, height: 667 });
+  // A short screen: the page scrolls above the tray, and the tray keeps its buttons on screen.
+  await page.setViewportSize({ width: 375, height: 520 });
   await expect(tray.getByRole("button", { name: /^Add · \d+ kcal/ })).toBeInViewport();
   const small = await geometry(page);
   expect(small.pageScrolls).toBe(true);
@@ -99,11 +100,11 @@ test("the first quick amount is the one logged last time", async ({ page }) => {
   await openFood(page, name);
 
   const sheet = foodSheet(page);
-  const field = sheet.getByRole("textbox", { name: "Amount in g" });
+  const field = sheet.locator("[data-amount-pick]");
   const chips = sheet.locator("[data-amount-tray]").getByRole("group", { name: "Quick amounts" });
   await expect(chips.getByRole("button", { name: /last time/ })).toHaveCount(0);
-  for (const key of ["1", "7", "0"]) await sheet.locator(".keypad").getByRole("button", { name: key, exact: true }).click();
-  await expect(field).toHaveValue("170");
+  await pick(page, field, 170);
+  await expect(field).toHaveText("170");
   await sheet.getByRole("button", { name: /^Add · 170 kcal/ }).click();
   await expect(page.locator("[data-session] button.frow").filter({ hasText: "Fictional tray cottage cheese" })).toContainText("170 g");
 
@@ -111,9 +112,9 @@ test("the first quick amount is the one logged last time", async ({ page }) => {
   const last = chips.getByRole("button").first();
   await expect(last).toHaveText("170 g · last time");
   await chips.getByRole("button", { name: "100 g", exact: true }).click();
-  await expect(field).toHaveValue("100");
+  await expect(field).toHaveText("100");
   await last.click();
-  await expect(field).toHaveValue("170");
+  await expect(field).toHaveText("170");
   await expect(sheet.getByRole("button", { name: /^Add · 170 kcal/ })).toBeVisible();
 
   // Editing an entry: the quick amounts are the plain ones.
@@ -139,6 +140,6 @@ test("the first quick amount is the one logged last time", async ({ page }) => {
   const picked = recipe.locator("[data-amount-tray]").getByRole("group", { name: "Quick amounts" });
   await expect(picked.getByRole("button").first()).toHaveText("170 g · last time");
   await picked.getByRole("button").first().click();
-  await expect(recipe.getByRole("textbox", { name: "Amount in g" })).toHaveValue("170");
+  await expect(recipe.locator("[data-amount-pick]")).toHaveText("170");
   await expect(recipe.getByRole("button", { name: /^Add to recipe · 170 kcal/ })).toBeVisible();
 });

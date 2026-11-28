@@ -57,7 +57,7 @@ test("food in ounces: typed in oz, saved in grams, untouched amounts kept exactl
   await sheet(page).getByRole("button", { name: /My foods/ }).click();
   await sheet(page).getByRole("button", { name: /^Fictional oat bowl/ }).click();
   await expect(sheet(page).getByRole("radio", { name: "oz", exact: true })).toBeChecked();
-  await expect(sheet(page).getByRole("textbox", { name: "Amount in oz" })).toBeVisible();
+  await expect(sheet(page).getByRole("button", { name: /^Amount in oz, / })).toBeVisible();
   await sheet(page).getByRole("button", { name: "4 oz", exact: true }).click();
   await expect(sheet(page).locator("[data-metric-line]")).toHaveText("= 113 g");
   await sheet(page).getByRole("button", { name: /Add · 227 kcal/ }).click();
@@ -72,7 +72,7 @@ test("food in ounces: typed in oz, saved in grams, untouched amounts kept exactl
   // Editing shows the same ounces; a new amount is saved in grams.
   await logged.click();
   await expect(page.getByRole("dialog", { name: "Edit food" })).toBeVisible();
-  await expect(sheet(page).getByRole("textbox", { name: "Amount in oz" })).toHaveValue("4");
+  await expect(sheet(page).locator("[data-amount-pick]")).toHaveText("4");
   await sheet(page).getByRole("button", { name: "8 oz", exact: true }).click();
   await sheet(page).getByRole("button", { name: /Save · 454 kcal/ }).click();
   await expect(page.getByText(/Updated Fictional oat bowl · 454 kcal/)).toBeVisible();
@@ -86,8 +86,8 @@ test("food in ounces: typed in oz, saved in grams, untouched amounts kept exactl
   await sheet(page).getByRole("button", { name: /Recipes/ }).click();
   await sheet(page).getByRole("button", { name: "Edit recipe Fictional oat pot" }).click();
   const edit = page.getByRole("dialog", { name: "Edit recipe" });
-  await expect(edit.getByRole("textbox", { name: "Amount of Fictional oat bowl" })).toHaveValue("5.3");
-  await expect(edit.getByRole("textbox", { name: "Finished weight in ounces, optional" })).toHaveValue("15.9");
+  await expect(edit.getByRole("button", { name: /^Amount of Fictional oat bowl, / })).toHaveText("5.3");
+  await expect(edit.locator("[data-pick-finished]")).toHaveText("15.9");
   await edit.getByRole("button", { name: "Save recipe" }).click();
   await expect(page.getByText(/Updated Fictional oat pot · [\d,]+ kcal per portion/)).toBeVisible();
   const saved = await (await page.request.get(`/api/recipes/${recipeId}`, { headers })).json();

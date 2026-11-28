@@ -30,8 +30,15 @@ export const DIAL_PRESETS = {
   "body.goal": { unit: "kg", min: 30, max: 300, steps: [0.5, 1, 5], step: 0.5, start: 75 },
   "body.goal.lb": { unit: "lb", min: 66.2, max: 661.3, steps: [1, 5, 10], step: 1, start: 165 },
   // Food and water
-  "food.grams": { unit: "g", min: 0, max: 2000, steps: [1, 5, 10, 50], step: 5, start: 100 },
-  "food.pieces": { unit: "pieces", min: 0, max: 20, steps: [0.5, 1], step: 1, format: "half", start: 1 },
+  // An amount is never 0. Ounces (and fl oz) keep a decimal; pieces, servings and portions go in halves.
+  "food.grams": { unit: "g", min: 1, max: 10000, steps: [1, 5, 10, 50], step: 5, start: 100 },
+  "food.ml": { unit: "ml", min: 1, max: 10000, steps: [5, 10, 50, 100], step: 10, start: 250 },
+  "food.oz": { unit: "oz", min: 0.1, max: 352, steps: [0.1, 0.5, 1], step: 0.5, start: 3.5 },
+  "food.pieces": { unit: "pieces", min: 0.5, max: 50, steps: [0.5, 1], step: 1, format: "half", start: 1 },
+  // A recipe: its portions, and its finished weight (optional, so 0 leaves it out), in grams or ounces.
+  "recipe.portions": { unit: "portions", min: 0.5, max: 100, steps: [0.5, 1], step: 1, format: "half", start: 4 },
+  "recipe.grams": { unit: "g", min: 0, max: 10000, steps: [10, 50, 100, 500], step: 50, start: 1000 },
+  "recipe.oz": { unit: "oz", min: 0, max: 352, steps: [0.5, 1, 5, 10], step: 1, start: 35 },
   "water.ml": { unit: "ml", min: 0, max: 3000, steps: [50, 100, 250], step: 250, start: 250 },
   // A set's load, by the kit
   "set.kg.barbell": { unit: "kg", min: 0, max: 500, steps: [1.25, 2.5, 5, 10], step: 2.5, start: 20 },
@@ -74,7 +81,7 @@ export interface DialSpec {
  */
 export function dialSpec(
   id: DialId,
-  what: { label: string; hint?: string; value: number | null; min?: number; max?: number; live?: (value: number) => string },
+  what: { label: string; hint?: string; value: number | null; min?: number; max?: number; live?: (value: number) => string; unit?: string },
   remembered: number | null = null,
 ): DialSpec {
   const preset: DialPreset = DIAL_PRESETS[id];
@@ -85,7 +92,8 @@ export function dialSpec(
     id,
     label: what.label,
     hint: what.hint,
-    unit: preset.unit,
+    // A word only, never the steps: a serving's name ("slice"), or fl oz on the ounce wheel.
+    unit: what.unit ?? preset.unit,
     value,
     min,
     max,
@@ -226,4 +234,11 @@ export function fieldDial(field: SetField, equipment: string | null | undefined)
 export function weightDial(kind: "weight" | "goal", unit: "kg" | "lb"): DialId {
   if (kind === "weight") return unit === "lb" ? "body.weight.lb" : "body.weight";
   return unit === "lb" ? "body.goal.lb" : "body.goal";
+}
+
+/** An amount's wheel by the unit it is shown in: "g", "ml", "oz", "fl oz", or a count (a piece, a serving, a portion). */
+export function amountDial(shown: string, count: boolean): DialId {
+  if (count) return "food.pieces";
+  if (shown === "oz" || shown === "fl oz") return "food.oz";
+  return shown === "ml" ? "food.ml" : "food.grams";
 }

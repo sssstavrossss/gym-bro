@@ -5,7 +5,6 @@ import AmountScreen, { type AmountChip, type AmountUnit } from "./AmountScreen.v
 import BottomSheet from "./BottomSheet.vue";
 import FoodAmountView from "./FoodAmountView.vue";
 import Icon from "./Icon.vue";
-import Keypad from "./Keypad.vue";
 import MicroRing from "./MicroRing.vue";
 import NutrientCard from "./NutrientCard.vue";
 import RecipeImport from "./RecipeImport.vue";
@@ -21,9 +20,11 @@ import { acceptSearchResult, preparedSearch, searchDebounceMs } from "../lib/foo
 import { addNeedsTime, amountForRecent, logTimeForAdd } from "../lib/foodSheet";
 import { bindPick, clickPick } from "../lib/cleanTap";
 import { armReplace, primeKeyboard, selectField } from "../lib/focusField";
-import { afterInsertion, markWholeSelection, nextQuickInput, nextQuickNumber, tookWholeSelection } from "../lib/quickEntry";
+import { afterInsertion, markWholeSelection, nextQuickInput, tookWholeSelection } from "../lib/quickEntry";
 import { useFoodAmount } from "../lib/useFoodAmount";
 import { keyboardEntry } from "../lib/viewport";
+import { amountDial, dialSpec } from "../lib/dial";
+import { openDial } from "../ui";
 import {
   cleanRecipeName,
   finishedError,
@@ -438,8 +439,8 @@ function setLogUnit(next: "portion" | "g") {
 
 /**
  * Keep the focused field in view. For an ingredient amount that is the whole ingredient,
- * so its unit chips are not left under the keypad. Two frames: the keypad and the chips
- * mount on the same focus, and the scroll has to wait for that layout.
+ * so its unit chips are not left under the fold. Two frames: the chips mount on the same
+ * focus, and the scroll has to wait for that layout.
  */
 function reveal(event: FocusEvent) {
   const target = event.target;
@@ -479,29 +480,75 @@ function onNameFocus(event: FocusEvent) {
   selectAmount(event);
 }
 
-/** The keypad sits at the bottom of the sheet, so it says which field it is typing into. */
-const padCaption = computed(() => {
-  if (padTarget.value === "portions") return `Portions: ${portionsText.value || "–"}`;
-  if (padTarget.value === "finished") return `Finished weight: ${finishedText.value || "–"} ${weightWord.value}`;
-  if (padTarget.value === "line") {
-    const line = lines.value.find((item) => item.key === padLine.value);
-    // The card is scrolled away while an ingredient is typed in, so its figures come here.
-    if (line && per.value) return `Per portion · ${recipeTotalLine(per.value)}`;
-    if (line) return `${line.name}: ${line.amountText || "–"} ${unitWord(line.unit, unitChoices(line))}`;
-  }
-  return "";
-});
-
 function closePad() {
   padTarget.value = null;
   padLine.value = null;
 }
 
-/** Done also lets go of the field, so its ring and unit chips go away with the keypad. */
-function donePad() {
-  closePad();
-  const active = document.activeElement;
-  if (active instanceof HTMLInputElement) active.blur();
+// On a touch screen each number here is a button that opens the number wheel (README, *Picking a number*).
+const macroLine = (kcal: number, protein: number) => `${int(kcal)} kcal · ${int(protein)} g protein`;
+
+/** The amount to log, in portions or the weight shown, with what it adds as it turns. */
+function pickLog(from: Element) {
+  const portion = logUnit.value === "portion";
+  const spec = dialSpec(amountDial(portion ? "portion" : weightWord.value, portion), {
+    label: loadedName.value,
+    value: parseAmount(logAmount.value) || null,
+    unit: portion ? "portion" : weightWord.value,
+    live: (shown) => {
+      const scaled = snapshot.value ? scaleRecipeLog(snapshot.value, metric(String(shown), logUnit.value, null), logUnit.value) : null;
+      return scaled ? macroLine(scaled.kcal, scaled.protein) : "";
+    },
+  });
+  openDial(spec, from, (value) => fillLog(value, logUnit.value));
+}
+
+/** Portions, and a portion's macros as they turn. */
+function pickPortions(event: MouseEvent) {
+  const spec = dialSpec("recipe.portions", {
+    label: "Portions",
+    value: parseAmount(portionsText.value) || null,
+    live: (count) => {
+      const one = linesOk.value ? perPortion(total.value, count) : null;
+      return one ? `Per portion · ${recipeTotalLine(one)}` : "";
+    },
+  });
+  openDial(spec, event.currentTarget as Element, (value) => (portionsText.value = String(value)));
+}
+
+/** The finished weight, optional: 0 leaves it out. */
+function pickFinished(event: MouseEvent) {
+  const oz = foodUnit() === "oz";
+  const spec = dialSpec(oz ? "recipe.oz" : "recipe.grams", {
+    label: "Finished weight",
+    hint: "Optional · 0 leaves it out",
+    value: parseAmount(finishedText.value) || null,
+  });
+  openDial(spec, event.currentTarget as Element, (value) => {
+    if (!value) fillFinished(null);
+    else finishedText.value = String(value);
+  });
+}
+
+/** An ingredient's amount in its unit, with the recipe's portion as it turns. */
+function pickLine(line: DraftLine, event: MouseEvent) {
+  const word = unitWord(line.unit, unitChoices(line));
+  const count = !["g", "ml", "oz", "fl oz"].includes(word);
+  const spec = dialSpec(amountDial(word, count), {
+    label: line.name,
+    value: parseAmount(line.amountText) || null,
+    unit: word,
+    // The card is out of sight under the wheel, so a portion's figures come with it.
+    live: (shown) => {
+      const rows = lines.value.map((item) => macrosOf(item.key === line.key ? { ...item, amountText: String(shown), origin: null } : item));
+      const one = portionsProblem.value || rows.some((row) => row === null) ? null : perPortion(sumTotals(rows as RecipeTotals[]), portions.value);
+      return one ? `Per portion · ${recipeTotalLine(one)}` : "";
+    },
+  });
+  openDial(spec, event.currentTarget as Element, (value) => {
+    line.amountText = String(value);
+    line.origin = null;
+  });
 }
 
 function onPadFocus(target: "log" | "portions" | "finished" | "line", event: FocusEvent, lineKey?: string) {
@@ -509,15 +556,6 @@ function onPadFocus(target: "log" | "portions" | "finished" | "line", event: Foc
   padLine.value = lineKey ?? null;
   padReplace.value = true;
   if (event.target instanceof HTMLInputElement) armReplace(event.target);
-}
-
-/** The log screen's keypad types into its one field, focused or not. */
-function onLogKey(key: string) {
-  if (padTarget.value !== "log") {
-    padTarget.value = "log";
-    padReplace.value = false;
-  }
-  onPadKey(key);
 }
 
 function setLogChip(id: string) {
@@ -530,11 +568,6 @@ function pickLogUnit(id: string) {
 
 function editFromLog() {
   if (recipeId.value) openRecipeEdit(recipeId.value, "log");
-}
-
-function onPadKey(key: string) {
-  writePad(nextQuickNumber(readPad(), key, padReplace.value, 5));
-  padReplace.value = false;
 }
 
 function onPadInput(event: Event) {
@@ -871,7 +904,7 @@ async function addLog() {
       @submit="addLog"
       @unit="pickLogUnit"
       @chip="setLogChip"
-      @key="onLogKey"
+      @pick="pickLog"
     >
       <template #meta>
         <span class="tag t-capn">recipe</span>
@@ -949,11 +982,13 @@ async function addLog() {
       <div class="two">
         <label class="field row">
           <span class="t-label c2">Portions</span>
-          <input :value="portionsText" data-no-autofocus data-replace="1" class="t-body grow num" :inputmode="keyboardEntry ? 'decimal' : 'none'" autocomplete="off" aria-label="Portions" placeholder="e.g. 4" @focus="onPadFocus('portions', $event)" @beforeinput="markWholeSelection" @input="onPadInput" />
+          <input v-if="keyboardEntry" :value="portionsText" data-no-autofocus data-replace="1" class="t-body grow num" inputmode="decimal" autocomplete="off" aria-label="Portions" placeholder="e.g. 4" @focus="onPadFocus('portions', $event)" @beforeinput="markWholeSelection" @input="onPadInput" />
+          <button v-else type="button" class="t-body grow num pick" :class="{ hinted: !portionsText }" :aria-label="`Portions, ${portionsText || 'none yet'}, change`" data-pick-portions @click="pickPortions">{{ portionsText || "e.g. 4" }}</button>
         </label>
         <label class="field row">
           <span class="t-label c2">Finished ({{ weightWord }})</span>
-          <input :value="finishedText" data-no-autofocus data-replace="1" class="t-body grow num" :inputmode="keyboardEntry ? 'decimal' : 'none'" autocomplete="off" :aria-label="`Finished weight in ${weightName}, optional`" placeholder="Optional" @focus="onPadFocus('finished', $event)" @beforeinput="markWholeSelection" @input="onPadInput" />
+          <input v-if="keyboardEntry" :value="finishedText" data-no-autofocus data-replace="1" class="t-body grow num" inputmode="decimal" autocomplete="off" :aria-label="`Finished weight in ${weightName}, optional`" placeholder="Optional" @focus="onPadFocus('finished', $event)" @beforeinput="markWholeSelection" @input="onPadInput" />
+          <button v-else type="button" class="t-body grow num pick" :class="{ hinted: !finishedText }" :aria-label="`Finished weight in ${weightName}, ${finishedText || 'optional'}, change`" data-pick-finished @click="pickFinished">{{ finishedText || "Optional" }}</button>
         </label>
       </div>
       <p v-if="nameProblem && (name.trim() || tried)" class="t-label err" role="status">{{ nameProblem }}</p>
@@ -973,7 +1008,11 @@ async function addLog() {
               <span v-else class="t-label err" role="status">{{ lineError(line) }}</span>
             </span>
             <label class="amt" :class="{ on: padLine === line.key }">
-              <input :value="line.amountText" data-no-autofocus data-replace="1" class="t-body num" :inputmode="keyboardEntry ? 'decimal' : 'none'" autocomplete="off" :aria-label="`Amount of ${line.name}`" :readonly="!line.available && !line.stored" @focus="onPadFocus('line', $event, line.key)" @beforeinput="markWholeSelection" @input="onPadInput" />
+              <input v-if="keyboardEntry" :value="line.amountText" data-no-autofocus data-replace="1" class="t-body num" inputmode="decimal" autocomplete="off" :aria-label="`Amount of ${line.name}`" :readonly="!line.available && !line.stored" @focus="onPadFocus('line', $event, line.key)" @beforeinput="markWholeSelection" @input="onPadInput" />
+              <button
+                v-else type="button" class="t-body num pick" :aria-label="`Amount of ${line.name}, ${line.amountText || '0'}, change`" :disabled="!line.available && !line.stored"
+                :data-pick-line="index" @click="pickLine(line, $event)"
+              >{{ line.amountText || "0" }}</button>
               <span class="t-label c2">{{ unitWord(line.unit, unitChoices(line)) }}</span>
             </label>
             <button type="button" class="cbtn" :aria-label="`Remove ${line.name}`" @click="removeLine(line.key)">
@@ -1006,15 +1045,6 @@ async function addLog() {
       </button>
     </div>
 
-    <template v-if="showForm && !keyboardEntry && padTarget" #footer>
-      <div class="padwrap" data-recipe-pad @mousedown.prevent>
-        <div class="row padhead">
-          <span class="t-label c2 grow padcap" aria-live="polite">{{ padCaption }}</span>
-          <button type="button" class="btn sm primary t-label" @click="donePad">Done</button>
-        </div>
-        <Keypad @key="onPadKey" />
-      </div>
-    </template>
   </BottomSheet>
 </template>
 
@@ -1046,6 +1076,10 @@ html.dt-xl .serving { overflow: visible; text-overflow: clip; white-space: norma
 .amt { display: flex; align-items: center; gap: var(--space-xs); min-height: 40px; padding: 0 var(--space-m); border-radius: var(--radius-m); background: var(--color-surface-2); box-shadow: var(--d-sunk); }
 .amt input { width: 3.6rem; min-height: 40px; border: 0; outline: 0; background: transparent; padding: 0; color: var(--text-primary); }
 .amt input:focus-visible { outline: 0; }
+/* On a touch screen a number is a button that opens the wheel, in the field's place. */
+.pick { min-height: 40px; border: 0; background: transparent; padding: 0; color: var(--text-primary); text-align: left; font-variant-numeric: tabular-nums; }
+.pick.hinted { color: var(--text-tertiary); }
+.amt .pick { min-width: 3.6rem; min-height: 44px; }
 .amt.on, .amt:focus-within { box-shadow: inset 0 0 0 2px var(--text-primary); }
 .ing .units { padding-bottom: var(--space-s); }
 .gone { margin: 0; }
@@ -1054,9 +1088,6 @@ html.dt-xl .serving { overflow: visible; text-overflow: clip; white-space: norma
 .rtext { gap: var(--space-2xs); min-width: 0; align-items: flex-start; }
 .name, .facts { min-width: 0; white-space: normal; overflow-wrap: anywhere; }
 .section-title { margin: var(--space-s) 0 0; }
-.padwrap { display: flex; flex-direction: column; gap: var(--space-s); }
-.padhead { align-items: center; gap: var(--space-s); min-width: 0; }
-.padcap { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lognote { margin: 0; text-align: center; }
 .err, .note, .need { margin: 0; }
 .add-btn { width: 100%; color: var(--text-secondary); text-align: left; }

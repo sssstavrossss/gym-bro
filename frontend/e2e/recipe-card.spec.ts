@@ -1,4 +1,5 @@
 import { expect, test, type APIRequestContext, type Locator, type Page } from "@playwright/test";
+import { pick } from "./dial";
 
 // The macros card on the recipe screens, and the one cog that picks its pages everywhere.
 
@@ -53,7 +54,7 @@ async function setUp(request: APIRequestContext, oid: string, date: string, zone
   expect(recipe.ok(), await recipe.text()).toBeTruthy();
 }
 
-// A phone, so the screens show the app keypad.
+// A phone, so the numbers are picked on the wheel.
 test.use({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
 
 async function openRecipes(page: Page) {
@@ -88,7 +89,11 @@ test("log recipe is an amount screen with the day's card, and its cog opens over
   await expect(logging.getByText("Later edits to the recipe don't change this entry.")).toBeInViewport();
   await expect(logging.getByRole("button", { name: "Add · 600 kcal" })).toBeInViewport();
 
-  await logging.getByRole("button", { name: "2", exact: true }).click();
+  // The wheel says what the portions add as it turns.
+  await logging.locator("[data-amount-pick]").click();
+  await page.keyboard.type("2");
+  await expect(page.locator("[data-dial-live]")).toHaveText("1,200 kcal · 300 g protein");
+  await page.keyboard.press("Enter");
   await expect(logging.getByRole("button", { name: "Add · 1,200 kcal" })).toBeVisible();
 
   // The cog opens the pages sheet over Log recipe, which keeps what was typed.
@@ -105,7 +110,7 @@ test("log recipe is an amount screen with the day's card, and its cog opens over
   await expect(pages).toBeHidden();
   await expect(logging).toBeVisible();
   await expect(card.locator("button.dot")).toHaveCount(4);
-  await expect(logging.getByLabel("Amount to log")).toHaveValue("2");
+  await expect(logging.locator("[data-amount-pick]")).toHaveText("2");
 
   // Edit opens the editor; closing it comes back to logging.
   await logging.getByRole("button", { name: "Edit recipe" }).click();
@@ -121,14 +126,13 @@ test("log recipe is an amount screen with the day's card, and its cog opens over
   await expect(edit.locator("[data-recipe-total]")).toHaveText("1,200 kcal · P 300 · F 30 · C 0");
   await expect(edit.locator("[data-recipe-sum]")).toHaveCount(0);
 
-  // Typing an ingredient's amount: the keypad line carries the per-portion figures.
-  await edit.getByLabel("Amount of Fictional card chicken").click();
-  const pad = edit.locator("[data-recipe-pad]");
-  await pad.getByRole("button", { name: "1", exact: true }).click();
-  await pad.getByRole("button", { name: "5", exact: true }).click();
-  await pad.getByRole("button", { name: "0", exact: true }).click();
-  await expect(pad).toContainText("Per portion · 300 kcal · P 75 · F 8 · C 0");
-  await pad.getByRole("button", { name: "Done" }).click();
+  // Picking an ingredient's amount: the wheel carries the per-portion figures as it turns.
+  await edit.locator("[data-pick-line]").first().click();
+  await page.keyboard.type("150");
+  await expect(page.locator("[data-dial-live]")).toHaveText("Per portion · 300 kcal · P 75 · F 8 · C 0");
+  await page.keyboard.press("Enter");
+  await expect(page.locator("[data-dial]")).toHaveCount(0);
+  await expect(edit.locator("[data-pick-line]").first()).toHaveText("150");
 
   await edit.getByRole("button", { name: "Close" }).click();
   await expect(page.getByRole("dialog", { name: "Log Card pot" })).toBeVisible();
@@ -148,7 +152,7 @@ test("the cog on Add food's amount screen keeps the food open", async ({ page })
   const food = page.getByRole("dialog", { name: "Add food" });
   await food.getByRole("searchbox", { name: "Search foods" }).fill("Fictional card chicken");
   await food.getByRole("button", { name: /Fictional card chicken/ }).first().click();
-  await food.getByLabel("Amount in g").fill("250");
+  await pick(page, food.locator("[data-amount-pick]"), 250);
   const cog = food.locator(".preview").getByRole("button", { name: "Choose macros card pages" });
   await cog.focus();
   await page.keyboard.press("Enter");
@@ -157,7 +161,7 @@ test("the cog on Add food's amount screen keeps the food open", async ({ page })
   await expect(pages.getByText(/every macros card/)).toBeVisible();
   await pages.getByRole("button", { name: "Close" }).click();
   await expect(pages).toBeHidden();
-  await expect(food.getByLabel("Amount in g")).toHaveValue("250");
+  await expect(food.locator("[data-amount-pick]")).toHaveText("250");
   // Focus goes back to the cog it came from.
   await expect(cog).toBeFocused();
 });
@@ -171,11 +175,14 @@ test("a new recipe starts at one portion, and portions can't be left empty", asy
   const food = await openRecipes(page);
   await food.getByRole("button", { name: "New recipe" }).first().click();
   const sheet = page.getByRole("dialog", { name: "New recipe" });
-  await expect(sheet.getByLabel("Portions")).toHaveValue("1");
-  await sheet.getByLabel("Portions").click();
-  await sheet.locator("[data-recipe-pad]").getByRole("button", { name: "Delete digit" }).click();
-  await expect(sheet.getByLabel("Portions")).toHaveValue("");
-  // Save stays tappable (aria-disabled) so a tap can say what's missing.
-  await sheet.getByRole("button", { name: "Save recipe" }).click({ force: true });
-  await expect(sheet.getByText("Enter portions above 0 and at most 1,000.")).toBeVisible();
+  const portions = sheet.locator("[data-pick-portions]");
+  await expect(portions).toHaveText("1");
+  // The wheel stops at half a portion, so it can't leave portions empty.
+  await portions.click();
+  await page.keyboard.type("0");
+  await expect(page.locator("[data-dial-value]")).toContainText("½");
+  await page.keyboard.press("Enter");
+  await expect(portions).toHaveText("0.5");
+  await pick(page, portions, 4);
+  await expect(portions).toHaveText("4");
 });

@@ -237,12 +237,12 @@ test("the home nutrient card is 358 by 214 on every panel", async ({ page }) => 
   // The rings show the portion and don't open the day's nutrient sheet over this one.
   await expect(preview.locator("[data-ring]").first()).toHaveAttribute("role", "img");
   await expect(preview.locator("button[data-ring]")).toHaveCount(0);
-  // 12px between the keypad and the Add button, as on the weight sheet.
-  const keypadGap = await page.locator(".keypad").evaluate((pad) => {
-    const button = pad.parentElement!.querySelector(".actions")!.getBoundingClientRect();
-    return Math.round(button.top - pad.getBoundingClientRect().bottom);
+  // 12px between the quick amounts and the Add button, as on the weight sheet.
+  const trayGap = await page.locator("[data-amount-tray] .chips").evaluate((chips) => {
+    const button = chips.parentElement!.querySelector(".actions")!.getBoundingClientRect();
+    return Math.round(button.top - chips.getBoundingClientRect().bottom);
   });
-  expect(keypadGap).toBe(12);
+  expect(trayGap).toBe(12);
 
   // Largest text: plain rows with Per 100 g beside the amount.
   await page.evaluate(() => {

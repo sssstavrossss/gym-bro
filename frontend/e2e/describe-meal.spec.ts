@@ -1,4 +1,5 @@
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
+import { pick } from "./dial";
 
 // Describe a meal runs on the rule model in E2e: it splits on commas and "and", reads a leading
 // number, and takes the first food the search finds. The foods here have made-up names so the
@@ -95,8 +96,7 @@ test.describe("phone", () => {
     // A row opens the amount screen; Use brings the new amount back to the list.
     await found.nth(1).locator(".pick").click();
     await expect(sheet(page).getByRole("button", { name: "Use · 200 kcal" })).toBeVisible();
-    const keypad = sheet(page).getByRole("group", { name: "Number keypad" });
-    for (const key of ["1", "0", "0"]) await keypad.getByRole("button", { name: key, exact: true }).click();
+    await pick(page, sheet(page).locator("[data-amount-pick]"), 100);
     await sheet(page).getByRole("button", { name: "Use · 250 kcal" }).click();
     await expect(sheet(page).getByRole("button", { name: "Add 2 foods · 430 kcal" })).toBeVisible();
 

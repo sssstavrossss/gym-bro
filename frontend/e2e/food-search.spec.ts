@@ -86,16 +86,16 @@ async function expectNoSideScroll(page: Page) {
   expect(overflow).toBe(true);
 }
 
-test.describe("touch keypad", () => {
+test.describe("touch wheel", () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
 
-  test("the phone keypad sets the amount", async ({ page }) => {
-    const oid = `e2e-f2-key-${Date.now()}-${test.info().project.name}`;
+  test("on a phone the wheel sets the amount", async ({ page }) => {
+    const oid = `e2e-f2-wheel-${Date.now()}-${test.info().project.name}`;
     const when = await clock(page);
     await putWeighIn(page.request, oid, when.today, when.zone);
     await putProfile(page.request, oid, when.zone);
     await createFood(page.request, oid, {
-      name: "Fictional keypad apple",
+      name: "Fictional wheel apple",
       kcalPer100: 50,
       proteinPer100: 0,
       fatPer100: 0,
@@ -106,14 +106,17 @@ test.describe("touch keypad", () => {
     await page.goto("/today");
     await openAdd(page, 390);
     await sheet(page).getByRole("searchbox", { name: "Search foods" }).fill("apple");
-    await sheet(page).getByRole("button", { name: /Fictional keypad apple/ }).click();
-    const keypad = sheet(page).getByRole("group", { name: "Number keypad" });
-    await expect(keypad).toBeVisible();
-    await keypad.getByRole("button", { name: "2", exact: true }).click();
-    await keypad.getByRole("button", { name: "5", exact: true }).click();
-    await keypad.getByRole("button", { name: "0", exact: true }).click();
+    await sheet(page).getByRole("button", { name: /Fictional wheel apple/ }).click();
+    const amount = sheet(page).locator("[data-amount-pick]");
+    await expect(amount).toHaveText("100");
+    // The wheel says what the amount comes to as it turns.
+    await amount.click();
+    await page.keyboard.type("250");
+    await expect(page.locator("[data-dial-live]")).toHaveText("125 kcal · 0 g protein");
+    await page.keyboard.press("Enter");
+    await expect(page.locator("[data-dial]")).toHaveCount(0);
+    await expect(amount).toHaveText("250");
     await expect(sheet(page).getByRole("button", { name: /Add · 125 kcal/ })).toBeVisible();
-    await page.screenshot({ path: "/opt/cursor/artifacts/f2-detail-keypad.png" });
   });
 });
 

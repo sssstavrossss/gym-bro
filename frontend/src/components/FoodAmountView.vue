@@ -4,6 +4,9 @@ import AmountScreen, { type AmountChip, type AmountUnit } from "./AmountScreen.v
 import Icon from "./Icon.vue";
 import NutrientCard from "./NutrientCard.vue";
 import { primeKeyboard } from "../lib/focusField";
+import { amountDial, dialSpec } from "../lib/dial";
+import { parseAmount } from "../lib/foodAmount";
+import { openDial } from "../ui";
 import type { OwnServing } from "../lib/foodAmount";
 import type { MacroAmounts, MacroGoal } from "../lib/macros";
 import type { FoodAmount } from "../lib/useFoodAmount";
@@ -54,6 +57,16 @@ function setChip(id: string) {
   const chip = a.quickAmounts.find((item) => item.id === id);
   if (chip) a.pickChip(chip);
 }
+/** The amount on the number wheel, in the unit shown, with what it adds as it turns. */
+function pickAmount(from: Element) {
+  const spec = dialSpec(amountDial(a.fieldUnit, a.isCount), {
+    label: a.title,
+    value: parseAmount(a.amountText) || null,
+    unit: a.isCount ? a.unitWord : a.fieldUnit,
+    live: (shown) => a.liveLine(shown),
+  });
+  openDial(spec, from, (value) => a.setAmount(value));
+}
 function toggleServing() {
   if (!a.servingOpen) primeKeyboard();
   a.toggleServingForm();
@@ -79,7 +92,7 @@ function editServing(row: OwnServing) {
     @submit="emit('submit')"
     @unit="setUnit"
     @chip="setChip"
-    @key="a.key"
+    @pick="pickAmount"
   >
     <template #meta>
       <slot name="meta" />

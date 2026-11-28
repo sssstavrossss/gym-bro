@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  arcGap, arcPlace, arcSteps, DIAL_PRESETS, dialSpec, dialText, fieldDial, indexOf, loadDial, restDial, stepText, tidy, typedValue, valueAt, weightDial, wheel,
+  amountDial, arcGap, arcPlace, arcSteps, DIAL_PRESETS, dialSpec, dialText, fieldDial, indexOf, loadDial, restDial, stepText, tidy, typedValue, valueAt, weightDial, wheel,
 } from "../src/lib/dial";
 
 describe("a wheel's spec", () => {
@@ -182,5 +182,35 @@ describe("the body's wheels", () => {
     const spec = dialSpec("body.weight", { label: "Weight", value: 82, live: (kg) => `${kg} kg` });
     expect(spec.live?.(82.4)).toBe("82.4 kg");
     expect(dialSpec("body.weight", { label: "Weight", value: 82 }).live).toBeUndefined();
+  });
+});
+
+describe("the food wheels", () => {
+  it("pick an amount's wheel by the unit shown", () => {
+    expect(amountDial("g", false)).toBe("food.grams");
+    expect(amountDial("ml", false)).toBe("food.ml");
+    expect(amountDial("oz", false)).toBe("food.oz");
+    expect(amountDial("fl oz", false)).toBe("food.oz");
+    expect(amountDial("slice", true)).toBe("food.pieces");
+    expect(amountDial("portion", true)).toBe("food.pieces");
+  });
+
+  it("reach the most an entry can hold, 10,000 g or ml, 352 oz", () => {
+    expect(DIAL_PRESETS["food.grams"].max).toBe(10000);
+    expect(DIAL_PRESETS["food.ml"].max).toBe(10000);
+    expect(DIAL_PRESETS["food.oz"].max).toBe(352);
+    expect(DIAL_PRESETS["recipe.grams"].max).toBe(10000);
+  });
+
+  it("count pieces and portions in halves, and let a finished weight go to 0", () => {
+    expect(DIAL_PRESETS["food.pieces"]).toMatchObject({ min: 0.5, format: "half" });
+    expect(DIAL_PRESETS["recipe.portions"]).toMatchObject({ min: 0.5, format: "half" });
+    expect(DIAL_PRESETS["recipe.grams"].min).toBe(0);
+    expect(DIAL_PRESETS["recipe.oz"].min).toBe(0);
+  });
+
+  it("take the unit the screen names", () => {
+    expect(dialSpec("food.pieces", { label: "Egg", value: 2, unit: "eggs" }).unit).toBe("eggs");
+    expect(dialSpec("food.grams", { label: "Skyr", value: 150 }).unit).toBe("g");
   });
 });
