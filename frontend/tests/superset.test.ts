@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  apart,
+  canJoin,
   emptySet,
   exerciseGroups,
   fromSaved,
@@ -60,6 +62,19 @@ describe("supersets", () => {
     expect(keys(exerciseGroups(toggleSuperset(joined, "c")))).toEqual([["a", "b", "c"]]);
     expect(keys(exerciseGroups(toggleSuperset(joined, "b")))).toEqual([["a"], ["b"], ["c"]]);
     expect(toggleSuperset(list, "a")).toEqual(list);
+  });
+
+  it("never supersets an exercise with itself, and splits one that ends up next to itself when saved", () => {
+    const twice = [exercise("a"), { ...exercise("b"), exerciseId: "ex-a" }];
+    expect(toggleSuperset(twice, "b")).toEqual(twice);
+    expect(canJoin(twice[0], twice[1])).toBe(false);
+    // A circuit A, B, A with B taken out leaves A joined to itself: saved, they'd come back as one exercise of 4 sets.
+    const circuit = [exercise("a", false, [done(), done()]), exercise("b", true, [done()]), { ...exercise("c", true, [done(), done()]), exerciseId: "ex-a" }];
+    const left = withoutExercise(circuit, 1).exercises;
+    expect(apart(left).map((each) => !!each.superset)).toEqual([false, false]);
+    const body = toRequest(workout(left), "Europe/Oslo");
+    const back = fromSaved({ id: "w1", date: "2026-11-25", name: null, startedAt: null, endedAt: null, sets: body.sets.map((set) => ({ ...set })) });
+    expect(back.exercises.map((each) => each.sets.length)).toEqual([2, 2]);
   });
 
   it("keeps the rest of a superset together when its first exercise goes", () => {

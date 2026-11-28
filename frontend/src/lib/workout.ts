@@ -230,7 +230,8 @@ export function fieldText(field: SetField, value: number | null): string {
 /** The whole workout as `PUT /api/workouts/{id}` takes it. Each exercise is its own block, except that a superset shares one. */
 export function toRequest(workout: DraftWorkout, timeZone: string): WorkoutRequestBody {
   let block = -1;
-  const blocks = exerciseGroups(workout.exercises).flatMap((run, index) => (run[0].timed ? [toBlockBody(run[0].timed, run, index)] : []));
+  const exercises = apart(workout.exercises);
+  const blocks = exerciseGroups(exercises).flatMap((run, index) => (run[0].timed ? [toBlockBody(run[0].timed, run, index)] : []));
   return {
     date: workout.date,
     timeZone,
@@ -241,7 +242,7 @@ export function toRequest(workout: DraftWorkout, timeZone: string): WorkoutReque
     endedAt: workout.endedAt,
     planWorkoutId: workout.plan?.workoutId ?? null,
     sequencePosition: workout.plan?.position ?? null,
-    sets: workout.exercises.flatMap((exercise, at) => {
+    sets: exercises.flatMap((exercise, at) => {
       if (at === 0 || !exercise.superset) block++;
       return exercise.sets.map((set) => ({
       exerciseId: exercise.exerciseId,
@@ -454,10 +455,25 @@ export function roundDone(exercises: readonly DraftExercise[], key: string, inde
 /** Joins an exercise to the run before it, or splits it off again. The first exercise has nothing to join. */
 export function toggleSuperset(exercises: readonly DraftExercise[], key: string): DraftExercise[] {
   const at = exercises.findIndex((exercise) => exercise.key === key);
-  // Never across the warm-up, the workout and the cool-down.
+  // Never across the warm-up, the workout and the cool-down, and never with itself (see `apart`).
   if (at < 1 || !samePart(exercises[at - 1], exercises[at])) return [...exercises];
+  if (!exercises[at].superset && !canJoin(exercises[at - 1], exercises[at])) return [...exercises];
   // Joined, it follows its new run's clock; a clock it led goes.
   return exercises.map((exercise, index) => (index === at ? { ...exercise, superset: !exercise.superset, timed: null } : exercise));
+}
+
+/** Whether `next` can be joined to `before` in a superset: not the same exercise, which saved would come back as one. */
+export function canJoin(before: Pick<DraftExercise, "exerciseId"> | undefined, next: Pick<DraftExercise, "exerciseId">): boolean {
+  return !!before && before.exerciseId !== next.exerciseId;
+}
+
+/**
+ * Splits an exercise off a superset where it follows itself (a swap, or one taken out from between them, can leave it
+ * so). A superset is saved as one block of sets, and a block reads back as one exercise for each change of exercise,
+ * so the two would come back merged into one.
+ */
+export function apart(exercises: readonly DraftExercise[]): DraftExercise[] {
+  return exercises.map((exercise, at) => (exercise.superset && at > 0 && !canJoin(exercises[at - 1], exercise) ? { ...exercise, superset: false } : exercise));
 }
 
 /**
