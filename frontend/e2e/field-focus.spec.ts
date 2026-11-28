@@ -1,4 +1,5 @@
 import { expect, test, type APIRequestContext, type Locator, type Page } from "@playwright/test";
+import { pick } from "./dial";
 
 function headers(oid: string): Record<string, string> {
   return { "X-Test-Oid": oid, "X-Test-Name": "Test User", "Content-Type": "application/json" };
@@ -205,7 +206,9 @@ for (const width of [375, 390]) {
 
       await page.getByRole("button", { name: /Open weight|Log weight|Weigh in/ }).first().click();
       const weight = page.getByRole("dialog", { name: "Log weight" });
-      await expectReplace(page, weight.getByRole("textbox", { name: "Weight in kilograms" }), "70", "caret");
+      // On a phone the weight is a button that opens the number wheel, so no keyboard comes up.
+      await pick(page, weight.locator("[data-weight-pick]"), 70);
+      await expect(weight.locator("[data-weight-pick]")).toHaveText("70.0");
       await fieldsAtLeast16(weight);
       await weight.getByRole("button", { name: "Close" }).click();
 

@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { pick } from "./dial";
 
 function headers(oid: string): Record<string, string> {
   return { "X-Test-Oid": oid, "X-Test-Name": "Test User", "Content-Type": "application/json" };
@@ -52,17 +53,19 @@ async function openSheet(page: Page, oid: string) {
 test.describe("on a phone", () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
 
-  test("the weight sheet types on the app keypad, nudges a tenth, and previews on the chart", async ({ page }) => {
-    const oid = `e2e-wkeypad-${Date.now()}-${test.info().project.name}`;
+  test("the weight sheet picks on the number wheel, nudges a tenth, and previews on the chart", async ({ page }) => {
+    const oid = `e2e-wwheel-${Date.now()}-${test.info().project.name}`;
     const when = await seed(page, oid);
     const sheet = await openSheet(page, oid);
-    const field = sheet.getByRole("textbox", { name: "Weight in kilograms" });
-    const keypad = sheet.getByRole("group", { name: "Number keypad" });
-    await expect(keypad).toBeVisible();
-    await expect(field).toHaveAttribute("inputmode", "none");
+    // No field and no keypad on a phone: the number is a button that opens the wheel.
+    await expect(sheet.getByRole("group", { name: "Number keypad" })).toHaveCount(0);
+    await expect(sheet.getByRole("textbox")).toHaveCount(0);
+    const figure = sheet.locator("[data-weight-pick]");
     // Opening must not leave the hidden text proxy focused: on iOS that raises the letter keyboard over the sheet.
     expect(await page.evaluate(() => document.activeElement?.classList.contains("kb-proxy") ?? false)).toBe(false);
-    await expect(field).toHaveAttribute("placeholder", "83.6");
+    // Nothing picked yet: the last weigh-in, in grey.
+    await expect(figure).toHaveText("83.6");
+    await expect(figure).toHaveClass(/hinted/);
     await expect(sheet.getByRole("button", { name: "Save", exact: true })).toBeDisabled();
     await expect(sheet.locator("[data-preview]")).toHaveCount(0);
 
@@ -76,24 +79,28 @@ test.describe("on a phone", () => {
     await expect(sheet.getByRole("region", { name: "Last 30 days" })).toBeVisible();
     await expect(sheet.locator("[data-trend-line]")).toContainText(/^Trend \d+\.\d kg/);
 
-    // − with nothing typed steps from the last weigh-in.
+    // − with nothing picked steps from the last weigh-in.
     await sheet.getByRole("button", { name: "0.1 kg less" }).click();
-    await expect(field).toHaveValue("83.5");
-    // The next key starts a fresh number.
-    for (const key of ["8", "2", ".", "4"]) await keypad.getByRole("button", { name: key, exact: true }).click();
-    await expect(field).toHaveValue("82.4");
-    await expect(field).not.toBeFocused();
-    // The field is as wide as the number: nothing is clipped on the right.
-    expect(await field.evaluate((input) => input.scrollWidth - input.clientWidth)).toBeLessThanOrEqual(0);
+    await expect(figure).toHaveText("83.5");
+
+    // The wheel opens on the number shown, in tenths, and says how far it sits from the trend as it turns.
+    await figure.click();
+    const dial = page.locator("[data-dial]");
+    await expect(dial).toHaveAttribute("aria-label", "Weight");
+    await expect(dial.locator("[data-dial-value]")).toHaveText("83.5kg");
+    await expect(dial.locator('[data-dial-step="0.1"]')).toHaveAttribute("aria-pressed", "true");
+    await expect(dial.locator("[data-dial-live]")).toHaveText(/\d+\.\d kg (under|over) trend|on the trend/);
+    await page.keyboard.press("Escape");
+    await expect(dial).toHaveCount(0);
+    await expect(figure).toHaveText("83.5");
+
+    await pick(page, figure, "82.4");
+    await expect(figure).toHaveText("82.4");
+    await expect(figure).not.toHaveClass(/hinted/);
     await expect(sheet.getByText(/Last weigh-in 83\.6 kg yesterday · \d+\.\d kg under trend/)).toBeVisible();
     await expect(sheet.locator("[data-preview]")).toHaveCount(1);
-    await keypad.getByRole("button", { name: "5", exact: true }).click();
-    await expect(field).toHaveValue("82.4");
-    await keypad.getByRole("button", { name: "Delete digit" }).click();
-    await expect(field).toHaveValue("82.");
-    await keypad.getByRole("button", { name: "4", exact: true }).click();
     await sheet.getByRole("button", { name: "0.1 kg more" }).click();
-    await expect(field).toHaveValue("82.5");
+    await expect(figure).toHaveText("82.5");
 
     const save = sheet.getByRole("button", { name: "Save 82.5 kg" });
     await expect(save).toBeEnabled();
@@ -110,14 +117,14 @@ test.describe("on a phone", () => {
   });
 });
 
-test("with a keyboard the weight sheet hides the keypad", async ({ page }) => {
+test("with a keyboard the weight sheet types in its field", async ({ page }) => {
   test.skip(!(await page.evaluate(() => matchMedia("(hover: hover)").matches)), "This browser reports no hover.");
   await page.setViewportSize({ width: 1280, height: 900 });
   const oid = `e2e-wkeys-${Date.now()}-${test.info().project.name}`;
   await seed(page, oid);
   const sheet = await openSheet(page, oid);
   const field = sheet.getByRole("textbox", { name: "Weight in kilograms" });
-  await expect(sheet.getByRole("group", { name: "Number keypad" })).toHaveCount(0);
+  await expect(sheet.locator("[data-weight-pick]")).toHaveCount(0);
   await expect(field).toHaveAttribute("inputmode", "decimal");
   await field.fill("82.4");
   await expect(sheet.getByRole("button", { name: "Save 82.4 kg" })).toBeEnabled();

@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { pick } from "./dial";
 
 function headers(oid: string) {
   return { "X-Test-Oid": oid, "X-Test-Name": "Test User", "Content-Type": "application/json" };
@@ -57,32 +58,16 @@ test("home, progress, pads, search, and recalculate preview on an iPhone", async
   await page.goto("/today");
   await page.getByRole("button", { name: "Weigh in" }).click();
   const weight = page.getByRole("dialog", { name: "Log weight" });
-  const field = weight.getByRole("textbox", { name: "Weight in kilograms" });
-  // Phones type with the app's own keypad, so the system keyboard stays down.
-  await expect(field).toHaveAttribute("inputmode", "none");
-  await expect(field).not.toBeFocused();
-  await expect(field).toHaveValue("");
-  await expect(field).toHaveAttribute("placeholder", "83.6");
-  await expect(weight.getByRole("group", { name: "Number keypad" })).toHaveCount(1);
+  // Phones pick on the number wheel, so the system keyboard stays down.
+  await expect(weight.getByRole("textbox")).toHaveCount(0);
+  const figure = weight.locator("[data-weight-pick]");
+  await expect(figure).toHaveText("83.6");
+  await expect(figure).toHaveClass(/hinted/);
   if (test.info().project.name === "chromium") {
     await weight.screenshot({ path: "/opt/cursor/artifacts/iphone38-weight-unfocused.png" });
   }
-  await field.click();
-  await expect(field).toBeFocused();
-  const look = await field.evaluate((input) => {
-    const style = getComputedStyle(input);
-    return { background: style.backgroundColor, outline: style.outlineStyle, border: style.borderTopWidth };
-  });
-  expect(look.outline).toBe("none");
-  expect(look.border).toBe("0px");
-  expect(look.background).toBe("rgb(42, 46, 55)");
-  if (test.info().project.name === "chromium") {
-    await weight.screenshot({ path: "/opt/cursor/artifacts/iphone38-weight-focused.png" });
-  }
-  const keypad = weight.getByRole("group", { name: "Number keypad" });
-  await keypad.getByRole("button", { name: "7", exact: true }).click();
-  await keypad.getByRole("button", { name: "0", exact: true }).click();
-  await expect(field).toHaveValue("70");
+  await pick(page, figure, "70");
+  await expect(figure).toHaveText("70.0");
   await expect(weight.getByRole("button", { name: "Save 70.0 kg" })).toBeEnabled();
   await weight.getByRole("button", { name: "Close", exact: true }).click();
 

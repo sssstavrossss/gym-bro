@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { pick } from "./dial";
 
 test.use({ viewport: { width: 375, height: 760 }, hasTouch: true, isMobile: true, timezoneId: "UTC" });
 
@@ -54,12 +55,17 @@ test("units: pounds and feet in Settings, typed values kept exactly", async ({ p
     await page.screenshot({ path: "/opt/cursor/artifacts/units-profile.png" });
   }
 
-  // A goal typed in pounds keeps two kilogram decimals. A phone types it on the app keypad.
+  // A goal picked in pounds keeps two kilogram decimals. A phone picks it on the number wheel, in pounds.
   await goal.click();
   const goalSheet = page.getByRole("dialog", { name: "Goal weight" });
-  await expect(goalSheet.getByRole("textbox", { name: "Goal weight in pounds" })).toHaveAttribute("inputmode", "none");
-  for (const key of ["1", "6", "5"]) await goalSheet.getByRole("button", { name: key, exact: true }).click();
-  await expect(goalSheet.getByRole("textbox", { name: "Goal weight in pounds" })).toHaveValue("165");
+  await expect(goalSheet.getByRole("textbox")).toHaveCount(0);
+  const goalFigure = goalSheet.locator("[data-goal-pick]");
+  await expect(goalFigure).toHaveText("176.4");
+  await goalFigure.click();
+  await expect(page.locator("[data-dial] [data-dial-value]")).toHaveText("176.4lb");
+  await page.keyboard.press("Escape");
+  await pick(page, goalFigure, "165");
+  await expect(goalFigure).toHaveText("165");
   await goalSheet.getByRole("button", { name: "Save" }).click();
   await expect(goalSheet).toBeHidden();
   await expect.poll(async () => (await (await page.request.get("/api/profile", { headers })).json()).profile.goalWeightKg).toBe(74.84);
@@ -73,7 +79,12 @@ test("units: pounds and feet in Settings, typed values kept exactly", async ({ p
   await page.getByRole("button", { name: /Weight.*184\.3 lb/ }).click();
   const sheet = page.getByRole("dialog", { name: "Log weight" });
   await expect(sheet.getByText("lb", { exact: true }).first()).toBeVisible();
-  await sheet.getByRole("textbox", { name: "Weight in pounds" }).fill("180");
+  const figure = sheet.locator("[data-weight-pick]");
+  await figure.click();
+  // The wheel is in pounds, in tenths.
+  await expect(page.locator("[data-dial] [data-dial-value]")).toHaveText("184.3lb");
+  await page.keyboard.press("Escape");
+  await pick(page, figure, "180");
   await sheet.getByRole("button", { name: /^Save 180(\.0)? lb$/ }).click();
   await expect(page.getByText(/Replaced the weigh-in with 180\.0 lb/)).toBeVisible();
   const rows = await (await page.request.get("/api/weigh-ins", { headers })).json();

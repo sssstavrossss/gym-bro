@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  arcGap, arcPlace, arcSteps, DIAL_PRESETS, dialSpec, dialText, fieldDial, indexOf, loadDial, restDial, stepText, tidy, typedValue, valueAt, wheel,
+  arcGap, arcPlace, arcSteps, DIAL_PRESETS, dialSpec, dialText, fieldDial, indexOf, loadDial, restDial, stepText, tidy, typedValue, valueAt, weightDial, wheel,
 } from "../src/lib/dial";
 
 describe("a wheel's spec", () => {
@@ -162,5 +162,25 @@ describe("training's wheels", () => {
     expect(fieldDial("rir", null)).toBe("set.rir");
     expect(fieldDial("seconds", null)).toBe("set.seconds");
     expect(fieldDial("metres", null)).toBe("set.metres");
+  });
+});
+
+describe("the body's wheels", () => {
+  it("pick a weigh-in and a goal in the unit shown", () => {
+    expect(weightDial("weight", "kg")).toBe("body.weight");
+    expect(weightDial("weight", "lb")).toBe("body.weight.lb");
+    expect(weightDial("goal", "kg")).toBe("body.goal");
+    expect(weightDial("goal", "lb")).toBe("body.goal.lb");
+    expect(DIAL_PRESETS["body.weight.lb"].unit).toBe("lb");
+  });
+
+  it("keep a weigh-in to a tenth, the most it is saved to", () => {
+    for (const id of ["body.weight", "body.weight.lb"] as const) expect(Math.min(...DIAL_PRESETS[id].steps)).toBe(0.1);
+  });
+
+  it("carry the screen's live line", () => {
+    const spec = dialSpec("body.weight", { label: "Weight", value: 82, live: (kg) => `${kg} kg` });
+    expect(spec.live?.(82.4)).toBe("82.4 kg");
+    expect(dialSpec("body.weight", { label: "Weight", value: 82 }).live).toBeUndefined();
   });
 });

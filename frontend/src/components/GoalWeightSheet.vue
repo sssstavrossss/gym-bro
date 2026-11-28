@@ -2,27 +2,28 @@
 import { computed, nextTick, ref, watch } from "vue";
 import BottomSheet from "./BottomSheet.vue";
 import Icon from "./Icon.vue";
-import Keypad from "./Keypad.vue";
 import { todayInZone } from "../lib/dates";
 import { armReplace } from "../lib/focusField";
 import { goalSheetHint, stepWhole } from "../lib/goalCards";
 import { goalLine } from "../lib/goalLine";
-import { parseDecimal, typeInto } from "../lib/numbers";
+import { parseDecimal } from "../lib/numbers";
+import { dialSpec, weightDial } from "../lib/dial";
 import { afterInsertion, markWholeSelection, nextQuickInput, tookWholeSelection } from "../lib/quickEntry";
-import { parseWeight, weightRange, weightRangeError } from "../lib/units";
+import { parseWeight, toKg, weightRange, weightRangeError } from "../lib/units";
 import { keyboardEntry } from "../lib/viewport";
 import { commitProfile, deviceTimeZone, profile } from "../state/profile";
 import { weightUnit, wt } from "../state/units";
-import { closeSheet, ui } from "../ui";
+import { closeSheet, openDial, ui } from "../ui";
 
 /**
- * Goal weight, typed on the app keypad like a weigh-in, so a phone never raises its own
- * number pad. With a keyboard the field takes typing and the keypad stays hidden.
+ * Goal weight. On a touch screen the number opens the number wheel, like a weigh-in, so a phone never raises its own
+ * number pad; with a keyboard the field takes typing.
  */
 const open = computed(() => ui.sheet === "goal-weight");
 const value = ref("");
 const replaceFirst = ref(true);
 const input = ref<HTMLInputElement | null>(null);
+const figure = ref<HTMLButtonElement | null>(null);
 const busy = ref(false);
 const localError = ref("");
 
@@ -41,22 +42,34 @@ const parsed = computed(() => parseWeight(value.value, weightUnit()));
 const invalid = computed(() => value.value.trim() !== "" && parsed.value == null);
 
 const trendKg = computed(() => profile.weight?.trendKg ?? profile.weight?.usedKg ?? null);
-const hint = computed(() => {
+/** What a goal means from the trend: when it's reached at the rate set. Under the field, and on the wheel as it turns. */
+function hintFor(goalKg: number | null) {
   const line = goalLine({
     goal: profile.form.goal,
     weightKg: trendKg.value,
-    goalKg: parsed.value,
+    goalKg,
     rateKg: parseDecimal(profile.form.rate),
     today: todayInZone(profile.form.timeZone || deviceTimeZone()),
   });
   return goalSheetHint(line, trendKg.value == null ? null : wt(trendKg.value), weightUnit(), wt);
-});
+}
+const hint = computed(() => hintFor(parsed.value));
 
-function padKey(key: string) {
-  localError.value = "";
-  const start = replaceFirst.value && key !== "⌫" ? "" : value.value;
-  replaceFirst.value = false;
-  value.value = typeInto(start, key, 3, 1);
+function pickGoal() {
+  const unit = weightUnit();
+  const range = weightRange(unit);
+  const spec = dialSpec(weightDial("goal", unit), {
+    label: "Goal weight",
+    value: parseDecimal(value.value),
+    min: Number(range.min),
+    max: Number(range.max),
+    live: (shown) => hintFor(toKg(shown, unit)),
+  });
+  openDial(spec, figure.value, (picked) => {
+    value.value = String(picked);
+    replaceFirst.value = true;
+    localError.value = "";
+  });
 }
 
 function nudge(step: -1 | 1) {
@@ -110,20 +123,23 @@ async function save() {
     </template>
     <form class="row wfield" data-goal-weight-sheet @submit.prevent="save">
       <button type="button" class="cbtn" :aria-label="`1 ${weightUnit()} less`" @mousedown.prevent @click="nudge(-1)"><Icon name="minus" :size="18" /></button>
-      <label class="wlabel">
-        <span class="autosize">
+      <component :is="keyboardEntry ? 'label' : 'span'" class="wlabel">
+        <span v-if="keyboardEntry" class="autosize">
           <span class="mirror wfig" aria-hidden="true">{{ value || "0" }}</span>
-          <input ref="input" data-no-autofocus :value="value" data-replace="1" class="wfig winput" size="1" :inputmode="keyboardEntry ? 'decimal' : 'none'" enterkeyhint="done" autocomplete="off" :aria-label="`Goal weight in ${weightUnit() === 'lb' ? 'pounds' : 'kilograms'}`" @beforeinput="markWholeSelection" @focus="onFocus" @input="onInput" />
+          <input ref="input" data-no-autofocus :value="value" data-replace="1" class="wfig winput" size="1"  inputmode="decimal" enterkeyhint="done" autocomplete="off" :aria-label="`Goal weight in ${weightUnit() === 'lb' ? 'pounds' : 'kilograms'}`" @beforeinput="markWholeSelection" @focus="onFocus" @input="onInput" />
         </span>
+        <button
+          v-else ref="figure" type="button" class="wfig wpick tnum" :class="{ hinted: !value }" data-goal-pick
+          :aria-label="`Goal weight in ${weightUnit() === 'lb' ? 'pounds' : 'kilograms'}, ${value || 'none yet'}, change`" @click="pickGoal"
+        >{{ value || "—" }}</button>
         <span class="t-head c2">{{ weightUnit() }}</span>
-      </label>
+      </component>
       <button type="button" class="cbtn" :aria-label="`1 ${weightUnit()} more`" @mousedown.prevent @click="nudge(1)"><Icon name="plus" :size="18" /></button>
     </form>
     <p v-if="invalid || localError" class="t-label m0" role="alert">{{ localError || weightRangeError("Goal weight", weightUnit()) }}</p>
     <p v-else-if="hint" class="t-capn c2 m0" aria-live="polite" data-goal-hint>{{ hint }}</p>
     <template #footer>
       <div class="wfoot" @mousedown.prevent>
-        <Keypad v-if="!keyboardEntry" @key="padKey" />
         <button type="button" class="btn primary block t-bodys" :disabled="parsed === null || busy" @click="save">Save</button>
       </div>
     </template>
@@ -148,5 +164,9 @@ async function save() {
   caret-color: var(--text-primary); font-size: min(3rem, 64px); color: var(--text-primary);
 }
 .winput:focus, .winput:focus-visible { outline: none; border: 0; box-shadow: var(--d-sunk); background: var(--color-surface-2); }
+.wpick { min-height: 44px; padding: 0 var(--space-xs); border: 0; border-radius: var(--radius-m); background: none; color: var(--text-primary); white-space: nowrap; }
+.wpick.hinted { color: var(--text-tertiary); }
+.wpick:active { background: var(--color-hover); }
+.tnum { font-variant-numeric: tabular-nums; }
 .wfoot { display: flex; flex-direction: column; gap: var(--space-m); }
 </style>
