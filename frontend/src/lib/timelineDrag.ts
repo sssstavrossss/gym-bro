@@ -11,6 +11,17 @@ export interface Box {
   height: number;
 }
 
+/** How far over the finger a lifted row's bottom floats on a touch screen, so the finger doesn't hide it. */
+export const FINGER_CLEAR = 24;
+
+/**
+ * How far up the rows held are drawn from where the finger picked them up. On a touch screen their bottom sits
+ * FINGER_CLEAR over the finger (`grab` is how far down them it held); a mouse pointer hides nothing, so 0.
+ */
+export function raiseFor(touch: boolean, height: number, grab: number): number {
+  return touch ? Math.max(0, height - grab) + FINGER_CLEAR : 0;
+}
+
 /**
  * The gap the lifted rows are over, as the number of the other rows above it. Going up, their top edge passes the
  * middle of each row; going down, their bottom edge does, so a set with two drop sets (three rows tall) doesn't have

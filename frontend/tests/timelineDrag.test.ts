@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { exercisePlace, joinAt, landing, runBlocks, setPlace, shiftOf, type Box, type Slot } from "../src/lib/timelineDrag";
+import { exercisePlace, FINGER_CLEAR, joinAt, landing, raiseFor, runBlocks, setPlace, shiftOf, type Box, type Slot } from "../src/lib/timelineDrag";
 
 // Five 44px rows; the one at 88 is lifted.
 const rows: Box[] = [0, 44, 88, 132, 176].map((top, n) => ({ key: `r${n}`, top, height: 44 }));
@@ -126,5 +126,16 @@ describe("which exercise a lifted one would join", () => {
     const moved = runBlocks(boxes, slots, (box, at) => box.top + (at >= 2 ? 52 : 0));
     expect(moved[1].top).toBe(132);
     expect(joinAt(moved, 160)).toBeNull();
+  });
+});
+
+describe("raiseFor", () => {
+  it("floats rows held on a touch screen with their bottom a little over the finger", () => {
+    // A 60px row held 20px down: drawn 40px up puts its bottom at the finger, and FINGER_CLEAR more clears it.
+    expect(raiseFor(true, 60, 20)).toBe(40 + FINGER_CLEAR);
+    expect(raiseFor(true, 60, 60)).toBe(FINGER_CLEAR);
+  });
+  it("leaves them where they were picked up under a mouse pointer", () => {
+    expect(raiseFor(false, 60, 20)).toBe(0);
   });
 });

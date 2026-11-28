@@ -17,7 +17,7 @@ import { openDial } from "../ui";
 // it's let go where it was); a right click asks for the menu at once.
 /** `title`: in a superset or circuit, which exercise the set to do is ("B · Triceps Pushdown"). */
 const props = defineProps<{ exercise: DraftExercise; index: number; state: RowState; past?: boolean; title?: string }>();
-const emit = defineEmits<{ menu: [Element]; hold: [Element, { x: number; y: number; pointerId: number }] }>();
+const emit = defineEmits<{ menu: [Element]; hold: [Element, { x: number; y: number; pointerId: number; touch: boolean }] }>();
 
 const item = computed(() => exerciseItem(props.exercise.exerciseId));
 const measure = computed(() => item.value?.measure ?? "weight_reps");
@@ -65,13 +65,13 @@ const between = (field: SetField, at: number) => (at === 0 ? "" : measure.value 
 // ---- A long press: the set lifts ----
 const root = ref<HTMLElement | null>(null);
 let timer: number | undefined;
-let start: { x: number; y: number; pointerId: number } | null = null;
+let start: { x: number; y: number; pointerId: number; touch: boolean } | null = null;
 /** The press that lifted the set doesn't also open a number. */
 let held = false;
 function press(event: PointerEvent) {
   if (event.button !== 0) return;
   held = false;
-  start = { x: event.clientX, y: event.clientY, pointerId: event.pointerId };
+  start = { x: event.clientX, y: event.clientY, pointerId: event.pointerId, touch: event.pointerType !== "mouse" };
   window.clearTimeout(timer);
   const from = start;
   timer = window.setTimeout(() => {
