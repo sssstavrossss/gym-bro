@@ -36,6 +36,8 @@ test("+ Warm-up ramps up to the working weight, then adds single empty ones", as
   await setup(page);
   await page.goto("/train");
   await page.getByRole("button", { name: "Empty workout" }).click();
+  // Quick start opens the workout on its timeline; + Exercise opens Add exercise.
+  await page.getByRole("dialog", { name: "Workout" }).locator("[data-add-exercise]").click();
   const adding = page.getByRole("dialog", { name: "Add exercise" });
   await adding.getByLabel("Search exercises").fill("barbell squat");
   await adding.getByRole("button", { name: "Add Barbell Squat", exact: true }).click();

@@ -36,6 +36,8 @@ test("The number wheel: an exercise's rest is picked on the arc, by finger, step
   await setup(page);
   await page.goto("/train");
   await page.getByRole("button", { name: "Empty workout" }).click();
+  // Quick start opens the workout on its timeline; + Exercise opens Add exercise.
+  await page.getByRole("dialog", { name: "Workout" }).locator("[data-add-exercise]").click();
   const add = page.getByRole("dialog", { name: "Add exercise" });
   await add.getByLabel("Search exercises").fill("barbell squat");
   await add.getByRole("button", { name: "Add Barbell Squat", exact: true }).click();

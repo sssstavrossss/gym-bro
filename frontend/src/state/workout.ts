@@ -105,8 +105,8 @@ function newId(): string {
 }
 
 /**
- * The times set on Quick add's Add exercise before anything is added. Nothing has started then (README, *Logging a
- * workout*): they wait here, and the first exercise starts the workout with them. Closing the sheet forgets them.
+ * The times set on Add exercise before a workout exists: only when Describe a workout opens with nothing started (README,
+ * *Logging a workout*). They wait here, and the first exercise starts the workout with them. Closing the sheet forgets them.
  */
 export const quickTimes = reactive<{ startedAt: string | null; endedAt: string | null; timesSet: boolean }>({ startedAt: null, endedAt: null, timesSet: false });
 
@@ -115,14 +115,24 @@ export function forgetQuickTimes(): void {
 }
 
 /**
- * Quick add opens the sheet with nothing started: the workout begins when the first exercise goes in (`addExercise`,
- * `addDescribed`). Clears the last workout's summary so the sheet opens on Add exercise.
+ * Describe a workout from Train opens with nothing started: the exercises it finds start the workout (`addDescribed`).
+ * Clears the last workout's summary so the sheet opens on Describe.
  */
 export function readyQuickAdd(): void {
   if (workout.active) return;
   workout.summary = null;
   workout.bests = [];
   forgetQuickTimes();
+}
+
+/**
+ * Quick start: the workout starts now, empty, and the sheet opens on its timeline, where + Exercise adds the first one
+ * (README, *Logging a workout*). The one going, if there is one, is left as it is.
+ */
+export function quickStart(now = new Date()): DraftWorkout {
+  if (workout.active) return workout.active;
+  readyQuickAdd();
+  return startWorkout(now);
 }
 
 /** Starts a workout now, or with the times set on Add exercise before it began. Returns the one going if there is one. */

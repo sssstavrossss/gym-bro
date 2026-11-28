@@ -39,15 +39,15 @@ describe("trainCards", () => {
 
 describe("startText", () => {
   it("names the card by whether there is a plan, and offers Describe only when it works", () => {
-    expect(startText(false, true)).toEqual({ title: "Quick add", caption: "Add exercises as you go, or describe it" });
+    expect(startText(false, true)).toEqual({ title: "Quick start", caption: "Add exercises as you go, or describe it" });
     expect(startText(false, false).caption).toBe("Add exercises as you go and tick off each set");
-    expect(startText(true, true)).toEqual({ title: "Quick add", caption: "Off the plan: add exercises as you go, or describe it" });
+    expect(startText(true, true)).toEqual({ title: "Quick start", caption: "Off the plan: add exercises as you go, or describe it" });
     expect(startText(true, false).caption).toBe("Off the plan: add exercises as you go");
   });
 
   it("offers the last workout again when there is one", () => {
     expect(startText(true, true, { name: "Lower B", exercises: ["barbell-squat"] }).caption).toBe("Empty, describe it, or repeat Lower B");
-    expect(startText(false, false, { name: null, exercises: ["plank"] })).toEqual({ title: "Quick add", caption: "Empty, or repeat your last workout" });
+    expect(startText(false, false, { name: null, exercises: ["plank"] })).toEqual({ title: "Quick start", caption: "Empty, or repeat your last workout" });
   });
 });
 

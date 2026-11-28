@@ -88,8 +88,9 @@ watch(open, (shown) => {
   void loadDescribe();
   tick();
   timer = window.setInterval(tick, 1000);
-  // Quick add opens with nothing started (README, *Logging a workout*): Add exercise, until the first exercise starts it.
-  view.value = !current.value || !current.value.exercises.length ? "add" : "log";
+  // A live workout opens on its timeline, an empty one too (Quick start, README *Logging a workout*). With none, or a
+  // past one still empty (Log past), it opens on Add exercise.
+  view.value = active.value && !past.value ? "log" : !current.value || !current.value.exercises.length ? "add" : "log";
   // Train's start card can open it on Describe a workout (once; the next open is the usual one).
   if (ui.workoutView === "describe" && !past.value) {
     workoutDescribe.error = "";
@@ -170,9 +171,8 @@ function discard() {
 /** The live footer's main button: "End now · 18:47", or "End at 19:10" once an end is set. */
 const endLabel = computed(() => (active.value?.endedAt ? `End at ${clockTime(active.value.endedAt)}` : "End now"));
 const endWhen = computed(() => (active.value?.endedAt ? "" : clockTime(now.value)));
-/** A quick workout with nothing in it yet: Add exercise is its first screen, closed with × instead of going back. */
-/** Quick add before its first exercise: no workout yet (or one emptied again), so Add exercise is its first page. */
-const fresh = computed(() => !past.value && (!active.value || (!active.value.exercises.length && !active.value.plan)));
+/** No workout yet (Describe a workout opened from Train): Add exercise and Describe are its pages, closed with × instead of going back. */
+const fresh = computed(() => !past.value && !active.value);
 /** The times chip's: the workout's own, or those waiting for the first exercise. */
 const times = computed(() => active.value ?? quickTimes);
 
@@ -262,7 +262,7 @@ async function deletePastNow() {
         <button v-if="fresh" type="button" class="cbtn" aria-label="Close" @click="closeSheet"><Icon name="x" :size="18" /></button>
       </div>
       <div v-else-if="view === 'describe'" class="row hdr">
-        <!-- Before the first exercise there is no workout to go back to: ← is Quick add's first page, Add exercise. -->
+        <!-- With no workout yet there is nothing to go back to: ← goes to Add exercise. -->
         <button
           type="button" class="cbtn" :aria-label="fresh ? 'Back to Add exercise' : 'Back to the workout'" @click="view = fresh ? 'add' : 'log'"
         ><Icon name="left" :size="18" /></button>

@@ -36,6 +36,8 @@ test("a run saves as cardio with its pace and distance", async ({ page }) => {
   const oid = await setup(page);
   await page.goto("/train");
   await page.getByRole("button", { name: "Empty workout" }).click();
+  // Quick start opens the workout on its timeline; + Exercise opens Add exercise.
+  await page.getByRole("dialog", { name: "Workout" }).locator("[data-add-exercise]").click();
   const adding = page.getByRole("dialog", { name: "Add exercise" });
   await adding.getByLabel("Search exercises").fill("run");
   await adding.getByRole("button", { name: "Add Run", exact: true }).click();

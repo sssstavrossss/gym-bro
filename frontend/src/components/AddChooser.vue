@@ -9,7 +9,7 @@ import { fanLayout } from "../state/fanPages";
 import Icon from "./Icon.vue";
 import { viewed } from "../state/log";
 import { describe, loadDescribe } from "../state/describe";
-import { newPast, readyQuickAdd } from "../state/workout";
+import { newPast, quickStart } from "../state/workout";
 import { closeSheet, openFanPages, openFood, openFoodWithScan, openNewFoodFrom, openRecipeCreate, openWeight, openWorkout, ui } from "../ui";
 
 /**
@@ -57,8 +57,8 @@ function run(id: FanActionId) {
   else if (id === "recipes") openFood("search", date, "recipes");
   else if (id === "mine") openFood("search", date, "mine");
   else if (id === "workout") {
-    // Opens the one going, else Add exercise with nothing started until the first exercise.
-    readyQuickAdd();
+    // Opens the one going, else starts one now on its timeline (Quick start).
+    quickStart();
     openWorkout();
   } else if (id === "log-workout") {
     newPast(date);

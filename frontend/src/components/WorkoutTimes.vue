@@ -6,8 +6,8 @@ import { quickTimes, setWorkoutTimes, workout } from "../state/workout";
 
 // The live workout's times, opened from the header's time chip: when it started (the day and the time) and
 // whether it is still going or ended at a time. A quick workout starts "now"; moving the start back logs one done
-// earlier, and an end makes End save it as ending then. Before Quick add's first exercise there is no workout yet:
-// the times wait in `quickTimes` and the first exercise starts it with them.
+// earlier, and an end makes End save it as ending then. On Add exercise before any workout exists (Describe opened
+// from Train), the times wait in `quickTimes` and the first exercise starts it with them.
 const props = defineProps<{ now: number }>();
 const active = computed(() => workout.active ?? quickTimes);
 
