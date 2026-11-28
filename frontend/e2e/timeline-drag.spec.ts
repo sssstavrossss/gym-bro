@@ -117,7 +117,7 @@ test("sets drag into place: reordered at once with Undo, asked about where they'
   await drag(page, setRow(workout, bench, 0), setRow(workout, bench, warmups + 1), 0.6, true);
   await expect(page.locator("[data-drag-note]")).toContainText("Sets you've done stay in the order you did them.");
   await page.mouse.up();
-  await expect(page.locator(".toast.front")).toContainText("Sets you've done stay in the order you did them.");
+  await expect(page.locator(".toast").filter({ hasText: "Sets you've done stay in the order you did them." })).toBeVisible();
   expect((await weights(page, bench)).split(" ").slice(-3).join(" ")).toBe("60 70 80");
 
   // Into another exercise: asked first, then it's that exercise's set.
@@ -133,6 +133,6 @@ test("sets drag into place: reordered at once with Undo, asked about where they'
   await menu(page).locator('[data-menu-item="move-yes"]').click();
   await expect(workout.locator(`[data-set][data-exercise="${incline}"]`)).toHaveCount(inclineSets + 1);
   await expect.poll(() => weights(page, bench)).toMatch(/ 60 70$/);
-  await page.locator(".toast.front").filter({ hasText: "Moved" }).getByRole("button", { name: "Undo" }).click();
+  await page.locator(".toast.front").filter({ hasText: /^\s*Moved/ }).getByRole("button", { name: "Undo" }).click();
   await expect.poll(() => weights(page, bench)).toMatch(/ 60 70 80$/);
 });
