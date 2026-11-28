@@ -24,8 +24,11 @@ export interface DialPreset {
 
 export const DIAL_PRESETS = {
   // Body
-  "body.weight": { unit: "kg", min: 30, max: 250, steps: [0.05, 0.1, 0.5, 1], step: 0.1, start: 80 },
-  "body.goal": { unit: "kg", min: 30, max: 250, steps: [0.5, 1, 5], step: 0.5, start: 75 },
+  // A weigh-in is kept to a tenth of the unit shown; a goal moves in halves and wholes.
+  "body.weight": { unit: "kg", min: 30, max: 300, steps: [0.1, 0.5, 1], step: 0.1, start: 80 },
+  "body.weight.lb": { unit: "lb", min: 66.2, max: 661.3, steps: [0.1, 0.5, 1, 5], step: 0.1, start: 175 },
+  "body.goal": { unit: "kg", min: 30, max: 300, steps: [0.5, 1, 5], step: 0.5, start: 75 },
+  "body.goal.lb": { unit: "lb", min: 66.2, max: 661.3, steps: [1, 5, 10], step: 1, start: 165 },
   // Food and water
   "food.grams": { unit: "g", min: 0, max: 2000, steps: [1, 5, 10, 50], step: 5, start: 100 },
   "food.pieces": { unit: "pieces", min: 0, max: 20, steps: [0.5, 1], step: 1, format: "half", start: 1 },
@@ -61,6 +64,8 @@ export interface DialSpec {
   steps: readonly number[];
   step: number;
   format: DialFormat;
+  /** A line that follows the number as the wheel turns ("0.3 kg under trend", "150 g · 248 kcal"). */
+  live?: (value: number) => string;
 }
 
 /**
@@ -69,7 +74,7 @@ export interface DialSpec {
  */
 export function dialSpec(
   id: DialId,
-  what: { label: string; hint?: string; value: number | null; min?: number; max?: number },
+  what: { label: string; hint?: string; value: number | null; min?: number; max?: number; live?: (value: number) => string },
   remembered: number | null = null,
 ): DialSpec {
   const preset: DialPreset = DIAL_PRESETS[id];
@@ -87,6 +92,7 @@ export function dialSpec(
     steps: preset.steps,
     step: remembered != null && preset.steps.includes(remembered) ? remembered : preset.step,
     format: preset.format ?? "num",
+    live: what.live,
   };
 }
 
@@ -214,4 +220,10 @@ export function fieldDial(field: SetField, equipment: string | null | undefined)
     case "seconds": return "set.seconds";
     case "metres": return "set.metres";
   }
+}
+
+/** A weigh-in's or a goal's wheel, in the unit the person shows weights in. */
+export function weightDial(kind: "weight" | "goal", unit: "kg" | "lb"): DialId {
+  if (kind === "weight") return unit === "lb" ? "body.weight.lb" : "body.weight";
+  return unit === "lb" ? "body.goal.lb" : "body.goal";
 }

@@ -156,6 +156,7 @@ function key(event: KeyboardEvent) {
       <div class="col top" @click.self="close">
         <span class="t-label dlabel">{{ spec.label }}</span>
         <span v-if="spec.hint" class="t-capn dhint">{{ spec.hint }}</span>
+        <span v-if="spec.live" class="t-capn dlive tnum" aria-live="polite" data-dial-live>{{ spec.live(current) }}</span>
       </div>
       <div class="row steps" role="group" aria-label="Step">
         <template v-if="spec.steps.length > 1">
@@ -199,6 +200,7 @@ function key(event: KeyboardEvent) {
 .top { align-items: center; gap: var(--space-2xs); text-align: center; }
 .dlabel { opacity: .85; }
 .dhint { opacity: .7; }
+.dlive { opacity: .85; }
 
 /* Every part springs out of the number tapped, on the fan's curve. */
 .dial-root > :not(.track) { transition: transform var(--fan-time) var(--fan-spring), opacity .2s; }

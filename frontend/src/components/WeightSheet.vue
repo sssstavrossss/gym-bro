@@ -5,17 +5,17 @@ import BottomSheet from "./BottomSheet.vue";
 import AccuracyDot from "./AccuracyDot.vue";
 import Icon from "./Icon.vue";
 import InfoTip from "./InfoTip.vue";
-import Keypad from "./Keypad.vue";
 import ProgressChart from "./ProgressChart.vue";
 import WeighReading from "./WeighReading.vue";
 import type { ProgressDay } from "../api";
 import { dayMonth, diffDays, shortDate, todayIso } from "../lib/dates";
 import { kgTo, toKg, typoGuardDetail, weightRange } from "../lib/units";
-import { nudgeTenth, parseDecimal, typeInto } from "../lib/numbers";
+import { nudgeTenth, parseDecimal } from "../lib/numbers";
+import { dialSpec, weightDial } from "../lib/dial";
 import { earliestNewWeighInDate, gapLabel, isFreshStart, isLowAccuracy, newWeighInDates, trendChange } from "../lib/weightDisplay";
 import { profile, removeWeighIn, saveWeighIn } from "../state/profile";
 import { weightUnit, wt, wtSigned, wtUnit } from "../state/units";
-import { closeSheet, toast, toastError, ui } from "../ui";
+import { closeSheet, openDial, toast, toastError, ui } from "../ui";
 import { keyboardEntry } from "../lib/viewport";
 import { armReplace } from "../lib/focusField";
 import { afterInsertion, markWholeSelection, nextQuickInput, tookWholeSelection } from "../lib/quickEntry";
@@ -24,6 +24,8 @@ const open = computed(() => ui.sheet === "weight");
 const value = ref("");
 const replaceFirst = ref(true);
 const input = ref<HTMLInputElement | null>(null);
+/** On a touch screen the number is a button that opens the number wheel. */
+const figure = ref<HTMLButtonElement | null>(null);
 const confirm = ref<ConfirmWeighInBody | null>(null);
 const confirmEl = ref<HTMLElement | null>(null);
 const localError = ref("");
@@ -191,13 +193,7 @@ const chartWeighIns = computed(() => (profile.chart?.series ?? []).flatMap((poin
   point.realWeighIn && point.weighInKg != null ? [{ date: point.date, kg: point.weighInKg }] : []
 )));
 /** How far the typed weight sits from the trend, in the shown unit. */
-const trendNote = computed(() => {
-  const trend = profile.weight?.trendKg;
-  if (parsed.value == null || trend == null) return "";
-  const gap = Math.round(kgTo(parsed.value - trend, weightUnit()) * 10) / 10;
-  if (gap === 0) return "on the trend";
-  return `${wt(Math.abs(parsed.value - trend))} ${weightUnit()} ${gap < 0 ? "under" : "over"} trend`;
-});
+const trendNote = computed(() => (parsed.value == null ? "" : fromTrend(parsed.value)));
 const saveLabel = computed(() => (parsed.value == null ? "Save" : `Save ${wtUnit(parsed.value)}`));
 
 const hint = computed(() => {
@@ -213,7 +209,7 @@ const hint = computed(() => {
 async function save(force = false) {
   if (parsed.value == null) {
     localError.value = rangeHint.value;
-    input.value?.focus();
+    editWeight();
     return;
   }
   localError.value = "";
@@ -245,12 +241,38 @@ function focusWeight(el: HTMLInputElement | null) {
   armReplace(el);
 }
 
-/** The keypad types into the same text the field shows. The first key replaces what is there. */
-function padKey(key: string) {
-  localError.value = "";
-  const start = replaceFirst.value && key !== "⌫" ? "" : value.value;
-  replaceFirst.value = false;
-  value.value = typeInto(start, key, 3, 1);
+/** How far a weight sits from the trend, in the shown unit: under the field, and on the wheel as it turns. */
+function fromTrend(kgValue: number): string {
+  const trend = profile.weight?.trendKg;
+  if (trend == null) return "";
+  const gap = Math.round(kgTo(kgValue - trend, weightUnit()) * 10) / 10;
+  if (gap === 0) return "on the trend";
+  return `${wt(Math.abs(kgValue - trend))} ${weightUnit()} ${gap < 0 ? "under" : "over"} trend`;
+}
+
+/** The number wheel on the weight shown (typed, else the last weigh-in). ✓ puts the weight in the field. */
+function pickWeight() {
+  const unit = weightUnit();
+  const range = weightRange(unit);
+  const spec = dialSpec(weightDial("weight", unit), {
+    label: "Weight",
+    hint: hint.value,
+    value: parseDecimal(value.value) ?? parseDecimal(placeholder.value),
+    min: Number(range.min),
+    max: Number(range.max),
+    live: (shown) => fromTrend(toKg(shown, unit)),
+  });
+  openDial(spec, figure.value, (picked) => {
+    value.value = picked.toFixed(1);
+    replaceFirst.value = true;
+    localError.value = "";
+  });
+}
+
+/** Back to the number: the field with a keyboard, the wheel on a touch screen. */
+function editWeight() {
+  if (keyboardEntry.value) focusWeight(input.value);
+  else void nextTick(pickWeight);
 }
 
 /** − / + step a tenth from what is typed, or from the last weigh-in when nothing is. */
@@ -266,11 +288,11 @@ function nudge(step: -1 | 1) {
 
 function fix() {
   confirm.value = null;
-  void nextTick(() => focusWeight(input.value));
+  void nextTick(editWeight);
 }
 
 function editOnly() {
-  void nextTick(() => focusWeight(input.value));
+  void nextTick(editWeight);
 }
 
 function onWeightFocus(event: FocusEvent) {
@@ -351,13 +373,17 @@ const diffText = computed(() => (
     </template>
     <form class="row wfield" @submit.prevent="save(false)">
       <button type="button" class="cbtn" :aria-label="`0.1 ${weightUnit()} less`" @mousedown.prevent @click="nudge(-1)"><Icon name="minus" :size="18" /></button>
-      <label class="base wlabel">
-        <span class="autosize">
+      <component :is="keyboardEntry ? 'label' : 'span'" class="base wlabel">
+        <span v-if="keyboardEntry" class="autosize">
           <span class="mirror wfig" aria-hidden="true">{{ value || placeholder || "0" }}</span>
-          <input ref="input" data-no-autofocus :value="value" :placeholder="placeholder" data-replace="1" class="wfig winput" size="1" :inputmode="keyboardEntry ? 'decimal' : 'none'" enterkeyhint="done" autocomplete="off" :aria-label="`Weight in ${weightUnit() === 'lb' ? 'pounds' : 'kilograms'}`" @beforeinput="markWholeSelection" @focus="onWeightFocus" @input="onWeightInput" />
+          <input ref="input" data-no-autofocus :value="value" :placeholder="placeholder" data-replace="1" class="wfig winput" size="1" inputmode="decimal" enterkeyhint="done" autocomplete="off" :aria-label="`Weight in ${weightUnit() === 'lb' ? 'pounds' : 'kilograms'}`" @beforeinput="markWholeSelection" @focus="onWeightFocus" @input="onWeightInput" />
         </span>
+        <button
+          v-else ref="figure" type="button" class="wfig wpick tnum" :class="{ hinted: !value }" data-weight-pick
+          :aria-label="`Weight in ${weightUnit() === 'lb' ? 'pounds' : 'kilograms'}, ${value || placeholder || 'none yet'}, change`" @click="pickWeight"
+        >{{ value || placeholder || "—" }}</button>
         <span class="t-head c2">{{ weightUnit() }}</span>
-      </label>
+      </component>
       <button type="button" class="cbtn" :aria-label="`0.1 ${weightUnit()} more`" @mousedown.prevent @click="nudge(1)"><Icon name="plus" :size="18" /></button>
     </form>
     <div v-if="confirm" ref="confirmEl" class="card outline tguard" role="alertdialog" aria-labelledby="tg-h" aria-describedby="tg-d" tabindex="-1">
@@ -403,7 +429,6 @@ const diffText = computed(() => (
     </div>
     <template #footer>
       <div class="wfoot" @mousedown.prevent>
-        <Keypad v-if="!keyboardEntry" @key="padKey" />
         <button type="button" class="btn primary block t-bodys" :disabled="parsed === null" @click="save(false)">{{ saveLabel }}</button>
       </div>
     </template>
@@ -450,6 +475,11 @@ const diffText = computed(() => (
   border: 0; outline: none; box-shadow: none; padding: 0 var(--space-xs); border-radius: var(--radius-m);
   caret-color: var(--text-primary); font-size: min(3rem, 64px);
 }
+/* The number on a touch screen: a button that opens the wheel, as big as the field it replaces. */
+.wpick { min-height: 44px; padding: 0 var(--space-xs); border: 0; border-radius: var(--radius-m); background: none; color: var(--text-primary); white-space: nowrap; }
+.wpick.hinted { color: var(--text-tertiary); }
+.wpick:active { background: var(--color-hover); }
+.tnum { font-variant-numeric: tabular-nums; }
 .winput::placeholder { color: var(--text-tertiary); opacity: 1; }
 .winput:focus, .winput:focus-visible {
   outline: none; border: 0; box-shadow: var(--d-sunk);

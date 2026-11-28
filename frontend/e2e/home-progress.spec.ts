@@ -175,11 +175,9 @@ test("home title, progress pickers, and remembered metric", async ({ page }) => 
   const top = await main.getByRole("heading", { level: 1 }).evaluate((el) => el.offsetTop);
   await page.getByRole("button", { name: "Weigh in" }).click();
   const sheet = page.getByRole("dialog", { name: "Log weight" });
-  const field = sheet.getByRole("textbox", { name: "Weight in kilograms" });
-  // The phone sheet types on the app keypad, so the system keyboard stays down.
-  await expect(field).toHaveAttribute("inputmode", "none");
-  await expect(sheet.getByRole("group", { name: "Number keypad" })).toBeVisible();
-  await expect(field).not.toBeFocused();
+  // The phone sheet picks on the number wheel, so the system keyboard stays down.
+  await expect(sheet.getByRole("textbox")).toHaveCount(0);
+  await expect(sheet.locator("[data-weight-pick]")).toBeVisible();
   await page.keyboard.press("Escape");
   const topAfter = await main.getByRole("heading", { level: 1 }).evaluate((el) => el.offsetTop);
   expect(Math.abs(topAfter - top)).toBeLessThanOrEqual(1);

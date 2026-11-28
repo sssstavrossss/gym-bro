@@ -10,9 +10,13 @@ export async function pick(page: Page, target: Locator, value: number | string):
   await expect(dial.locator("[data-dial-track]")).toBeFocused();
   const typed = String(value);
   await page.keyboard.type(typed);
-  // The wheel has moved to it: the same digits (1:30 for "130", 62.5 for "62.5").
-  const digits = typed.replace(/\D/g, "");
-  await expect.poll(async () => (await dial.locator("[data-dial-value]").innerText()).replace(/\D/g, "").replace(/^0+(?=\d)/, "")).toBe(digits.replace(/^0+(?=\d)/, ""));
+  // The wheel has moved to it: a clock's digits (1:30 for "130"), else the same number (70.0 for "70").
+  const digits = typed.replace(/\D/g, "").replace(/^0+(?=\d)/, "");
+  await expect.poll(async () => {
+    const shown = await dial.locator("[data-dial-value]").innerText();
+    if (shown.includes(":")) return shown.replace(/\D/g, "").replace(/^0+(?=\d)/, "") === digits;
+    return Number.parseFloat(shown.replace(/[^\d.½]/g, "").replace("½", ".5")) === Number.parseFloat(typed);
+  }).toBe(true);
   await page.keyboard.press("Enter");
   await expect(dial).toHaveCount(0);
 }
