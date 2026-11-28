@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { pick, setRow } from "./dial";
 
 function headers(oid: string) {
   return { "X-Test-Oid": oid, "X-Test-Name": "Test User", "Content-Type": "application/json" };
@@ -40,28 +41,31 @@ test("a barbell lift shows the plates a side for the set you're on", async ({ pa
   await adding.getByRole("button", { name: "Add Barbell Squat", exact: true }).click();
 
   const workout = page.getByRole("dialog", { name: "Workout" });
-  const squat = page.locator('[data-exercise-screen][data-workout-exercise="barbell-squat"]');
-  const plates = squat.locator("[data-plates]");
+  // On the set to do's scoreboard.
+  const plates = workout.locator("[data-plates]");
   await expect(plates).toHaveText("Plates show for the weight you type");
 
-  await page.getByLabel("Set 1, kg", { exact: true }).fill("100");
+  await pick(page, workout.getByLabel("Set 1, kg", { exact: true }), 100);
   await expect(plates).toHaveText("Plates for 100 kg: 25 + 15 a side");
-  await page.getByLabel("Set 1, Reps", { exact: true }).fill("5");
-  await page.getByRole("button", { name: "Log set 1" }).click();
+  await pick(page, workout.getByLabel("Set 1, Reps", { exact: true }), 5);
+  await workout.getByRole("button", { name: "Set 1 done" }).click();
 
-  // The next set takes set 1's weight until another is typed.
+  // The next set takes set 1's weight until another is picked; the wheel says the plates too.
   await expect(plates).toHaveText("Plates for 100 kg: 25 + 15 a side");
-  await page.getByLabel("Set 2, kg", { exact: true }).fill("102.5");
+  await workout.getByLabel("Set 2, kg", { exact: true }).click();
+  await expect(page.locator("[data-dial]")).toContainText("Plates for 100 kg");
+  await page.keyboard.press("Escape");
+  await pick(page, workout.getByLabel("Set 2, kg", { exact: true }), 102.5);
   await expect(plates).toHaveText("Plates for 102.5 kg: 25 + 15 + 1.25 a side");
-  await page.getByLabel("Set 2, kg", { exact: true }).fill("101");
+  await pick(page, workout.getByLabel("Set 2, kg", { exact: true }), 101);
   await expect(plates).toHaveText("Plates for 101 kg: 25 + 15 a side (100 kg)");
 
   // Not for kit that doesn't go on a bar.
-  await page.getByRole("button", { name: "Back to the workout" }).click();
+  await workout.getByRole("button", { name: "Set 2 done" }).click();
+  await workout.getByRole("button", { name: "Set 3 done" }).click();
   await workout.getByRole("button", { name: "Exercise", exact: true }).click();
   await adding.getByLabel("Search exercises").fill("dumbbell bench press");
   await adding.getByRole("button", { name: "Add Dumbbell Bench Press", exact: true }).click();
-  const dumbbells = page.locator('[data-exercise-screen][data-workout-exercise="dumbbell-bench-press"]');
-  await expect(dumbbells).toBeVisible();
-  await expect(dumbbells.locator("[data-plates]")).toHaveCount(0);
+  await expect(setRow(workout, "dumbbell-bench-press", 0)).toHaveAttribute("data-set-state", "now");
+  await expect(workout.locator("[data-plates]")).toHaveCount(0);
 });

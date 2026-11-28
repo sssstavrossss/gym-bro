@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { pick, setRow } from "./dial";
 
 function headers(oid: string) {
   return { "X-Test-Oid": oid, "X-Test-Name": "Test User", "Content-Type": "application/json" };
@@ -41,30 +42,31 @@ test("A workout: start it, add an exercise, tick off sets, rest, finish, and see
   await sheet.getByLabel("Search exercises").fill("barbell bench press");
   await sheet.getByRole("button", { name: "Add Barbell Bench Press - Medium Grip" }).click();
 
-  // New to this exercise: its own screen with three empty sets, no "last time".
+  // New to this exercise: three empty sets on the timeline, no "last time", the first to do.
   const workout = page.getByRole("dialog", { name: "Workout" });
-  const card = page.locator('[data-exercise-screen][data-workout-exercise="barbell-bench-press-medium-grip"]');
-  await expect(card.getByText("First time")).toBeVisible();
-  await expect(card.locator("[data-set]")).toHaveCount(3);
+  const id = "barbell-bench-press-medium-grip";
+  const bench = (index: number) => setRow(workout, id, index);
+  const heading = workout.locator(`[data-workout-exercise="${id}"]`);
+  await expect(workout.locator("[data-load-suggestion]")).toContainText("First time");
+  await expect(workout.locator(`[data-set][data-exercise="${id}"]`)).toHaveCount(3);
+  await expect(bench(0)).toHaveAttribute("data-set-state", "now");
 
-  await page.getByLabel("Set 1, kg").fill("60");
-  await page.getByLabel("Set 1, Reps").fill("10");
-  await page.getByRole("button", { name: "Log set 1" }).click();
-  await expect(card.locator("[data-set]").first()).toHaveAttribute("data-done", "");
+  await pick(page, workout.getByLabel("Set 1, kg"), 60);
+  await pick(page, workout.getByLabel("Set 1, Reps"), 10);
+  await workout.getByRole("button", { name: "Set 1 done" }).click();
+  await expect(bench(0)).toHaveAttribute("data-done", "");
   // The next set offers the same numbers, and logging it takes them.
-  await expect(page.getByLabel("Set 2, kg")).toHaveAttribute("placeholder", "60");
-  await page.getByRole("button", { name: "Log set 2" }).click();
-  await expect(page.locator("[data-exercise-status]")).toHaveText("Set 3 of 3");
+  await expect(bench(1).getByLabel("Set 2, kg")).toHaveText(/60$/);
+  await workout.getByRole("button", { name: "Set 2 done" }).click();
+  await expect(bench(2)).toHaveAttribute("data-set-state", "now");
 
-  // A compound press rests 2:00, on a chip that skips it.
-  const rest = page.locator("[data-rest]");
+  // A compound press rests 2:00, on the rail before the next set; Skip ends it.
+  const rest = workout.locator("[data-rest]");
   await expect(rest.getByRole("timer")).toHaveText(/^(2:00|1:5\d)$/);
-  await rest.click();
+  await rest.locator("[data-rest-skip]").click();
   await expect(rest).toHaveCount(0);
-  // Done goes back to the workout, where the exercise is a line.
-  await page.locator("[data-exercise-done]").click();
   await expect(workout.locator("[data-workout-status]")).toContainText("2 of 3 sets");
-  await expect(workout.locator('[data-workout-exercise="barbell-bench-press-medium-grip"]')).toContainText("2 of 3 · 60 kg × 10, 10");
+  await expect(heading).toContainText("2 of 3 · 60 kg × 10, 10");
 
   // Closing keeps it going; Train offers to resume it, also after a reload.
   await workout.getByRole("button", { name: "Hide the workout" }).click();
@@ -92,20 +94,20 @@ test("A workout: start it, add an exercise, tick off sets, rest, finish, and see
   await page.getByRole("button", { name: "Empty workout" }).click();
   await page.getByRole("dialog", { name: "Add exercise" }).getByLabel("Search exercises").fill("barbell bench press");
   await page.getByRole("button", { name: "Add Barbell Bench Press - Medium Grip" }).click();
-  await expect(card.locator("[data-set]")).toHaveCount(2);
-  await expect(card.locator("[data-last-time]")).toContainText("60 kg × 10, 10");
+  await expect(workout.locator(`[data-set][data-exercise="${id}"]`)).toHaveCount(2);
+  await expect(workout.locator("[data-last-time]")).toContainText("60 kg × 10, 10");
   // Every set reached the top of the range, so the first set offers 2.5 kg more.
-  await expect(card.locator("[data-set]").first()).toContainText("62.5 × 6");
+  await expect(bench(0).getByLabel("Set 1, kg")).toHaveText(/62.5$/);
+  await expect(bench(0).getByLabel("Set 1, Reps")).toHaveText(/6$/);
 
   // The how-to opens over the workout, and Esc goes back to it.
   await page.getByRole("button", { name: "How to do Barbell Bench Press - Medium Grip" }).click();
   await expect(page.getByRole("dialog", { name: "Barbell Bench Press - Medium Grip", exact: true })).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog", { name: "Barbell Bench Press - Medium Grip", exact: true })).toHaveCount(0);
-  await expect(card).toBeVisible();
+  await expect(heading).toBeVisible();
 
   // Discard throws it away, with Undo.
-  await page.getByRole("button", { name: "Back to the workout" }).click();
   await workout.getByRole("button", { name: "Discard" }).click();
   await expect(page.getByRole("button", { name: "Empty workout" })).toBeVisible();
   await page.locator(".toast.front").filter({ hasText: "Workout discarded" }).getByRole("button", { name: "Undo" }).click();
@@ -159,7 +161,7 @@ test("History: open a past workout to edit it, delete it with Undo, and log one 
   await log.getByLabel("Day of the workout").fill(yesterday);
   await log.getByRole("button", { name: "Save", exact: true }).click();
   await expect(log.getByRole("alert")).toHaveText("Tick off a set to save the workout.");
-  await log.getByLabel("Set 1, Time").fill("100");
+  await pick(page, log.getByLabel("Set 1, Time"), 100);
   await log.getByRole("button", { name: "Set 1 done" }).click();
   await log.getByRole("button", { name: "Save", exact: true }).click();
   await expect(log).toHaveCount(0);

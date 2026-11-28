@@ -30,6 +30,7 @@ import type { RepeatSource } from "../lib/train";
 import { loadTargetOf, suggestLoad, type LoadSuggestion, type LoadTarget } from "../lib/progression";
 import { newBests, type NewBest } from "../lib/records";
 import { warmupRamp, workingKg } from "../lib/warmup";
+import { carryOn } from "../lib/timeline";
 import { fitSets, MAX_EVERY, MAX_EXTRA_REPS, MAX_MINUTES, MIN_MINUTES, newTimed, nextRoundSet, plannedRounds, stopped, type BlockFormat, type TimedState } from "../lib/timed";
 import { exercises } from "./exercises";
 import { loadPlan } from "./plan";
@@ -475,6 +476,20 @@ export function setValue(key: string, index: number, field: SetField, value: num
   save();
 }
 
+/**
+ * A number picked on the timeline: the set takes it, and so do the later sets of its kind not done yet that still show
+ * the number it had (lib/timeline `carryOn`). `shown` is what the set showed: its own number, else its hint.
+ */
+export function pickValue(key: string, index: number, field: SetField, value: number, shown: number | null): void {
+  const exercise = find(key);
+  const set = exercise?.sets[index];
+  if (!exercise || !set) return;
+  const onward = set.doneAt ? [] : carryOn(exercise.sets, index, field, set[field] ?? shown);
+  set[field] = value;
+  for (const at of onward) exercise.sets[at][field] = value;
+  save();
+}
+
 export function exerciseItem(exerciseId: string) {
   return exercises.items.find((item) => item.id === exerciseId) ?? null;
 }
@@ -541,6 +556,17 @@ export function setExerciseRest(key: string, seconds: number): void {
   const exercise = find(key);
   if (!exercise) return;
   exercise.rest = Math.max(0, Math.round(seconds));
+  save();
+}
+
+/** The rest running set to another length on the number wheel: it ends that long after it started. */
+export function setRunningRest(seconds: number, now = new Date()): void {
+  const active = workout.active;
+  if (!active?.restEndsAt) return;
+  const length = Math.max(0, Math.round(seconds));
+  const ends = Date.parse(active.restEndsAt) + (length - active.restFor) * 1000;
+  active.restFor = length;
+  active.restEndsAt = ends > now.getTime() ? new Date(ends).toISOString() : null;
   save();
 }
 

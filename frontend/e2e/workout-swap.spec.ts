@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { pick, setRow } from "./dial";
 
 function headers(oid: string) {
   return { "X-Test-Oid": oid, "X-Test-Name": "Test User", "Content-Type": "application/json" };
@@ -40,11 +41,10 @@ test("Swap an exercise: similar ones first, ticked sets stay, the rest move", as
   await adding.getByRole("button", { name: "Add Barbell Squat", exact: true }).click();
 
   const workout = page.getByRole("dialog", { name: "Workout" });
-  const squat = page.locator('[data-exercise-screen][data-workout-exercise="barbell-squat"]');
-  await page.getByLabel("Set 1, kg").fill("100");
-  await page.getByLabel("Set 1, Reps").fill("5");
-  await page.getByRole("button", { name: "Log set 1" }).click();
-  await squat.getByRole("button", { name: "Swap Barbell Squat" }).click();
+  await pick(page, workout.getByLabel("Set 1, kg"), 100);
+  await pick(page, workout.getByLabel("Set 1, Reps"), 5);
+  await workout.getByRole("button", { name: "Set 1 done" }).click();
+  await workout.getByRole("button", { name: "Swap Barbell Squat" }).click();
 
   const swap = page.getByRole("dialog", { name: "Swap Barbell Squat" });
   const movement = swap.locator('[data-swap-group="movement"]');
@@ -55,18 +55,18 @@ test("Swap an exercise: similar ones first, ticked sets stay, the rest move", as
   await movement.getByRole("button", { name: "Swap to Leg Press" }).click();
 
   await expect(page.getByText("Swapped Barbell Squat for Leg Press")).toBeVisible();
-  // The two sets left move to the leg press, which opens on its screen, empty.
-  const press = page.locator('[data-exercise-screen][data-workout-exercise="leg-press"]');
-  await expect(press.locator("[data-set]")).toHaveCount(2);
-  await expect(page.getByLabel("Set 1, kg")).toHaveValue("");
+  // The two sets left move to the leg press, which opens on the timeline, empty.
+  const pressSets = workout.locator('[data-set][data-exercise="leg-press"]');
+  await expect(workout.locator('[data-workout-exercise="leg-press"][data-open]')).toBeVisible();
+  await expect(pressSets).toHaveCount(2);
+  await expect(setRow(workout, "leg-press", 0).getByLabel("Set 1, kg")).toHaveText(/—$/);
 
-  // Going back from the swap screen changes nothing, and returns to the exercise.
-  await press.getByRole("button", { name: "Swap Leg Press" }).click();
-  await page.getByRole("dialog", { name: "Swap Leg Press" }).getByRole("button", { name: "Back to the exercise" }).click();
-  await expect(press).toBeVisible();
+  // Going back from the swap screen changes nothing.
+  await workout.getByRole("button", { name: "Swap Leg Press" }).click();
+  await page.getByRole("dialog", { name: "Swap Leg Press" }).getByRole("button", { name: "Back to the workout" }).click();
+  await expect(pressSets).toHaveCount(2);
 
   // The ticked set stays with the squat.
-  await page.getByRole("button", { name: "Back to the workout" }).click();
   await expect(workout.locator('[data-workout-exercise="barbell-squat"]')).toContainText("100 kg × 5");
   await expect(workout.locator('[data-workout-exercise="leg-press"]')).toContainText("2 sets");
 });

@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { pick, setRow } from "./dial";
 
 function headers(oid: string) {
   return { "X-Test-Oid": oid, "X-Test-Name": "Test User", "Content-Type": "application/json" };
@@ -54,20 +55,20 @@ test("beating an exercise's best estimated max says so on the card and in the su
   await page.goto("/train");
   await page.locator("[data-up-next]").getByRole("button", { name: "Start Upper A" }).click();
   const workout = page.getByRole("dialog", { name: "Upper A" });
-  const card = workout.locator(`[data-workout-exercise="${bench}"][data-open]`);
-  await expect(card.locator("[data-load-suggestion]")).toBeVisible();
-  await card.getByLabel("Set 1, kg").fill("60");
-  await card.getByLabel("Set 1, Reps").fill("10");
-  await card.getByLabel("Set 1, RIR").fill("2");
-  await card.getByRole("button", { name: "Set 1 done" }).click();
+  const row = (index: number) => setRow(workout, bench, index);
+  await expect(workout.locator("[data-load-suggestion]").first()).toBeVisible();
+  await pick(page, row(0).getByLabel("Set 1, kg"), 60);
+  await pick(page, row(0).getByLabel("Set 1, Reps"), 10);
+  await pick(page, row(0).getByLabel("Set 1, RIR"), 2);
+  await row(0).getByRole("button", { name: "Set 1 done" }).click();
   // Equal isn't a record.
-  await expect(card.locator("[data-new-best]")).toHaveCount(0);
+  await expect(workout.locator("[data-new-best]")).toHaveCount(0);
 
-  await card.getByLabel("Set 2, kg").fill("70");
-  await card.getByLabel("Set 2, Reps").fill("8");
-  await card.getByLabel("Set 2, RIR").fill("2");
-  await card.getByRole("button", { name: "Set 2 done" }).click();
-  await expect(card.locator("[data-new-best]")).toHaveText("New best: est. max 93.5 kg");
+  await pick(page, row(1).getByLabel("Set 2, kg"), 70);
+  await pick(page, row(1).getByLabel("Set 2, Reps"), 8);
+  await pick(page, row(1).getByLabel("Set 2, RIR"), 2);
+  await row(1).getByRole("button", { name: "Set 2 done" }).click();
+  await expect(workout.locator("[data-new-best]")).toHaveText("New best: est. max 93.5 kg");
 
   await workout.getByRole("button", { name: /^End now/ }).click();
   await workout.getByRole("alertdialog").getByRole("button", { name: "End workout" }).click();

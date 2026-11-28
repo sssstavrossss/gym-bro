@@ -57,11 +57,11 @@ test("a kettlebell plan ends each workout with a finisher on the clock", async (
   const block = workout.getByRole("group", { name: "EMOM: Kettlebell Swing, Pushups" });
   await expect(block.locator("[data-run-heading]")).toHaveText("EMOM 10 min · a round each minute");
   await expect(block.locator("[data-block-clock]")).toContainText("10 rounds, one each minute");
-  await block.getByRole("button", { name: /^Pushups/ }).first().click();
-  const pushups = block.locator('[data-workout-exercise="pushups"]');
+  await workout.locator('[data-workout-exercise="pushups"]').getByRole("button").first().click();
+  const pushups = workout.locator('[data-info="pushups"]');
   await expect(pushups).toContainText("5 reps");
   await expect(pushups).not.toContainText("in reserve");
-  await expect(pushups.locator("[data-set]")).toHaveCount(10);
+  await expect(workout.locator('[data-set][data-exercise="pushups"]')).toHaveCount(10);
   await block.getByRole("button", { name: "Start", exact: true }).click();
   await expect(block.locator("[data-block-clock]")).toContainText("Round 1 of 10");
 });

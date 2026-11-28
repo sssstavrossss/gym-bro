@@ -1,40 +1,13 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
 import BottomSheet from "./BottomSheet.vue";
 import ExerciseBrowser from "./ExerciseBrowser.vue";
 import SwapList from "./SwapList.vue";
 import Icon from "./Icon.vue";
-import Keypad from "./Keypad.vue";
-import WorkoutExercise, { type CellEdit } from "./WorkoutExercise.vue";
-import ExerciseScreen from "./ExerciseScreen.vue";
-import SetEntry from "./SetEntry.vue";
-import RestTimer from "./RestTimer.vue";
-import TimedBlock from "./TimedBlock.vue";
+import WorkoutTimeline from "./WorkoutTimeline.vue";
 import WorkoutDescribe from "./WorkoutDescribe.vue";
 import WorkoutTimes from "./WorkoutTimes.vue";
-import { keyboardEntry } from "../lib/viewport";
-import { nextSetIndex, screenStatus, usesSetScreen } from "../lib/setEntry";
-import {
-  clockTime,
-  currentExercise,
-  exerciseGroups,
-  exerciseSummary,
-  groupName,
-  groupOf,
-  FIELD_LABELS,
-  fieldDecimals,
-  measureFields,
-  parseField,
-  partHeading,
-  restLeft,
-  samePart,
-  shortDay,
-  timesLabel,
-  typeKey,
-  undoneSets,
-  workoutStatus,
-  workoutTotals,
-} from "../lib/workout";
+import { clockTime, exerciseGroups, exerciseSummary, shortDay, timesLabel, undoneSets, workoutStatus, workoutTotals } from "../lib/workout";
 import { todayInZone } from "../lib/dates";
 import { newBestLine } from "../lib/records";
 import { loadExercises } from "../state/exercises";
@@ -50,28 +23,24 @@ import {
   finishWorkout,
   forgetQuickTimes,
   quickTimes,
-  removeExercise,
-  restoreExercise,
   restorePast,
   restoreWorkout,
   savePast,
-  setValue,
-  toggleSuperset,
   workout,
 } from "../state/workout";
-import type { DraftExercise } from "../lib/workout";
 import { distanceText } from "../lib/cardio";
-import { formatLabel, scoreLine } from "../lib/timed";
+import { scoreLine } from "../lib/timed";
 import { canDescribe } from "../lib/describeWorkout";
 import { leftLine, describeLeftShownAt } from "../lib/describe";
 import { connection } from "../state/connection";
 import { describe, loadDescribe } from "../state/describe";
 import { findExercises, resetWorkoutDescribe, workoutDescribe } from "../state/workoutDescribe";
-import { closeSheet, openExercise, toast, toastError, ui } from "../ui";
+import { closeSheet, toast, toastError, ui } from "../ui";
 
 // The workout being logged (docs/training.md, phase 2), and its summary once finished. Closing the sheet
-// keeps the workout going; Train shows it to resume. A past workout (opened from the history, or logged
-// afterwards) is edited in the same sheet, with Save and Delete instead of Finish and no rest timer.
+// keeps the workout going; Train shows it to resume. The workout itself is one timeline (WorkoutTimeline):
+// every exercise and set on a rail, each number picked on the wheel. A past workout (opened from the history,
+// or logged afterwards) is edited in the same sheet, with Save and Delete instead of End and no rest.
 const open = computed(() => ui.sheet === "workout");
 const active = computed(() => workout.active);
 const past = computed(() => workout.past);
@@ -79,10 +48,8 @@ const past = computed(() => workout.past);
 const current = computed(() => past.value?.draft ?? active.value);
 const pastError = ref("");
 const today = computed(() => todayInZone(deviceTimeZone(), new Date(now.value)));
-const view = ref<"log" | "add" | "swap" | "describe" | "exercise">("log");
-/** A quick workout's exercise on its own screen (ExerciseScreen), and the set picked there; null follows the next to do. */
-const screenKey = ref<string | null>(null);
-const picked = ref<number | null>(null);
+const view = ref<"log" | "add" | "swap" | "describe">("log");
+const timeline = ref<InstanceType<typeof WorkoutTimeline> | null>(null);
 /** The exercise being swapped, on the swap screen. */
 const swapping = ref<{ key: string; exerciseId: string } | null>(null);
 /** End's check, in the footer where End was tapped: sets not ticked off, or nothing ticked off at all. */
@@ -90,9 +57,6 @@ const confirming = ref<null | "undone" | "empty">(null);
 /** The time card, opened from the header's time chip. */
 const timesOpen = ref(false);
 const waiting = ref(false);
-/** The exercise opened by tapping it. Null follows the first one with sets to do. */
-const chosen = ref<string | null>(null);
-const edit = reactive<CellEdit>({ key: null, index: 0, field: "kg", text: "", fresh: true });
 
 const now = ref(Date.now());
 let timer: number | undefined;
@@ -113,7 +77,6 @@ watch(open, (shown) => {
     const idle = workout.active;
     if (idle && !idle.exercises.length && !idle.plan && !workout.past) discardWorkout();
     forgetQuickTimes();
-    edit.key = null;
     confirming.value = null;
     timesOpen.value = false;
     pastError.value = "";
@@ -136,119 +99,13 @@ watch(open, (shown) => {
 }, { immediate: true });
 onBeforeUnmount(() => window.clearInterval(timer));
 
-const shownKey = computed(() => {
-  const exercises = active.value?.exercises ?? [];
-  return exercises.some((exercise) => exercise.key === chosen.value) ? chosen.value : active.value ? currentExercise(active.value) : null;
-});
-/** The open exercise's whole superset opens with it, so its sets can be done in turn. */
-const activeRuns = computed(() => (active.value ? exerciseGroups(active.value.exercises) : []));
-const shownKeys = computed(() => (active.value && shownKey.value ? groupOf(active.value.exercises, shownKey.value).map((exercise) => exercise.key) : []));
-const left = computed(() => (active.value ? restLeft(active.value, now.value) : null));
-const restShare = computed(() => (left.value == null || !active.value?.restFor ? 0 : Math.min(1, left.value / active.value.restFor)));
-const keypadShown = computed(() => edit.key != null && !keyboardEntry.value && view.value === "log");
-const editName = computed(() => {
-  const exercise = current.value?.exercises.find((entry) => entry.key === edit.key);
-  if (!exercise) return "";
-  let n = 0;
-  const label = exercise.sets.map((set) => (set.type === "warmup" ? "Warm-up" : set.type === "drop" ? "Drop set" : `Set ${++n}`))[edit.index];
-  return `${label} · ${FIELD_LABELS[edit.field]}`;
-});
-
-// A finished exercise folds away and the next one opens, unless one was picked by hand and still has sets to do.
-watch(() => (active.value && chosen.value ? groupOf(active.value.exercises, chosen.value).every((exercise) => exercise.sets.every((set) => set.doneAt)) : false), (allDone) => {
-  if (allDone) chosen.value = null;
-});
-
-const nameOf = (exercise: DraftExercise | undefined) => (exercise ? exerciseItem(exercise.exerciseId)?.name ?? "Exercise" : "");
-
-const screenExercise = computed(() => (view.value === "exercise" ? active.value?.exercises.find((exercise) => exercise.key === screenKey.value) ?? null : null));
-const screenTarget = computed(() => {
-  const sets = screenExercise.value?.sets ?? [];
-  return picked.value != null && picked.value < sets.length ? picked.value : nextSetIndex(sets);
-});
-/** Opens an exercise on its own screen, on the next set to do. */
-function openScreen(key: string) {
-  screenKey.value = key;
-  picked.value = null;
-  timesOpen.value = false;
-  edit.key = null;
-  view.value = "exercise";
-}
-function closeScreen() {
-  (document.activeElement as HTMLElement | null)?.blur();
-  edit.key = null;
-  view.value = "log";
-}
-// An exercise removed, or joined to a superset, goes back to the workout.
-watch(() => view.value === "exercise" && (!screenExercise.value || !usesSetScreen(active.value, screenExercise.value.key)), (gone) => {
-  if (gone) closeScreen();
-});
-function pickSet(index: number) {
-  picked.value = index === nextSetIndex(screenExercise.value?.sets ?? []) ? null : index;
-}
-/** The exercise each superset button joins to: the one before. */
-/** The one before, for the superset button; none across the warm-up, the workout and the cool-down. */
-const prevName = (exercises: readonly DraftExercise[], exercise: DraftExercise) => {
-  const before = exercises[exercises.indexOf(exercise) - 1];
-  return before && samePart(before, exercise) ? nameOf(before) : nameOf(undefined);
-};
-/** A superset or circuit, or one exercise left on a clock: shown under a heading. */
-const isRun = (run: readonly DraftExercise[]) => run.length > 1 || !!run[0]?.timed;
-function runLabel(run: readonly DraftExercise[]) {
-  const kind = run[0]?.timed ? formatLabel(run[0].timed) : groupName(run.length);
-  return `${kind}: ${run.map((exercise) => nameOf(exercise)).join(", ")}`;
-}
-
-function join(exercises: readonly DraftExercise[], key: string) {
-  const at = exercises.findIndex((exercise) => exercise.key === key);
-  const before = exercises[at - 1];
-  if (at < 1 || !before) return;
-  const exercise = exercises[at];
-  toggleSuperset(key);
-  if (exercise.superset) {
-    toast(`Split ${nameOf(before)} and ${nameOf(exercise)}`);
-    return;
-  }
-  const run = groupOf(current.value?.exercises ?? [], key);
-  toast(`${groupName(run.length)}: ${run.map((exercise) => nameOf(exercise)).join(" + ")}`);
-}
-
-function padKey(key: string) {
-  if (!edit.key) return;
-  const start = edit.fresh && key !== "⌫" ? "" : edit.text;
-  edit.fresh = false;
-  edit.text = typeKey(start, key, edit.field);
-  setValue(edit.key, edit.index, edit.field, parseField(edit.field, edit.text) ?? null);
-}
-
-/** The next cell along the row, then the next set's first; past the last set the keypad closes. */
-function nextCell() {
-  const exercise = current.value?.exercises.find((entry) => entry.key === edit.key);
-  if (!exercise) return;
-  const fields = measureFields(exerciseItem(exercise.exerciseId)?.measure ?? "weight_reps");
-  const at = fields.indexOf(edit.field);
-  const [index, field] = at < fields.length - 1 ? [edit.index, fields[at + 1]] : [edit.index + 1, fields[0]];
-  const cell = document.querySelector<HTMLInputElement>(`[data-cell="${exercise.key}-${index}-${field}"]`);
-  if (cell) cell.focus();
-  else doneTyping();
-}
-
-function doneTyping() {
-  (document.activeElement as HTMLElement | null)?.blur();
-  edit.key = null;
-}
-
+/** An exercise added opens on the timeline, in view. */
 async function pick(exerciseId: string) {
   const key = await addExercise(exerciseId);
   timesOpen.value = false;
-  if (key && !past.value && usesSetScreen(active.value, key)) {
-    openScreen(key);
-    return;
-  }
-  chosen.value = key;
   view.value = "log";
   await nextTick();
-  document.querySelector(`[data-workout-exercise="${exerciseId}"][data-open]`)?.scrollIntoView({ block: "nearest" });
+  if (key) void timeline.value?.openRun(key);
 }
 
 const canFind = computed(() => !workoutDescribe.finding && !connection.offline && describe.left > 0 && canDescribe(workoutDescribe.text));
@@ -263,14 +120,10 @@ async function findNow() {
   if (!canFind.value) return;
   // Back on the workout, the first exercise with sets to do opens.
   if (!(await findExercises())) return;
-  chosen.value = null;
   view.value = "log";
 }
 
-/** Where the swap screen's ← goes: the exercise screen it was opened from, else the workout. */
-const swapBack = ref<"log" | "exercise">("log");
 function startSwap(exercise: { key: string; exerciseId: string }) {
-  swapBack.value = view.value === "exercise" ? "exercise" : "log";
   swapping.value = { key: exercise.key, exerciseId: exercise.exerciseId };
   view.value = "swap";
 }
@@ -282,29 +135,16 @@ async function swapTo(exerciseId: string) {
   swapping.value = null;
   view.value = "log";
   if (!key) return;
-  chosen.value = key;
   const name = (id: string) => exerciseItem(id)?.name ?? "Exercise";
   toast(`Swapped ${name(from.exerciseId)} for ${name(exerciseId)}`);
-  if (!past.value && usesSetScreen(active.value, key)) {
-    openScreen(key);
-    return;
-  }
   await nextTick();
-  document.querySelector(`[data-workout-exercise="${exerciseId}"][data-open]`)?.scrollIntoView({ block: "nearest" });
-}
-
-function remove(key: string) {
-  const removed = removeExercise(key);
-  if (!removed) return;
-  const name = exerciseItem(removed.exercise.exerciseId)?.name ?? "Exercise";
-  toast(`${name} removed`, { label: "Undo", run: () => restoreExercise(removed) });
+  void timeline.value?.openRun(key);
 }
 
 /** End now, or at the end set on the time card. Sets not ticked off are left out, after asking. */
 async function finish(anyway = false) {
   const current = active.value;
   if (!current || workout.saving) return;
-  doneTyping();
   if (!current.exercises.some((exercise) => exercise.sets.some((set) => set.doneAt))) {
     confirming.value = "empty";
     return;
@@ -317,13 +157,11 @@ async function finish(anyway = false) {
   const outcome = await finishWorkout();
   if (outcome === "failed") toastError("Couldn't save the workout. Try again.");
   waiting.value = outcome === "waiting";
-  chosen.value = null;
 }
 
 function discard() {
   const dropped = discardWorkout();
   confirming.value = null;
-  chosen.value = null;
   closeSheet();
   if (!dropped) return;
   toast("Workout discarded", { label: "Undo", run: () => { if (!restoreWorkout(dropped)) toastError("Another workout has started since."); } });
@@ -375,7 +213,7 @@ const summary = computed(() => {
 const showSummary = computed(() => summary.value != null && !active.value && !past.value);
 const pastTitle = computed(() => (past.value?.isNew ? "Log a workout" : "Edit workout"));
 const swapTitle = computed(() => `Swap ${swapping.value ? exerciseItem(swapping.value.exerciseId)?.name ?? "exercise" : "exercise"}`);
-const label = computed(() => (showSummary.value ? "Workout done" : screenExercise.value ? `Workout: ${nameOf(screenExercise.value)}` : view.value === "add" ? "Add exercise" : view.value === "describe" ? "Describe a workout" : view.value === "swap" ? swapTitle.value : past.value ? pastTitle.value : active.value?.name ?? "Workout"));
+const label = computed(() => (showSummary.value ? "Workout done" : view.value === "add" ? "Add exercise" : view.value === "describe" ? "Describe a workout" : view.value === "swap" ? swapTitle.value : past.value ? pastTitle.value : active.value?.name ?? "Workout"));
 
 function setPastDate(event: Event) {
   const value = (event.target as HTMLInputElement).value;
@@ -383,7 +221,6 @@ function setPastDate(event: Event) {
 }
 
 async function savePastNow() {
-  doneTyping();
   const error = await savePast();
   pastError.value = error ?? "";
   if (error) return;
@@ -392,7 +229,6 @@ async function savePastNow() {
 }
 
 async function deletePastNow() {
-  doneTyping();
   const wasNew = past.value?.isNew;
   const result = await deletePast();
   if (typeof result === "string") {
@@ -425,14 +261,6 @@ async function deletePastNow() {
         <button v-if="describe.available" type="button" class="btn sm secondary t-label" data-describe-workout @click="startDescribe"><Icon name="sparkle" :size="14" /> Describe</button>
         <button v-if="fresh" type="button" class="cbtn" aria-label="Close" @click="closeSheet"><Icon name="x" :size="18" /></button>
       </div>
-      <div v-else-if="screenExercise" class="row hdr">
-        <button type="button" class="cbtn" aria-label="Back to the workout" @click="closeScreen"><Icon name="left" :size="18" /></button>
-        <span class="col grow g2">
-          <h2 class="t-head m0">{{ nameOf(screenExercise) }}</h2>
-          <span class="t-capn c2 tnum" data-exercise-status>{{ screenStatus(screenExercise.sets, screenTarget) }}</span>
-        </span>
-        <button type="button" class="cbtn" :aria-label="`How to do ${nameOf(screenExercise)}`" @click="openExercise(screenExercise.exerciseId)"><Icon name="info" :size="18" /></button>
-      </div>
       <div v-else-if="view === 'describe'" class="row hdr">
         <!-- Before the first exercise there is no workout to go back to: ← is Quick add's first page, Add exercise. -->
         <button
@@ -441,7 +269,7 @@ async function deletePastNow() {
         <h2 class="t-head m0 grow">Describe a workout</h2>
       </div>
       <div v-else-if="view === 'swap'" class="row hdr">
-        <button type="button" class="cbtn" :aria-label="swapBack === 'exercise' ? 'Back to the exercise' : 'Back to the workout'" @click="view = swapBack"><Icon name="left" :size="18" /></button>
+        <button type="button" class="cbtn" aria-label="Back to the workout" @click="view = 'log'"><Icon name="left" :size="18" /></button>
         <h2 class="t-head m0 grow">{{ swapTitle }}</h2>
       </div>
       <div v-else-if="past" class="row hdr">
@@ -490,11 +318,6 @@ async function deletePastNow() {
       <!-- No keyboard on the way in: the list is there to tap, and search waits for a tap. -->
       <ExerciseBrowser title="Exercises" title-id="workout-add-title" action="add" recent :focus-search="false" @pick="pick" />
     </div>
-    <ExerciseScreen
-      v-else-if="screenExercise && active" :key="screenExercise.key" :exercise="screenExercise" :target="screenTarget"
-      :prev-name="prevName(active.exercises, screenExercise)"
-      @select="pickSet" @swap="startSwap(screenExercise)" @remove="remove(screenExercise.key)" @superset="join(active.exercises, screenExercise.key)"
-    />
     <WorkoutDescribe v-else-if="view === 'describe'" @find="findNow" />
     <SwapList v-else-if="view === 'swap' && swapping" :key="swapping.key" :exercise-id="swapping.exerciseId" @pick="swapTo" />
 
@@ -511,21 +334,10 @@ async function deletePastNow() {
       <div v-if="!past.draft.exercises.length" class="card inset empty">
         <span class="t-label c2">No exercises yet. Add one, then tick off each set you did.</span>
       </div>
-      <div
-        v-for="run in exerciseGroups(past.draft.exercises)" :key="run[0].key" :class="isRun(run) ? 'col ss' : 'solo'"
-        :role="isRun(run) ? 'group' : undefined" :aria-label="isRun(run) ? runLabel(run) : undefined" :data-superset="isRun(run) ? run.length : undefined"
-      >
-        <TimedBlock v-if="isRun(run)" :run="run" :live="false" :now="now" />
-        <WorkoutExercise
-          v-for="exercise in run" :key="exercise.key" :exercise="exercise" open past :edit="edit"
-          :prev-name="prevName(past.draft.exercises, exercise)"
-          @remove="remove(exercise.key)" @swap="startSwap(exercise)" @superset="join(past.draft.exercises, exercise.key)"
-        />
-      </div>
-      <div class="row more">
-        <button type="button" class="btn sm secondary t-label" @click="view = 'add'"><Icon name="plus" :size="14" /> Exercise</button>
-        <button v-if="describe.available" type="button" class="btn sm secondary t-label" data-describe-workout @click="startDescribe"><Icon name="sparkle" :size="14" /> Describe</button>
-      </div>
+      <WorkoutTimeline
+        ref="timeline" :exercises="past.draft.exercises" :live="false" :now="now" :started-at="past.draft.startedAt" :day="past.draft.date"
+        @add="view = 'add'" @describe="startDescribe" @swap="startSwap"
+      />
     </div>
 
     <div v-else-if="active" class="col body">
@@ -537,41 +349,14 @@ async function deletePastNow() {
       <div v-if="!active.exercises.length" class="card inset empty">
         <span class="t-label c2">No exercises yet. Add the first one to start ticking off sets.</span>
       </div>
-      <template v-for="(run, index) in activeRuns" :key="run[0].key">
-        <h3 v-if="partHeading(activeRuns, index)" class="t-cap c2 m0 part" :data-part="run[0].part ?? 'main'">{{ partHeading(activeRuns, index) }}</h3>
-        <div
-          :class="isRun(run) ? 'col ss' : 'solo'"
-          :role="isRun(run) ? 'group' : undefined" :aria-label="isRun(run) ? runLabel(run) : undefined" :data-superset="isRun(run) ? run.length : undefined"
-        >
-          <TimedBlock v-if="isRun(run)" :run="run" :live="true" :now="now" />
-          <WorkoutExercise
-            v-for="exercise in run" :key="exercise.key" :exercise="exercise" :open="!usesSetScreen(active, exercise.key) && shownKeys.includes(exercise.key)" :edit="edit"
-            :prev-name="prevName(active.exercises, exercise)"
-            @expand="usesSetScreen(active, exercise.key) ? openScreen(exercise.key) : (chosen = exercise.key)" @remove="remove(exercise.key)" @swap="startSwap(exercise)" @superset="join(active.exercises, exercise.key)"
-          />
-        </div>
-      </template>
-      <div class="row more">
-        <button type="button" class="btn sm secondary t-label" @click="view = 'add'"><Icon name="plus" :size="14" /> Exercise</button>
-        <button v-if="describe.available" type="button" class="btn sm secondary t-label" data-describe-workout @click="startDescribe"><Icon name="sparkle" :size="14" /> Describe</button>
-      </div>
+      <WorkoutTimeline
+        ref="timeline" :exercises="active.exercises" :live="true" :now="now" :started-at="active.startedAt"
+        @add="view = 'add'" @describe="startDescribe" @swap="startSwap"
+      />
     </div>
 
     <template v-if="showSummary" #footer>
       <button type="button" class="btn primary block t-bodys" @click="closeDone">Done</button>
-    </template>
-    <template v-else-if="keypadShown" #footer>
-      <div class="col pad" @mousedown.prevent>
-        <span class="t-capn c2">{{ editName }}</span>
-        <Keypad :decimal="fieldDecimals(edit.field) > 0" @key="padKey" />
-        <div class="row padacts">
-          <button type="button" class="btn secondary t-bodys" @click="nextCell">Next</button>
-          <button type="button" class="btn primary t-bodys" @click="doneTyping">Done</button>
-        </div>
-      </div>
-    </template>
-    <template v-else-if="screenExercise" #footer>
-      <SetEntry :exercise="screenExercise" :target="screenTarget" :edit="edit" :left="left" @logged="picked = null" @next="picked = null" @done="closeScreen" />
     </template>
     <template v-else-if="view === 'describe'" #footer>
       <div class="col">
@@ -588,7 +373,6 @@ async function deletePastNow() {
       </div>
     </template>
     <template v-else-if="active && view === 'log'" #footer>
-      <RestTimer v-if="left != null" :left="left" :share="restShare" />
       <!-- End's check takes End's place, so the answer is under the finger that asked. -->
       <div v-if="confirming" class="col confirm" role="alertdialog" aria-labelledby="wc-h" aria-describedby="wc-d" data-end-confirm>
         <template v-if="confirming === 'undone'">
@@ -635,17 +419,8 @@ html.dt-xl .row.endacts { flex-wrap: wrap; }
 html.dt-xl .endacts .btn { flex-basis: 100%; }
 .tnum { font-variant-numeric: tabular-nums; }
 .empty { padding: var(--space-m); }
-/* A superset or circuit: its exercises under one heading, joined by a rail down the left. */
-.solo { display: contents; }
-/* Warm-up, Workout, Cool-down: a little more room above each, so the parts read apart. */
-.part { padding-top: var(--space-s); }
-.ss { gap: var(--space-s); padding-left: var(--space-s); border-left: var(--line-rail) solid var(--color-action); }
-.more { gap: var(--space-s); padding-top: var(--space-xs); }
 .row.unmatched { gap: var(--space-s); flex-wrap: nowrap; align-items: center; }
 .dleft { margin: var(--space-s) 0 0; text-align: center; }
-.pad { gap: var(--space-s); }
-.padacts { gap: var(--space-s); flex-wrap: nowrap; }
-.padacts .btn { flex: 1 1 0; }
 .pastacts { gap: var(--space-s); flex-wrap: nowrap; }
 .pastacts .btn.grow { flex: 1 1 0; }
 .body .day.row { flex-wrap: nowrap; gap: var(--space-s); }

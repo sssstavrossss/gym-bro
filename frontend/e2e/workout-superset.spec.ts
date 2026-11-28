@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { pick, setRow } from "./dial";
 
 function headers(oid: string) {
   return { "X-Test-Oid": oid, "X-Test-Name": "Test User", "Content-Type": "application/json" };
@@ -40,38 +41,45 @@ test("two exercises done as a superset rest after each round and save as one blo
   await adding.getByRole("button", { name: "Add Barbell Bench Press - Medium Grip", exact: true }).click();
 
   const workout = page.getByRole("dialog", { name: "Workout" });
-  const bench = workout.locator('[data-workout-exercise="barbell-bench-press-medium-grip"]');
+  const benchId = "barbell-bench-press-medium-grip";
+  const rowId = "bent-over-barbell-row";
   // The first exercise has nothing before it to join.
-  await expect(page.locator("[data-exercise-screen]")).toBeVisible();
-  await expect(bench.locator("[data-superset-prev]")).toHaveCount(0);
-  await page.getByRole("button", { name: "Back to the workout" }).click();
+  await expect(workout.locator(`[data-workout-exercise="${benchId}"][data-open]`)).toBeVisible();
+  await expect(workout.locator("[data-superset-prev]")).toHaveCount(0);
   await workout.getByRole("button", { name: "Exercise", exact: true }).click();
   await adding.getByLabel("Search exercises").fill("bent over barbell row");
   await adding.getByRole("button", { name: "Add Bent Over Barbell Row", exact: true }).click();
 
-  // On its own screen the second joins the first, and the workout shows them together.
-  await page.locator("[data-exercise-screen]").getByRole("button", { name: "Superset with Barbell Bench Press - Medium Grip" }).click();
-  const row = workout.locator('[data-workout-exercise="bent-over-barbell-row"][data-open]');
-  const join = row.getByRole("button", { name: "Superset with Barbell Bench Press - Medium Grip" });
+  // The second opens on the timeline, and joins the first.
+  await expect(workout.locator(`[data-workout-exercise="${rowId}"][data-open]`)).toBeVisible();
+  const join = workout.getByRole("button", { name: "Superset with Barbell Bench Press - Medium Grip" });
+  await join.click();
   await expect(join).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByText("Superset: Barbell Bench Press - Medium Grip + Bent Over Barbell Row")).toBeVisible();
   const group = workout.getByRole("group", { name: "Superset: Barbell Bench Press - Medium Grip, Bent Over Barbell Row" });
   await expect(group).toContainText("Superset · rest after each round");
-  // Both open together, so the sets go in turn.
-  await expect(group.locator("[data-workout-exercise][data-open]")).toHaveCount(2);
+  // Both open together, the second on a lane of its own, and the sets go in turn: A1, B1, A2.
+  await expect(workout.locator("[data-workout-exercise][data-open]")).toHaveCount(2);
+  const sets = workout.locator("[data-set]");
+  await expect(sets.nth(0)).toHaveAttribute("data-exercise", benchId);
+  await expect(sets.nth(1)).toHaveAttribute("data-exercise", rowId);
+  await expect(sets.nth(2)).toHaveAttribute("data-exercise", benchId);
 
-  const openBench = group.locator('[data-workout-exercise="barbell-bench-press-medium-grip"]');
-  await openBench.getByLabel("Set 1, kg", { exact: true }).fill("60");
-  await openBench.getByLabel("Set 1, Reps", { exact: true }).fill("8");
-  await openBench.getByRole("button", { name: "Set 1 done" }).click();
+  const bench1 = setRow(workout, benchId, 0);
+  await expect(bench1).toHaveAttribute("data-set-state", "now");
+  await pick(page, bench1.getByLabel("Set 1, kg", { exact: true }), 60);
+  await pick(page, bench1.getByLabel("Set 1, Reps", { exact: true }), 8);
+  await bench1.getByRole("button", { name: "Set 1 done" }).click();
   const rest = workout.locator("[data-rest]");
   await expect(rest).toHaveCount(0);
-  await row.getByLabel("Set 1, kg", { exact: true }).fill("50");
-  await row.getByLabel("Set 1, Reps", { exact: true }).fill("10");
-  await row.getByRole("button", { name: "Set 1 done" }).click();
+  const row1 = setRow(workout, rowId, 0);
+  await expect(row1).toHaveAttribute("data-set-state", "now");
+  await pick(page, row1.getByLabel("Set 1, kg", { exact: true }), 50);
+  await pick(page, row1.getByLabel("Set 1, Reps", { exact: true }), 10);
+  await row1.getByRole("button", { name: "Set 1 done" }).click();
   await expect(rest.getByRole("timer")).toBeVisible();
   // The next round's first set ends the rest: there's none between the two.
-  await openBench.getByRole("button", { name: "Set 2 done" }).click();
+  await setRow(workout, benchId, 1).getByRole("button", { name: "Set 2 done" }).click();
   await expect(rest).toHaveCount(0);
 
   await workout.getByRole("button", { name: /^End now/ }).click();

@@ -59,7 +59,7 @@ test("Describe a workout: the words become exercises with their sets ticked off,
   await expect(workout.locator("[data-describe-unmatched]")).toHaveCount(0);
 
   // The Describe button on the workout adds more to it.
-  await workout.locator(".more [data-describe-workout]").click();
+  await workout.locator("[data-timeline] [data-describe-workout]").click();
   await sheet.getByLabel("What you did").fill("squat 2x5 100 kg");
   await sheet.getByRole("button", { name: "Find exercises" }).click();
   await expect(workout.locator("[data-workout-status]")).toContainText("9 of 9 sets");

@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { pick } from "./dial";
 
 function headers(oid: string) {
   return { "X-Test-Oid": oid, "X-Test-Name": "Test User", "Content-Type": "application/json" };
@@ -38,8 +39,8 @@ test("The number wheel: an exercise's rest is picked on the arc, by finger, step
   const add = page.getByRole("dialog", { name: "Add exercise" });
   await add.getByLabel("Search exercises").fill("barbell squat");
   await add.getByRole("button", { name: "Add Barbell Squat", exact: true }).click();
-  const screen = page.locator('[data-exercise-screen][data-workout-exercise="barbell-squat"]');
-  const restButton = screen.locator("[data-rest-setting]");
+  const workout = page.getByRole("dialog", { name: "Workout" });
+  const restButton = workout.locator("[data-rest-setting]");
   // A heavy leg lift rests 3:00.
   await expect(restButton).toHaveText("3:00");
 
@@ -93,8 +94,20 @@ test("The number wheel: an exercise's rest is picked on the arc, by finger, step
   await expect(value).toHaveText("2:30min");
   await dial.locator("[data-dial-keep]").click();
   await expect(restButton).toHaveText("2:30");
-  await page.getByLabel("Set 1, kg").fill("100");
-  await page.getByLabel("Set 1, Reps").fill("5");
-  await page.getByRole("button", { name: "Log set 1" }).click();
-  await expect(page.locator("[data-rest] [role=timer]")).toHaveText(/^2:(2\d|30)$/);
+  await pick(page, workout.getByLabel("Set 1, kg"), 100);
+  await pick(page, workout.getByLabel("Set 1, Reps"), 5);
+  await workout.getByRole("button", { name: "Set 1 done" }).click();
+  const timer = workout.locator("[data-rest] [role=timer]");
+  await expect(timer).toHaveText(/^2:(2\d|30)$/);
+
+  // The rest running changes on the wheel too, from its "of 2:30": this rest, and the squat's from now on.
+  await workout.locator("[data-rest-length]").click();
+  const running = page.getByRole("dialog", { name: "Rest · Barbell Squat" });
+  await expect(running.locator("[data-dial-value]")).toHaveText("2:30min");
+  await page.keyboard.type("400");
+  await expect(running.locator("[data-dial-value]")).toHaveText("4:00min");
+  await page.keyboard.press("Enter");
+  await expect(timer).toHaveText(/^(4:00|3:5\d)$/);
+  await expect(restButton).toHaveText("4:00");
+  await expect(workout.locator("[data-rest-length]")).toHaveText("of 4:00");
 });
