@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { pick } from "./dial";
+import { addToWorkout } from "./timeline";
 
 function headers(oid: string) {
   return { "X-Test-Oid": oid, "X-Test-Name": "Test User", "Content-Type": "application/json" };
@@ -37,7 +38,7 @@ test("a run saves as cardio with its pace and distance", async ({ page }) => {
   await page.goto("/train");
   await page.getByRole("button", { name: "Empty workout" }).click();
   // Quick start opens the workout on its timeline; + Exercise opens Add exercise.
-  await page.getByRole("dialog", { name: "Workout" }).locator("[data-add-exercise]").click();
+  await addToWorkout(page, "add-exercise");
   const adding = page.getByRole("dialog", { name: "Add exercise" });
   await adding.getByLabel("Search exercises").fill("run");
   await adding.getByRole("button", { name: "Add Run", exact: true }).click();

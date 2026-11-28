@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { pick } from "./dial";
+import { addToWorkout } from "./timeline";
 
 function headers(oid: string) {
   return { "X-Test-Oid": oid, "X-Test-Name": "Test User", "Content-Type": "application/json" };
@@ -37,7 +38,7 @@ test("+ Warm-up ramps up to the working weight, then adds single empty ones", as
   await page.goto("/train");
   await page.getByRole("button", { name: "Empty workout" }).click();
   // Quick start opens the workout on its timeline; + Exercise opens Add exercise.
-  await page.getByRole("dialog", { name: "Workout" }).locator("[data-add-exercise]").click();
+  await addToWorkout(page, "add-exercise");
   const adding = page.getByRole("dialog", { name: "Add exercise" });
   await adding.getByLabel("Search exercises").fill("barbell squat");
   await adding.getByRole("button", { name: "Add Barbell Squat", exact: true }).click();
@@ -45,7 +46,7 @@ test("+ Warm-up ramps up to the working weight, then adds single empty ones", as
   // The exercise opens on the timeline, its first set to do.
   const workout = page.getByRole("dialog", { name: "Workout" });
   await pick(page, workout.getByLabel("Set 1, kg", { exact: true }), 100);
-  await workout.locator("[data-add-warmup]").click();
+  await addToWorkout(page, "add-warmup");
   await expect(page.getByText("4 warm-up sets, building to 100 kg")).toBeVisible();
 
   // The empty bar for 10, then about 40%, 60% and 80%, before set 1; the first warm-up is the set to do.
@@ -57,10 +58,10 @@ test("+ Warm-up ramps up to the working weight, then adds single empty ones", as
   }
   await expect(rows.nth(4).locator('[data-cell$="-kg"]')).toContainText("100");
   await expect(rows.nth(0)).toHaveAttribute("data-set-state", "now");
-  await expect(workout.getByLabel("Warm-up set 1, kg", { exact: true })).toHaveText(/20$/);
+  await expect(workout.getByLabel("Warm-up set 1, kg", { exact: true })).toHaveText(/^20\s?kg$/);
 
-  // Once there are warm-ups, the button adds one more, empty, after the others.
-  await workout.locator("[data-add-warmup]").click();
+  // Once there are warm-ups, Warm-up sets adds one more, empty, after the others.
+  await addToWorkout(page, "add-warmup");
   await expect(rows).toHaveCount(8);
   await expect(rows.nth(4).locator('[data-cell$="-kg"]')).toContainText("—");
   await workout.locator("[data-log-set]").click();

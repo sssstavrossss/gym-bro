@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { addToWorkout, fromExerciseMenu } from "./timeline";
 
 function headers(oid: string) {
   return { "X-Test-Oid": oid, "X-Test-Name": "Test User", "Content-Type": "application/json" };
@@ -35,16 +36,16 @@ async function circuit(page: Page, format: string) {
   await page.goto("/train");
   await page.getByRole("button", { name: "Empty workout" }).click();
   // Quick start opens the workout on its timeline; + Exercise opens Add exercise.
-  await page.getByRole("dialog", { name: "Workout" }).locator("[data-add-exercise]").click();
+  await addToWorkout(page, "add-exercise");
   const adding = page.getByRole("dialog", { name: "Add exercise" });
   await adding.getByLabel("Search exercises").fill("pullups");
   await adding.getByRole("button", { name: "Add Pullups", exact: true }).click();
   const workout = page.getByRole("dialog", { name: "Workout" });
-  await workout.getByRole("button", { name: "Exercise", exact: true }).click();
+  await addToWorkout(page, "add-exercise");
   await adding.getByLabel("Search exercises").fill("pushups");
   await adding.getByRole("button", { name: "Add Pushups", exact: true }).click();
   // The second opens on the timeline, and joins the first.
-  await workout.getByRole("button", { name: "Superset with Pullups" }).click();
+  await fromExerciseMenu(page, "pushups", "superset");
 
   await workout.getByRole("group", { name: "Superset: Pullups, Pushups" }).getByRole("button", { name: "Format: Rounds. Change" }).click();
   await workout.getByRole("radiogroup", { name: "Format" }).getByRole("radio", { name: format, exact: true }).click();

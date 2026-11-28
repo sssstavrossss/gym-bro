@@ -1,6 +1,6 @@
-// The workout as a timeline (README, *Logging a workout*; docs/training.md, decision 12), drawn like a git graph: a rail
-// down the left with a node for each event (the start, each exercise, each set, the rest running, the end of a
-// superset) and the rows beside it. The rail is solid up to where the workout is now and dotted ahead, where it is
+// The workout as a timeline (README, *Logging a workout*; docs/training.md, decisions 12 and 14), drawn like a git
+// graph: a rail down the left with a node for each event (the start, each exercise, each set, the rest between sets,
+// the end of a superset) and the rows beside it: numbers only, everything else is on the rail and its menus. The rail is solid up to where the workout is now and dotted ahead, where it is
 // still the plan. A superset of two branches into a second lane and merges back; a circuit of three or more stays on
 // one lane with its exercises lettered. An exercise, or a superset, folds to its heading and opens in place.
 // This file lays it out; components/WorkoutTimeline.vue measures where the nodes landed and draws the rail.
@@ -23,12 +23,13 @@ export type TimelineRow = RowBase & (
   /** A superset, circuit or clocked block's heading (and its clock), where the lanes split. */
   | { type: "run"; head: string; size: number }
   | { type: "exercise"; exercise: string; head: string; letter: string | null; open: boolean }
-  /** Under an open exercise's heading: what to aim for, last time, a new best. No node. */
-  | { type: "info"; exercise: string }
-  /** An open exercise's buttons: + Set, + Warm-up, its rest, superset, how-to, swap, remove. No node. */
-  | { type: "tools"; exercise: string }
   | { type: "set"; exercise: string; index: number }
-  /** The rest running, on the rail just before the set it leads to. */
+  /**
+   * The rest between a set and the next one (in a superset, between rounds), after `exercise`'s set `index`. Done:
+   * `seconds` from one tick to the next (null when the next set came without one). Ahead: the rest planned.
+   */
+  | { type: "pause"; exercise: string; index: number; seconds: number | null }
+  /** The rest running, on the rail just before the set it leads to, in place of its pause. */
   | { type: "rest" }
   | { type: "merge"; head: string }
   | { type: "add" }
@@ -94,11 +95,24 @@ export function timelineRows(input: TimelineInput): TimelineRow[] {
       // A past workout has no "now": an exercise with a set ticked off is done.
       state: isDone(exercise) ? "done" : !input.live ? (anyDone(exercise) ? "done" : "next") : current || anyDone(exercise) ? "now" : "next",
     });
+    // Rests between sets in the live workout; a clocked block keeps its own clock, a past workout its sets only.
+    const pauses = input.live && !run[0].timed;
+    let before: { exercise: DraftExercise; index: number } | null = null;
     const setRows = (exercise: DraftExercise, index: number, lane: Lane) => {
       const isNow = !!now && now.key === exercise.key && now.index === index;
+      const between = before && (run.length === 1 || before.index !== index) ? before : null;
+      before = { exercise, index };
       if (isNow && input.resting) {
         rows.push({ key: "rest", type: "rest", lane, state: "now" });
         restShown = true;
+      } else if (between && pauses) {
+        const from = between.exercise.sets[between.index].doneAt;
+        const to = exercise.sets[index].doneAt;
+        const seconds = from && to ? Math.max(0, Math.round((Date.parse(to) - Date.parse(from)) / 1000)) : null;
+        rows.push({
+          key: `pause:${between.exercise.key}:${between.index}`, type: "pause", lane: lane === 1 ? 0 : lane,
+          state: from ? "done" : "next", exercise: between.exercise.key, index: between.index, seconds: Number.isNaN(seconds) ? null : seconds,
+        });
       }
       rows.push({
         key: `set:${exercise.key}:${index}`, type: "set", lane, exercise: exercise.key, index,
@@ -109,20 +123,10 @@ export function timelineRows(input: TimelineInput): TimelineRow[] {
     if (!multi) {
       const exercise = run[0];
       rows.push(exerciseRow(exercise, 0));
-      if (open) {
-        rows.push({ key: `info:${exercise.key}`, type: "info", lane: 0, state: "next", exercise: exercise.key });
-        exercise.sets.forEach((_, index) => setRows(exercise, index, 0));
-        rows.push({ key: `tools:${exercise.key}`, type: "tools", lane: 0, state: "next", exercise: exercise.key });
-      }
+      if (open) exercise.sets.forEach((_, index) => setRows(exercise, index, 0));
       return;
     }
-    run.forEach((exercise, k) => {
-      rows.push(exerciseRow(exercise, k));
-      if (open) {
-        rows.push({ key: `info:${exercise.key}`, type: "info", lane: laneOf(k), state: "next", exercise: exercise.key });
-        rows.push({ key: `tools:${exercise.key}`, type: "tools", lane: laneOf(k), state: "next", exercise: exercise.key });
-      }
-    });
+    run.forEach((exercise, k) => rows.push(exerciseRow(exercise, k)));
     if (open) for (const { exercise, index } of roundOrder(run)) setRows(exercise, index, laneOf(run.indexOf(exercise)));
     rows.push({ key: `merge:${head}`, type: "merge", lane: 0, state: run.every(isDone) ? "done" : "next", head });
   });
@@ -133,9 +137,9 @@ export function timelineRows(input: TimelineInput): TimelineRow[] {
   return rows;
 }
 
-/** The rows with a node on the rail. Headings, info and buttons sit beside it with none. */
+/** The rows with a node on the rail: all but the headings between parts. */
 export function hasNode(row: TimelineRow): boolean {
-  return row.type !== "part" && row.type !== "info" && row.type !== "tools";
+  return row.type !== "part";
 }
 
 export interface TimelineEdge {

@@ -33,7 +33,7 @@ describe("the timeline's rows", () => {
     const bench = ex("bench", [done(80, 6), todo(), todo()]);
     const row = ex("row", [todo()]);
     expect(keys([squat, bench, row])).toEqual([
-      "start", "ex:squat", "ex:bench", "info:bench", "set:bench:0", "set:bench:1", "set:bench:2", "tools:bench", "ex:row", "add",
+      "start", "ex:squat", "ex:bench", "set:bench:0", "pause:bench:0", "set:bench:1", "pause:bench:1", "set:bench:2", "ex:row", "add",
     ]);
     const rows = timelineRows(input([squat, bench, row]));
     const state = (key: string) => rows.find((each) => each.key === key)?.state;
@@ -43,7 +43,7 @@ describe("the timeline's rows", () => {
 
   it("show a past workout open, with no set to do", () => {
     const rows = timelineRows(input([ex("a", [done(60, 5), todo()])], { live: false, isOpen: () => true }));
-    expect(rows.map((row) => row.key)).toEqual(["start", "ex:a", "info:a", "set:a:0", "set:a:1", "tools:a", "add"]);
+    expect(rows.map((row) => row.key)).toEqual(["start", "ex:a", "set:a:0", "set:a:1", "add"]);
     expect(rows.some((row) => row.state === "now")).toBe(false);
   });
 
@@ -52,10 +52,10 @@ describe("the timeline's rows", () => {
     const b = ex("b", [done(30, 12), todo()], { superset: true });
     const rows = timelineRows(input([a, b]));
     expect(rows.map((row) => row.key)).toEqual([
-      "start", "run:a", "ex:a", "info:a", "tools:a", "ex:b", "info:b", "tools:b", "set:a:0", "set:b:0", "set:a:1", "set:b:1", "merge:a", "add",
+      "start", "run:a", "ex:a", "ex:b", "set:a:0", "set:b:0", "pause:b:0", "set:a:1", "set:b:1", "merge:a", "add",
     ]);
     const lane = (key: string) => rows.find((row) => row.key === key)?.lane;
-    expect([lane("ex:a"), lane("ex:b"), lane("set:a:1"), lane("set:b:1"), lane("merge:a")]).toEqual([0, 1, 0, 1, 0]);
+    expect([lane("ex:a"), lane("ex:b"), lane("set:a:1"), lane("set:b:1"), lane("pause:b:0"), lane("merge:a")]).toEqual([0, 1, 0, 1, 0, 0]);
     const letters = rows.flatMap((row) => (row.type === "exercise" ? [row.letter] : []));
     expect(letters).toEqual(["A", "B"]);
   });
@@ -76,7 +76,24 @@ describe("the timeline's rows", () => {
 
   it("put the rest running just before the set it leads to", () => {
     const bench = ex("bench", [done(80, 6), todo()]);
-    expect(keys([bench], { resting: true })).toEqual(["start", "ex:bench", "info:bench", "set:bench:0", "rest", "set:bench:1", "tools:bench", "add"]);
+    expect(keys([bench], { resting: true })).toEqual(["start", "ex:bench", "set:bench:0", "rest", "set:bench:1", "add"]);
+  });
+
+  it("put a rest between sets: how long it was, once both are ticked, else the one planned", () => {
+    const at = (time: string): DraftSet => ({ ...done(80, 6), doneAt: `2026-11-28T${time}Z` });
+    const bench = ex("bench", [at("18:16:00"), at("18:18:04"), todo(), todo()]);
+    const rows = timelineRows(input([bench]));
+    const pause = (key: string) => rows.find((row) => row.key === key);
+    expect(pause("pause:bench:0")).toMatchObject({ type: "pause", state: "done", seconds: 124 });
+    // Ticked, and the next set came without a rest running: over, with no length to show.
+    expect(pause("pause:bench:1")).toMatchObject({ state: "done", seconds: null });
+    expect(pause("pause:bench:2")).toMatchObject({ state: "next", seconds: null });
+  });
+
+  it("put no rests in a past workout or on a clock", () => {
+    expect(keys([ex("a", [done(60, 5), done(60, 5)])], { live: false, isOpen: () => true }).some((key) => key.startsWith("pause:"))).toBe(false);
+    const timed = ex("a", [todo(), todo()], { timed: { format: "emom", minutes: 10 } as never });
+    expect(keys([timed]).some((key) => key.startsWith("pause:"))).toBe(false);
   });
 
   it("put the rest at the end when its set is folded away, or there is none", () => {
@@ -104,7 +121,8 @@ describe("the rail", () => {
     const bench = ex("bench", [done(80, 6), todo(), todo()]);
     const edges = timelineEdges(timelineRows(input([bench])));
     expect(edges.map((edge) => `${edge.from}>${edge.to}:${edge.kind}`)).toEqual([
-      "start>ex:bench:done", "ex:bench>set:bench:0:done", "set:bench:0>set:bench:1:done", "set:bench:1>set:bench:2:next", "set:bench:2>add:next",
+      "start>ex:bench:done", "ex:bench>set:bench:0:done", "set:bench:0>pause:bench:0:done", "pause:bench:0>set:bench:1:done",
+      "set:bench:1>pause:bench:1:next", "pause:bench:1>set:bench:2:next", "set:bench:2>add:next",
     ]);
   });
 

@@ -3,6 +3,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } 
 import Icon from "./Icon.vue";
 import SetRow from "./SetRow.vue";
 import TimedBlock from "./TimedBlock.vue";
+import PopMenu, { type MenuItem, type MenuSection } from "./PopMenu.vue";
 import { photoUrl } from "../lib/exercises";
 import {
   clock,
@@ -16,7 +17,7 @@ import {
   shortDay,
   type DraftExercise,
 } from "../lib/workout";
-import { setLabels } from "../lib/setEntry";
+import { setLabels, setName } from "../lib/setEntry";
 import { hasNode, nextSet, timelineEdges, timelineRows, type Lane, type TimelineRow } from "../lib/timeline";
 import { targetLine } from "../lib/plan";
 import { FIRST_TIME_LINE, suggestionLine } from "../lib/progression";
@@ -34,8 +35,12 @@ import {
   exerciseRest,
   exerciseSuggestion,
   removeExercise,
+  duplicateSet,
   removeSet,
   restoreExercise,
+  restoreSet,
+  setSetType,
+  toggleDone,
   setExerciseRest,
   setRunningRest,
   shiftRest,
@@ -44,9 +49,9 @@ import {
 } from "../state/workout";
 import { openDial, openExercise, toast } from "../ui";
 
-// The workout as one timeline, drawn like a git graph (README, *Logging a workout*; docs/training.md, decision 12).
-// lib/timeline.ts lays out the rows; this draws them and the rail beside them: solid up to the set to do, dotted
-// ahead, a superset of two on a second lane. The set to do is a scoreboard, and the rest runs on the rail into it.
+// The workout as one timeline, drawn like a git graph (README, *Logging a workout*; docs/training.md, decisions 12
+// and 14). lib/timeline.ts lays out the rows; this draws them and the rail beside them: solid up to the set to do,
+// dotted ahead, a superset of two on a second lane. Rows carry only numbers; what can be done lives on the nodes.
 // `live` is the workout in progress; a past one (logged or edited afterwards) has every exercise open and no rest.
 const props = defineProps<{ exercises: DraftExercise[]; live: boolean; now: number; startedAt: string | null; day?: string }>();
 const emit = defineEmits<{ add: []; describe: []; swap: [DraftExercise] }>();
@@ -100,7 +105,7 @@ function folded(exercise: DraftExercise) {
   if (summary) return ticked === n ? summary : `${ticked} of ${n} · ${summary}`;
   return `${n} ${n === 1 ? "set" : "sets"}`;
 }
-/** Under an open exercise: what to aim for, what to lift, last time, and a best beaten today. */
+/** In an exercise's menu: what to aim for, what to lift, last time, and a best beaten today. */
 function info(exercise: DraftExercise) {
   const item = exerciseItem(exercise.exerciseId);
   const target = exercise.target ? targetLine(exercise.target, exercise.part === "warmup") : "";
@@ -118,7 +123,6 @@ function info(exercise: DraftExercise) {
   const best = exerciseNewBest(exercise);
   return { target, advice, kind: suggestion?.kind ?? "first", last: lastLine, best: best ? `New best: est. max ${maxText(best.estimatedMax)}` : "" };
 }
-const hasInfo = (exercise: DraftExercise) => Object.entries(info(exercise)).some(([field, text]) => field !== "kind" && text);
 function letterOf(exercise: DraftExercise) {
   const run = groupOf(props.exercises, exercise.key);
   return run.length > 1 ? "ABCDEFGHIJKLMNOPQRSTUVWXYZ"[run.indexOf(exercise)] ?? "" : "";
@@ -137,7 +141,7 @@ function photo(exercise: DraftExercise) {
 const broken = reactive(new Set<string>());
 
 // ---- Doing ----
-/** The one before, for the superset button; none across the warm-up, the workout and the cool-down. */
+/** The one before, for "Superset with"; none across the warm-up, the workout and the cool-down. */
 function prevName(exercise: DraftExercise) {
   const before = props.exercises[props.exercises.indexOf(exercise) - 1];
   return before && samePart(before, exercise) ? nameOf(before) : "";
@@ -151,7 +155,7 @@ async function join(exercise: DraftExercise) {
     toast(`Split ${nameOf(before)} and ${nameOf(exercise)}`);
     return;
   }
-  // The joined run stays open where the button was tapped; the new exercises reach the props on the next render.
+  // The joined run stays open; the new exercises reach the props on the next render.
   await nextTick();
   const run = groupOf(props.exercises, exercise.key);
   if (run.length) overrides.set(run[0].key, true);
@@ -165,15 +169,21 @@ function warmUp(exercise: DraftExercise) {
   const added = addWarmups(exercise.key);
   if (added) toast(`${added.count} warm-up ${added.count === 1 ? "set" : "sets"}, building to ${added.workKg} kg`);
 }
-const canRemoveSet = (exercise: DraftExercise) => exercise.sets.length > 1 && !exercise.sets[exercise.sets.length - 1].doneAt;
+function deleteSet(exercise: DraftExercise, index: number) {
+  const label = setName(exercise.sets, index);
+  const removed = removeSet(exercise.key, index);
+  if (removed) toast(`${label} deleted`, { label: "Undo", run: () => restoreSet(exercise.key, index, removed) });
+}
+/** A set ticked or unticked from its node; the set to do has its own ✓ beside its numbers too. */
+const setDone = (exercise: DraftExercise, index: number) => !!exercise.sets[index]?.doneAt;
 
 function restWheel(exercise: DraftExercise, value: number) {
   const id = restDial(exerciseItem(exercise.exerciseId));
   return dialSpec(id, { label: `Rest · ${nameOf(exercise)}`, hint: REST_HINTS[id], value });
 }
-/** An exercise's rest, from its buttons: the rest after each of its sets. */
-function editRest(exercise: DraftExercise, event: MouseEvent) {
-  openDial(restWheel(exercise, exerciseRest(exercise)), event.currentTarget as Element, (seconds) => setExerciseRest(exercise.key, seconds));
+/** An exercise's rest, from its menu or a rest still to come: the rest after each of its sets. */
+function editRest(exercise: DraftExercise, from: Element) {
+  openDial(restWheel(exercise, exerciseRest(exercise)), from, (seconds) => setExerciseRest(exercise.key, seconds));
 }
 /** The exercise whose set started the rest running: the last ticked off. */
 const restedAfter = computed(() => {
@@ -184,7 +194,7 @@ const restedAfter = computed(() => {
   }
   return best?.exercise ?? null;
 });
-/** The rest running, from its "of 2:00": this rest changes, and the exercise's rest with it. */
+/** The rest running, from its "of 2:00" or its node: this rest changes, and the exercise's rest with it. */
 function editRunning(event: MouseEvent) {
   const exercise = restedAfter.value;
   const save = (seconds: number) => {
@@ -194,6 +204,76 @@ function editRunning(event: MouseEvent) {
   const spec = exercise ? restWheel(exercise, restFor.value) : dialSpec("rest.compound", { label: "Rest", value: restFor.value });
   openDial(spec, event.currentTarget as Element, save);
 }
+
+// ---- The menus ----
+// Every node on the rail does something (docs/training.md, decision 14): the +, an exercise's photo and a held set
+// open a small menu (PopMenu) of what can happen there; a set's node ticks it; a rest to come changes its length.
+interface Menu { key: string; anchor: Element; label: string; sections: MenuSection[]; head?: DraftExercise[] }
+const menu = ref<Menu | null>(null);
+const isWeights = (exercise: DraftExercise) => (exerciseItem(exercise.exerciseId)?.measure ?? "weight_reps") === "weight_reps";
+
+/** What the + adds to: the exercise with the set to do, else the last one. */
+const current = computed<DraftExercise[]>(() => {
+  const at = nowSet.value ? props.exercises.find((exercise) => exercise.key === nowSet.value!.key) : props.exercises[props.exercises.length - 1];
+  return at ? groupOf(props.exercises, at.key) : [];
+});
+function addMenu(anchor: Element) {
+  const run = current.value;
+  const one = run.length === 1 ? run[0] : null;
+  const sections: MenuSection[] = [];
+  if (run.length) {
+    const items: MenuItem[] = [{
+      id: "add-set", icon: "plus", label: one ? "Set" : "Round",
+      run: () => run.forEach((exercise) => addSet(exercise.key)),
+    }];
+    if (one && isWeights(one) && !one.part && !one.timed) items.push({ id: "add-warmup", icon: "flame", label: "Warm-up sets", run: () => warmUp(one) });
+    if (one && isWeights(one) && !one.timed) items.push({ id: "add-drop", icon: "stairs", label: "Drop set", run: () => addSet(one.key, "drop") });
+    sections.push({ items });
+  }
+  const next: MenuItem[] = [{ id: "add-exercise", icon: "dumbbell", label: "Exercise", run: () => emit("add") }];
+  if (describe.available) next.push({ id: "describe-workout", icon: "sparkle", label: "Describe it", run: () => emit("describe") });
+  sections.push({ title: run.length ? "Next" : undefined, items: next });
+  menu.value = { key: "add", anchor, label: "Add", sections, head: run.length ? run : undefined };
+}
+function exerciseMenu(exercise: DraftExercise, anchor: Element) {
+  const items: MenuItem[] = [
+    { id: "how-to", icon: "info", label: "How to do it", run: () => openExercise(exercise.exerciseId) },
+    { id: "swap", icon: "swap", label: "Swap", run: () => emit("swap", exercise) },
+  ];
+  if (props.live && !exercise.timed) {
+    const rounds = groupOf(props.exercises, exercise.key).length > 1;
+    items.push({ id: "rest", icon: "timer", label: rounds ? "Rest between rounds" : "Rest between sets", value: clock(exerciseRest(exercise)), run: (from) => editRest(exercise, from) });
+  }
+  const before = prevName(exercise);
+  if (before) items.push({ id: "superset", icon: "link", label: exercise.superset ? `Split from ${before}` : `Superset with ${before}`, run: () => void join(exercise) });
+  items.push({ id: "remove", icon: "trash", label: "Remove", apart: true, run: () => remove(exercise) });
+  menu.value = { key: `ex:${exercise.key}`, anchor, label: nameOf(exercise), sections: [{ items }], head: [exercise] };
+}
+function setMenu(exercise: DraftExercise, index: number, anchor: Element) {
+  const set = exercise.sets[index];
+  if (!set) return;
+  const items: MenuItem[] = [];
+  if (isWeights(exercise) && !exercise.timed) {
+    items.push(set.type === "warmup"
+      ? { id: "working", icon: "dumbbell", label: "Make it a working set", run: () => setSetType(exercise.key, index, "working") }
+      : { id: "warmup", icon: "flame", label: "Make it a warm-up", run: () => setSetType(exercise.key, index, "warmup") });
+    if (set.type !== "warmup") items.push(set.type === "drop"
+      ? { id: "working", icon: "dumbbell", label: "Make it a working set", run: () => setSetType(exercise.key, index, "working") }
+      : { id: "drop", icon: "stairs", label: "Make it a drop set", run: () => setSetType(exercise.key, index, "drop") });
+  }
+  items.push({ id: "duplicate", icon: "copy", label: "Duplicate", run: () => duplicateSet(exercise.key, index) });
+  items.push({ id: "delete", icon: "trash", label: "Delete", apart: true, disabled: exercise.sets.length < 2, run: () => deleteSet(exercise, index) });
+  menu.value = { key: `set:${exercise.key}:${index}`, anchor, label: `${nameOf(exercise)} · ${setName(exercise.sets, index)}`, sections: [{ items }] };
+}
+const menuOpen = (key: string) => menu.value?.key === key;
+/** The menu's heading: the exercise (or superset) it's about, and what to know about it. */
+const headName = computed(() => (menu.value?.head ?? []).map((exercise) => nameOf(exercise)).join(" + "));
+const headSub = computed(() => {
+  const head = menu.value?.head ?? [];
+  if (menu.value?.key === "add") return head.length > 1 ? `Add to the ${groupName(head.length).toLowerCase()}` : "Add to it";
+  const muscles = head.length === 1 ? exerciseItem(head[0].exerciseId)?.primaryMuscles ?? [] : [];
+  return muscles.map((muscle) => muscle.replace(/-/g, " ")).join(", ");
+});
 
 // ---- The rail ----
 // Drawn from where the nodes landed, so it follows the rows whatever they hold and at any text size.
@@ -250,6 +330,8 @@ onBeforeUnmount(() => observer?.disconnect());
 watch(rows, () => void nextTick(draw), { deep: true });
 
 const rowClass = (row: TimelineRow) => ["ev", row.type, row.state, `l${row.lane}`];
+const laneAt = (lane: Lane) => ({ left: `${LANE_X[lane]}px` });
+const infoLines = (exercise: DraftExercise) => Object.entries(info(exercise)).some(([field, text]) => field !== "kind" && text);
 </script>
 
 <template>
@@ -263,13 +345,52 @@ const rowClass = (row: TimelineRow) => ["ev", row.type, row.state, `l${row.lane}
       :role="row.type === 'run' ? 'group' : undefined" :aria-label="row.type === 'run' ? runLabel(runOf(row.head)) : undefined"
       :data-superset="row.type === 'run' ? row.size : undefined"
     >
-      <!-- Its node on the rail -->
-      <span v-if="hasNode(row)" class="node" :data-node="row.key" :style="{ left: `${LANE_X[row.lane]}px` }" aria-hidden="true">
-        <img v-if="row.type === 'exercise' && photo(ex(row.exercise))" :src="photo(ex(row.exercise))" alt="" @error="broken.add(ex(row.exercise).exerciseId)" />
-        <Icon v-else-if="row.type === 'add'" name="plus" :size="14" />
-        <Icon v-else-if="row.type === 'set' && row.state === 'done'" name="check" :size="11" :sw="3.4" />
-        <span v-else-if="row.type === 'set'" class="nn tnum">{{ nodeLabel(ex(row.exercise), row.index) }}</span>
-      </span>
+      <!-- Its node on the rail: a button wherever it does something, in its own 44px -->
+      <template v-if="hasNode(row)">
+        <button
+          v-if="row.type === 'exercise'" type="button" class="nodehit" :style="laneAt(row.lane)" aria-haspopup="menu"
+          :aria-expanded="menuOpen(row.key)" :aria-label="`${nameOf(ex(row.exercise))}: more`" :data-exercise-menu="ex(row.exercise).exerciseId"
+          @click="exerciseMenu(ex(row.exercise), $event.currentTarget as Element)"
+        >
+          <span class="node" :data-node="row.key">
+            <span class="ph"><img v-if="photo(ex(row.exercise))" :src="photo(ex(row.exercise))" alt="" @error="broken.add(ex(row.exercise).exerciseId)" /></span>
+            <span class="badge"><Icon name="more" :size="10" :sw="3" /></span>
+          </span>
+        </button>
+        <button
+          v-else-if="row.type === 'set'" type="button" class="nodehit" :style="laneAt(row.lane)"
+          :aria-label="`${setName(ex(row.exercise).sets, row.index)} done`" :aria-pressed="setDone(ex(row.exercise), row.index)"
+          :aria-hidden="row.state === 'now' ? 'true' : undefined" :tabindex="row.state === 'now' ? -1 : undefined" :disabled="workout.saving"
+          :data-set-node="`${ex(row.exercise).exerciseId}-${row.index}`" @click="toggleDone(row.exercise, row.index)"
+        >
+          <span class="node" :data-node="row.key">
+            <Icon v-if="row.state === 'done'" name="check" :size="9" :sw="3.6" />
+            <Icon v-else-if="ex(row.exercise).sets[row.index]?.type === 'warmup'" name="flame" :size="10" />
+            <Icon v-else-if="ex(row.exercise).sets[row.index]?.type === 'drop'" name="stairs" :size="10" />
+            <span v-else class="nn tnum">{{ nodeLabel(ex(row.exercise), row.index) }}</span>
+          </span>
+        </button>
+        <button
+          v-else-if="row.type === 'pause' && row.state === 'next' && live" type="button" class="nodehit" :style="laneAt(row.lane)"
+          aria-hidden="true" tabindex="-1" @click="editRest(ex(row.exercise), $event.currentTarget as Element)"
+        >
+          <span class="node" :data-node="row.key"><Icon name="timer" :size="10" /></span>
+        </button>
+        <button
+          v-else-if="row.type === 'rest'" type="button" class="nodehit" :style="laneAt(row.lane)" aria-hidden="true" tabindex="-1" @click="editRunning"
+        >
+          <span class="node" :data-node="row.key" :style="{ '--p': restShare }"><Icon name="timer" :size="12" /></span>
+        </button>
+        <button
+          v-else-if="row.type === 'add'" type="button" class="nodehit" :style="laneAt(row.lane)" aria-haspopup="menu" :aria-expanded="menuOpen('add')"
+          aria-label="Add" data-timeline-add @click="addMenu($event.currentTarget as Element)"
+        >
+          <span class="node" :data-node="row.key"><Icon name="plus" :size="13" /></span>
+        </button>
+        <span v-else class="nodehit" :style="laneAt(row.lane)" aria-hidden="true">
+          <span class="node" :data-node="row.key"><Icon v-if="row.type === 'pause'" name="timer" :size="10" /></span>
+        </span>
+      </template>
 
       <span v-if="row.type === 'start'" class="t-capn c2 tnum" data-timeline-start>{{ startLine }}</span>
 
@@ -277,84 +398,81 @@ const rowClass = (row: TimelineRow) => ["ev", row.type, row.state, `l${row.lane}
 
       <TimedBlock v-else-if="row.type === 'run'" :run="runOf(row.head)" :live="live" :now="now" />
 
+      <!-- An exercise: its name folds and unfolds it -->
       <div v-else-if="row.type === 'exercise'" class="row exh" :data-workout-exercise="ex(row.exercise).exerciseId" :data-open="row.open ? '' : undefined">
-        <button type="button" class="row exbtn" :aria-expanded="row.open" @click="toggle(row.head, row.open)">
-          <span class="col grow g2">
-            <span class="t-body exname"><span v-if="row.letter" class="t-capn c3 letter">{{ row.letter }}</span>{{ nameOf(ex(row.exercise)) }}</span>
-            <span class="t-capn c2 tnum" data-exercise-line>{{ folded(ex(row.exercise)) }}</span>
+        <button type="button" class="col exbtn" :aria-expanded="row.open" @click="toggle(row.head, row.open)">
+          <span class="exname" :class="row.state === 'now' ? 't-bodys' : 't-body'"><span v-if="row.letter" class="t-capn c3 letter">{{ row.letter }}</span>{{ nameOf(ex(row.exercise)) }}</span>
+          <span class="row g2 t-capn c2 tnum" data-exercise-line>
+            <span v-if="live && exerciseNewBest(ex(row.exercise))" class="trophy" role="img" aria-label="New best" data-best-mark><Icon name="trophy" :size="12" /></span>
+            <span class="ell">{{ folded(ex(row.exercise)) }}</span>
           </span>
-          <span class="chev" :class="{ up: row.open }" aria-hidden="true"><Icon name="down" :size="16" /></span>
         </button>
-        <button
-          v-if="row.open" type="button" class="cbtn" :aria-label="`How to do ${nameOf(ex(row.exercise))}`"
-          @click="openExercise(ex(row.exercise).exerciseId)"
-        ><Icon name="info" :size="18" /></button>
-      </div>
-
-      <div v-else-if="row.type === 'info'" class="col infos" :data-info="ex(row.exercise).exerciseId">
-        <template v-if="hasInfo(ex(row.exercise))">
-          <span v-if="info(ex(row.exercise)).target" class="t-capn c2">{{ info(ex(row.exercise)).target }}</span>
-          <span v-if="info(ex(row.exercise)).advice" class="t-capn" :data-load-suggestion="info(ex(row.exercise)).kind">{{ info(ex(row.exercise)).advice }}</span>
-          <span v-if="info(ex(row.exercise)).last" class="t-capn c2" data-last-time>{{ info(ex(row.exercise)).last }}</span>
-          <span v-if="info(ex(row.exercise)).best" class="t-capn best" data-new-best><Icon name="check" :size="12" :sw="3" /><span>{{ info(ex(row.exercise)).best }}</span></span>
-        </template>
       </div>
 
       <SetRow
         v-else-if="row.type === 'set'" :exercise="ex(row.exercise)" :index="row.index" :state="row.state" :past="!live"
-        :title="boardTitle(ex(row.exercise))"
+        :title="boardTitle(ex(row.exercise))" :class="{ held: menuOpen(row.key) }"
+        @menu="(anchor) => setMenu(ex(row.exercise), row.index, anchor)"
       />
 
-      <div v-else-if="row.type === 'rest'" class="row restnow" data-rest>
-        <span class="col grow g2">
-          <span class="t-capn c2">{{ left ? "Rest" : "Rest over" }}</span>
-          <span class="t-ns tnum" role="timer" aria-live="off">{{ clock(left ?? 0) }}</span>
-        </span>
-        <button
-          type="button" class="btn sm secondary t-label tnum" :aria-label="`Rest of ${clock(restFor)}, change`" data-rest-length
-          @click="editRunning"
-        >of {{ clock(restFor) }}</button>
-        <button type="button" class="btn sm primary t-label" data-rest-skip @click="shiftRest(null)">{{ left ? "Skip" : "OK" }}</button>
-      </div>
+      <!-- A rest between sets: how long it was, or will be -->
+      <button
+        v-else-if="row.type === 'pause' && row.state === 'next' && live" type="button" class="len t-capn c3 tnum" data-pause="next"
+        :aria-label="`Rest ${clock(exerciseRest(ex(row.exercise)))}, change`" data-rest-setting @click="editRest(ex(row.exercise), $event.currentTarget as Element)"
+      >{{ clock(exerciseRest(ex(row.exercise))) }}</button>
+      <span v-else-if="row.type === 'pause'" class="t-capn c3 tnum" :data-pause="row.state">{{ row.seconds != null ? clock(row.seconds) : "" }}</span>
 
-      <div v-else-if="row.type === 'tools'" class="row tools">
-        <button type="button" class="btn sm secondary t-label" @click="addSet(row.exercise)"><Icon name="plus" :size="14" /> Set</button>
-        <button v-if="!ex(row.exercise).part" type="button" class="btn sm secondary t-label" data-add-warmup @click="warmUp(ex(row.exercise))"><Icon name="plus" :size="14" /> Warm-up</button>
-        <button
-          v-if="live" type="button" class="btn sm secondary t-label tnum" :aria-label="`Rest ${clock(exerciseRest(ex(row.exercise)))}, change`"
-          data-rest-setting @click="editRest(ex(row.exercise), $event)"
-        ><Icon name="clock" :size="14" /> {{ clock(exerciseRest(ex(row.exercise))) }}</button>
-        <span class="row ends">
-          <button
-            v-if="prevName(ex(row.exercise))" type="button" class="cbtn" :class="{ filled: ex(row.exercise).superset }" :aria-pressed="!!ex(row.exercise).superset"
-            :aria-label="`Superset with ${prevName(ex(row.exercise))}`" data-superset-prev @click="join(ex(row.exercise))"
-          ><Icon name="link" :size="18" /></button>
-          <button type="button" class="cbtn" :aria-label="`Swap ${nameOf(ex(row.exercise))}`" data-swap @click="emit('swap', ex(row.exercise))"><Icon name="swap" :size="18" /></button>
-          <button
-            type="button" class="cbtn" aria-label="Remove the last set" :disabled="!canRemoveSet(ex(row.exercise))"
-            @click="removeSet(row.exercise, ex(row.exercise).sets.length - 1)"
-          ><Icon name="minus" :size="18" /></button>
-          <button type="button" class="cbtn" :aria-label="`Remove ${nameOf(ex(row.exercise))}`" @click="remove(ex(row.exercise))"><Icon name="trash" :size="18" /></button>
+      <!-- The rest running: its countdown, its length to change, and a ✓ to end it -->
+      <div v-else-if="row.type === 'rest'" class="row restnow" data-rest>
+        <span class="row grow cd">
+          <span class="t-head tnum" role="timer" aria-live="off">{{ clock(left ?? 0) }}</span>
+          <button type="button" class="len t-capn c3 tnum" :aria-label="`Rest of ${clock(restFor)}, change`" data-rest-length @click="editRunning">of {{ clock(restFor) }}</button>
         </span>
+        <button
+          type="button" class="cbtn tick" :aria-label="left ? 'Skip the rest' : 'Rest over'" data-rest-skip @click="shiftRest(null)"
+        ><Icon name="check" :size="14" :sw="3" /></button>
       </div>
 
       <span v-else-if="row.type === 'merge'" class="t-capn c3">{{ row.state === "done" ? `${groupName(runOf(row.head).length)} done` : "" }}</span>
 
-      <div v-else-if="row.type === 'add'" class="row addh">
-        <button type="button" class="btn sm secondary t-label" data-add-exercise @click="emit('add')"><Icon name="plus" :size="14" /> Exercise</button>
-        <button v-if="describe.available" type="button" class="btn sm secondary t-label" data-describe-workout @click="emit('describe')"><Icon name="sparkle" :size="14" /> Describe</button>
-      </div>
+      <!-- The one + : what can come next -->
+      <button v-else-if="row.type === 'add'" type="button" class="addword t-label c2" tabindex="-1" aria-hidden="true" @click="addMenu($event.currentTarget as Element)">
+        {{ exercises.length ? "Add" : "Add the first exercise" }}
+      </button>
     </li>
   </ol>
+
+  <PopMenu :anchor="menu?.anchor ?? null" :label="menu?.label ?? ''" :sections="menu?.sections ?? []" @close="menu = null">
+    <template v-if="menu?.head" #head>
+      <div class="row mhead">
+        <span class="mph"><img v-if="photo(menu.head[0])" :src="photo(menu.head[0])" alt="" /></span>
+        <span class="col g2 grow">
+          <span class="t-bodys">{{ headName }}</span>
+          <span v-if="headSub" class="t-capn c2 cap">{{ headSub }}</span>
+        </span>
+      </div>
+      <div v-if="menu.key !== 'add' && infoLines(menu.head[0])" class="col infos" :data-info="menu.head[0].exerciseId">
+        <span v-if="info(menu.head[0]).target" class="t-capn c2">{{ info(menu.head[0]).target }}</span>
+        <span v-if="info(menu.head[0]).advice" class="t-capn" :data-load-suggestion="info(menu.head[0]).kind">{{ info(menu.head[0]).advice }}</span>
+        <span v-if="info(menu.head[0]).last" class="t-capn c2" data-last-time>{{ info(menu.head[0]).last }}</span>
+        <span v-if="info(menu.head[0]).best" class="t-capn best" data-new-best><Icon name="trophy" :size="12" /><span>{{ info(menu.head[0]).best }}</span></span>
+      </div>
+    </template>
+  </PopMenu>
 </template>
 
 <style scoped>
 .m0 { margin: 0; }
 .g2 { gap: var(--space-2xs); min-width: 0; }
 .tnum { font-variant-numeric: tabular-nums; }
+.ell { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 
-/* The rail's gutter holds both lanes; the rows sit to its right. */
-.tl { --gutter: 56px; position: relative; list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+/* The rail's gutter holds both lanes; the rows sit to its right. No text selection or iOS callout on it: a long
+   press is the set's menu. */
+.tl {
+  --gutter: 56px; position: relative; list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column;
+  -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+}
 .rail { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
 .rail path { stroke-width: var(--line-rail); stroke-linecap: round; }
 .rail .done { stroke: var(--text-primary); }
@@ -364,60 +482,103 @@ const rowClass = (row: TimelineRow) => ["ev", row.type, row.state, `l${row.lane}
 
 .ev { position: relative; display: flex; align-items: center; min-height: var(--control-hit); padding-left: var(--gutter); min-width: 0; }
 .ev.start, .ev.merge { min-height: 28px; }
-.ev.info { min-height: 0; }
-.ev.set { padding-block: 1px; }
-.ev.set.now { padding-block: var(--space-xs); }
+.ev.pause { min-height: 28px; }
 .ev.part { min-height: 0; padding-top: var(--space-m); }
 .ev.run { flex-direction: column; align-items: stretch; margin-top: var(--space-s); }
 .ev.run > :deep(*) { min-width: 0; }
 
-/* Nodes, centred on their lane */
-.node {
-  position: absolute; top: 50%; transform: translate(-50%, -50%); z-index: 1; box-sizing: border-box;
-  width: 10px; height: 10px; border-radius: 50%; background: var(--color-bg); box-shadow: inset 0 0 0 2px var(--color-border-strong);
-  display: flex; align-items: center; justify-content: center; color: var(--color-on-action); overflow: hidden;
+/* Every node sits in its own 44px, centred on its lane */
+.nodehit {
+  position: absolute; top: 50%; transform: translate(-50%, -50%); z-index: 1; width: var(--control-hit); height: var(--control-hit);
+  padding: 0; border: 0; background: none; color: inherit; display: flex; align-items: center; justify-content: center;
 }
+button.nodehit:active .node { transform: scale(.88); }
+button.nodehit:disabled { opacity: 1; }
 /* The heading's node sits beside its first line, not halfway down the format panel. */
-.ev.run .node { top: 22px; }
+.ev.run .nodehit { top: 22px; }
+.node {
+  position: relative; box-sizing: border-box; flex: none; transition: transform .12s;
+  width: 10px; height: 10px; border-radius: 50%; background: var(--color-bg); box-shadow: inset 0 0 0 2px var(--color-border-strong);
+  display: flex; align-items: center; justify-content: center; color: var(--text-tertiary);
+}
 .ev.start.done .node, .ev.run.done .node, .ev.merge.done .node { background: var(--text-primary); box-shadow: none; }
-.ev.set .node { width: 20px; height: 20px; color: var(--text-tertiary); }
+
+/* The exercise: its photo on the rail, ⋯ on its corner */
+.ev.exercise .node { width: 28px; height: 28px; background: none; box-shadow: none; }
+.ph {
+  width: 100%; height: 100%; border-radius: 50%; overflow: hidden; display: flex; align-items: center; justify-content: center;
+  background: var(--color-surface-2); box-shadow: 0 0 0 1.5px var(--color-border-strong);
+}
+.ph img { width: 100%; height: 100%; object-fit: cover; }
+.ev.exercise.done .ph { box-shadow: 0 0 0 1.5px var(--text-primary); }
+.ev.exercise.now .ph { box-shadow: 0 0 0 2px var(--color-action); }
+.ev.exercise.next .ph { opacity: .8; }
+.badge {
+  position: absolute; right: -5px; bottom: -5px; width: 15px; height: 15px; border-radius: 50%;
+  background: var(--color-surface-2); color: var(--text-primary); box-shadow: 0 0 0 2px var(--color-bg);
+  display: flex; align-items: center; justify-content: center;
+}
+.nodehit[aria-expanded="true"] .badge { background: var(--text-primary); color: var(--color-bg); }
+
+/* Sets: the number, a flame for a warm-up, stairs for a drop set, ✓ once done */
+.ev.set .node { width: 18px; height: 18px; }
 .nn { font-size: 9px; font-weight: 700; line-height: 1; letter-spacing: -0.02em; }
-.ev.set.done .node { background: var(--text-primary); box-shadow: none; color: var(--color-bg); }
+.ev.set.done .node { width: 16px; height: 16px; background: var(--text-primary); box-shadow: none; color: var(--color-bg); }
 .ev.l1.set.done .node { background: var(--text-secondary); }
 .ev.set.now .node {
-  width: 22px; height: 22px; color: var(--text-primary); background: var(--color-bg);
-  box-shadow: inset 0 0 0 2.5px var(--color-action), 0 0 0 5px color-mix(in srgb, var(--color-action) 18%, transparent);
+  width: 20px; height: 20px; color: var(--text-primary);
+  box-shadow: inset 0 0 0 2px var(--color-action), 0 0 0 4px color-mix(in srgb, var(--color-action) 18%, transparent);
 }
-.ev.rest .node { width: 6px; height: 6px; background: var(--color-action); box-shadow: none; }
-.ev.exercise .node { width: 28px; height: 28px; background: var(--color-surface-2); box-shadow: 0 0 0 1.5px var(--color-border-strong); }
-.ev.exercise .node img { width: 100%; height: 100%; object-fit: cover; }
-.ev.exercise.done .node { box-shadow: 0 0 0 2px var(--text-primary); }
-.ev.exercise.now .node { box-shadow: 0 0 0 2px var(--color-action), 0 0 0 5px color-mix(in srgb, var(--color-action) 16%, transparent); }
-.ev.exercise.next .node { opacity: .8; }
-.ev.add .node { width: 26px; height: 26px; color: var(--text-secondary); box-shadow: inset 0 0 0 1.5px var(--color-border-strong); }
 
-/* An exercise's heading: its name, how it went or what's planned, and a tap to open or fold it */
-.row.exh { flex: 1 1 auto; min-width: 0; flex-wrap: nowrap; gap: var(--space-2xs); }
-.row.exbtn {
-  flex: 1 1 auto; min-width: 0; gap: var(--space-s); flex-wrap: nowrap; padding: var(--space-s) 0; min-height: 52px;
+/* Rests: a small timer, filled once over; running, its ring fills with the countdown */
+.ev.pause .node { width: 16px; height: 16px; box-shadow: none; background: var(--color-surface-2); color: var(--text-tertiary); }
+.ev.pause.done .node { background: var(--text-primary); color: var(--color-bg); }
+.ev.rest .node {
+  width: 24px; height: 24px; box-shadow: none; color: var(--color-action);
+  background:
+    radial-gradient(closest-side, var(--color-bg) 76%, transparent 79%),
+    conic-gradient(var(--color-action) calc(var(--p, 0) * 360deg), var(--color-border-strong) 0);
+}
+.row.restnow { flex: 1 1 auto; min-width: 0; gap: var(--space-xs); flex-wrap: nowrap; align-items: center; }
+.row.cd { align-items: baseline; gap: var(--space-xs); flex-wrap: wrap; min-width: 0; }
+.len { border: 0; background: none; padding: 0 var(--space-2xs); margin-left: calc(-1 * var(--space-2xs)); min-height: 28px; }
+/* The ✓s: a small face in its 44px, its right edge where the times end on the rows above */
+.tick { --s: var(--control-s-sm); justify-content: flex-end; }
+.tick::before { right: 0; }
+.tick > :deep(svg) { margin-right: 5px; }
+
+/* The one + at the end */
+.ev.add .node { width: 24px; height: 24px; color: var(--text-secondary); box-shadow: inset 0 0 0 1.5px var(--color-border-strong); }
+.ev.add .node :deep(svg) { transition: transform .2s; }
+.nodehit[aria-expanded="true"] .node { background: var(--text-primary); color: var(--color-bg); box-shadow: none; }
+.nodehit[aria-expanded="true"] .node :deep(svg) { transform: rotate(45deg); }
+.ev.exercise .nodehit[aria-expanded="true"] .node { background: none; }
+.ev.exercise .nodehit[aria-expanded="true"] .node :deep(svg) { transform: none; }
+.addword { border: 0; background: none; padding: 0; min-height: var(--control-hit); flex: 1 1 auto; text-align: left; }
+
+/* An exercise's heading: its name and how it went or what's planned */
+.row.exh { flex: 1 1 auto; min-width: 0; flex-wrap: nowrap; }
+.exbtn {
+  flex: 1 1 auto; min-width: 0; gap: var(--space-2xs); padding: var(--space-s) 0; min-height: 48px; justify-content: center;
   border: 0; background: none; color: inherit; text-align: left;
 }
 .exname { overflow-wrap: anywhere; }
 .ev.exercise.next .exname { color: var(--text-secondary); }
-.ev.exercise.now .exname { font-weight: 600; }
 .letter { margin-right: var(--space-xs); }
-.chev { display: inline-flex; flex: none; color: var(--text-secondary); transition: transform .2s; }
-.chev.up { transform: rotate(180deg); }
+.row.g2 { flex-wrap: nowrap; align-items: center; }
+.trophy { display: inline-flex; flex: none; color: var(--color-action); }
 
-.infos { flex: 1 1 auto; min-width: 0; gap: var(--space-2xs); padding-bottom: var(--space-xs); }
-.infos:empty { padding: 0; }
-.best { color: var(--color-action); display: inline-flex; align-items: baseline; gap: var(--space-2xs); }
-.best :deep(svg) { flex: none; align-self: center; }
+/* A held set, while its menu is open */
+.ev.set :deep(.setr.held) { background: var(--color-surface-2); border-radius: var(--radius-m); }
 
-.row.restnow { flex: 1 1 auto; min-width: 0; gap: var(--space-xs); flex-wrap: nowrap; padding-block: var(--space-xs); }
-/* The buttons wrap; the icon buttons keep together at the right end. */
-.row.tools { flex: 1 1 auto; min-width: 0; gap: var(--space-xs); flex-wrap: wrap; padding-bottom: var(--space-s); }
-.tools .ends { margin-left: auto; gap: 0; flex-wrap: nowrap; }
-.row.addh { gap: var(--space-s); }
-html.dt-xl .row.restnow { flex-wrap: wrap; }
+/* The menu's heading */
+.mhead { gap: var(--space-s); flex-wrap: nowrap; align-items: center; padding: var(--space-xs) var(--space-s) var(--space-s); }
+.mph { flex: none; width: 40px; height: 40px; border-radius: var(--radius-m); overflow: hidden; background: var(--color-surface-2); }
+.mph img { width: 100%; height: 100%; object-fit: cover; }
+.cap::first-letter { text-transform: uppercase; }
+.infos { gap: var(--space-2xs); padding: 0 var(--space-s) var(--space-s); }
+.best { color: var(--color-action); display: inline-flex; align-items: center; gap: var(--space-2xs); }
+.best :deep(svg) { flex: none; }
+.mhead, .infos { border-bottom: 1px solid var(--color-border); margin-bottom: var(--space-xs); }
+.mhead:has(+ .infos) { border-bottom: 0; margin-bottom: 0; }
 </style>

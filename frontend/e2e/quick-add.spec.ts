@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { pick, setRow } from "./dial";
+import { addToWorkout, menu } from "./timeline";
 
 function headers(oid: string) {
   return { "X-Test-Oid": oid, "X-Test-Name": "Test User", "Content-Type": "application/json" };
@@ -58,11 +59,11 @@ test("Quick start: the workout starts now on its timeline, an empty one closes t
   await expect(workout.getByText(/^Started \d{2}:\d{2}$/)).toBeVisible();
   await expect(workout.locator("[data-workout-end-now]")).toBeVisible();
   // + Exercise opens Add exercise; nothing grabs focus there, so no keyboard comes up. ← goes back to the workout.
-  await workout.locator("[data-add-exercise]").click();
+  await addToWorkout(page, "add-exercise");
   const add = page.getByRole("dialog", { name: "Add exercise" });
   await expect(add.getByLabel("Search exercises")).not.toBeFocused();
   await add.getByRole("button", { name: "Back to the workout" }).click();
-  await expect(workout.locator("[data-add-exercise]")).toBeVisible();
+  await expect(workout.locator("[data-timeline-add]")).toBeVisible();
   // Hidden with nothing added, it goes quietly: Train shows Quick start again, not a workout in progress.
   await workout.getByRole("button", { name: "Hide the workout" }).click();
   await expect(workout).toHaveCount(0);
@@ -77,7 +78,7 @@ test("Quick start: the workout starts now on its timeline, an empty one closes t
   await live.getByLabel("Day it started").fill(start.day);
   await live.getByLabel("Time it started").fill(start.time);
   await expect(chip).toHaveText(`${start.time} – now`);
-  await workout.locator("[data-add-exercise]").click();
+  await addToWorkout(page, "add-exercise");
   await add.getByLabel("Search exercises").fill("barbell squat");
   await add.getByRole("button", { name: "Add Barbell Squat", exact: true }).click();
 
@@ -122,7 +123,7 @@ test("The timeline: the set to do, numbers that carry on, a done set corrected, 
   const oid = await setup(page);
   await page.goto("/train");
   await page.getByRole("button", { name: "Empty workout" }).click();
-  await page.getByRole("dialog", { name: "Workout" }).locator("[data-add-exercise]").click();
+  await addToWorkout(page, "add-exercise");
   const add = page.getByRole("dialog", { name: "Add exercise" });
   // Only the exercises scroll, like Add food: the sheet itself has nothing to scroll, and each muscle group's page
   // scrolls on its own under the search and both rows of chips.
@@ -152,7 +153,7 @@ test("The timeline: the set to do, numbers that carry on, a done set corrected, 
   await workout.getByRole("button", { name: "Set 1 done" }).click();
   await expect(squat(0)).toHaveAttribute("data-done", "");
   await expect(squat(0).getByLabel("Set 1, Reps")).toHaveText("5");
-  // Logging starts the rest, on the rail before the next set; Skip ends it.
+  // Logging starts the rest, on the rail before the next set; its ✓ ends it.
   await expect(workout.locator("[data-rest]")).toBeVisible();
   await workout.locator("[data-rest-skip]").click();
   await expect(workout.locator("[data-rest]")).toHaveCount(0);
@@ -166,17 +167,42 @@ test("The timeline: the set to do, numbers that carry on, a done set corrected, 
   // A done set is corrected in place, and nothing else changes.
   await pick(page, squat(0).getByLabel("Set 1, Reps"), 6);
   await expect(squat(0).getByLabel("Set 1, Reps")).toHaveText("6");
-  // Set 3 is the set to do now, its scoreboard captioned.
-  await expect(squat(2).getByLabel("Set 3, Reps")).toHaveText(/^Reps\s?5$/);
+  // Set 3 is the set to do now: the same line, a touch bigger, with its ✓.
+  await expect(squat(2).getByLabel("Set 3, Reps")).toHaveText("5");
+  await expect(squat(2).locator("[data-log-set]")).toBeVisible();
+
+  // A done set's node on the rail unticks it, and ticks it again.
+  const node = workout.locator('[data-set-node="barbell-squat-1"]');
+  await node.click();
+  await expect(squat(1)).toHaveAttribute("data-set-state", "now");
+  await expect(squat(2)).not.toHaveAttribute("data-set-state", "now");
+  await node.click();
+  await expect(squat(1)).toHaveAttribute("data-done", "");
+  await workout.locator("[data-rest-skip]").click();
+
+  // Held, a set opens its menu: Duplicate adds the same numbers after it, Delete takes it out, with Undo.
+  await squat(2).click({ button: "right" });
+  await expect(menu(page).locator('[data-menu-item="delete"]')).toBeEnabled();
+  await menu(page).locator('[data-menu-item="duplicate"]').click();
+  await expect(workout.locator('[data-set][data-exercise="barbell-squat"]')).toHaveCount(4);
+  await expect(squat(3).getByLabel("Set 4, kg")).toHaveText(/^102.5\s?kg$/);
+  await squat(3).click({ button: "right" });
+  await menu(page).locator('[data-menu-item="delete"]').click();
+  await expect(workout.locator('[data-set][data-exercise="barbell-squat"]')).toHaveCount(3);
+  await page.locator(".toast.front").filter({ hasText: "Set 4 deleted" }).getByRole("button", { name: "Undo" }).click();
+  await expect(workout.locator('[data-set][data-exercise="barbell-squat"]')).toHaveCount(4);
+  await squat(3).click({ button: "right" });
+  await menu(page).locator('[data-menu-item="delete"]').click();
+  await expect(workout.locator('[data-set][data-exercise="barbell-squat"]')).toHaveCount(3);
   await workout.getByRole("button", { name: "Set 3 done" }).click();
 
-  // Done, it folds to its heading. Opened again, + Set adds one more, offering the set before's numbers.
+  // Done, it folds to its heading. The timeline's + adds a set to it, offering the set before's numbers.
   const heading = workout.locator('[data-workout-exercise="barbell-squat"]');
   await expect(heading).not.toHaveAttribute("data-open");
-  await heading.getByRole("button", { expanded: false }).click();
-  await workout.getByRole("button", { name: "Set", exact: true }).click();
+  await addToWorkout(page, "add-set");
+  await expect(heading).toHaveAttribute("data-open", "");
   await expect(squat(3)).toHaveAttribute("data-set-state", "now");
-  await expect(squat(3).getByLabel("Set 4, kg")).toHaveText(/^kg\s?102.5$/);
+  await expect(squat(3).getByLabel("Set 4, kg")).toHaveText(/^102.5\s?kg$/);
   await workout.getByRole("button", { name: "Set 4 done" }).click();
   await expect(heading).toContainText("100 × 6, 102.5 × 5, 102.5 × 5, 102.5 × 5");
   await expect(heading).not.toHaveAttribute("data-open");

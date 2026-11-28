@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { pick, setRow } from "./dial";
+import { addToWorkout } from "./timeline";
 
 function headers(oid: string) {
   return { "X-Test-Oid": oid, "X-Test-Name": "Test User", "Content-Type": "application/json" };
@@ -37,7 +38,7 @@ test("a barbell lift shows the plates a side for the set you're on", async ({ pa
   await page.goto("/train");
   await page.getByRole("button", { name: "Empty workout" }).click();
   // Quick start opens the workout on its timeline; + Exercise opens Add exercise.
-  await page.getByRole("dialog", { name: "Workout" }).locator("[data-add-exercise]").click();
+  await addToWorkout(page, "add-exercise");
   const adding = page.getByRole("dialog", { name: "Add exercise" });
   await adding.getByLabel("Search exercises").fill("barbell squat");
   await adding.getByRole("button", { name: "Add Barbell Squat", exact: true }).click();
@@ -65,7 +66,7 @@ test("a barbell lift shows the plates a side for the set you're on", async ({ pa
   // Not for kit that doesn't go on a bar.
   await workout.getByRole("button", { name: "Set 2 done" }).click();
   await workout.getByRole("button", { name: "Set 3 done" }).click();
-  await workout.getByRole("button", { name: "Exercise", exact: true }).click();
+  await addToWorkout(page, "add-exercise");
   await adding.getByLabel("Search exercises").fill("dumbbell bench press");
   await adding.getByRole("button", { name: "Add Dumbbell Bench Press", exact: true }).click();
   await expect(setRow(workout, "dumbbell-bench-press", 0)).toHaveAttribute("data-set-state", "now");

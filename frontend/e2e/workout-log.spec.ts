@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { pick, setRow } from "./dial";
+import { addToWorkout, closeMenu, exerciseMenu, fromExerciseMenu } from "./timeline";
 
 function headers(oid: string) {
   return { "X-Test-Oid": oid, "X-Test-Name": "Test User", "Content-Type": "application/json" };
@@ -38,7 +39,7 @@ test("A workout: start it, add an exercise, tick off sets, rest, finish, and see
 
   await page.getByRole("button", { name: "Empty workout" }).click();
   // Quick start opens the workout on its timeline; + Exercise opens Add exercise.
-  await page.getByRole("dialog", { name: "Workout" }).locator("[data-add-exercise]").click();
+  await addToWorkout(page, "add-exercise");
   const sheet = page.getByRole("dialog", { name: "Add exercise" });
   await expect(sheet).toBeVisible();
   await sheet.getByLabel("Search exercises").fill("barbell bench press");
@@ -49,7 +50,9 @@ test("A workout: start it, add an exercise, tick off sets, rest, finish, and see
   const id = "barbell-bench-press-medium-grip";
   const bench = (index: number) => setRow(workout, id, index);
   const heading = workout.locator(`[data-workout-exercise="${id}"]`);
-  await expect(workout.locator("[data-load-suggestion]")).toContainText("First time");
+  // Its photo on the rail opens its menu: what to know about it, and what can be done with it.
+  await expect(await exerciseMenu(page, id)).toContainText("First time");
+  await closeMenu(page);
   await expect(workout.locator(`[data-set][data-exercise="${id}"]`)).toHaveCount(3);
   await expect(bench(0)).toHaveAttribute("data-set-state", "now");
 
@@ -58,11 +61,11 @@ test("A workout: start it, add an exercise, tick off sets, rest, finish, and see
   await workout.getByRole("button", { name: "Set 1 done" }).click();
   await expect(bench(0)).toHaveAttribute("data-done", "");
   // The next set offers the same numbers, and logging it takes them.
-  await expect(bench(1).getByLabel("Set 2, kg")).toHaveText(/60$/);
+  await expect(bench(1).getByLabel("Set 2, kg")).toHaveText(/^60\s?kg$/);
   await workout.getByRole("button", { name: "Set 2 done" }).click();
   await expect(bench(2)).toHaveAttribute("data-set-state", "now");
 
-  // A compound press rests 2:00, on the rail before the next set; Skip ends it.
+  // A compound press rests 2:00, on the rail before the next set; its ✓ ends it.
   const rest = workout.locator("[data-rest]");
   await expect(rest.getByRole("timer")).toHaveText(/^(2:00|1:5\d)$/);
   await rest.locator("[data-rest-skip]").click();
@@ -95,17 +98,18 @@ test("A workout: start it, add an exercise, tick off sets, rest, finish, and see
   // Next time, the exercise starts with last time's two sets, and last time above them.
   await page.getByRole("button", { name: "Empty workout" }).click();
   // Quick start opens the workout on its timeline; + Exercise opens Add exercise.
-  await page.getByRole("dialog", { name: "Workout" }).locator("[data-add-exercise]").click();
+  await addToWorkout(page, "add-exercise");
   await page.getByRole("dialog", { name: "Add exercise" }).getByLabel("Search exercises").fill("barbell bench press");
   await page.getByRole("button", { name: "Add Barbell Bench Press - Medium Grip" }).click();
   await expect(workout.locator(`[data-set][data-exercise="${id}"]`)).toHaveCount(2);
-  await expect(workout.locator("[data-last-time]")).toContainText("60 kg × 10, 10");
+  await expect((await exerciseMenu(page, id)).locator("[data-last-time]")).toContainText("60 kg × 10, 10");
+  await closeMenu(page);
   // Every set reached the top of the range, so the first set offers 2.5 kg more.
-  await expect(bench(0).getByLabel("Set 1, kg")).toHaveText(/62.5$/);
+  await expect(bench(0).getByLabel("Set 1, kg")).toHaveText(/^62.5\s?kg$/);
   await expect(bench(0).getByLabel("Set 1, Reps")).toHaveText(/6$/);
 
   // The how-to opens over the workout, and Esc goes back to it.
-  await page.getByRole("button", { name: "How to do Barbell Bench Press - Medium Grip" }).click();
+  await fromExerciseMenu(page, id, "how-to");
   await expect(page.getByRole("dialog", { name: "Barbell Bench Press - Medium Grip", exact: true })).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog", { name: "Barbell Bench Press - Medium Grip", exact: true })).toHaveCount(0);

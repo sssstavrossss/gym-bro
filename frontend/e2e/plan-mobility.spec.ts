@@ -1,4 +1,5 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
+import { closeMenu, exerciseMenu, menu } from "./timeline";
 
 function headers(oid: string) {
   return { "X-Test-Oid": oid, "X-Test-Name": "Test User", "Content-Type": "application/json" };
@@ -75,10 +76,15 @@ test("Plan: a mobility warm-up and cool-down frame each workout", async ({ page 
   await expect(workout.locator("[data-workout-exercise]").first()).toHaveAttribute("data-workout-exercise", (first.warmUp[0] as { exerciseId: string }).exerciseId);
   // The first move is open: it goes for 30 s, with no warm-up set of its own.
   await expect(workout.locator("[data-workout-exercise][data-open]")).toHaveCount(1);
-  const move = workout.locator("[data-info]");
+  const move = (await exerciseMenu(page, (first.warmUp[0] as { exerciseId: string }).exerciseId)).locator("[data-info]");
   await expect(move).toContainText("30 s");
   await expect(move).toContainText("First time");
-  await expect(workout.locator("[data-add-warmup]")).toHaveCount(0);
+  await closeMenu(page);
+  // The + offers no warm-up sets for a warm-up move.
+  await workout.locator("[data-timeline-add]").click();
+  await expect(menu(page).locator('[data-menu-item="add-set"]')).toBeVisible();
+  await expect(menu(page).locator('[data-menu-item="add-warmup"]')).toHaveCount(0);
+  await closeMenu(page);
 
   // Turned off again in Your training, the plan follows at once: same workouts, and the line goes.
   await page.goto("/train");

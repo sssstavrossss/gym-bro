@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { pick, setRow } from "./dial";
+import { addToWorkout, closeMenu, exerciseMenu, fromExerciseMenu, menu } from "./timeline";
 
 function headers(oid: string) {
   return { "X-Test-Oid": oid, "X-Test-Name": "Test User", "Content-Type": "application/json" };
@@ -37,7 +38,7 @@ test("two exercises done as a superset rest after each round and save as one blo
   await page.goto("/train");
   await page.getByRole("button", { name: "Empty workout" }).click();
   // Quick start opens the workout on its timeline; + Exercise opens Add exercise.
-  await page.getByRole("dialog", { name: "Workout" }).locator("[data-add-exercise]").click();
+  await addToWorkout(page, "add-exercise");
   const adding = page.getByRole("dialog", { name: "Add exercise" });
   await adding.getByLabel("Search exercises").fill("barbell bench press");
   await adding.getByRole("button", { name: "Add Barbell Bench Press - Medium Grip", exact: true }).click();
@@ -47,17 +48,19 @@ test("two exercises done as a superset rest after each round and save as one blo
   const rowId = "bent-over-barbell-row";
   // The first exercise has nothing before it to join.
   await expect(workout.locator(`[data-workout-exercise="${benchId}"][data-open]`)).toBeVisible();
-  await expect(workout.locator("[data-superset-prev]")).toHaveCount(0);
-  await workout.getByRole("button", { name: "Exercise", exact: true }).click();
+  await expect((await exerciseMenu(page, benchId)).locator('[data-menu-item="superset"]')).toHaveCount(0);
+  await closeMenu(page);
+  await addToWorkout(page, "add-exercise");
   await adding.getByLabel("Search exercises").fill("bent over barbell row");
   await adding.getByRole("button", { name: "Add Bent Over Barbell Row", exact: true }).click();
 
   // The second opens on the timeline, and joins the first.
   await expect(workout.locator(`[data-workout-exercise="${rowId}"][data-open]`)).toBeVisible();
-  const join = workout.getByRole("button", { name: "Superset with Barbell Bench Press - Medium Grip" });
-  await join.click();
-  await expect(join).toHaveAttribute("aria-pressed", "true");
+  await expect((await exerciseMenu(page, rowId)).locator('[data-menu-item="superset"]')).toHaveText("Superset with Barbell Bench Press - Medium Grip");
+  await menu(page).locator('[data-menu-item="superset"]').click();
   await expect(page.getByText("Superset: Barbell Bench Press - Medium Grip + Bent Over Barbell Row")).toBeVisible();
+  await expect((await exerciseMenu(page, rowId)).locator('[data-menu-item="superset"]')).toHaveText("Split from Barbell Bench Press - Medium Grip");
+  await closeMenu(page);
   const group = workout.getByRole("group", { name: "Superset: Barbell Bench Press - Medium Grip, Bent Over Barbell Row" });
   await expect(group).toContainText("Superset · rest after each round");
   // Both open together, the second on a lane of its own, and the sets go in turn: A1, B1, A2.
@@ -101,7 +104,7 @@ test("two exercises done as a superset rest after each round and save as one blo
   const sheet = page.getByRole("dialog", { name: "Edit workout" });
   const pastGroup = sheet.locator("[data-superset]");
   await expect(pastGroup).toHaveCount(1);
-  await sheet.getByRole("button", { name: "Superset with Barbell Bench Press - Medium Grip" }).click();
+  await fromExerciseMenu(page, rowId, "superset");
   await expect(pastGroup).toHaveCount(0);
   await expect(page.getByText("Split Barbell Bench Press - Medium Grip and Bent Over Barbell Row")).toBeVisible();
 });
