@@ -13,10 +13,11 @@ import { openDial } from "../ui";
 // One set on the workout's timeline (README, *Logging a workout*): its numbers on one line, each a button that opens
 // the number wheel. The set to do is the same line a touch bigger, with its ✓ to log it; any other set is ticked or
 // unticked by its node on the rail. A number not picked yet shows the hint (the set before, last time, or the
-// suggestion) in grey, and a log takes it. A long press (or a right click) asks the timeline for the set's menu.
+// suggestion) in grey, and a log takes it. A long press lifts the set (the timeline drags it, or opens its menu when
+// it's let go where it was); a right click asks for the menu at once.
 /** `title`: in a superset or circuit, which exercise the set to do is ("B · Triceps Pushdown"). */
 const props = defineProps<{ exercise: DraftExercise; index: number; state: RowState; past?: boolean; title?: string }>();
-const emit = defineEmits<{ menu: [Element] }>();
+const emit = defineEmits<{ menu: [Element]; hold: [Element, { x: number; y: number; pointerId: number }] }>();
 
 const item = computed(() => exerciseItem(props.exercise.exerciseId));
 const measure = computed(() => item.value?.measure ?? "weight_reps");
@@ -61,25 +62,31 @@ const valueLabel = (field: SetField) => `${name.value}, ${FIELD_LABELS[field]}`;
 const unitOf = (field: SetField) => (field === "rir" || (field === "reps" && showing.value.includes("kg")) ? "" : parts(field).unit);
 const between = (field: SetField, at: number) => (at === 0 ? "" : measure.value === "weight_reps" && field === "reps" && showing.value.includes("kg") ? "×" : "·");
 
-// ---- A long press: the set's menu ----
+// ---- A long press: the set lifts ----
 const root = ref<HTMLElement | null>(null);
 let timer: number | undefined;
-let start: { x: number; y: number } | null = null;
-/** The press that opened the menu doesn't also open a number. */
+let start: { x: number; y: number; pointerId: number } | null = null;
+/** The press that lifted the set doesn't also open a number. */
 let held = false;
 function press(event: PointerEvent) {
   if (event.button !== 0) return;
   held = false;
-  start = { x: event.clientX, y: event.clientY };
+  start = { x: event.clientX, y: event.clientY, pointerId: event.pointerId };
   window.clearTimeout(timer);
+  const from = start;
   timer = window.setTimeout(() => {
     held = true;
     navigator.vibrate?.(10);
-    if (root.value) emit("menu", root.value);
+    if (root.value) emit("hold", root.value, from);
   }, 450);
 }
 function move(event: PointerEvent) {
-  if (start && Math.hypot(event.clientX - start.x, event.clientY - start.y) > 8) cancel();
+  // Moving before the hold is a scroll; once lifted, it's the timeline's drag (and the release opens no number).
+  if (!held && start && Math.hypot(event.clientX - start.x, event.clientY - start.y) > 8) cancel();
+}
+/** A finger leaving the row before the hold is a scroll; a lifted set is being dragged away, and stays held. */
+function leave() {
+  if (!held) cancel();
 }
 function cancel() {
   window.clearTimeout(timer);
@@ -98,7 +105,7 @@ onBeforeUnmount(() => window.clearTimeout(timer));
   <div
     ref="root" class="col setr" :class="state" :data-set-state="state" :data-set="index" :data-exercise="exercise.exerciseId"
     :data-done="set.doneAt ? '' : undefined"
-    @pointerdown="press" @pointermove="move" @pointerup="cancel" @pointerleave="cancel" @pointercancel="cancel" @contextmenu="context"
+    @pointerdown="press" @pointermove="move" @pointerup="cancel" @pointerleave="leave" @pointercancel="cancel" @contextmenu="context"
   >
     <span v-if="isNow && title" class="t-capn c2 btitle">{{ title }}</span>
     <div class="row line">
@@ -131,7 +138,7 @@ onBeforeUnmount(() => window.clearTimeout(timer));
 <style scoped>
 .tnum { font-variant-numeric: tabular-nums; }
 
-/* No text selection or iOS callout: a long press opens the set's menu. */
+/* No text selection or iOS callout: a long press lifts the set. */
 .setr { flex: 1 1 auto; min-width: 0; gap: 0; touch-action: pan-y; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 .setr.now { padding-block: var(--space-2xs); }
 .btitle { overflow-wrap: anywhere; }

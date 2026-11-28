@@ -495,6 +495,19 @@ export function tickRound(key: string, now = new Date()): void {
   }
 }
 
+/**
+ * The exercises as a move on the timeline leaves them (lib/timelineMove.ts), or as they were before it, for Undo and
+ * "Put it back". Returns what they were.
+ */
+export function setExercises(exercises: DraftExercise[]): DraftExercise[] {
+  const active = editing();
+  if (!active) return [];
+  const before = active.exercises;
+  active.exercises = exercises;
+  save();
+  return before;
+}
+
 /** Joins an exercise to the one before it as a superset, or splits it off. */
 export function toggleSuperset(key: string): void {
   const active = editing();

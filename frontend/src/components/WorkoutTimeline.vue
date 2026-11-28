@@ -25,6 +25,9 @@ import { FIRST_TIME_LINE, suggestionLine } from "../lib/progression";
 import { maxText } from "../lib/records";
 import { formatLabel } from "../lib/timed";
 import { dialSpec, REST_HINTS, restDial } from "../lib/dial";
+import { moveSet, setUnit, type MoveAsk, type MoveContext, type MoveVerdict } from "../lib/timelineMove";
+import { landing, setPlace, shiftOf, type Box, type Neighbour } from "../lib/timelineDrag";
+import { scrollParent } from "../lib/cleanTap";
 import { exercises as library } from "../state/exercises";
 import { describe } from "../state/describe";
 import {
@@ -43,6 +46,7 @@ import {
   setSetType,
   toggleDone,
   setExerciseRest,
+  setExercises,
   setRunningRest,
   shiftRest,
   toggleSuperset,
@@ -276,6 +280,227 @@ const headSub = computed(() => {
   return muscles.map((muscle) => muscle.replace(/-/g, " ")).join(", ");
 });
 
+// ---- Dragging a set (docs/training.md, decision 15) ----
+// Held, a set lifts (with its drop sets): let go where it was and its menu opens; move it and it drags. The rests
+// between sets fold away while it's up, so the sets close up. Where it can go, the rows slide apart to make room;
+// where it can't, nothing moves and a note says why. lib/timelineMove.ts says what a drop does: done at once with
+// Undo, or, where it changes what the set is (or which exercise it counts for), shown and asked about first.
+const moveContext: MoveContext = {
+  nameOf: (id) => exerciseItem(id)?.name ?? id,
+  measureOf: (id) => exerciseItem(id)?.measure ?? "weight_reps",
+};
+interface SetDrag {
+  exercise: string;
+  index: number;
+  /** The rows lifted: the set and its drop sets. */
+  unit: string[];
+  dy: number;
+  height: number;
+  /** The gap it's over, among the rows not lifted, and whether it's open (it can go there). */
+  gap: number;
+  open: boolean;
+  moved: boolean;
+  place: { key: string; at: number } | null;
+  verdict: MoveVerdict | null;
+}
+const drag = ref<SetDrag | null>(null);
+/** Just let go: the rows go to their new places without sliding back first. */
+const settling = ref(false);
+let boxes: Box[] = [];
+let lift: { anchor: Element; y: number; pointerId: number; startY: number; lastY: number; travelled: number; scroller: HTMLElement | null } | null = null;
+let scrollRaf = 0;
+const shownRows = computed(() => (drag.value ? rows.value.filter((row) => row.type !== "pause") : rows.value));
+const scrollTop = () => lift?.scroller?.scrollTop ?? 0;
+
+function measure() {
+  boxes = [...(list.value?.querySelectorAll<HTMLElement>("[data-row]") ?? [])].map((el) => ({ key: el.dataset.row!, top: el.offsetTop, height: el.offsetHeight }));
+}
+const unitBoxes = (current: SetDrag) => boxes.filter((box) => current.unit.includes(box.key));
+
+async function hold(row: TimelineRow, anchor: Element, from: { x: number; y: number; pointerId: number }) {
+  if (row.type !== "set" || drag.value || workout.saving) return;
+  const exercise = ex(row.exercise);
+  const li = anchor.closest("li");
+  if (!exercise || !li || !list.value) return;
+  const before = li.getBoundingClientRect().top;
+  const { start, end } = setUnit(exercise.sets, row.index);
+  const unit = Array.from({ length: end - start }, (_, n) => `set:${exercise.key}:${start + n}`);
+  const pick: typeof lift = { anchor, y: from.y, pointerId: from.pointerId, startY: 0, lastY: from.y, travelled: 0, scroller: scrollParent(list.value) };
+  lift = pick;
+  drag.value = { exercise: exercise.key, index: row.index, unit, dy: 0, height: 0, gap: -1, open: false, moved: false, place: null, verdict: null };
+  listen(true);
+  await nextTick();
+  if (lift !== pick || !drag.value) return;
+  // The rests folded away above it: scroll by what moved, and carry what the scroll can't take up, so the set stays
+  // under the finger.
+  const now = () => list.value?.querySelector(`[data-row="${row.key}"]`)?.getBoundingClientRect().top ?? before;
+  pick.scroller?.scrollBy(0, now() - before);
+  const dy0 = before - now();
+  pick.startY = from.y + scrollTop() - dy0;
+  measure();
+  drag.value.height = unitBoxes(drag.value).reduce((sum, box) => sum + box.height, 0);
+  update();
+  autoScroll();
+}
+
+function neighbour(box: Box | undefined): Neighbour | undefined {
+  const row = box && shownRows.value.find((each) => each.key === box.key);
+  if (!row) return undefined;
+  if (row.type === "set") return { type: "set", exercise: row.exercise, index: row.index };
+  if (row.type === "exercise") return { type: "exercise", exercise: row.exercise, sets: ex(row.exercise).sets.length, open: row.open };
+  return { type: "other" };
+}
+
+function update() {
+  const current = drag.value;
+  if (!current || !lift) return;
+  const lifted = unitBoxes(current);
+  if (!lifted.length) return;
+  const top = lifted[0].top;
+  const end = boxes[boxes.length - 1];
+  const dy = Math.max(-top, Math.min(end.top + end.height - current.height - top, lift.lastY + scrollTop() - lift.startY));
+  const others = boxes.filter((box) => !current.unit.includes(box.key));
+  const gap = landing(others, top, dy, current.height);
+  const exercise = ex(current.exercise);
+  const place = exercise ? setPlace(neighbour(others[gap - 1]), neighbour(others[gap]), { exercise: current.exercise, ...setUnit(exercise.sets, current.index) }) : null;
+  const verdict = place ? moveSet(props.exercises, { key: current.exercise, index: current.index }, place, moveContext) : null;
+  drag.value = { ...current, dy, gap, open: !!verdict?.ok, place, verdict, moved: lift.travelled > 6 };
+}
+
+function onMove(event: PointerEvent) {
+  if (!lift || event.pointerId !== lift.pointerId) return;
+  lift.lastY = event.clientY;
+  lift.travelled = Math.max(lift.travelled, Math.abs(event.clientY - lift.y));
+  update();
+}
+function onUp(event: PointerEvent) {
+  if (!lift || event.pointerId !== lift.pointerId) return;
+  void drop(event.type === "pointercancel");
+}
+/** While a set is up, the finger drags it rather than scrolling the sheet. */
+function onTouchMove(event: TouchEvent) {
+  if (drag.value) event.preventDefault();
+}
+function listen(on: boolean) {
+  const method = on ? "addEventListener" : "removeEventListener";
+  window[method]("pointermove", onMove as EventListener);
+  window[method]("pointerup", onUp as EventListener);
+  window[method]("pointercancel", onUp as EventListener);
+}
+
+function autoScroll() {
+  cancelAnimationFrame(scrollRaf);
+  const step = () => {
+    if (!drag.value || !lift) return;
+    const box = lift.scroller?.getBoundingClientRect() ?? { top: 0, bottom: window.innerHeight };
+    const edge = 64;
+    const y = lift.lastY;
+    const speed = y < box.top + edge ? -(box.top + edge - y) / 4 : y > box.bottom - edge ? (y - (box.bottom - edge)) / 4 : 0;
+    if (speed && lift.travelled > 6 && lift.scroller) {
+      lift.scroller.scrollBy(0, speed);
+      update();
+    }
+    scrollRaf = requestAnimationFrame(step);
+  };
+  scrollRaf = requestAnimationFrame(step);
+}
+
+async function drop(cancelled: boolean) {
+  const current = drag.value;
+  const pick = lift;
+  listen(false);
+  cancelAnimationFrame(scrollRaf);
+  settling.value = true;
+  drag.value = null;
+  lift = null;
+  requestAnimationFrame(() => { settling.value = false; });
+  if (!current || !pick || cancelled) return;
+  if (!current.moved) {
+    // Held and let go where it was: its menu, as a hold always opened.
+    await nextTick();
+    setMenu(ex(current.exercise), current.index, pick.anchor);
+    return;
+  }
+  const verdict = current.verdict;
+  if (!verdict) return;
+  if (!verdict.ok) {
+    toast(verdict.reason);
+    return;
+  }
+  if (verdict.exercises.every((exercise, at) => exercise === props.exercises[at]) && verdict.exercises.length === props.exercises.length) return;
+  const before = setExercises(verdict.exercises);
+  if (!verdict.ask) {
+    toast("Set moved", { label: "Undo", run: () => void setExercises(before) });
+    return;
+  }
+  // It asks first, with the move already shown behind the question.
+  pending.value = { before, ask: verdict.ask };
+  await nextTick();
+  asking.value = list.value?.querySelector(`[data-row="ex:${current.place?.key}"]`) ?? list.value;
+}
+
+const note = computed(() => {
+  const current = drag.value;
+  if (!current?.moved || !current.verdict) return null;
+  if (!current.verdict.ok) return { blocked: true, text: current.verdict.reason };
+  return current.verdict.ask ? { blocked: false, text: current.verdict.ask.title } : null;
+});
+const noteTop = computed(() => {
+  const current = drag.value;
+  return current ? (unitBoxes(current)[0]?.top ?? 0) + current.dy : 0;
+});
+
+/** Where a row is drawn while a set is up: the lifted ones follow the finger; the others make room. */
+function shift(key: string): string | undefined {
+  const current = drag.value;
+  if (!current) return undefined;
+  if (current.unit.includes(key)) return `translateY(${current.dy}px)`;
+  const own = boxes.find((box) => box.key === key);
+  const lifted = unitBoxes(current);
+  if (!own || !lifted.length) return undefined;
+  const others = boxes.filter((box) => !current.unit.includes(box.key));
+  const by = shiftOf(own, others.indexOf(own), current.gap, lifted[0].top, current.height, current.open);
+  return by ? `translateY(${by}px)` : undefined;
+}
+
+// A drop that asks: the change is already made; the answer keeps it, or puts it back.
+const pending = ref<{ before: DraftExercise[]; ask: MoveAsk } | null>(null);
+const asking = ref<Element | null>(null);
+const askSections = computed<MenuSection[]>(() => {
+  const ask = pending.value?.ask;
+  if (!ask) return [];
+  const items: MenuItem[] = [{ id: "move-yes", icon: "check", label: ask.action, run: () => keepMove() }];
+  if (ask.alternative) {
+    const other = ask.alternative.exercises;
+    items.push({ id: "move-alt", icon: "right", label: ask.alternative.action, run: () => { setExercises(other); keepMove(); } });
+  }
+  items.push({ id: "move-back", icon: "undo", label: "Put it back", apart: true, run: () => putBack() });
+  return [{ items }];
+});
+function keepMove() {
+  const before = pending.value?.before;
+  pending.value = null;
+  asking.value = null;
+  if (before) toast("Moved", { label: "Undo", run: () => void setExercises(before) });
+}
+function putBack() {
+  if (pending.value) setExercises(pending.value.before);
+  pending.value = null;
+  asking.value = null;
+}
+function closeAsk() {
+  // Closed without an answer (a tap outside, Escape): nothing changes. The menu closes before it runs the item
+  // picked, so wait a moment to see whether one was.
+  queueMicrotask(() => { if (pending.value) putBack(); });
+}
+
+onMounted(() => list.value?.addEventListener("touchmove", onTouchMove, { passive: false }));
+onBeforeUnmount(() => {
+  listen(false);
+  cancelAnimationFrame(scrollRaf);
+  list.value?.removeEventListener("touchmove", onTouchMove);
+});
+
 // ---- The rail ----
 // Drawn from where the nodes landed, so it follows the rows whatever they hold and at any text size.
 const LANE_X: Record<Lane, number> = { 0: 14, 1: 40 };
@@ -336,13 +561,14 @@ const infoLines = (exercise: DraftExercise) => Object.entries(info(exercise)).so
 </script>
 
 <template>
-  <ol ref="list" class="tl" aria-label="The workout, in order" data-timeline @selectstart.prevent>
+  <ol ref="list" class="tl" :class="{ dragging: !!drag, settling }" aria-label="The workout, in order" data-timeline @selectstart.prevent>
     <svg class="rail" :height="railH" width="56" aria-hidden="true">
       <path v-for="path in paths" :key="path.key" :d="path.d" :class="path.cls" fill="none" />
     </svg>
 
     <li
-      v-for="row in rows" :key="row.key" :class="rowClass(row)"
+      v-for="row in shownRows" :key="row.key" :class="[rowClass(row), { lifted: drag?.unit.includes(row.key) }]" :data-row="row.key"
+      :style="{ transform: shift(row.key) }"
       :role="row.type === 'run' ? 'group' : undefined" :aria-label="row.type === 'run' ? runLabel(runOf(row.head)) : undefined"
       :data-superset="row.type === 'run' ? row.size : undefined"
     >
@@ -413,7 +639,7 @@ const infoLines = (exercise: DraftExercise) => Object.entries(info(exercise)).so
       <SetRow
         v-else-if="row.type === 'set'" :exercise="ex(row.exercise)" :index="row.index" :state="row.state" :past="!live"
         :title="boardTitle(ex(row.exercise))" :class="{ held: menuOpen(row.key) }"
-        @menu="(anchor) => setMenu(ex(row.exercise), row.index, anchor)"
+        @menu="(anchor) => setMenu(ex(row.exercise), row.index, anchor)" @hold="(anchor, from) => hold(row, anchor, from)"
       />
 
       <!-- A rest between sets: how long it was, or will be -->
@@ -441,7 +667,22 @@ const infoLines = (exercise: DraftExercise) => Object.entries(info(exercise)).so
         {{ exercises.length ? "Add" : "Add the first exercise" }}
       </button>
     </li>
+
+    <!-- What a drop here would do, just above the set lifted -->
+    <li v-if="note" class="dragnote t-capn" :class="{ blocked: note.blocked }" :style="{ top: `${noteTop}px` }" role="status" data-drag-note>
+      <Icon v-if="note.blocked" name="lock" :size="12" />
+      <span>{{ note.text }}</span>
+    </li>
   </ol>
+
+  <PopMenu :anchor="asking" label="Move" :sections="askSections" @close="closeAsk">
+    <template #head>
+      <div class="col askh" data-move-ask>
+        <span class="t-bodys">{{ pending?.ask.title }}</span>
+        <span class="t-capn c2">{{ pending?.ask.body }}</span>
+      </div>
+    </template>
+  </PopMenu>
 
   <PopMenu :anchor="menu?.anchor ?? null" :label="menu?.label ?? ''" :sections="menu?.sections ?? []" @close="menu = null">
     <template v-if="menu?.head" #head>
@@ -568,6 +809,22 @@ button.nodehit:disabled { opacity: 1; }
 .letter { margin-right: var(--space-xs); }
 .row.g2 { flex-wrap: nowrap; align-items: center; }
 .trophy { display: inline-flex; flex: none; color: var(--color-action); }
+
+/* A set lifted: it floats over the rest and follows the finger; the others slide to make room. The rail waits. */
+.ev { transition: transform .18s cubic-bezier(.2, .8, .2, 1); }
+.tl.settling .ev, .tl.dragging .ev.lifted { transition: none; }
+.ev.lifted { z-index: 3; background: var(--color-surface); box-shadow: var(--d-float); border-radius: var(--radius-m); }
+.ev.lifted + .ev.lifted { border-top-left-radius: 0; border-top-right-radius: 0; }
+.ev.lifted:has(+ .ev.lifted) { border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
+.tl.dragging .rail { opacity: 0; }
+.rail { transition: opacity .15s; }
+.dragnote {
+  position: absolute; left: var(--gutter); right: 0; z-index: 4; pointer-events: none; transform: translateY(calc(-100% - var(--space-2xs)));
+  display: flex; align-items: center; gap: var(--space-xs); padding: var(--space-xs) var(--space-s); border-radius: var(--radius-m);
+  background: var(--color-action); color: var(--color-on-action, var(--color-bg)); box-shadow: var(--d-float);
+}
+.dragnote.blocked { background: var(--color-surface-2); color: var(--text-primary); }
+.askh { gap: var(--space-2xs); padding: var(--space-xs) var(--space-s) var(--space-s); border-bottom: 1px solid var(--color-border); margin-bottom: var(--space-xs); max-width: 18rem; }
 
 /* A held set, while its menu is open */
 .ev.set :deep(.setr.held) { background: var(--color-surface-2); border-radius: var(--radius-m); }
