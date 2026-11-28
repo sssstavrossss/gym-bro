@@ -10,15 +10,12 @@ import {
   historyLine,
   shortDay,
   measureFields,
-  parseField,
   restLeft,
   restSeconds,
-  secondsDigits,
   setHints,
   swapExercise,
   toggleSet,
   toRequest,
-  typeKey,
   undoneSets,
   workoutStatus,
   workoutTotals,
@@ -154,28 +151,6 @@ describe("words and typing", () => {
     expect(clock(3723)).toBe("1:02:03");
   });
 
-  it("reads typed numbers within the API's limits", () => {
-    expect(parseField("kg", "82.5")).toBe(82.5);
-    expect(parseField("kg", "82,25")).toBe(82.25);
-    expect(parseField("reps", "8.5")).toBeUndefined();
-    expect(parseField("rir", "11")).toBeUndefined();
-    expect(parseField("reps", "")).toBeNull();
-    expect(parseField("seconds", "130")).toBe(90);
-    expect(parseField("seconds", "45")).toBe(45);
-    expect(secondsDigits(90)).toBe("130");
-    expect(secondsDigits(45)).toBe("45");
-    expect(secondsDigits(3661)).toBe("10101");
-  });
-
-  it("types on the app keypad: one point for kg, none for reps, and nothing past a limit", () => {
-    expect(typeKey("82", ".", "kg")).toBe("82.");
-    expect(typeKey("82.", ".", "kg")).toBe("82.");
-    expect(typeKey("8", ".", "reps")).toBe("8");
-    expect(typeKey("", ".", "kg")).toBe("0.");
-    expect(typeKey("0", "5", "reps")).toBe("5");
-    expect(typeKey("10", "1", "rir")).toBe("10");
-    expect(typeKey("82.5", "⌫", "kg")).toBe("82.");
-  });
 });
 
 describe("exerciseSummary", () => {

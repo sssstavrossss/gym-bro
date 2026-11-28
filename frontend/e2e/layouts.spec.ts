@@ -274,7 +274,7 @@ test("a tablet sheet is centred", async ({ page }) => {
 test.describe("touch at desktop width", () => {
   test.use({ viewport: { width: 1280, height: 800 }, hasTouch: true });
 
-test("a touch screen at desktop width keeps swipe and the keypad", async ({ page, browserName }) => {
+test("a touch screen at desktop width keeps swipe and the number wheel", async ({ page, browserName }) => {
   test.skip(browserName !== "chromium", "Touch media emulation is checked in Chromium");
   await page.addInitScript(() => {
     const original = window.matchMedia.bind(window);
@@ -318,8 +318,11 @@ test("a touch screen at desktop width keeps swipe and the keypad", async ({ page
   await page.locator("aside.side").getByRole("button", { name: /Add food/ }).click();
   await page.getByRole("searchbox", { name: "Search foods" }).blur();
   await page.getByRole("radio", { name: "Quick add" }).click();
-  await expect(page.getByRole("group", { name: "Number keypad" })).toBeVisible();
   await expect(page.getByRole("textbox", { name: "Calories", exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: "Calories", exact: true }).click();
+  await expect(page.locator("[data-dial]")).toBeVisible();
+  await page.locator("[data-dial-cancel]").click();
+  await expect(page.locator("[data-dial]")).toHaveCount(0);
   // The side sheet slides in from the right; measure once it has landed.
   await expect(page.locator(".sheet-root.sheet-enter-active")).toHaveCount(0);
   await expectNoSideScroll(page);

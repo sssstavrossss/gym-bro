@@ -1,4 +1,5 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
+import { pick } from "./dial";
 
 function headers(oid: string) {
   return { "X-Test-Oid": oid, "X-Test-Name": "Test User", "Content-Type": "application/json" };
@@ -158,7 +159,7 @@ test("a food log fetches only the week around it, compressed, and the card shows
   await page.getByRole("dialog", { name: "Add" }).getByRole("button", { name: "Search", exact: true }).click();
   const sheet = page.getByRole("dialog").last();
   await sheet.getByRole("radio", { name: "Quick add" }).click();
-  for (const key of ["9", "0", "0"]) await sheet.getByRole("button", { name: key, exact: true }).click();
+  await pick(page, sheet.getByRole("button", { name: "Calories", exact: true }), 900);
   await sheet.getByRole("button", { name: /Add · 900 kcal/ }).click();
   await page.keyboard.press("Escape");
 

@@ -652,7 +652,7 @@ test("large text keeps the close button, units, and the info hit target", async 
     await expect(weight).toHaveText(/^\d+\.\d\s+kg$/);
     expect(await weight.evaluate((node) => node.getClientRects().length)).toBe(1);
 
-    // Goal weight is a tinted field that opens the keypad sheet: number, unit, and pencil on one line.
+    // Goal weight is a tinted field that opens the goal weight sheet: number, unit, and pencil on one line.
     const goal = page.locator("[data-goal-weight] .gfield");
     await goal.scrollIntoViewIfNeeded();
     const goalNumber = await goal.locator(".gnum").boundingBox();

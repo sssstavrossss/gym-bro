@@ -353,7 +353,7 @@ function onTextCommit() {
 .mval { margin-left: auto; white-space: nowrap; }
 /* Set by hand: no preset is lit, so a quiet mark says why. */
 .xmark { padding: 0 var(--space-s); border-radius: 999px; box-shadow: inset 0 0 0 1px var(--color-border-strong, var(--color-border)); color: var(--text-secondary); line-height: 1.5; }
-/* Goal weight reads as a field: a tinted box with a pencil. It opens the keypad sheet. */
+/* Goal weight reads as a field: a tinted box with a pencil. It opens the goal weight sheet. */
 .gfield { display: inline-flex; align-items: center; gap: var(--space-xs); flex: none; margin-left: auto; min-height: 36px; padding: 0 var(--space-m); border-radius: var(--radius-m); background: var(--color-surface-2); box-shadow: var(--d-sunk); }
 .gnum { color: var(--text-primary); font-variant-numeric: tabular-nums; }
 .gfield .c3 { align-self: center; margin-left: var(--space-2xs); }

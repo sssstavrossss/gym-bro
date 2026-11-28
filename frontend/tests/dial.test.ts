@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  amountDial, arcGap, arcPlace, arcSteps, DIAL_PRESETS, dialSpec, dialText, fieldDial, indexOf, loadDial, restDial, stepText, tidy, typedValue, valueAt, weightDial, wheel,
+  amountDial, arcGap, arcPlace, quickDial, arcSteps, DIAL_PRESETS, dialSpec, dialText, fieldDial, indexOf, loadDial, restDial, stepText, tidy, typedValue, valueAt, weightDial, wheel,
 } from "../src/lib/dial";
 
 describe("a wheel's spec", () => {
@@ -212,5 +212,19 @@ describe("the food wheels", () => {
   it("take the unit the screen names", () => {
     expect(dialSpec("food.pieces", { label: "Egg", value: 2, unit: "eggs" }).unit).toBe("eggs");
     expect(dialSpec("food.grams", { label: "Skyr", value: 150 }).unit).toBe("g");
+  });
+});
+
+describe("Quick Add's wheels", () => {
+  it("pick calories or a macro's grams", () => {
+    expect(quickDial("kcal")).toBe("quick.kcal");
+    expect(quickDial("p")).toBe("quick.grams");
+    expect(quickDial("c")).toBe("quick.grams");
+  });
+
+  it("start at 0, so calories can be left to the macros, and reach the API's limits", () => {
+    expect(DIAL_PRESETS["quick.kcal"]).toMatchObject({ min: 0, max: 10000, unit: "kcal" });
+    expect(DIAL_PRESETS["quick.grams"]).toMatchObject({ min: 0, max: 1000, unit: "g" });
+    expect(Math.min(...DIAL_PRESETS["quick.grams"].steps)).toBe(0.5);
   });
 });

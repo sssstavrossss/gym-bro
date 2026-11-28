@@ -36,7 +36,6 @@ import {
 import { int } from "./format";
 import type { MacroAmounts } from "./macros";
 import { foodSource, scaleMap, valuesOf, type NutrientMap, type NutrientSource } from "./nutrients";
-import { typeInto } from "./numbers";
 import { afterInsertion, nextQuickInput, tookWholeSelection } from "./quickEntry";
 import { toast } from "../ui";
 import type { LogEntry } from "../state/log";
@@ -229,18 +228,6 @@ export function useFoodAmount(options: FoodAmountOptions) {
     return isConverted(unit.value, setting.value) ? `= ${int(amount)} ${normalizeUnit(unit.value)} · ${line}` : line;
   }
 
-  function key(pressed: string) {
-    const { maxInt, decimals } = limits();
-    if (fresh.value && pressed !== ".") {
-      amountText.value = pressed === "⌫" ? "0" : pressed;
-      fresh.value = false;
-      return;
-    }
-    fresh.value = false;
-    const next = typeInto(amountText.value === "0" && pressed !== "⌫" && pressed !== "." ? "0" : amountText.value, pressed, maxInt, decimals);
-    amountText.value = next === "" ? "0" : next;
-  }
-
   function input(event: Event) {
     const field = event.target as HTMLInputElement;
     const replace = fresh.value;
@@ -400,7 +387,6 @@ export function useFoodAmount(options: FoodAmountOptions) {
     setAmount,
     liveLine,
     pickChip,
-    key,
     input,
     canAddServing,
     ownServings,

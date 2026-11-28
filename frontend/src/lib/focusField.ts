@@ -91,7 +91,7 @@ export function primeKeyboard(): void {
 
 /**
  * Record the control that opens a sheet, so focus can go back to it on close,
- * without raising the keyboard. For sheets that type on the app keypad.
+ * without raising the keyboard. For sheets whose numbers are picked on the number wheel.
  */
 export function rememberOpener(): void {
   if (typeof document === "undefined") return;
