@@ -2,6 +2,7 @@ using System.Security.Claims;
 using GymBro.Api.Auth;
 using GymBro.Api.Configuration;
 using GymBro.Api.Data;
+using GymBro.Api.Hosting;
 using GymBro.Api.Users;
 using Microsoft.Extensions.Options;
 
@@ -50,7 +51,8 @@ public static class GymBroEndpoints
         api.MapPlans();
         api.MapFallback(() => Results.Json(new { error = "Not found" }, statusCode: StatusCodes.Status404NotFound));
 
-        app.MapFallbackToFile("index.html");
+        // The fallback serves the page for every app route, with the same revalidation as /index.html.
+        app.MapFallbackToFile("index.html", AppFiles.Options);
         return app;
     }
 

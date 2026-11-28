@@ -204,24 +204,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.UseDefaultFiles();
-app.UseStaticFiles(new StaticFileOptions
-{
-    OnPrepareResponse = context =>
-    {
-        // Vite fingerprints JS and CSS. index.html and the service worker must be
-        // revalidated so a new container is picked up without a hard refresh.
-        if (context.File.Name.Equals("index.html", StringComparison.OrdinalIgnoreCase)
-            || context.File.Name.Equals("sw.js", StringComparison.OrdinalIgnoreCase))
-        {
-            context.Context.Response.Headers.CacheControl = "no-cache";
-        }
-        else if (context.Context.Request.Path.StartsWithSegments(ExerciseCatalog.PhotosPath))
-        {
-            // The path names the free-exercise-db commit, so a photo at it never changes.
-            context.Context.Response.Headers.CacheControl = "public, max-age=31536000, immutable";
-        }
-    },
-});
+app.UseStaticFiles(AppFiles.Options);
 
 app.MapGymBro();
 
