@@ -27,7 +27,7 @@ import { maxText } from "../lib/records";
 import { formatLabel } from "../lib/timed";
 import { dialSpec, REST_HINTS, restDial } from "../lib/dial";
 import { moveExercise, moveSet, setUnit, type MoveAsk, type MoveContext, type MoveVerdict } from "../lib/timelineMove";
-import { exercisePlace, joinAt, landing, runBlocks, setPlace, shiftOf, type Box, type Neighbour, type Slot } from "../lib/timelineDrag";
+import { exercisePlace, joinAt, landing, raiseFor, runBlocks, setPlace, shiftOf, type Box, type Neighbour, type Slot } from "../lib/timelineDrag";
 import { scrollParent } from "../lib/cleanTap";
 import { holdNoSelect } from "../lib/noSelect";
 import { exercises as library } from "../state/exercises";
@@ -311,8 +311,13 @@ interface Drag {
   moved: boolean;
   place: { key: string; at: number } | null;
   spot: { at: number; part?: WorkoutPart | null } | null;
-  /** How far down the lifted rows they were picked up. */
+  /** How far down the lifted rows they were picked up, and how far over that the finger they're drawn (a touch). */
   grab: number;
+  raise: number;
+  /** The top of the timeline in view, where the note sits while it's up. */
+  viewTop: number;
+  /** Room over the timeline while it's up, so rows that folded away above don't pull the ones held from the finger. */
+  pad: number;
   /** Over the middle of another exercise (or superset): its rows, and where they end, to do them together. */
   join: { keys: string[]; bottom: number } | null;
   verdict: MoveVerdict | null;
@@ -331,7 +336,7 @@ function measure() {
 }
 const unitBoxes = (current: Drag) => boxes.filter((box) => current.unit.includes(box.key));
 
-type From = { x: number; y: number; pointerId: number };
+type From = { x: number; y: number; pointerId: number; touch: boolean };
 function hold(row: TimelineRow, anchor: Element, from: From) {
   if (row.type !== "set" || !ex(row.exercise)) return;
   const exercise = ex(row.exercise);
@@ -360,22 +365,37 @@ async function pickUp(row: TimelineRow, anchor: Element, from: From, what: Pick<
   const before = li.getBoundingClientRect().top;
   const pick: typeof lift = { anchor, y: from.y, pointerId: from.pointerId, startY: 0, lastY: from.y, travelled: 0, scroller: scrollParent(list.value) };
   lift = pick;
-  drag.value = { ...what, dy: 0, height: 0, gap: -1, open: false, moved: false, place: null, spot: null, grab: 0, join: null, verdict: null };
+  drag.value = { ...what, dy: 0, height: 0, gap: -1, open: false, moved: false, place: null, spot: null, grab: 0, raise: 0, viewTop: 0, pad: 0, join: null, verdict: null };
   foldAll.value = what.what === "exercise";
   listen(true);
   await nextTick();
   if (lift !== pick || !drag.value) return;
-  // The rests (or the exercises) folded away above it: scroll by what moved, and carry what the scroll can't take
-  // up, so what's held stays under the finger.
-  const now = () => list.value?.querySelector(`[data-row="${row.key}"]`)?.getBoundingClientRect().top ?? before;
-  pick.scroller?.scrollBy(0, now() - before);
-  const dy0 = before - now();
-  pick.startY = from.y + scrollTop() - dy0;
   measure();
   const lifted = unitBoxes(drag.value);
   drag.value.height = lifted.reduce((sum, box) => sum + box.height, 0);
-  // Where on the lifted rows the finger is: what's under it is what an exercise joins or passes.
-  drag.value.grab = from.y - (list.value.getBoundingClientRect().top + (lifted[0]?.top ?? 0) + dy0);
+  // Where on the lifted rows the finger is: that point is what an exercise joins or passes. On a touch screen they
+  // float over the finger, so it hides nothing.
+  drag.value.grab = from.y - before;
+  drag.value.raise = raiseFor(from.touch, drag.value.height, drag.value.grab);
+  // The rests (or the exercises) folded away above it, and the rows held go up over the finger: scroll the timeline
+  // so their place is where they're drawn, and carry what the scroll can't take up. Nothing has moved yet. Room
+  // under the timeline (as much as they rise) lets it scroll that far even at its end.
+  if (drag.value.raise) {
+    await nextTick();
+    if (lift !== pick || !drag.value) return;
+  }
+  const target = before - drag.value.raise;
+  const now = () => list.value?.querySelector(`[data-row="${row.key}"]`)?.getBoundingClientRect().top ?? before;
+  pick.scroller?.scrollBy(0, now() - target);
+  // Folded up higher than that, with nothing above to scroll back: room over the timeline brings them down to it.
+  if (now() < target - 1) {
+    drag.value.pad = target - now();
+    await nextTick();
+    if (lift !== pick || !drag.value) return;
+    measure();
+  }
+  const dy0 = target - now();
+  pick.startY = from.y - drag.value.raise + scrollTop() - dy0;
   update();
   autoScroll();
 }
@@ -403,7 +423,7 @@ function headPress(event: PointerEvent, row: TimelineRow) {
   headHeld = false;
   if ((row.type !== "exercise" && row.type !== "run") || event.button !== 0 || drag.value || workout.saving) return;
   const anchor = event.currentTarget as Element;
-  const from = { x: event.clientX, y: event.clientY, pointerId: event.pointerId };
+  const from = { x: event.clientX, y: event.clientY, pointerId: event.pointerId, touch: event.pointerType !== "mouse" };
   headFrom = from;
   window.clearTimeout(headTimer);
   headTimer = window.setTimeout(() => {
@@ -448,7 +468,8 @@ function update() {
   if (!lifted.length) return;
   const top = lifted[0].top;
   const end = boxes[boxes.length - 1];
-  const dy = Math.max(-top, Math.min(end.top + end.height - current.height - top, lift.lastY + scrollTop() - lift.startY));
+  const dy = Math.max(boxes[0].top - top, Math.min(end.top + end.height - current.height - top, lift.lastY - current.raise + scrollTop() - lift.startY));
+  const viewTop = Math.max(0, (lift.scroller?.getBoundingClientRect().top ?? 0) - (list.value?.getBoundingClientRect().top ?? 0));
   const others = boxes.filter((box) => !current.unit.includes(box.key));
   if (current.what === "exercise") {
     // By bands: with the finger over the middle of another exercise (or superset) it would join it, and the gap
@@ -462,19 +483,19 @@ function update() {
     const over = moved ? joinAt(runBlocks(others, slots, drawn), middle) : null;
     if (over) {
       const verdict = moveExercise(props.exercises, { key: current.exercise, whole: current.whole, at: over.index, join: true }, moveContext);
-      drag.value = { ...current, dy, gap: held, spot: null, join: { keys: over.keys, bottom: over.bottom }, verdict, moved };
+      drag.value = { ...current, dy, viewTop, gap: held, spot: null, join: { keys: over.keys, bottom: over.bottom }, verdict, moved };
       return;
     }
     const spot = exercisePlace(slots, others.filter((box, at) => drawn(box, at) + box.height / 2 < middle).length);
     const verdict = moveExercise(props.exercises, { key: current.exercise, whole: current.whole, at: spot.at, part: spot.part }, moveContext);
-    drag.value = { ...current, dy, gap: spot.gap, open: verdict.ok, spot, join: null, verdict, moved };
+    drag.value = { ...current, dy, viewTop, gap: spot.gap, open: verdict.ok, spot, join: null, verdict, moved };
     return;
   }
   const gap = landing(others, top, dy, current.height);
   const exercise = ex(current.exercise);
   const place = exercise ? setPlace(neighbour(others[gap - 1]), neighbour(others[gap]), { exercise: current.exercise, ...setUnit(exercise.sets, current.index) }) : null;
   const verdict = place ? moveSet(props.exercises, { key: current.exercise, index: current.index }, place, moveContext) : null;
-  drag.value = { ...current, dy, gap, open: !!verdict?.ok, place, verdict, moved: lift.travelled > 6 };
+  drag.value = { ...current, dy, viewTop, gap, open: !!verdict?.ok, place, verdict, moved: lift.travelled > 6 };
 }
 
 function onMove(event: PointerEvent) {
@@ -504,8 +525,10 @@ function autoScroll() {
     if (!drag.value || !lift) return;
     const box = lift.scroller?.getBoundingClientRect() ?? { top: 0, bottom: window.innerHeight };
     const edge = 64;
+    // Up by where the rows are drawn (over the finger on a touch screen), down by the finger.
     const y = lift.lastY;
-    const speed = y < box.top + edge ? -(box.top + edge - y) / 4 : y > box.bottom - edge ? (y - (box.bottom - edge)) / 4 : 0;
+    const up = y - drag.value.raise - drag.value.grab;
+    const speed = up < box.top + edge ? -(box.top + edge - up) / 4 : y > box.bottom - edge ? (y - (box.bottom - edge)) / 4 : 0;
     if (speed && lift.travelled > 6 && lift.scroller) {
       lift.scroller.scrollBy(0, speed);
       update();
@@ -567,22 +590,8 @@ const note = computed(() => {
   if (!current.verdict.ok) return { blocked: true, text: current.verdict.reason };
   return current.verdict.ask ? { blocked: false, text: current.verdict.ask.title } : null;
 });
-/** Over the rows lifted, or under them when they're near the top of the sheet and it would be cut off. */
-const noteBelow = ref(false);
-const noteTop = computed(() => {
-  const current = drag.value;
-  if (!current) return 0;
-  if (current.join) return current.join.bottom;
-  const lifted = unitBoxes(current);
-  const top = (lifted[0]?.top ?? 0) + current.dy;
-  return noteBelow.value ? top + current.height : top;
-});
-watch(noteTop, (top) => {
-  if (!drag.value || !list.value || drag.value.join) return;
-  const view = lift?.scroller?.getBoundingClientRect().top ?? 0;
-  const at = list.value.getBoundingClientRect().top + (noteBelow.value ? top - (drag.value.height ?? 0) : top);
-  noteBelow.value = at - view < 56;
-});
+/** Pinned to the top of the timeline in view, where neither the finger nor the rows held cover it. */
+const noteTop = computed(() => drag.value?.viewTop ?? 0);
 
 /** Where a row is drawn while a set is up: the lifted ones follow the finger; the others make room. */
 function shift(key: string): string | undefined {
@@ -701,7 +710,9 @@ const infoLines = (exercise: DraftExercise) => Object.entries(info(exercise)).so
 </script>
 
 <template>
-  <ol ref="list" class="tl" :class="{ dragging: !!drag, settling }" aria-label="The workout, in order" data-timeline @selectstart.prevent @pointerdown.capture="fingerDown">
+  <ol ref="list" class="tl" :class="{ dragging: !!drag, settling }" aria-label="The workout, in order" data-timeline
+    :style="drag ? { paddingTop: `${drag.pad}px`, paddingBottom: `${drag.raise}px` } : undefined" @selectstart.prevent @pointerdown.capture="fingerDown"
+  >
     <svg class="rail" :height="railH" width="70" aria-hidden="true">
       <path v-for="path in paths" :key="path.key" :d="path.d" :class="path.cls" fill="none" />
     </svg>
@@ -814,8 +825,8 @@ const infoLines = (exercise: DraftExercise) => Object.entries(info(exercise)).so
       </button>
     </li>
 
-    <!-- What a drop here would do, just above the set lifted -->
-    <li v-if="note" class="dragnote t-capn" :class="{ blocked: note.blocked, below: noteBelow || !!drag?.join }" :style="{ top: `${noteTop}px` }" role="status" data-drag-note>
+    <!-- What a drop here would do, at the top of the timeline in view -->
+    <li v-if="note" class="dragnote t-capn" :class="{ blocked: note.blocked }" :style="{ top: `${noteTop}px` }" role="status" data-drag-note>
       <Icon v-if="note.blocked" name="lock" :size="12" />
       <span>{{ note.text }}</span>
     </li>
@@ -970,12 +981,11 @@ button.nodehit:disabled { opacity: 1; }
 .tl.dragging .rail { opacity: 0; }
 .rail { transition: opacity .15s; }
 .dragnote {
-  position: absolute; left: var(--gutter); right: 0; z-index: 4; pointer-events: none; transform: translateY(calc(-100% - var(--space-2xs)));
+  position: absolute; left: var(--space-xs); right: var(--space-xs); z-index: 4; pointer-events: none; margin-top: var(--space-xs);
   display: flex; align-items: center; gap: var(--space-xs); padding: var(--space-xs) var(--space-s); border-radius: var(--radius-m);
   background: var(--color-action); color: var(--color-on-action, var(--color-bg)); box-shadow: var(--d-float);
 }
 .dragnote.blocked { background: var(--color-surface-2); color: var(--text-primary); }
-.dragnote.below { transform: translateY(var(--space-2xs)); }
 /* What a lifted exercise would join: lit while it's over it, or greyed where it can't */
 .ev.join { background: color-mix(in srgb, var(--color-action) 14%, var(--color-bg)); box-shadow: inset 3px 0 0 var(--color-action); }
 .ev.nojoin { opacity: .5; }

@@ -256,3 +256,55 @@ test("exercises drag by their heading: reordered with Undo, joined, out of a sup
   await expect(page.locator(".toast").filter({ hasText: "The exercises you've done stay first." })).toBeVisible();
   await expect.poll(() => order(page)).toBe(`${bench} ${incline} ${row}`);
 });
+
+test("on a touch screen the rows held float over the finger, and the note sits at the top of the timeline", async ({ page, browserName }) => {
+  // Touches only Chromium can send (CDP); WebKit runs the same code with a mouse in the tests above.
+  test.skip(browserName !== "chromium", "touch drag needs CDP");
+  await page.goto("/");
+  await setup(page);
+  await page.goto("/train");
+  await page.getByRole("button", { name: "Empty workout" }).click();
+  const workout = page.getByRole("dialog", { name: "Workout" });
+  const adding = page.getByRole("dialog", { name: "Add exercise" });
+  for (const [query, name] of [["barbell bench press", "Barbell Bench Press - Medium Grip"], ["barbell deadlift", "Barbell Deadlift"]]) {
+    await addToWorkout(page, "add-exercise");
+    await adding.getByLabel("Search exercises").fill(query);
+    await adding.getByRole("button", { name: `Add ${name}`, exact: true }).click();
+    await expect(workout.locator(`[data-workout-exercise]`).last()).toContainText(name);
+  }
+  const deadSets = workout.locator('[data-timeline] [data-set][data-exercise="barbell-deadlift"]');
+  await expect(deadSets).not.toHaveCount(0);
+  const set = deadSets.last();
+  await set.scrollIntoViewIfNeeded();
+  await set.click({ trial: true });
+
+  const cdp = await page.context().newCDPSession(page);
+  const touch = (type: "touchStart" | "touchMove" | "touchEnd", x: number, y: number) =>
+    cdp.send("Input.dispatchTouchEvent", { type, touchPoints: type === "touchEnd" ? [] : [{ x, y, id: 1 }] });
+  const box = (await set.boundingBox())!;
+  const x = box.x + 120;
+  const y = box.y + box.height / 2;
+  await touch("touchStart", x, y);
+  const lifted = workout.locator("[data-timeline] .ev.lifted").first();
+  await expect(lifted).toBeVisible();
+  // Lifted, nothing has moved: the set is drawn a little over the finger, not under it.
+  await expect.poll(async () => { const at = (await lifted.boundingBox())!; return Math.round(y - (at.y + at.height)); }).toBe(24);
+
+  const bench = (await workout.locator('[data-workout-exercise="barbell-bench-press-medium-grip"]').boundingBox())!;
+  // The finger a set and a bit under the bench press heading puts the set (over it) among the bench press's sets.
+  const to = bench.y + bench.height + box.height + 40;
+  for (let step = 1; step <= 10; step++) {
+    await touch("touchMove", x, y + ((to - y) * step) / 10);
+    await page.waitForTimeout(20);
+  }
+  await expect.poll(async () => { const at = (await lifted.boundingBox())!; return Math.round(to - (at.y + at.height)); }).toBe(24);
+  // Its note is pinned at the top of the timeline in view, clear of the finger and the set.
+  const note = workout.locator("[data-drag-note]");
+  await expect(note).toContainText("Move the set to Barbell Bench Press - Medium Grip?");
+  await expect(note).toBeInViewport();
+  const noteBox = (await note.boundingBox())!;
+  expect(noteBox.y + noteBox.height).toBeLessThan((await lifted.boundingBox())!.y);
+  await touch("touchEnd", x, to);
+  await page.locator('[data-menu] [data-menu-item="move-back"]').click();
+  await expect(deadSets).toHaveCount(3);
+});
