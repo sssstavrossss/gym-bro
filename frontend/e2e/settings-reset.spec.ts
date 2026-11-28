@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { addToWorkout } from "./timeline";
 
 function headers(oid: string) {
   return { "X-Test-Oid": oid, "X-Test-Name": "Test User", "Content-Type": "application/json" };
@@ -71,7 +72,7 @@ test("Reset training deletes the workouts and the one going on, and leaves the f
   await page.goto("/train");
   await page.getByRole("button", { name: "Empty workout" }).click();
   // Quick start opens the workout on its timeline; + Exercise opens Add exercise.
-  await page.getByRole("dialog", { name: "Workout" }).locator("[data-add-exercise]").click();
+  await addToWorkout(page, "add-exercise");
   const add = page.getByRole("dialog", { name: "Add exercise" });
   await add.getByLabel("Search exercises").fill("barbell squat");
   await add.getByRole("button", { name: "Add Barbell Squat", exact: true }).click();

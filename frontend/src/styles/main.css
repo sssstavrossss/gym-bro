@@ -224,6 +224,8 @@ html[data-accent]:not([data-accent="mono"]) {
   --control-btn: 44px;
   /* The tab bar's + and the fan's buttons around it. */
   --control-fab: 56px;
+  /* A row in a small menu (PopMenu): a list edge to edge, the one place a target is under 44px. */
+  --control-menu-row: 40px;
   /* A workout or weigh-in badge on Home's week strip and calendar, and the larger one in a day's card. */
   --badge: 16px;
   --badge-l: 22px;
@@ -232,6 +234,8 @@ html[data-accent]:not([data-accent="mono"]) {
   /* The number wheel (NumberDial): above the sheets, on a scrim darker at the bottom where the ring is. Its ring
      and buttons spring out on the + fan's curve. */
   --z-dial: 200;
+  /* A small menu (PopMenu) over the sheets, under the number wheel it can open. */
+  --z-menu: 150;
   --scrim-dial: linear-gradient(to top, rgb(0 0 0 / .97) 45%, rgb(0 0 0 / .9) 70%, rgb(0 0 0 / .7));
   --scrim-line: rgb(255 255 255 / .35);
   --scrim-button: rgb(255 255 255 / .14);

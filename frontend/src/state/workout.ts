@@ -20,6 +20,7 @@ import {
   toggleSet,
   toRequest,
   type DraftExercise,
+  type DraftSet,
   type DraftWorkout,
   type SetField,
   type SetType,
@@ -340,10 +341,33 @@ export function addWarmups(key: string): { count: number; workKg: number } | nul
   return { count: ramp.length, workKg: workKg! };
 }
 
-export function removeSet(key: string, index: number): void {
+export function removeSet(key: string, index: number): DraftSet | null {
+  const exercise = find(key);
+  if (!exercise) return null;
+  const [removed] = exercise.sets.splice(index, 1);
+  save();
+  return removed ?? null;
+}
+/** A deleted set's Undo: back where it was. */
+export function restoreSet(key: string, index: number, set: DraftSet): void {
   const exercise = find(key);
   if (!exercise) return;
-  exercise.sets.splice(index, 1);
+  exercise.sets.splice(Math.min(index, exercise.sets.length), 0, set);
+  save();
+}
+/** From a set's menu on the timeline: make it a warm-up, a drop set or a working set again. */
+export function setSetType(key: string, index: number, type: SetType): void {
+  const set = find(key)?.sets[index];
+  if (!set || set.type === type) return;
+  set.type = type;
+  save();
+}
+/** From a set's menu: the same numbers again, right after it, not ticked off. */
+export function duplicateSet(key: string, index: number): void {
+  const exercise = find(key);
+  const set = exercise?.sets[index];
+  if (!exercise || !set) return;
+  exercise.sets.splice(index + 1, 0, { ...set, doneAt: null });
   save();
 }
 

@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { pick } from "./dial";
+import { addToWorkout } from "./timeline";
 
 function headers(oid: string) {
   return { "X-Test-Oid": oid, "X-Test-Name": "Test User", "Content-Type": "application/json" };
@@ -37,13 +38,13 @@ test("The number wheel: an exercise's rest is picked on the arc, by finger, step
   await page.goto("/train");
   await page.getByRole("button", { name: "Empty workout" }).click();
   // Quick start opens the workout on its timeline; + Exercise opens Add exercise.
-  await page.getByRole("dialog", { name: "Workout" }).locator("[data-add-exercise]").click();
+  await addToWorkout(page, "add-exercise");
   const add = page.getByRole("dialog", { name: "Add exercise" });
   await add.getByLabel("Search exercises").fill("barbell squat");
   await add.getByRole("button", { name: "Add Barbell Squat", exact: true }).click();
   const workout = page.getByRole("dialog", { name: "Workout" });
-  const restButton = workout.locator("[data-rest-setting]");
-  // A heavy leg lift rests 3:00.
+  // A heavy leg lift rests 3:00: each rest still to come says so, and changes on a tap.
+  const restButton = workout.locator("[data-rest-setting]").first();
   await expect(restButton).toHaveText("3:00");
 
   // The wheel opens on the rest, with a heavy lift's steps (30 s ours) and a hint.

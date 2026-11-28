@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { pick, setRow } from "./dial";
+import { closeMenu, exerciseMenu } from "./timeline";
 
 function headers(oid: string) {
   return { "X-Test-Oid": oid, "X-Test-Name": "Test User", "Content-Type": "application/json" };
@@ -83,7 +84,8 @@ test("Up next: skip with Undo, start the plan workout prefilled, finish it, and 
   await expect(workout.locator("[data-workout-exercise]")).toHaveCount(upperA.exercises.length);
   const bench = "barbell-bench-press-medium-grip";
   await expect(workout.locator(`[data-workout-exercise="${bench}"][data-open]`)).toBeVisible();
-  await expect(workout.locator(`[data-info="${bench}"]`)).toContainText("6–10 reps · 3 in reserve");
+  await expect((await exerciseMenu(page, bench)).locator(`[data-info="${bench}"]`)).toContainText("6–10 reps · 3 in reserve");
+  await closeMenu(page);
   await expect(workout.locator(`[data-set][data-exercise="${bench}"]`)).toHaveCount(3);
   const card = setRow(workout, bench, 0);
   await expect(card.getByLabel("Set 1, RIR")).toContainText("3");

@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { pick, setRow } from "./dial";
+import { addToWorkout, fromExerciseMenu } from "./timeline";
 
 function headers(oid: string) {
   return { "X-Test-Oid": oid, "X-Test-Name": "Test User", "Content-Type": "application/json" };
@@ -37,7 +38,7 @@ test("Swap an exercise: similar ones first, ticked sets stay, the rest move", as
   await page.goto("/train");
   await page.getByRole("button", { name: "Empty workout" }).click();
   // Quick start opens the workout on its timeline; + Exercise opens Add exercise.
-  await page.getByRole("dialog", { name: "Workout" }).locator("[data-add-exercise]").click();
+  await addToWorkout(page, "add-exercise");
   const adding = page.getByRole("dialog", { name: "Add exercise" });
   await adding.getByLabel("Search exercises").fill("barbell squat");
   await adding.getByRole("button", { name: "Add Barbell Squat", exact: true }).click();
@@ -46,7 +47,7 @@ test("Swap an exercise: similar ones first, ticked sets stay, the rest move", as
   await pick(page, workout.getByLabel("Set 1, kg"), 100);
   await pick(page, workout.getByLabel("Set 1, Reps"), 5);
   await workout.getByRole("button", { name: "Set 1 done" }).click();
-  await workout.getByRole("button", { name: "Swap Barbell Squat" }).click();
+  await fromExerciseMenu(page, "barbell-squat", "swap");
 
   const swap = page.getByRole("dialog", { name: "Swap Barbell Squat" });
   const movement = swap.locator('[data-swap-group="movement"]');
@@ -61,10 +62,10 @@ test("Swap an exercise: similar ones first, ticked sets stay, the rest move", as
   const pressSets = workout.locator('[data-set][data-exercise="leg-press"]');
   await expect(workout.locator('[data-workout-exercise="leg-press"][data-open]')).toBeVisible();
   await expect(pressSets).toHaveCount(2);
-  await expect(setRow(workout, "leg-press", 0).getByLabel("Set 1, kg")).toHaveText(/—$/);
+  await expect(setRow(workout, "leg-press", 0).getByLabel("Set 1, kg")).toHaveText(/^—\s?kg$/);
 
   // Going back from the swap screen changes nothing.
-  await workout.getByRole("button", { name: "Swap Leg Press" }).click();
+  await fromExerciseMenu(page, "leg-press", "swap");
   await page.getByRole("dialog", { name: "Swap Leg Press" }).getByRole("button", { name: "Back to the workout" }).click();
   await expect(pressSets).toHaveCount(2);
 

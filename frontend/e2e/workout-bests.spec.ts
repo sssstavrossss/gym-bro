@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { pick, setRow } from "./dial";
+import { closeMenu, exerciseMenu } from "./timeline";
 
 function headers(oid: string) {
   return { "X-Test-Oid": oid, "X-Test-Name": "Test User", "Content-Type": "application/json" };
@@ -56,19 +57,23 @@ test("beating an exercise's best estimated max says so on the card and in the su
   await page.locator("[data-up-next]").getByRole("button", { name: "Start Upper A" }).click();
   const workout = page.getByRole("dialog", { name: "Upper A" });
   const row = (index: number) => setRow(workout, bench, index);
-  await expect(workout.locator("[data-load-suggestion]").first()).toBeVisible();
+  await expect((await exerciseMenu(page, bench)).locator("[data-load-suggestion]")).toBeVisible();
+  await closeMenu(page);
   await pick(page, row(0).getByLabel("Set 1, kg"), 60);
   await pick(page, row(0).getByLabel("Set 1, Reps"), 10);
   await pick(page, row(0).getByLabel("Set 1, RIR"), 2);
   await row(0).getByRole("button", { name: "Set 1 done" }).click();
   // Equal isn't a record.
-  await expect(workout.locator("[data-new-best]")).toHaveCount(0);
+  await expect(workout.locator("[data-best-mark]")).toHaveCount(0);
 
   await pick(page, row(1).getByLabel("Set 2, kg"), 70);
   await pick(page, row(1).getByLabel("Set 2, Reps"), 8);
   await pick(page, row(1).getByLabel("Set 2, RIR"), 2);
   await row(1).getByRole("button", { name: "Set 2 done" }).click();
-  await expect(workout.locator("[data-new-best]")).toHaveText("New best: est. max 93.5 kg");
+  // A trophy on the exercise's heading, and the best in its menu.
+  await expect(workout.locator(`[data-workout-exercise="${bench}"] [data-best-mark]`)).toBeVisible();
+  await expect((await exerciseMenu(page, bench)).locator("[data-new-best]")).toHaveText("New best: est. max 93.5 kg");
+  await closeMenu(page);
 
   await workout.getByRole("button", { name: /^End now/ }).click();
   await workout.getByRole("alertdialog").getByRole("button", { name: "End workout" }).click();

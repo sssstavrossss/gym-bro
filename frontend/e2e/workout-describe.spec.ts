@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { addToWorkout } from "./timeline";
 
 function headers(oid: string) {
   return { "X-Test-Oid": oid, "X-Test-Name": "Test User", "Content-Type": "application/json" };
@@ -36,7 +37,7 @@ test("Describe a workout: the words become exercises with their sets ticked off,
   await page.goto("/train");
 
   await page.getByRole("button", { name: "Empty workout" }).click();
-  await page.getByRole("dialog", { name: "Workout" }).getByRole("button", { name: "Describe" }).click();
+  await addToWorkout(page, "describe-workout");
   const sheet = page.getByRole("dialog", { name: "Describe a workout" });
   await expect(sheet).toBeVisible();
 
@@ -58,8 +59,8 @@ test("Describe a workout: the words become exercises with their sets ticked off,
   await workout.locator("[data-describe-unmatched]").getByRole("button", { name: "Dismiss" }).click();
   await expect(workout.locator("[data-describe-unmatched]")).toHaveCount(0);
 
-  // The Describe button on the workout adds more to it.
-  await workout.locator("[data-timeline] [data-describe-workout]").click();
+  // Describe, from the timeline's +, adds more to it.
+  await addToWorkout(page, "describe-workout");
   await sheet.getByLabel("What you did").fill("squat 2x5 100 kg");
   await sheet.getByRole("button", { name: "Find exercises" }).click();
   await expect(workout.locator("[data-workout-status]")).toContainText("9 of 9 sets");

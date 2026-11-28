@@ -1,5 +1,6 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { setRow } from "./dial";
+import { closeMenu, exerciseMenu } from "./timeline";
 
 function headers(oid: string) {
   return { "X-Test-Oid": oid, "X-Test-Name": "Test User", "Content-Type": "application/json" };
@@ -80,7 +81,8 @@ test("a Hyrox plan: strength days between station circuits and runs, and Station
   const workout = page.getByRole("dialog", { name: "Stations A" });
   const block = workout.getByRole("group", { name: "For time: Run, SkiErg, Sled Push, Sled Pull, Burpee Broad Jump" });
   await expect(block.locator("[data-block-clock]")).toContainText("3 rounds as fast as you can");
-  await expect(workout.locator('[data-info="run"]')).toContainText("1 km");
+  await expect((await exerciseMenu(page, "run")).locator('[data-info="run"]')).toContainText("1 km");
+  await closeMenu(page);
   await expect(workout.locator('[data-set][data-exercise="run"]')).toHaveCount(3);
   await expect(setRow(workout, "run", 0).getByLabel("Set 1, m", { exact: true })).toContainText("1km");
 
