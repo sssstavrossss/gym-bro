@@ -82,12 +82,13 @@ test("a label photo fills New food for checking, with saturated fat, sugars, fib
   await expect(sheet(page).getByRole("textbox", { name: /Brand/ })).toHaveValue("Northbar");
   await expect(sheet(page).getByRole("radio", { name: "Per 100 g" })).toBeChecked();
   await expect(sheet(page).getByRole("textbox", { name: /Serving name/ })).toHaveValue("slice");
-  await expect(sheet(page).getByRole("textbox", { name: /Serving size/ })).toHaveValue("13");
-  await expect(sheet(page).getByRole("textbox", { name: /Calories/ })).toHaveValue("370");
-  await expect(sheet(page).getByRole("textbox", { name: /^Fat/ })).toHaveValue("6.5");
-  await expect(sheet(page).getByRole("textbox", { name: /Saturated fat/ })).toHaveValue("1.1");
-  await expect(sheet(page).getByRole("textbox", { name: /Fibre/ })).toHaveValue("17");
-  await expect(sheet(page).getByRole("textbox", { name: /Salt/ })).toHaveValue("1");
+  // On a phone the numbers are buttons that open the number wheel.
+  await expect(sheet(page).getByRole("button", { name: /^Serving size/ })).toHaveText("13");
+  await expect(sheet(page).getByRole("button", { name: /^Calories/ })).toHaveText("370");
+  await expect(sheet(page).getByRole("button", { name: /^Fat/ })).toHaveText("6.5");
+  await expect(sheet(page).getByRole("button", { name: /^Saturated fat/ })).toHaveText("1.1");
+  await expect(sheet(page).getByRole("button", { name: /^Fibre/ })).toHaveText("17");
+  await expect(sheet(page).getByRole("button", { name: /^Salt/ })).toHaveText("1");
   await expect(sheet(page).getByRole("button", { name: "Try another photo" })).toBeVisible();
 
   // Nothing is saved until Save food; then the extras are kept with the food.

@@ -29,6 +29,16 @@ export const DIAL_PRESETS = {
   "body.weight.lb": { unit: "lb", min: 66.2, max: 661.3, steps: [0.1, 0.5, 1, 5], step: 0.1, start: 175 },
   "body.goal": { unit: "kg", min: 30, max: 300, steps: [0.5, 1, 5], step: 0.5, start: 75 },
   "body.goal.lb": { unit: "lb", min: 66.2, max: 661.3, steps: [1, 5, 10], step: 1, start: 165 },
+  // A profile: birth year (its range set by this year), height, and the exact macro settings.
+  "body.year": { unit: "", min: 1920, max: 2020, steps: [1, 5, 10], step: 1, start: 1990 },
+  "body.height.cm": { unit: "cm", min: 100, max: 250, steps: [0.5, 1, 5], step: 1, start: 170 },
+  "body.height.ft": { unit: "ft", min: 3, max: 8, steps: [1], step: 1, start: 5 },
+  "body.height.in": { unit: "in", min: 0, max: 11.5, steps: [0.5, 1], step: 1, format: "half", start: 7 },
+  "profile.protein": { unit: "g/kg", min: 1.2, max: 3, steps: [0.1], step: 0.1, start: 2 },
+  "profile.fat": { unit: "%", min: 15, max: 40, steps: [5], step: 5, start: 25 },
+  // A food's label, per 100 g (to 1,200 kcal, 100 g) or per serving (to 10,000 kcal, 1,000 g): the screen sets the top.
+  "label.kcal": { unit: "kcal", min: 0, max: 10000, steps: [1, 10, 50, 100], step: 1, start: 100 },
+  "label.grams": { unit: "g", min: 0, max: 1000, steps: [0.1, 1, 5, 10], step: 1, start: 0 },
   // Food and water
   // An amount is never 0. Ounces (and fl oz) keep a decimal; pieces, servings and portions go in halves.
   "food.grams": { unit: "g", min: 1, max: 10000, steps: [1, 5, 10, 50], step: 5, start: 100 },

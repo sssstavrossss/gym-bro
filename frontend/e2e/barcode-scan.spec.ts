@@ -1,5 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
+import { pick } from "./dial";
 
 function headers(oid: string) {
   return { "X-Test-Oid": oid, "X-Test-Name": "Test User", "Content-Type": "application/json" };
@@ -143,7 +144,7 @@ test("a typed code we don't know becomes a new food that keeps it, and the next 
   await expect(editor.getByRole("textbox", { name: /Barcode/ })).toHaveValue(code);
   await expect(editor.getByRole("radio", { name: "Per 100 g" })).toBeChecked();
   await editor.getByRole("textbox", { name: "Name", exact: true }).fill("Fictional typed crispbread");
-  await editor.getByRole("textbox", { name: /Calories/ }).fill("380");
+  await pick(page, editor.getByRole("button", { name: /^Calories/ }), 380);
   await editor.getByRole("button", { name: "Save food" }).click();
   await expect(page.getByRole("dialog").last().getByRole("heading", { name: "Fictional typed crispbread" })).toBeVisible();
 

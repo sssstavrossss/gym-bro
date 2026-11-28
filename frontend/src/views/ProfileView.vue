@@ -2,6 +2,7 @@
 import { computed, ref } from "vue";
 import AccuracyDot from "../components/AccuracyDot.vue";
 import Icon from "../components/Icon.vue";
+import NumberField from "../components/NumberField.vue";
 import Segmented from "../components/Segmented.vue";
 import TargetHistory from "../components/TargetHistory.vue";
 import { ACTIVITY, FAT_PRESETS, PROTEIN_PRESETS, RATES, type ActivityKey, type Goal, type MacroSetting, type Sex } from "../lib/nutrition";
@@ -241,14 +242,14 @@ function onTextCommit() {
               <label class="frow">
                 <span class="t-body c2">Exact protein</span>
                 <span class="fval">
-                  <input v-model="profile.form.proteinGramsPerKg" class="ninput" type="text" inputmode="decimal" aria-label="Exact protein, grams per kilogram" @blur="onExactProtein" />
+                  <NumberField v-model="profile.form.proteinGramsPerKg" class="ninput" dial="profile.protein" label="Exact protein, grams per kilogram" :format="(v) => v.toFixed(1)" @commit="onExactProtein" />
                   <span class="t-label c2">g/kg</span>
                 </span>
               </label>
               <label class="frow last">
                 <span class="t-body c2">Exact fat</span>
                 <span class="fval">
-                  <input v-model="profile.form.fatPercent" class="ninput" type="text" inputmode="decimal" aria-label="Exact fat, percent" @blur="onExactFat" />
+                  <NumberField v-model="profile.form.fatPercent" class="ninput" dial="profile.fat" label="Exact fat, percent" @commit="onExactFat" />
                   <span class="t-label c2">%</span>
                 </span>
               </label>
@@ -271,23 +272,23 @@ function onTextCommit() {
           <label class="frow">
             <span class="t-body c2">Birth year</span>
             <span class="fval">
-              <input v-model="profile.form.birthYear" class="ninput" type="text" inputmode="numeric" maxlength="4" autocomplete="off" aria-label="Birth year" @blur="onTextCommit" />
+              <NumberField v-model="profile.form.birthYear" class="ninput" dial="body.year" label="Birth year" inputmode="numeric" :maxlength="4" :min="year - 100" :max="year - 13" :live="(y) => `${year - y} y`" @commit="onTextCommit" />
               <span v-if="age !== null" class="t-label c2">{{ age }} y</span>
             </span>
           </label>
           <label v-if="heightUnit() === 'cm'" class="frow">
             <span class="t-body c2">Height</span>
             <span class="fval">
-              <input v-model="profile.form.heightCm" class="ninput" type="text" inputmode="decimal" autocomplete="off" aria-label="Height in centimetres" @blur="onTextCommit" />
+              <NumberField v-model="profile.form.heightCm" class="ninput" dial="body.height.cm" label="Height in centimetres" @commit="onTextCommit" />
               <span class="t-label c2">cm</span>
             </span>
           </label>
           <div v-else class="frow" role="group" aria-label="Height">
             <span class="t-body c2">Height</span>
             <span class="fval">
-              <input v-model="profile.form.heightFt" class="ninput ft" type="text" inputmode="numeric" maxlength="1" autocomplete="off" aria-label="Height, feet" @blur="onTextCommit" />
+              <NumberField v-model="profile.form.heightFt" class="ninput ft" dial="body.height.ft" label="Height, feet" inputmode="numeric" :maxlength="1" @commit="onTextCommit" />
               <span class="t-label c2">ft</span>
-              <input v-model="profile.form.heightIn" class="ninput inch" type="text" inputmode="decimal" maxlength="4" autocomplete="off" aria-label="Height, inches" @blur="onTextCommit" />
+              <NumberField v-model="profile.form.heightIn" class="ninput inch" dial="body.height.in" label="Height, inches" :maxlength="4" @commit="onTextCommit" />
               <span class="t-label c2">in</span>
             </span>
           </div>

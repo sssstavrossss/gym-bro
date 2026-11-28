@@ -2,8 +2,10 @@
 import { computed, ref } from "vue";
 import { useRouter } from "vue-router";
 import Icon from "../components/Icon.vue";
+import NumberField from "../components/NumberField.vue";
 import Segmented from "../components/Segmented.vue";
 import { ACTIVITY, RATES, type ActivityKey, type Goal, type Sex } from "../lib/nutrition";
+import { weightDial } from "../lib/dial";
 import { rateText, type HeightUnit, type WeightUnit } from "../lib/units";
 import { profile, saveSetup, setUnits } from "../state/profile";
 
@@ -53,7 +55,7 @@ async function onContinue() {
       </div>
       <label class="frow">
         <span class="t-body c2">Birth year</span>
-        <input v-autofocus v-model="profile.form.birthYear" class="ninput" type="text" inputmode="numeric" maxlength="4" autocomplete="off" aria-label="Birth year" />
+        <NumberField v-model="profile.form.birthYear" class="ninput" dial="body.year" label="Birth year" inputmode="numeric" :maxlength="4" :min="year - 100" :max="year - 13" :live="(y) => `${year - y} y`" autofocus />
         <span v-if="age !== null" class="t-label c2">{{ age }} y</span>
       </label>
       <div class="frow unitrow">
@@ -68,14 +70,14 @@ async function onContinue() {
       </div>
       <label v-if="profile.form.heightUnit === 'cm'" class="frow">
         <span class="t-body c2">Height</span>
-        <input v-model="profile.form.heightCm" class="ninput" type="text" inputmode="decimal" autocomplete="off" aria-label="Height in centimetres" />
+        <NumberField v-model="profile.form.heightCm" class="ninput" dial="body.height.cm" label="Height in centimetres" />
         <span class="t-label c2">cm</span>
       </label>
       <div v-else class="frow" role="group" aria-label="Height">
         <span class="t-body c2">Height</span>
-        <input v-model="profile.form.heightFt" class="ninput ft" type="text" inputmode="numeric" maxlength="1" autocomplete="off" aria-label="Height, feet" />
+        <NumberField v-model="profile.form.heightFt" class="ninput ft" dial="body.height.ft" label="Height, feet" inputmode="numeric" :maxlength="1" />
         <span class="t-label c2">ft</span>
-        <input v-model="profile.form.heightIn" class="ninput inch" type="text" inputmode="decimal" maxlength="4" autocomplete="off" aria-label="Height, inches" />
+        <NumberField v-model="profile.form.heightIn" class="ninput inch" dial="body.height.in" label="Height, inches" :maxlength="4" />
         <span class="t-label c2">in</span>
       </div>
       <button type="button" class="frow" :aria-expanded="actOpen" @click="actOpen = !actOpen">
@@ -106,7 +108,7 @@ async function onContinue() {
       </div>
       <label class="frow">
         <span class="t-body c2">Goal weight</span>
-        <input v-model="profile.form.goalWeight" class="ninput" type="text" inputmode="decimal" autocomplete="off" :aria-label="`Goal weight in ${weightWord}`" />
+        <NumberField v-model="profile.form.goalWeight" class="ninput" :dial="weightDial('goal', profile.form.weightUnit)" :label="`Goal weight in ${weightWord}`" />
         <span class="t-label c2">{{ profile.form.weightUnit }}</span>
       </label>
     </section>
@@ -115,7 +117,7 @@ async function onContinue() {
       <h2 class="t-head section-title">Your starting weight</h2>
       <label class="frow last">
         <span class="t-body c2">Today</span>
-        <input v-model="profile.form.weighIn" class="ninput" type="text" inputmode="decimal" autocomplete="off" :aria-label="`Starting weight in ${weightWord}`" />
+        <NumberField v-model="profile.form.weighIn" class="ninput" :dial="weightDial('weight', profile.form.weightUnit)" :label="`Starting weight in ${weightWord}`" />
         <span class="t-label c2">{{ profile.form.weightUnit }}</span>
       </label>
       <p class="t-label c2">Saved as your first weigh-in, in {{ profile.form.timeZone }}. The trend that day is this weight. A comma or a point both work.</p>
