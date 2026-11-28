@@ -70,15 +70,38 @@ function onKey(event: KeyboardEvent) {
   items[next].focus();
 }
 
+/**
+ * A long press opens the menu while the finger is still down, on the scrim. iOS then counts the same press as a
+ * text-selection hold and selects the whole sheet behind it, so nothing on the page starts a selection while it's open.
+ */
+function noSelect(event: Event) {
+  event.preventDefault();
+}
+function clearSelection() {
+  const selection = window.getSelection();
+  if (selection && !selection.isCollapsed) selection.removeAllRanges();
+}
+function listen(on: boolean) {
+  if (on) {
+    window.addEventListener("keydown", onKey, true);
+    document.addEventListener("selectstart", noSelect, true);
+    document.addEventListener("selectionchange", clearSelection);
+  } else {
+    window.removeEventListener("keydown", onKey, true);
+    document.removeEventListener("selectstart", noSelect, true);
+    document.removeEventListener("selectionchange", clearSelection);
+  }
+}
+
 watch(() => props.anchor, (anchor) => {
-  window.removeEventListener("keydown", onKey, true);
+  listen(false);
   if (!anchor) return;
   openedAt = Date.now();
-  window.getSelection()?.removeAllRanges();
-  window.addEventListener("keydown", onKey, true);
+  clearSelection();
+  listen(true);
   void place(anchor);
 }, { immediate: true });
-onBeforeUnmount(() => window.removeEventListener("keydown", onKey, true));
+onBeforeUnmount(() => listen(false));
 
 function close() {
   const anchor = props.anchor;
@@ -119,7 +142,7 @@ function pick(item: MenuItem) {
 </template>
 
 <style scoped>
-.scrim { position: fixed; inset: 0; z-index: var(--z-menu); }
+.scrim { position: fixed; inset: 0; z-index: var(--z-menu); -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 .menu {
   position: fixed; z-index: var(--z-menu); box-sizing: border-box; overflow-y: auto; overscroll-behavior: contain; padding: var(--space-xs);
   display: flex; flex-direction: column; background: var(--color-surface); border-radius: var(--radius-l); box-shadow: var(--d-float);

@@ -335,7 +335,7 @@ const infoLines = (exercise: DraftExercise) => Object.entries(info(exercise)).so
 </script>
 
 <template>
-  <ol ref="list" class="tl" aria-label="The workout, in order" data-timeline>
+  <ol ref="list" class="tl" aria-label="The workout, in order" data-timeline @selectstart.prevent>
     <svg class="rail" :height="railH" width="56" aria-hidden="true">
       <path v-for="path in paths" :key="path.key" :d="path.d" :class="path.cls" fill="none" />
     </svg>
@@ -468,7 +468,7 @@ const infoLines = (exercise: DraftExercise) => Object.entries(info(exercise)).so
 .ell { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 
 /* The rail's gutter holds both lanes; the rows sit to its right. No text selection or iOS callout on it: a long
-   press is the set's menu. */
+   press is the set's menu. iOS ignores user-select on a long hold, so the list also cancels selectstart. */
 .tl {
   --gutter: 56px; position: relative; list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column;
   -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;

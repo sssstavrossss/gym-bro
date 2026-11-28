@@ -181,8 +181,13 @@ test("The timeline: the set to do, numbers that carry on, a done set corrected, 
   await workout.locator("[data-rest-skip]").click();
 
   // Held, a set opens its menu: Duplicate adds the same numbers after it, Delete takes it out, with Undo.
+  // A hold never selects text (iOS selected the whole sheet behind the menu): not on the list, nor anywhere while it's open.
+  expect(await squat(2).evaluate((row) => !row.dispatchEvent(new Event("selectstart", { bubbles: true, cancelable: true })))).toBe(true);
   await squat(2).click({ button: "right" });
   await expect(menu(page).locator('[data-menu-item="delete"]')).toBeEnabled();
+  expect(await page.locator("[data-menu-scrim]").evaluate((scrim) => !scrim.dispatchEvent(new Event("selectstart", { bubbles: true, cancelable: true })))).toBe(true);
+  await page.evaluate(() => window.getSelection()?.selectAllChildren(document.body));
+  await expect.poll(() => page.evaluate(() => window.getSelection()?.isCollapsed ?? true)).toBe(true);
   await menu(page).locator('[data-menu-item="duplicate"]').click();
   await expect(workout.locator('[data-set][data-exercise="barbell-squat"]')).toHaveCount(4);
   await expect(squat(3).getByLabel("Set 4, kg")).toHaveText(/^102.5\s?kg$/);
